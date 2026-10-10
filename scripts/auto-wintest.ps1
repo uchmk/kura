@@ -12,10 +12,13 @@
 #     it happened on 2026-09-28);
 #   - the screen is not locked (SendInput does nothing on a locked desktop, and
 #     the run would record every key as having done nothing);
-#   - the working copy is clean (a dirty one is a run that was cut off, and
-#     only a person can say what to do with it). While it is dirty, every
-#     firing says so in the log and in dirty<suffix>.txt in the state folder,
-#     and a Windows notification says so once a day (see Note-Dirty).
+#   - the working copy is clean. A dirty one is a run that was cut off: since
+#     v0.101.0 its changes are committed to a branch of their own,
+#     rescue/<lane>-<time>, and pushed, and the worktree goes back to
+#     origin/main (Save-DirtyWorktree), so the lane carries on and nothing is
+#     lost. Only when that cannot be done does the lane stop as it did before:
+#     every firing says so in the log and in dirty<suffix>.txt in the state
+#     folder, and a Windows notification says so once a day (see Note-Dirty).
 #
 # It is meant to be run by Task Scheduler once an hour at :20, as you, "only
 # when the user is logged on" -- the run drives a real window. The merge-lanes
@@ -24,7 +27,7 @@
 # passed (the owner's word, 2026-10-05):
 #
 #   $w = 'C:\dev\filer-wintest'
-#   $a = New-ScheduledTaskAction -Execute (Get-Command pwsh).Source -Argument "-NoProfile -WindowStyle Hidden -Command `"git -C $w fetch -q origin main; if (-not (git -C $w status --porcelain)) { git -C $w checkout -q --detach origin/main }; & $w\scripts\auto-wintest.ps1`""
+#   $a = New-ScheduledTaskAction -Execute (Get-Command pwsh).Source -Argument "-NoProfile -WindowStyle Hidden -File $w\scripts\lane-boot.ps1"
 #   $t = New-ScheduledTaskTrigger -Once -At (Get-Date -Minute 20 -Second 0) -RepetitionInterval (New-TimeSpan -Hours 1)
 #   $s = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 4)
 #   Register-ScheduledTask -TaskName filer-auto-wintest -Action $a -Trigger $t -Settings $s
@@ -39,33 +42,31 @@
 # $env:LOCALAPPDATA\Microsoft\WindowsApps\pwsh.exe (the Store's own alias,
 # which follows updates) or install the MSI build (C:\Program Files\PowerShell\7).
 #
-# The task moves the worktree to origin/main itself before it starts the
-# script (the git half of the -Command above), so a copy that does not parse
-# is replaced by the next firing. Until v0.80.13 the task ran the script with
-# -File and only the script moved the worktree: v0.78.167 put a syntax error on
-# `main`, both machines' copies took it at the next firing, and from then on
-# the copy failed before it could fetch the fix -- neither lane opened a pull
-# request from 2026-10-06 to 2026-10-09. CI now parses every script here
-# (scripts/check-ps1.ps1). For the ARM64 machine, $w is C:\dev\filer-armtest,
-# the task filer-auto-wintest-arm, and ` -Lane arm` goes after the .ps1. To move
-# an existing task over, run the two lines above with the right $w (and
-# -Lane), then:
+# The task runs scripts/lane-boot.ps1, which fetches main and runs main's copy
+# of this script from the state folder (boot<suffix>), whatever state the
+# worktree is in, so a fix on main reaches the next firing. Before v0.101.0
+# the task's -Command moved the worktree to origin/main only when it was clean
+# and ran the worktree's copy, so a dirty worktree kept an old copy (and
+# before v0.80.13 a copy that did not parse could not even fetch its fix:
+# neither lane opened a pull request from 2026-10-06 to 2026-10-09). CI parses
+# every script here (scripts/check-ps1.ps1), and lane-boot.ps1 runs the copy it
+# took last time when main's does not parse. For the ARM64 machine, $w is
+# C:\dev\filer-armtest, the task filer-auto-wintest-arm, and ` -Lane arm` goes
+# after the .ps1. To move an existing task over, run the two lines above with
+# the right $w (and -Lane), then:
 #
 #   Set-ScheduledTask -TaskName filer-auto-wintest -Action $a
 #
-# Run the worktree's copy, not this one: register the task with
-# C:\dev\filer-wintest\scripts\auto-wintest.ps1 (C:\dev\filer-armtest\...
-# for -Lane arm). The worktree is moved to origin/main at every firing, so the
-# script that runs is always the newest, and the checkout you work in is never
-# touched. Until v0.73.24 the task ran the copy in that checkout, which only
-# moved when someone pulled: the ARM64 laptop ran v0.51.1 for days (#201). The
-# very first time, before the worktree exists, run this copy once by hand to
-# make it (without -Force it makes the worktree and stops if there is nothing
-# to run).
+# The task names the worktree's lane-boot.ps1, never the checkout you work in,
+# which only moves when someone pulls: until v0.73.24 the ARM64 laptop ran
+# v0.51.1 for days that way (#201). The very first time, before the worktree
+# exists, run scripts\lane-boot.ps1 once by hand from your checkout to make it
+# (without -Force it makes the worktree and stops if there is nothing to run).
 #
 # By hand:
 #
-#   pwsh -File scripts\auto-wintest.ps1          # look once, run if there is work
+#   pwsh -File scripts\lane-boot.ps1             # main's copy: look once, run if there is work
+#   pwsh -File scripts\auto-wintest.ps1          # this copy, the same
 #   pwsh -File scripts\auto-wintest.ps1 -Force   # run even if nothing changed
 #   ... -LogDir R:\Temp                           # the log on the RAM disk
 #   ... -Lane arm                                 # the ARM64 machine's lane
@@ -112,10 +113,16 @@
 # or "Lane status: arm" (label lane-status, opened by the first firing), again:
 # when it fired, which copy of this script, what the firing came to, whether
 # the worktree is dirty, the failed runs in a row and this firing's log lines
-# (scripts/lane-status.ps1). A run also writes it when it starts. A cloud
-# session reads it with
+# (scripts/lane-status.ps1). A run also writes it when it starts, and a rescue
+# of a dirty worktree adds a comment (a comment notifies; an edit does not). A
+# cloud session reads it with
 #   gh api 'repos/uchmk/kura/issues?labels=lane-status&state=all'
-# A failure to write it is logged and changes nothing else.
+# A failure to write it is logged and changes nothing else. A lane whose task
+# stops firing writes nothing at all, so the Merge lanes workflow watches the
+# issue from outside: a **Last firing** more than three hours old (five while a
+# run is going) gets the label lane-stalled and one comment
+# (scripts/merge-lanes.py, watch_lanes). Close the issue of a lane that is
+# retired.
 #
 # Log: %LOCALAPPDATA%\filer-wintest\auto-wintest.log, or in -LogDir. The log
 # may go on the RAM disk (-LogDir R:\Temp): it is for reading what a run did,
@@ -166,7 +173,11 @@ param(
     [string]$TargetDir,
     [switch]$TargetOnDisk,
     [string]$Model = 'claude-sonnet-5-5',
-    [int]$DesktopWaitMin = 20
+    [int]$DesktopWaitMin = 20,
+    # Given by lane-boot.ps1: the origin/main commit this copy was taken from,
+    # and the checkout lane-boot.ps1 is in (the worktree is made from it).
+    [string]$Booted,
+    [string]$From
 )
 
 $ErrorActionPreference = 'Stop'
@@ -255,12 +266,13 @@ function Show-Notice([string]$title, [string]$text) {
     }
 }
 
-# A dirty worktree stops every run until a person cleans it. On 2026-09-30 a
-# cut-off run left TESTING-CHECKS.md half written, and for two days the lane
-# made no pull request and said nothing anywhere: Task Scheduler showed only
-# LastTaskResult 1, and the log was on the RAM disk. So the reason goes into
-# the state folder (whatever -LogDir says), with the time it was first seen,
-# and a notification says so when first seen and then once a day.
+# A dirty worktree that Save-DirtyWorktree could not save stops every run
+# until a person cleans it. On 2026-09-30 a cut-off run left TESTING-CHECKS.md
+# half written, and for two days the lane made no pull request and said
+# nothing anywhere: Task Scheduler showed only LastTaskResult 1, and the log
+# was on the RAM disk. So the reason goes into the state folder (whatever
+# -LogDir says), with the time it was first seen, and a notification says so
+# when first seen and then once a day.
 $dirtyFile = Join-Path $state "dirty$suffix.txt"
 function Note-Dirty([string[]]$changes) {
     $now = Get-Date
@@ -291,6 +303,61 @@ function Note-Dirty([string[]]$changes) {
     Set-Content -Path $dirtyFile -Value $body
 }
 
+# A dirty worktree is a run that was cut off. Until v0.101.0 it stopped every
+# run until a person cleaned it, and lanes sat still for days that way
+# (2026-09-30, 2026-10-10). Now its changes are committed to a branch of their
+# own, rescue/<lane>-<time>, which is pushed (kept locally when the push
+# fails), and the worktree goes back to origin/main: nothing is lost and the
+# lane carries on. Only in a lane's own worktree -- on a detached HEAD, a
+# test/<lane>-* branch or an earlier rescue/<lane>-* branch, which is all a
+# lane's worktree is ever on -- and never in the middle of a rebase. Returns
+# the branch, or $null when the worktree is left as it is (Note-Dirty then
+# stops the run). Say goes to the host: its output would be the return value.
+$rescued = $null
+function Save-DirtyWorktree([string[]]$changes) {
+    $head = (git -C $Work rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+    if ($head -ne 'HEAD' -and $head -notlike "test/$Lane-*" -and $head -notlike "rescue/$Lane-*") {
+        Say "$Work is on $head, not a lane's branch: its changes are left alone." | Out-Host
+        return $null
+    }
+    foreach ($dir in 'rebase-merge', 'rebase-apply') {
+        if (Test-Path (git -C $Work rev-parse --path-format=absolute --git-path $dir | Out-String).Trim()) {
+            Say "$Work is in the middle of a rebase: its changes are left alone." | Out-Host
+            return $null
+        }
+    }
+    $on = if ($head -eq 'HEAD') { 'a detached HEAD' } else { $head }
+    $branch = 'rescue/{0}-{1:yyyyMMdd-HHmm}' -f $Lane, (Get-Date)
+    $was = (git -C $Work rev-parse --short HEAD | Out-String).Trim()
+    try {
+        git -C $Work checkout -q -B $branch
+        if ($LASTEXITCODE -ne 0) { throw "git checkout -B $branch failed" }
+        git -C $Work add -A
+        if ($LASTEXITCODE -ne 0) { throw 'git add -A failed' }
+        $what = "auto-wintest.ps1 found $($changes.Count) uncommitted path(s) in the $Lane lane's worktree on $on ($was), left by a run that was cut off, and saved them here before putting the worktree back on origin/main."
+        git -C $Work commit -q --no-verify -m "Rescue the $Lane lane's uncommitted changes" -m $what
+        if ($LASTEXITCODE -ne 0) { throw 'git commit failed' }
+        git -C $Work push -q origin "refs/heads/${branch}:refs/heads/$branch" 2>$null
+        $pushed = $LASTEXITCODE -eq 0
+        git -C $Work checkout -q --detach origin/main
+        if ($LASTEXITCODE -ne 0) { throw 'git checkout origin/main failed' }
+    } catch {
+        Say "Could not save the dirty worktree to ${branch}: $_" | Out-Host
+        return $null
+    }
+    $where = if ($pushed) { "pushed to origin as $branch" } else { "committed to the local branch $branch (the push failed: it is only on this machine)" }
+    Say "!!!!! [$Lane] $Work had $($changes.Count) uncommitted path(s) on $on ($was): $where, and the worktree is back on origin/main. !!!!!" | Out-Host
+    $script:rescued = @(
+        "**Rescued a dirty worktree.** It had $($changes.Count) uncommitted path(s) on $on (``$was``), left by a run that was cut off. They are $where, and the worktree is back on origin/main, so the lane carries on."
+        ''
+        'Look at the branch: merge what is worth keeping (a run''s ticks need their evidence, as in any lane pull request) and delete it.'
+        ''
+        '```text'
+    ) + @($changes | Select-Object -First 40) + @('```')
+    if (Test-Path $dirtyFile) { Remove-Item -LiteralPath $dirtyFile }
+    $branch
+}
+
 . (Join-Path $PSScriptRoot 'lane-marks.ps1')
 . (Join-Path $PSScriptRoot 'lane-status.ps1')
 
@@ -307,7 +374,8 @@ function Publish-Status {
         $history = @(Add-LaneHistory (Join-Path $state "status-history$suffix.txt") ('{0:yyyy-MM-dd HH:mm} {1}' -f $now, $what))
         $toml = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Cargo.toml') -ErrorAction SilentlyContinue
         $version = if ($toml -match '(?m)^version = "([^"]+)"') { "v$($Matches[1])" } else { '?' }
-        $copy = "$version ($((git -C $PSScriptRoot rev-parse --short HEAD 2>$null) -join ''))"
+        $copy = if ($Booted) { "$version ($($Booted.Substring(0, [Math]::Min(7, $Booted.Length))), main's copy by lane-boot.ps1)" }
+                else { "$version ($((git -C $PSScriptRoot rev-parse --short HEAD 2>$null) -join ''), $PSCommandPath)" }
         $dirty = if (Test-Path $Work) { @(git -C $Work status --porcelain 2>$null) } else { @() }
         $fails = if (Test-Path $failFile) { [int](Get-Content -Raw -LiteralPath $failFile) } else { 0 }
         $task = if ($Lane -eq 'win') { 'filer-auto-wintest' } else { "filer-auto-wintest-$Lane" }
@@ -315,6 +383,11 @@ function Publish-Status {
             -Said @($said) -Dirty $dirty -Failures $fails -History @($history | Select-Object -Skip 1)
         $err = Publish-LaneStatus -Repo $repo -Lane $Lane -Body $body -StateDir $state
         if ($err) { Say "Could not write the lane's status issue: $err" }
+        if ($script:rescued -and -not $err) {
+            $err = Add-LaneComment -Repo $repo -Lane $Lane -Body ($script:rescued -join "`n") -StateDir $state
+            if ($err) { Say "Could not comment on the lane's status issue: $err" }
+            $script:rescued = $null
+        }
     } catch {
         Say "Could not write the lane's status issue: $_"
     }
@@ -492,8 +565,8 @@ try {
     }
 
     if (-not (Test-Path $Work)) {
-        # The worktree hangs off the checkout this script is in.
-        $main = Split-Path -Parent $PSScriptRoot
+        # The worktree hangs off the checkout lane-boot.ps1 or this script is in.
+        $main = if ($From) { $From } else { Split-Path -Parent $PSScriptRoot }
         git -C $main fetch -q origin main
         git -C $main worktree add -q --detach $Work origin/main
         Say "Made the worktree $Work."
@@ -502,10 +575,12 @@ try {
     git -C $Work fetch -q origin main
     if ($LASTEXITCODE -ne 0) { Say 'git fetch failed. Trying again next time.'; exit 0 }
     # Kept on origin/main at every firing, not only when a run starts, so the
-    # copy of this script inside it is the newest by the next firing (see the
-    # top: the task runs that copy). A worktree with changes in it is left to
-    # the check further down.
+    # worktree's lane-boot.ps1 follows main too. A dirty worktree is saved to
+    # a rescue/ branch first (Save-DirtyWorktree), before the trigger check
+    # that quietly ends most firings; when it cannot be, it stops the run
+    # further down.
     $changes = @(git -C $Work status --porcelain)
+    if ($changes.Count -and (Save-DirtyWorktree $changes)) { $changes = @() }
     if ($changes.Count -eq 0) {
         git -C $Work checkout -q --detach origin/main
         if (Test-Path $dirtyFile) {
@@ -513,8 +588,6 @@ try {
             Remove-Item -LiteralPath $dirtyFile
         }
     } else {
-        # Before the trigger check, which quietly ends most firings: a dirty
-        # worktree also keeps this script's own copy from following main.
         Note-Dirty $changes
     }
 
@@ -522,7 +595,8 @@ try {
     $seen = if (Test-Path $last) { (Get-Content -Raw $last).Trim() } else { '' }
     if (-not $Force -and $trigger -eq $seen) {   # quiet: this is most runs
         $outcome = "Nothing new on main since the last run (trigger $($trigger.Substring(0, 7)))."
-        if ($changes.Count) { $outcome += " The worktree is dirty, so new work would not start either." }
+        if ($changes.Count) { $outcome += " The worktree is dirty and could not be saved, so new work would not start either." }
+        if ($rescued) { $outcome = "Saved a dirty worktree to a rescue/ branch (see the comment). $outcome" }
         exit 0
     }
 
@@ -572,8 +646,8 @@ try {
     }
 
     if (git -C $Work status --porcelain) {
-        Say "$Work has uncommitted changes, left by a run that was cut off. Look at them (listed in $dirtyFile), then clean it (git -C $Work stash -u, or git restore/clean) and run again."
-        $outcome = "Stopped: $Work has uncommitted changes, left by a run that was cut off. A person has to look at them and clean the worktree."
+        Say "$Work has uncommitted changes, left by a run that was cut off, and they could not be saved to a rescue/ branch (the lines above say why). Look at them (listed in $dirtyFile), then clean it (git -C $Work stash -u, or git restore/clean) and run again."
+        $outcome = "Stopped: $Work has uncommitted changes that could not be saved to a rescue/ branch. A person has to look at them and clean the worktree."
         exit 1
     }
 
@@ -583,15 +657,16 @@ try {
     # Which copy of this script is running, and how old it is: the ARM64
     # laptop ran one pinned at v0.51.1 for days, found only from a side effect
     # (#201).
-    $self = (git -C $PSScriptRoot log -1 --format='%h %s' -- auto-wintest.ps1 2>$null) -join ''
+    $self = if ($Booted) { (git -C $Work log -1 --format='%h %s' $Booted -- scripts/auto-wintest.ps1 2>$null) -join '' }
+            else { (git -C $PSScriptRoot log -1 --format='%h %s' -- auto-wintest.ps1 2>$null) -join '' }
     Say "Script: $PSCommandPath ($self)"
     Say "Model: $Model"
     $outcome = "A run is going (started $('{0:yyyy-MM-dd HH:mm}' -f (Get-Date)) on $head, model $Model)."
     Publish-Status
     $outcome = $null
     $inWork = [IO.Path]::GetFullPath($PSScriptRoot).StartsWith([IO.Path]::GetFullPath($Work), [StringComparison]::OrdinalIgnoreCase)
-    if (-not $inWork) {
-        Say "This script is not the worktree's copy, so it does not follow origin/main. Point the task at $Work\scripts\auto-wintest.ps1 (see the top of the script)."
+    if (-not $Booted -and -not $inWork) {
+        Say "This script is neither main's copy nor the worktree's, so it does not follow origin/main. Point the task at $Work\scripts\lane-boot.ps1 (see the top of the script)."
     }
 
     # This run's own scratch folder, and the oldest ones beyond three gone.

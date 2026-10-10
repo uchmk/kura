@@ -39,6 +39,11 @@ out of the role's re-test list. In kura, whose lane queue is prose, the
 TODO.md lines carry `【後】` and one more line per pull request asks for its
 report to be read: the merge routine sorts them once a day.
 
+Last, it watches the lanes' status issues ("Lane status: <lane>", label
+lane-status, written by the lane's machine at every firing): one whose last
+firing is more than three hours old (five while a run is going) gets the label
+lane-stalled and one comment, and loses the label when the lane writes again.
+
 It reads the pull request through the API and git, never runs its code, and
 runs only main's copy of this script.
 
@@ -395,6 +400,24 @@ def todo_add(todo, heading, lines):
 # ---------------------------------------------------------------- GitHub
 
 
+LAST_FIRING = re.compile(r"\*\*Last firing\*\* (\d{4}-\d\d-\d\d \d\d:\d\d) ([+-])(\d\d):?(\d\d)")
+STALLED = "lane-stalled"
+
+
+def last_firing(body):
+    """When a lane-status issue's body says the lane last fired, or None."""
+    m = LAST_FIRING.search(body or "")
+    if not m:
+        return None
+    offset = datetime.timedelta(hours=int(m[3]), minutes=int(m[4])) * (-1 if m[2] == "-" else 1)
+    return datetime.datetime.strptime(m[1], "%Y-%m-%d %H:%M").replace(tzinfo=datetime.timezone(offset))
+
+
+def overdue_hours(body):
+    """How old the last firing may be: a firing every hour, a run up to four."""
+    return 5 if "**This firing:** A run is going" in (body or "") else 3
+
+
 def api(method, path, body=None):
     url = path if path.startswith("http") else API + path
     req = urllib.request.Request(url, method=method)
@@ -746,6 +769,46 @@ def do_share(rules, share):
     print("share: gave up for this run")
 
 
+def watch_lanes():
+    """Label a lane whose status issue has not been written for too long.
+
+    The lane's machine rewrites its open "Lane status: <lane>" issue (label
+    lane-status) at every firing, so an old **Last firing** means the firings
+    stopped, and nothing on the machine can say so: it is off or asleep, or the
+    scheduled task fails before the script runs. This adds lane-stalled and one
+    comment per last firing (a comment notifies; an edit does not), and takes
+    the label off once the lane writes again. Closing the issue retires the lane.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for issue in get_all(f"/repos/{REPO}/issues?state=open&labels=lane-status"):
+        if "pull_request" in issue:
+            continue
+        number, body = issue["number"], issue.get("body") or ""
+        labels = {label["name"] for label in issue.get("labels", [])}
+        when, hours = last_firing(body), overdue_hours(body)
+        if when is None:
+            print(f"watch: #{number}: no **Last firing** in the body")
+            continue
+        age = now - when
+        if age <= datetime.timedelta(hours=hours):
+            if STALLED in labels:
+                print(f"watch: #{number}: writing again, {STALLED} off")
+                if not DRY:
+                    api("DELETE", f"/repos/{REPO}/issues/{number}/labels/{STALLED}")
+            continue
+        late = f"{age.days * 24 + age.seconds // 3600} h {age.seconds // 60 % 60} min"
+        print(f"watch: #{number}: last firing {late} ago, {STALLED}")
+        if STALLED not in labels and not DRY:
+            api("POST", f"/repos/{REPO}/issues/{number}/labels", {"labels": [STALLED]})
+        comment_once({"number": number}, "stalled", when.strftime("%Y-%m-%dT%H:%M%z"),
+                     f"The last firing written here was {late} ago ({when:%Y-%m-%d %H:%M %z}), and a firing "
+                     f"should write every hour ({hours} h is the limit{' while a run is going' if hours > 3 else ''}). "
+                     "The machine is off or asleep, or its scheduled task fails before the script runs: what to "
+                     "look at on the machine is in the body's last paragraph. The label comes off at the next "
+                     "firing that writes here.",
+                     lead=f"has not seen this lane fire for {late}")
+
+
 def main():
     rules = RULES.get(REPO)
     if not rules:
@@ -773,6 +836,10 @@ def main():
         print(f"#{pr['number']} {ref}: {outcome}")
     if rules["share"]:
         do_share(rules, rules["share"])
+    try:
+        watch_lanes()
+    except RuntimeError as e:
+        print(f"watch: {e}")
 
 
 # ---------------------------------------------------------------- self-test
@@ -901,6 +968,15 @@ def self_test():
         "# TODO\n\n## 実機のレーンから\n\n説明\n\n- [ ] a\n- [ ] c\n\n## 後で\n\n- b\n"
     assert todo_add("# TODO\n\n## 実機のレーンから\n\n- [ ] a\n", "実機のレーンから", ["- [ ] c"]) == \
         "# TODO\n\n## 実機のレーンから\n\n- [ ] a\n- [ ] c\n"
+
+    status = ("<!-- Written -->\n**Lane** `win` · **Last firing** 2026-10-11 08:20 +09:00 · **Script** x\n\n"
+              "**This firing:** Nothing new on main.\n")
+    assert last_firing(status) == datetime.datetime(2026, 10, 10, 23, 20, tzinfo=datetime.timezone.utc)
+    assert overdue_hours(status) == 3
+    assert overdue_hours(status.replace("Nothing new on main.", "A run is going (started ...).")) == 5
+    assert last_firing("**Last firing** 2026-10-11 08:20 -05:30") == \
+        datetime.datetime(2026, 10, 11, 13, 50, tzinfo=datetime.timezone.utc)
+    assert last_firing("no firing yet") is None
     print("merge-lanes self-test: OK")
 
 

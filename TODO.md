@@ -80,6 +80,25 @@
 - [x] （v0.92.0）検索の結果に、見つかった数と探した範囲（どのフォルダから、隠しファイルと `.gitignore` を見たか）を出す。何が除かれているかが分からないのも迷う原因だった。
 - [x] （v0.93.0）拡張子や種類で絞る（例: `ext:log`）。名前と合わせて使えるようにする。
 
+## テストと QA の運用を軽くする（2026-10-11、持ち主の判断）
+
+x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ arch に関わる行を押す（`cargo test` と起動の確認は GitHub の ARM64 ランナー）。
+所見・バグ・確認事項は GitHub Issues に移し、共通の道具は ito に置く。段階ごとに 1 つの版で出す。
+
+- [x] （v0.101.0）段階 0: 止まったレーンが外から見え、自分で立ち直る。タスクの入口を `scripts/lane-boot.ps1`（main の写しを動かす）にし、
+  汚れた作業フォルダは `rescue/` ブランチに救出し、Merge lanes が古い状態の issue に `lane-stalled` を付ける。
+- [ ] 2 台のタスクを `lane-boot.ps1` で登録し直す（`auto-wintest.ps1` の冒頭の手順。x64 は `filer-auto-wintest`、ARM64 は
+  `filer-auto-wintest-arm` に ` -Lane arm`）。登録し直すまでは古い `-Command` が作業フォルダの写しを動かす【人】
+- [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
+- [ ] tsumugi の :50 のタスクにも `lane-boot.ps1` と救出を写す（段階 5 で ito に一本化する）【後】
+- [ ] 段階 1: 片付け（TODO.md の済んだ「実機のセッションの報告」を TODO-DONE.md へ、`auto-todo.sh` の削除、ci.yml の重複した `--check`、
+  windows-role.md の再テストの履歴、qa-reports/ を archive に）
+- [ ] 段階 2: ARM64 を CI に移す（`windows-11-arm` と `ubuntu-24.04-arm` で `cargo test`、ARM64 の zip の起動の確認、リリースの条件に）
+- [ ] 段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ（`TESTING-ARM64.md`、`-Release`）。ARM 機の毎時のタスクを外すのは【人】
+- [ ] 段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
+- [ ] 段階 5: 共通の道具を ito に移す（`ito-testcheck` と `scripts/lanes/`）。ito をセッションに付けてから【後】
+- [ ] 段階 6: tsumugi・yagura に展開する【後】
+
 ## マージで止めている実機の PR
 
 マージのワークフローか Routine が止めた実機の PR。ここにある `#N` はワークフロー（`scripts/merge-lanes.py`）がマージしない。
