@@ -2,7 +2,7 @@
 """Merge the real-machine lanes' pull requests that keep to the rules.
 
 Run by .github/workflows/merge-lanes.yml. It merges a pull request from a lane
-branch (test/win-*, test/arm-*, and in kura test/linux-*) with a merge commit
+branch (test/win-*, in tsumugi test/arm-*, in kura test/linux-*) with a merge commit
 pinned to its head, and only when all of these hold:
 
   1. it touches only the files a lane may write: the checklists and one new
@@ -86,9 +86,13 @@ RULES = {
     "uchmk/kura": {
         "lanes": {
             "test/win-": WINDOWS_MARKS,
-            "test/arm-": WINDOWS_MARKS,
+            # no test/arm- since v0.101.3: the ARM64 machine ticks its release
+            # rows in the release-arm64 issue and opens no pull request
             "test/linux-": {"TESTING-LINUX.md": {(" ", "x"), (" ", "-")}},
         },
+        # a lane watched for a stall only while an issue with this label is
+        # open: the ARM64 machine fires only once per release
+        "watch_when": {"arm": "release-arm64"},
         # exactly one new report: another run's file is not this run's to edit
         "reports": (1, 1),
         "evidence_in_report": False,
@@ -769,7 +773,7 @@ def do_share(rules, share):
     print("share: gave up for this run")
 
 
-def watch_lanes():
+def watch_lanes(watch_when=None):
     """Label a lane whose status issue has not been written for too long.
 
     The lane's machine rewrites its open "Lane status: <lane>" issue (label
@@ -778,13 +782,27 @@ def watch_lanes():
     scheduled task fails before the script runs. This adds lane-stalled and one
     comment per last firing (a comment notifies; an edit does not), and takes
     the label off once the lane writes again. Closing the issue retires the lane.
+
+    A lane named in watch_when ({lane: label}) is watched only while an issue
+    with that label is open, and is not stalled otherwise.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
+    gates = {}
     for issue in get_all(f"/repos/{REPO}/issues?state=open&labels=lane-status"):
         if "pull_request" in issue:
             continue
         number, body = issue["number"], issue.get("body") or ""
         labels = {label["name"] for label in issue.get("labels", [])}
+        gate = (watch_when or {}).get(issue.get("title", "").removeprefix("Lane status: ").strip())
+        if gate:
+            if gate not in gates:
+                gates[gate] = any("pull_request" not in i
+                                  for i in get_all(f"/repos/{REPO}/issues?state=open&labels={gate}"))
+            if not gates[gate]:
+                print(f"watch: #{number}: no open {gate} issue, not watched")
+                if STALLED in labels and not DRY:
+                    api("DELETE", f"/repos/{REPO}/issues/{number}/labels/{STALLED}")
+                continue
         when, hours = last_firing(body), overdue_hours(body)
         if when is None:
             print(f"watch: #{number}: no **Last firing** in the body")
@@ -837,7 +855,7 @@ def main():
     if rules["share"]:
         do_share(rules, rules["share"])
     try:
-        watch_lanes()
+        watch_lanes(rules.get("watch_when"))
     except RuntimeError as e:
         print(f"watch: {e}")
 

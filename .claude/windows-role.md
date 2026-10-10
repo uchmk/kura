@@ -221,11 +221,11 @@ useful than a thin test.
 
 `scripts/auto-wintest.ps1` starts you with no one watching, when `main` has
 changed this file, TESTING.md or TESTING-CHECKS.md and no pull request from
-your lane (`test/win-*` or `test/arm-*`, see [the ARM64 lane](#the-arm64-lane))
-request is open. Everything above still holds. What changes is that **nobody
+your lane (`test/win-*`) is open. (The ARM64 laptop's runs are different: see
+[ARM64, once per release](#arm64-once-per-release).) Everything above still holds. What changes is that **nobody
 will answer a question**, so:
 
-- **Take the first section in your lane's queue** (the prompt names it). Do not
+- **Take the first section in the queue** (the prompt names it). Do not
   ask which one.
 - **Count parentless shells around `cargo test`** (#180): before and after it, count the
   `OpenConsole`, `pwsh` and `powershell` processes whose parent is gone
@@ -313,43 +313,42 @@ will answer a question**, so:
     and there was no open vote to cast
   - `WINTEST_FAILED <one line: why>` -- and commit nothing in that case
 
-## The ARM64 lane
+## ARM64, once per release
 
-A second machine, a Windows laptop on ARM64, runs the same role with
-`auto-wintest.ps1 -Lane arm`. Everything in this file applies to it, with
-these differences:
+Since v0.101.3 the ARM64 laptop has no queue (the owner, 2026-10-10: x64 is
+the one machine that presses TESTING-CHECKS.md). GitHub's ARM64 runners run
+`cargo test` and start the program on every push to main
+(`.github/workflows/arm64.yml`). What is left for the laptop is
+[TESTING-ARM64.md](../TESTING-ARM64.md): the rows only an ARM64 machine can
+answer -- the x64 build under emulation, and the ARM64 zip itself -- once per
+release.
 
-- **Its branches are `test/arm-<section>`**, and it waits only on its own open
-  pull requests, so the two machines never hold each other up.
-- **Its queue is the table below**, not the one in "Where the work is". Say in the
-  pull request's `## Queue` section what to change in *this* table.
-- **There is no RAM disk.** The script picks the scratch directory, sets `TEMP`
-  and `TMP` to it, and names it in the prompt: read `R:\Temp` in this file as
-  that directory.
-- **Check what you are running first**: `kura env` must say `Process arch
-  aarch64` for the native build. A run that tested the x64 build by accident
-  proved nothing about ARM64.
-- **Ticks.** TESTING-CHECKS.md has one box per row. A row already `[x]` from
-  the x64 machine stays as it is: record the ARM64 result in your report
-  under a heading that says ARM64, one line per row with its evidence -- a
-  row that *fails* on ARM64 is a finding, and the most valuable kind this lane
-  can produce. Tick only rows still `[ ]` that you verified here.
-
-- **An x64 build of current `main` is one command away**, so no row has to wait
-  for a release to see "the x64 build under emulation":
-  `rustup target add x86_64-pc-windows-msvc`, then
-  `cargo build --release --target x86_64-pc-windows-msvc` (the VS Build Tools here
-  carry the x64 libraries; no `vcvarsall` needed, 2m31s -- found by #84). Check
-  the PE machine (`0x8664`) before believing which binary ran.
-
-| Section | Rows | What it is on ARM64 |
-| --- | --- | --- |
-| **Re-tests of changed behaviour** | -- | **Waiting on their fixes in TODO.md, do not press until they land (#300, #301): 16.13 / 16.13a, 1.44, 33.7.** Also open: **1.43 / 40.16** (reworded: `<C-c>` moved to 49.9), **49.7** (OSC 8 links in the pane; needs a ConPTY that passes them). Also unticked, added since 0.87.0 (what each changed is in CHANGELOG.md): **1.47, 1.48, 10.12, 33.6, 51.1-51.9, 52.1-52.29, 53.1-53.10, 54.1-54.15, 54.17-54.23.** Every other row once listed here is `[x]`; a row a later fix changes is added back. Nothing else is open in this row; go on to the next row. |
-| **Unticked keys in TESTING-KEYS.md** | every `[ ]` | As in the x64 table: a key added or changed since the last run sits there as `[ ]`. Press it with `--keys` and the before/after snapshot ("TESTING-KEYS.md" above). Empty when this was written |
-| **Unticked rows no queue owns** | -- | When the rows above are done, `cargo run --example make-testcheck -- --stats` names sections still short (**left unverified by the owner, 2026-10-04, so never take them: 22.1 / 22.3 / 22.4 (Hidemaru, EmEditor, Notepad++), 31.7 / 31.8 (elevation), 12.11 (a drive with the Recycle Bin off) and 35's macOS / Linux rows**); take one whose open rows read as text or a file state (#205 found 43.9 this way). **37.8a**: Edge, Neovim and VS Code launched here (#256); `.pdf` has no app the shell resolves on this machine (`UserChoice` says `MSEdgePDF`, `start ""` opens nothing) and Sakura is not installed, both skips the row allows -- only Chrome is left, which is 37.8b since v0.80.8 (take it only when no Chrome window is open); 37.8a and 37.8b are in the re-tests above. **25.11** cannot be reached on Windows (`system_bold_fonts()` always lists Meiryo, Yu Gothic and Consolas bold). **35.2** was settled on x64 by #265 under the owner's one-time leave for that machine; it edits the owner's own `%APPDATA%\yazi\config\yazi.toml`, so it is not for this lane. Short and measurable when this was written (#220; 28 came out 8 / 8 in #231, 32 has no Windows row left after #234): 6 is 1 / 1 (#241 on x64). 10 is 1 / 1 (#237). **5 is 1 / 2 and its last row, 5.9, is stale** (#236: two folders open the tree compare, no refusal); it waits on its rewrite in TODO.md. 37 is 7 / 8, but 37.8 cannot be taken on this machine until `.pdf` has a default app the shell resolves (#234); it waits on its split in TODO.md. **12 is 15 / 17 and both its open rows are blocked** (#225): 12.8's second half is stale until its rewrite (TODO.md), and 12.11 needs a drive with the Recycle Bin turned off. Not these, each blocked as written: 16, 36, 13, 29, 21 (#220), 26 (#217), 46, 41, 15. 15 is 8 / 9 with only 15.4a left, a look no picture can catch (#216). Not these: 46 has only 46.16 left (needs elevation, #212), 41 only 41.14 (needs a slow share, #214), 35's open rows are mostly macOS and Linux (#212), 30 and 31 need right-clicks and `New-SmbShare`. Rows already `[x]` from x64 are recorded in your report, not ticked |
-| **48.2 / 48.6 at each release** | 2 | This lane can start both zips' `kura.exe` -- the ARM64 one natively and the x64 one under emulation -- so it closes these two rows alone (#199). The x64 lane cannot (an ARM64 exe will not start there). Re-press them when a release's tag changes; the decoy on the `PATH` must be a `conpty.dll` of the same PE machine as the exe under test (Zed's is `AA64` on this machine, WezTerm's is `8664`). `scripts\verify-release.ps1 -Tag vX.Y.Z` presses 48.1-48.5 for both zips (and 48.2 here), and `scripts\run48.ps1 -Folder <each extracted folder> -Decoy <a conpty.dll of that machine>` presses 48.6. Nothing to do until the next release |
-| **the test suite** | -- | `cargo test` natively on ARM64, every run. Last green: 0.78.168 (700 / 0, #294); the earlier runs are in git history. Any failure here and not on the x64 runner is the finding; paste the test name and the panic. |
-| **When every row above is empty** | -- | Last (#259 proposal 4): (1) press, as a second machine, rows x64 ticked that ARM64 has not seen, and say in the report that the ticks stay x64's. #260 pressed 12.8, 12.8a, 22.6a, 30.1, 30.4, 30.11, 30.15 and 37.7 (a stand-in `sakura.exe`) -- all matched x64; 19.4a's arrows reached `less` but its line counts did not reproduce with synthetic wheel input (TODO.md), so it stays x64's. #261 pressed 21.14, 21.14a (with ARM64's own 7-Zip), 21.14b, 25.4a, 5.9, 16.11 and 16.12, and #263 section 46 (19 of 21 rows, with ARM64's own `git.exe`) -- all matched x64. **Nothing is listed here right now** (x64's #265 ticked 33.21 / 33.22, which #264 pressed here, and 35.2, which is x64's alone; x64's #269 ticked 1.41, 23.4a and 29.13, which are in this lane's own re-tests row above; x64's #270 ticked 6.17, 23.3a, 32.18, 32.19 and 46.20, and #271 1.40 and 1.41, which are there too; x64's #280 ticked 13.12, 32.21, 1.42 and 1.43, which #281 then pressed here; x64's #282 ticked 17.12, which is in the re-tests row above; x64's #288 ticked 47.6 and 47.8, which #287 pressed here; x64's #303 ticked 50.1-50.7, of which #302 pressed 50.1-50.6 here with `claude -p --mcp-config`, and 50.7's no-console-window half stays x64's): whoever merges adds x64's new ticks (`merge-role.md`, 4). (2) The panic hook landed in v0.78.54; #275 counted 0 / 20 with #260's pdftoppm script on v0.78.110 (no `keys: panicked`, no `.panic`). Run a heavy `--keys` script (an external preview with `pdftoppm` in it) 20 times and count runs that vanish without `KURA_KEYS_DONE` (TODO.md's two vanishing-run items): #259 counted 0 / 20 with a light one, #260 0 / 20 with a `pdftoppm` one of 10 s a run (its report has the script), #275 0 / 20 with the hook in, #285 0 / 20 on v0.78.150, #291 0 / 20 on v0.78.162, #292 0 / 20 on v0.78.164, #293 0 / 20 on v0.78.166, #294 skipped it on v0.78.168 (only the version line since #293's `8071f80`) #304 0 / 20 twice (the script's keys and #292's) on v0.85.7 after the `rev` moved to `fc88385` (0 / 180 on ARM64 so far). **Count only on a version that bumps the ito-pane `rev` in `Cargo.toml` (tsumugi-pane before v0.93.10), or right before a release** (Q90 = 1, v0.83.1): those are the changes that could make a run vanish. Otherwise skip (2) and say so in one line of the report; when `git diff <the last count's commit> HEAD -- Cargo.toml` shows no new `rev` and no release is being cut, the count would only repeat. (3) Only then `WINTEST_NOTHING` |
+- **The work is an issue.** release.yml opens "ARM64 release rows: vX.Y.Z"
+  (label `release-arm64`) with those rows as a checklist, and closes the
+  previous release's. `auto-wintest.ps1 -Lane arm` starts one run per open
+  issue and does nothing while none is open. The prompt names the issue.
+- **Test the release's zips, not a build of main**:
+  `gh release download <tag> --repo uchmk/kura --pattern '*windows*' -D <scratch>`,
+  then extract both. Check what ran before believing it: `kura env` →
+  `Process arch`, and the PE machine (`8664` / `AA64`).
+- **Press each row as TESTING.md describes it** (the issue gives the id).
+  `scripts\verify-release.ps1 -Tag <tag>` presses 48.1-48.3 for both zips;
+  `scripts\run48.ps1 -Folder <each extracted folder> -Decoy <dll>` presses
+  48.6, with a decoy `conpty.dll` of the same PE machine as the exe under test
+  (Zed's is `AA64` on this machine, WezTerm's `8664`).
+- **Write the result into the issue.** Tick the rows that held (`gh issue view
+  N --json body`, edit the boxes, `gh issue edit N --body-file <file>`) and add
+  one comment: a line per row with its evidence (the command and what it
+  printed). **A result that differs from x64 is a bug**: open an issue labelled
+  `bug` with the evidence and name it in the comment. A row you could not press
+  stays unticked, with the reason.
+- **Close the issue when every row is ticked**; otherwise leave it open for a
+  person.
+- No branch, no pull request, no report under `qa-reports/`, and no edits to
+  TESTING-CHECKS.md (its ticks stay x64's).
+- There is no RAM disk: read `R:\Temp` in this file as the scratch directory
+  the prompt names.
+- The last line of your answer is `ARMTEST_DONE <the issue's URL>`.
 
 ## Proposals: say what should change
 
@@ -379,13 +378,13 @@ for the owner to make.
 
 ## Votes: QUESTIONS.md items marked `投票中`
 
-Since 2026-10-02 the owner lets some questions be settled by a majority of three
-votes: the cloud session that wrote the question, the x64 machine and the ARM64
-laptop (CLAUDE.md, "多数決で進める質問"). The owner's own answer still wins.
-**Every run votes**, in both lanes:
+Since 2026-10-02 the owner lets some questions be settled without them: since
+v0.101.3 by two votes that agree, the cloud session that wrote the question and
+this machine (docs/claude/questions.md, "多数決で進める質問"). Votes that split
+wait for the owner, and the owner's own answer always wins. **Every run votes**:
 
 - Read QUESTIONS.md on `origin/main` for questions whose `状態` is `投票中` and
-  whose `投票` field has no line for your lane (`win` or `arm`) yet.
+  whose `投票` field has no `win` line yet.
 - **Decide before you read the other votes**, from the background and the
   options. Then write one line per question in your report, under a
   `### Votes` heading:
@@ -435,7 +434,7 @@ pwsh -NoProfile -File C:\dev\kura\scripts\fetch-conpty.ps1 -Dest C:\dev\kura\tar
   can settle and which you cannot, before touching anything. Stop early rather than leave a
   section half done: one finished section is worth more than three started ones.
 - **A run that measures the terminal pane records the `conpty.dll` it loaded** (v0.70.3, #184): `(Get-Process kura).Modules | ? ModuleName -eq conpty.dll | % FileName`. It must be the one beside `kura.exe`; a different path means you measured another app's ConPTY.
-- **Work on `test/win-<section>`** (`test/arm-<section>` on the ARM64 machine), from the latest `origin/main`. Never push to
+- **Work on `test/win-<section>`**, from the latest `origin/main`. Never push to
   `main`, never `--force`.
 - **Do not bump the version and do not write CHANGELOG.md.** A pull request that
   touches `Cargo.toml` and `CHANGELOG.md` conflicts with every other one that

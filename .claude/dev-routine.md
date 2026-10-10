@@ -102,8 +102,8 @@ Match the surrounding code (comment density, names, the one-line layout).
    the TESTING.md row and its Japanese in `scripts/testcheck-ja.toml`, then
    regenerate (`cargo run --example make-testcheck` and `-- --lane linux`);
    untick the changed rows in the checklists; queue them under "Re-tests of
-   changed behaviour" in both tables of `.claude/windows-role.md` (x64 and
-   ARM64; not `linux-role.md`, whose lane is paused). A fix that came from a
+   changed behaviour" in `.claude/windows-role.md`'s table (not
+   `linux-role.md`, whose lane is paused). A fix that came from a
    machine's finding goes to the re-tests even when its row has no tick.
 7. `scripts/verify.sh`. Everything passes, or you fix it.
 8. Tick the TODO.md item as `- [x] （vX.Y.Z。what was done）`; bump

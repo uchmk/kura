@@ -9,7 +9,7 @@ CLAUDE.md から分けた（2026-10-07）。QA や実機のセッションを立
 
 - **報告は 1 実行 1 ファイル。**実機・Linux・QA のセッションは `qa-reports/<YYYY-MM-DD>-<ブランチ名から test/ を除いたもの>.md` を
   新しく足す（例 `qa-reports/2026-10-03-win-32-9a.md`）。全員が QA-REPORT.md の末尾に足していた頃は、どの 2 本も末尾でぶつかった。
-  Windows のレーン（x64・ARM64）は末尾に開始の時刻 `-<HHmm>` を付け、名前は `auto-wintest.ps1` がプロンプトで渡す（v0.99.2。
+  Windows のレーンは末尾に開始の時刻 `-<HHmm>` を付け、名前は `auto-wintest.ps1` がプロンプトで渡す（v0.99.2。
   同じ日に同じ節を 2 回走らせると前の報告を書き直し、ワークフローが「足した報告だけ」の規則で止めていた）。
   QA-REPORT.md は 2026-10-03 までの記録として残し、もう足さない。
 - **チェック表に件数を書かない。**TESTING-CHECKS.md / TESTING-LINUX.md / TESTING-KEYS.md の冒頭の「N / M 済み」と節の見出しの
@@ -148,6 +148,7 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   （開発の Routine も Sonnet 5.5）。Opus に戻すときはタスクの引数に `-Model claude-opus-5-5` を足すか、この既定を戻す。
 - **レーンの様子は GitHub の issue で見える（v0.100.2 から）。**`auto-wintest.ps1` は起動のたびに（`scripts/lane-status.ps1`）、
   レーンごとの issue「Lane status: win」「Lane status: arm」（ラベル `lane-status`、最初の起動で作る）の本文を書き直す。
+  `arm` は `release-arm64` の issue が開いている間だけ見張る（v0.101.3。それ以外の時間は何もしないのが正しいので、止まったとは言わない）。
   中身は最後の起動の時刻・動いたスクリプトの版・その起動の結末（何も無い・PR 待ち・分け前待ち・救出できない汚れで止まった・実行中・済み・失敗）・
   救出できなかった汚れの一覧・続けて失敗した回数・その起動のログ・それまでの 24 回の結末。本文の書き直しは通知を出さない。
   2026-10-10 に kura のレーンから 1 日 PR が来ず、理由が機械の中（ログ・`dirty.txt`・`failures`）にしか無くて、クラウドからは分からなかったため。
@@ -160,7 +161,7 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   `LastTaskResult` は本文に載せない（起動の中から読むと、いま動いている自分の 267009 にしかならない）。レーンをやめるときは issue を閉じる。
   リポジトリは公開なので、本文ではユーザーのフォルダを `~` に変え、`@` はメンションにならないようにし、実行の出力は最後の 1 行だけを載せる。
 - **マージと機械的な分け前はワークフロー、振り分けは Routine（v0.86.6、v0.86.11 から）。**`.github/workflows/merge-lanes.yml`（中身は `scripts/merge-lanes.py`）が、
-  CI・Checklists・Audit が終わるたびと毎時 :17 に `test/win-*`・`test/arm-*`・`test/linux-*` の PR を見て、規則（触ってよいファイル、
+  CI・Checklists・Audit が終わるたびと毎時 :17 に `test/win-*`・`test/linux-*` の PR を見て、規則（触ってよいファイル、
   印の変わり方、印ごとの証拠の行、`[~]` には画像の名前）を守り、必須のチェック（`checklists`）が緑で、ぶつかりが無いものを
   head の SHA を固定した merge コミットでマージする。守らないもの・赤・ぶつかりには PR にコメントを 1 回残す
   （`<!-- merge-lanes:<種類>:<sha> -->`）。チェック表だけのぶつかりは、main の表に PR の印を入れ直し、印の変化だけかを確かめて自分でマージする
@@ -174,10 +175,13 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   ワークフローが止めたものは TODO.md の「マージで止めている実機の PR」に積んで持ち主に回す（そこにある `#N` はワークフローも飛ばす）。**無人の実行が `main` に直接 push してよいのは、この
   Markdown と版だけのコミットに限る**（ビルドを壊しうるものが入らないから）。コードの修正が要るものは TODO.md に書いて止まり、
   開発の Routine（「自動実行モード」）が拾う。
-- **レーンは 2 本（v0.51.0 から）。**x64 の機械が `win`（`test/win-*`）、ARM64 のノート PC が
-  `auto-wintest.ps1 -Lane arm` で `arm`（`test/arm-*`）。順番表・worktree・状態ファイルがレーンごとに別で、
-  **待つのは自分のレーンの PR だけ**なので、2 台は互いを止めない。ARM64 の順番表と規則は
-  `windows-role.md` の「The ARM64 lane」。RAM ディスクの無い機械では、スクリプトが一時ディレクトリを
+- **毎回押す機械は x64 だけ（v0.101.3 から。2026-10-10、持ち主の判断）。**x64 の機械が `win`（`test/win-*`）の順番表を進める。
+  ARM64 のノート PC（`auto-wintest.ps1 -Lane arm`）は、**リリースごとに 1 回**、release.yml の `arm64-rows` が立てる
+  `release-arm64` の issue（TESTING-ARM64.md の行）を押し、issue の中で結果を書いて閉じる。ブランチも PR も作らない
+  （規則は `windows-role.md` の「ARM64, once per release」）。issue が無い間の起動は何もせずに終わる。
+  ARM64 の毎回の `cargo test` と起動の確認は GitHub の ARM64 ランナー（`arm64.yml`）がする。
+  v0.51.0 から v0.101.2 までは ARM64 も `test/arm-*` の PR を出す 2 本目のレーンだった。
+  RAM ディスクの無い機械では、スクリプトが一時ディレクトリを
   決めて `TEMP` / `TMP` に入れ、プロンプトで読み替えを指示する（`-Scratch` で指定もできる）。
 - **一番の危険は「動かしたこと」を「確かめたこと」と取り違えること。**クラウドの
   セッションはそもそも起動できないので、この取り違えが起きない。実機のセッションだけが

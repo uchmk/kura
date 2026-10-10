@@ -20,6 +20,7 @@ on:
       - 'TESTING-CHECKS.md'
       - 'TESTING-LINUX.md'
       - 'TESTING-KEYS.md'
+      - 'TESTING-ARM64.md'
       - '.claude/**'
       - 'LICENSE'
   # the merge-lanes workflow's share bumps the version on main with a token
@@ -39,6 +40,7 @@ on:
       - 'TESTING-CHECKS.md'
       - 'TESTING-LINUX.md'
       - 'TESTING-KEYS.md'
+      - 'TESTING-ARM64.md'
       - '.claude/**'
       - 'LICENSE'
 

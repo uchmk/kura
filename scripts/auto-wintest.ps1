@@ -7,9 +7,9 @@
 #   - origin/main has changed TESTING.md, TESTING-CHECKS.md or
 #     .claude/windows-role.md since the last run it started -- a merged run
 #     changes the last two, so merging one pull request is what starts the next;
-#   - no pull request from this lane (test/win-* or test/arm-*) is still open
-#     (that section is not done yet, and a second run would take the same one:
-#     it happened on 2026-09-28);
+#   - no pull request from this lane (test/win-*) is still open (that section
+#     is not done yet, and a second run would take the same one: it happened on
+#     2026-09-28);
 #   - the screen is not locked (SendInput does nothing on a locked desktop, and
 #     the run would record every key as having done nothing);
 #   - the working copy is clean. A dirty one is a run that was cut off: since
@@ -73,11 +73,15 @@
 #   ... -TargetOnDisk                             # keep the build output on C:
 #   ... -Model claude-opus-5-5                    # another model for this run
 #
-# Lanes. The x64 machine runs lane `win` (the default), the ARM64 laptop lane
-# `arm`. Each has its own queue in windows-role.md, its own branch prefix
-# (test/win-, test/arm-), its own worktree and state, and waits only on its
-# own pull requests -- so the two machines never take the same section and
-# never hold each other up.
+# Lanes. The x64 machine runs lane `win` (the default): the one queue in
+# windows-role.md, a branch test/win-<section> and a pull request per run. The
+# ARM64 laptop runs lane `arm`, which since v0.101.3 has work only once per
+# release: while a `release-arm64` issue is open (release.yml opens one with
+# the rows of TESTING-ARM64.md), it starts one run for that issue, which
+# ticks the rows in the issue itself -- no branch, no pull request, no share
+# to wait for. With no such issue open a firing does nothing, so the laptop's
+# task can stay registered or be switched off between releases. Each lane has
+# its own worktree and state.
 #
 # Scratch space. Each run gets a folder of its own, run-<time>, under -Scratch,
 # which defaults to R:\Temp when there is an R: drive (the RAM disk on the x64
@@ -200,7 +204,6 @@ if (-not $Work) { $Work = if ($Lane -eq 'win') { 'C:\dev\filer-wintest' } else {
 if (-not $Scratch) {
     $Scratch = if (Test-Path 'R:\') { 'R:\Temp' } else { Join-Path ([IO.Path]::GetTempPath()) 'kura-scratch' }
 }
-$queue = if ($Lane -eq 'win') { 'the queue in "Where the work is"' } else { 'the ARM64 queue in "The ARM64 lane"' }
 
 $state = Join-Path $env:LOCALAPPDATA 'filer-wintest'
 New-Item -ItemType Directory -Force -Path $state | Out-Null
@@ -591,10 +594,23 @@ try {
         Note-Dirty $changes
     }
 
-    $trigger = (git -C $Work log -1 --format=%H origin/main -- $watched).Trim()
+    # The ARM64 lane's work is the open release-arm64 issue, one run per issue
+    # (see the top); the x64 lane's is main's last change to $watched.
+    $armIssue = $null
+    if ($Lane -eq 'arm') {
+        $armIssue = (gh issue list --repo $repo --label release-arm64 --state open --json number --jq '.[0].number' | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { Say 'gh issue list failed (is gh logged in?). Trying again next time.'; exit 0 }
+        if (-not $armIssue) { $outcome = 'No release-arm64 issue is open: nothing to check until the next release.'; exit 0 }
+        $trigger = "issue-$armIssue"
+        $short = "#$armIssue"
+    } else {
+        $trigger = (git -C $Work log -1 --format=%H origin/main -- $watched).Trim()
+        $short = $trigger.Substring(0, 7)
+    }
     $seen = if (Test-Path $last) { (Get-Content -Raw $last).Trim() } else { '' }
     if (-not $Force -and $trigger -eq $seen) {   # quiet: this is most runs
-        $outcome = "Nothing new on main since the last run (trigger $($trigger.Substring(0, 7)))."
+        $outcome = if ($armIssue) { "Issue #$armIssue has had its run; what is left in it is for a person (or -Force)." }
+                   else { "Nothing new on main since the last run (trigger $short)." }
         if ($changes.Count) { $outcome += " The worktree is dirty and could not be saved, so new work would not start either." }
         if ($rescued) { $outcome = "Saved a dirty worktree to a rescue/ branch (see the comment). $outcome" }
         exit 0
@@ -606,7 +622,7 @@ try {
     # #292). The trigger is used up without a run.
     $seenKnown = $false
     if ($seen) { git -C $Work cat-file -e "$seen^{commit}" 2>$null; $seenKnown = ($LASTEXITCODE -eq 0) }
-    if (-not $Force -and $seenKnown) {
+    if (-not $Force -and $seenKnown -and -not $armIssue) {
         $files = @(git -C $Work diff --name-only $seen $trigger -- $watched)
         if ($files.Count -eq 1 -and $files[0] -eq '.claude/windows-role.md') {
             $changed = @(git -C $Work diff -U0 $seen $trigger -- '.claude/windows-role.md' |
@@ -620,12 +636,14 @@ try {
         }
     }
 
-    $open = gh pr list --repo $repo --state open --json headRefName --jq '.[].headRefName' |
-        Where-Object { $_ -like "test/$Lane-*" }
-    if ($LASTEXITCODE -ne 0) { Say 'gh pr list failed (is gh logged in?). Trying again next time.'; exit 0 }
-    if ($open) {
-        Say "Waiting: $($open -join ', ') is still open."
-        exit 0
+    if (-not $armIssue) {
+        $open = gh pr list --repo $repo --state open --json headRefName --jq '.[].headRefName' |
+            Where-Object { $_ -like "test/$Lane-*" }
+        if ($LASTEXITCODE -ne 0) { Say 'gh pr list failed (is gh logged in?). Trying again next time.'; exit 0 }
+        if ($open) {
+            Say "Waiting: $($open -join ', ') is still open."
+            exit 0
+        }
     }
 
     # Since v0.86.6 the merge-lanes workflow merges this lane's pull request
@@ -633,7 +651,7 @@ try {
     # (CHANGELOG.md, the report's items into TODO.md) right after. Starting between
     # the two would take the same rows again, so wait while the lane's latest
     # merged pull request is not named in main's CHANGELOG.md yet.
-    $merged = gh pr list --repo $repo --state merged --limit 30 --json number,headRefName,mergedAt
+    $merged = if ($armIssue) { '[]' } else { gh pr list --repo $repo --state merged --limit 30 --json number,headRefName,mergedAt }
     if ($LASTEXITCODE -ne 0) { Say 'gh pr list failed (is gh logged in?). Trying again next time.'; exit 0 }
     $lastMerged = $merged | ConvertFrom-Json | Where-Object { $_.headRefName -like "test/$Lane-*" } |
         Sort-Object { [datetime]$_.mergedAt } -Descending | Select-Object -First 1
@@ -653,7 +671,7 @@ try {
 
     git -C $Work checkout -q --detach origin/main
     $head = (git -C $Work rev-parse --short HEAD).Trim()
-    Say "[$Lane] Starting a run on $head (trigger $($trigger.Substring(0, 7)))."
+    Say "[$Lane] Starting a run on $head (trigger $short)."
     # Which copy of this script is running, and how old it is: the ARM64
     # laptop ran one pinned at v0.51.1 for days, found only from a side effect
     # (#201).
@@ -687,7 +705,12 @@ try {
     $Scratch = Join-Path $Scratch ('run-{0:yyyyMMdd-HHmmss}' -f $started)
     New-Item -ItemType Directory -Force -Path $Scratch | Out-Null
 
-    $prompt = "無人実行です。人は見ていません。.claude/windows-role.md を読み、その「Unattended runs」の節に従って、$queue の次の節を 1 つだけ進めてください。レーンは $Lane で、ブランチは test/$Lane-<節> です。チェックアウトは $Work です（役割定義に出てくる C:\dev\kura は、すべてここに読み替えてください）。作業用の一時ディレクトリは $Scratch で、TEMP / TMP も既にそこを指しています（役割定義に出てくる R:\Temp は、すべてここに読み替えてください）。報告は $report に書きます（新しいファイル。既にある報告は直しません）。main の取り込みはしないでください（終わった後にこのスクリプトがします）。"
+    $where = "チェックアウトは $Work です（役割定義に出てくる C:\dev\kura は、すべてここに読み替えてください）。作業用の一時ディレクトリは $Scratch で、TEMP / TMP も既にそこを指しています（役割定義に出てくる R:\Temp は、すべてここに読み替えてください）。"
+    $prompt = if ($armIssue) {
+        "無人実行です。人は見ていません。.claude/windows-role.md を読み、その「ARM64, once per release」の節に従って、issue #$armIssue（release-arm64）の行を確かめてください。$($where)結果は issue に書きます（本文のチェックと、コメント 1 つ）。ブランチも PR も作りません。"
+    } else {
+        "無人実行です。人は見ていません。.claude/windows-role.md を読み、その「Unattended runs」の節に従って、the queue in `"Where the work is`" の次の節を 1 つだけ進めてください。レーンは $Lane で、ブランチは test/$Lane-<節> です。$($where)報告は $report に書きます（新しいファイル。既にある報告は直しません）。main の取り込みはしないでください（終わった後にこのスクリプトがします）。"
+    }
     $env:TEMP = $Scratch
     $env:TMP = $Scratch
     $env:CARGO_INCREMENTAL = '0'

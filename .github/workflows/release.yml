@@ -252,6 +252,43 @@ jobs:
           files: dist/*.tar.gz
           fail_on_unmatched_files: true
 
+  # The rows only an ARM64 machine can answer, as an issue to tick (v0.101.3).
+  #
+  # The ARM64 laptop no longer runs every hour (arm64.yml); what it still owes
+  # each release is the handful of rows in TESTING-ARM64.md -- the x64 build
+  # under emulation, and the ARM64 zip itself. An issue rather than a file to
+  # tick: the ticks belong to one release and are thrown away with it, and an
+  # open issue is what wakes the ARM64 lane (auto-wintest.ps1 -Lane arm) and
+  # what merge-lanes.py watches for a stall. The previous release's issue is
+  # closed here, since only the newest zips are worth checking.
+  arm64-rows:
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Open the release-arm64 issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh label create release-arm64 --force --color 0e8a16 \
+            --description 'Rows the ARM64 machine checks once per release (TESTING-ARM64.md)'
+          rows=$(sed -n 's/^- \*\*\([0-9.]*\)\*\* /- [ ] **\1** /p' TESTING-ARM64.md)
+          if [ -z "$rows" ]; then echo 'no rows in TESTING-ARM64.md'; exit 1; fi
+          old=$(gh issue list --label release-arm64 --state open --json number --jq '.[].number')
+          body=$(printf '%s\n' \
+            "The rows of TESTING-ARM64.md for [$TAG](https://github.com/${{ github.repository }}/releases/tag/$TAG)." \
+            'Tick each one here on the ARM64 machine, then close the issue. A result that differs from x64 is a `bug` issue, linked from here.' \
+            '' "$rows")
+          url=$(gh issue create --title "ARM64 release rows: $TAG" --label release-arm64 --body "$body")
+          echo "$url"
+          for n in $old; do
+            gh issue close "$n" --reason 'not planned' --comment "Superseded by $url."
+          done
+
   # The SHA-256 of every asset, and of every file inside each Windows zip,
   # written onto the release page once all six are attached.
   #

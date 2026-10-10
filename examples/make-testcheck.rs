@@ -54,6 +54,9 @@ const JA: &str = "scripts/testcheck-ja.toml";
 const SRC_DIR: &str = "src";
 const OUT_WINDOWS: &str = "TESTING-CHECKS.md";
 const OUT_LINUX: &str = "TESTING-LINUX.md";
+/// The rows the ARM64 machine presses once per release (v0.101.3). Hand-kept,
+/// so `--check` makes sure every id in it is still one TESTING.md has.
+const ARM64: &str = "TESTING-ARM64.md";
 
 /// Which machine's checklist this run writes.
 #[derive(Clone, Copy, PartialEq)]
@@ -279,6 +282,17 @@ fn main() {
         return;
     }
     if check {
+        // A renumbered or removed row would otherwise leave the release issue
+        // asking for a check that no longer exists, or a different one.
+        if lane == Lane::Windows {
+            let live: BTreeSet<&str> = all.iter().map(|c| c.id.as_str()).collect();
+            let text = std::fs::read_to_string(ARM64).unwrap_or_default();
+            let gone: Vec<&str> = arm64_ids(&text).into_iter().filter(|id| !live.contains(id)).collect();
+            if !gone.is_empty() {
+                eprintln!("{ARM64} names ids {SRC} does not have: {}", gone.join(", "));
+                std::process::exit(1);
+            }
+        }
         // Byte comparison, and tick-insensitive for free: `out` carried the
         // existing ticks forward, so a tick can never be what differs -- and
         // with no counts in the file, neither can a number a tick moved.
@@ -580,6 +594,14 @@ fn previous_marks(path: &str, lane: Lane) -> BTreeMap<String, char> {
         }
     }
     out
+}
+
+/// The ids TESTING-ARM64.md lists, one per `- **id** text` line.
+fn arm64_ids(text: &str) -> Vec<&str> {
+    text.lines()
+        .filter_map(|l| l.strip_prefix("- **"))
+        .filter_map(|rest| rest.find("**").map(|end| &rest[..end]))
+        .collect()
 }
 
 /// Name what makes the file stale: which checks arrived, left, changed wording,

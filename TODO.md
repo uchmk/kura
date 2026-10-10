@@ -71,8 +71,8 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [x] （v0.101.0）段階 0: 止まったレーンが外から見え、自分で立ち直る。タスクの入口を `scripts/lane-boot.ps1`（main の写しを動かす）にし、
   汚れた作業フォルダは `rescue/` ブランチに救出し、Merge lanes が古い状態の issue に `lane-stalled` を付ける。
 - [x] x64 の `filer-auto-wintest` を `lane-boot.ps1` で登録し直す（2026-10-11、持ち主の PC のセッション）
-- [ ] ARM64 の `filer-auto-wintest-arm` を `lane-boot.ps1 -Lane arm` で登録し直す（`auto-wintest.ps1` の冒頭の手順）。
-  登録し直すまでは古い `-Command` が作業フォルダの写しを動かす。段階 3 で毎時のタスクを外すなら不要【人】
+- [x] ARM64 の `filer-auto-wintest-arm` を `lane-boot.ps1 -Lane arm` で登録し直す（2026-10-11、持ち主。PC のセッションが確かめた）。
+  v0.101.3 から arm のレーンは `release-arm64` の issue が無い間は何もせずに終わるので、毎時のまま残す
 - [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
 - [ ] tsumugi の :50 のタスクにも `lane-boot.ps1` と救出を写す（段階 5 で ito に一本化する）【後】
 - [x] （v0.101.1）段階 1: 片付け（TODO.md の済んだ「実機のセッションの報告」を TODO-DONE.md へ、`auto-todo.sh` の削除、ci.yml の重複した `--check`、
@@ -80,9 +80,12 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
   dev-routine.md は CLAUDE.md が変わったときだけ読み直す）
 - [x] （v0.101.2）段階 2: ARM64 を CI に移す（`.github/workflows/arm64.yml`: `windows-11-arm` と `ubuntu-24.04-arm` で `cargo test` と起動の確認。
   main への push で ci.yml から、リリースでは release.yml から呼び、緑でないとリリースしない）
-- [ ] arm64.yml の最初の run を見る。`windows-11-arm` に Rust が無い・リンクできない・起動の step が落ちるなら直す
+- [x] （v0.101.3。run 38095474653 で 2 つとも緑。`windows-11-arm` には Rust があり、2 つの起動の step も通った）arm64.yml の最初の run を見る。`windows-11-arm` に Rust が無い・リンクできない・起動の step が落ちるなら直す
 - [ ] arm64.yml の 2 つの起動の step（`continue-on-error`）が 1 週間緑なら、`continue-on-error` を外して必須にする（2026-10-18 以降）
-- [ ] 段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ（`TESTING-ARM64.md`、`-Release`）。ARM 機の毎時のタスクを外すのは【人】
+- [x] （v0.101.3。`TESTING-ARM64.md` の行を release.yml の `arm64-rows` が版ごとの `release-arm64` の issue にし、`-Lane arm` はその issue が
+  開いている間だけ押して閉じる。ブランチも PR も作らない。windows-role.md の ARM の順番表を消し、Merge lanes は `test/arm-*` をマージせず、
+  issue が無い間は arm の止まりを見張らない。票はクラウドと x64 の 2 票）段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ
+- [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [ ] 段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
 - [ ] 段階 5: 共通の道具を ito に移す（`ito-testcheck` と `scripts/lanes/`）。ito をセッションに付けてから【後】
 - [ ] 段階 6: tsumugi・yagura に展開する【後】

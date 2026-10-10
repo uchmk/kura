@@ -9,6 +9,19 @@
 
 ## [未リリース]
 
+## [0.101.3] - 2026-10-11
+
+ARM64 の実機は毎時の順番表をやめ、リリースのたびに arch に関わる行だけを押すようにした（テストと QA の運用を軽くする段階 3）。毎回の `cargo test` と起動の確認は v0.101.2 から GitHub の ARM64 ランナーがしている。kura そのものの動きは変わらない。
+
+### 変更
+
+- **ARM64 のレーンはリリースのときだけ動く。**release.yml の新しい `arm64-rows` ジョブが、`TESTING-ARM64.md` の 9 行（25.5、25.21、26.5、26.6、41.8、48.1-48.3、48.6）をチェックリストにした issue「ARM64 release rows: <タグ>」（ラベル `release-arm64`）を立て、前の版の開いた issue を閉じる。`auto-wintest.ps1 -Lane arm` はその issue が開いている間だけ起動し、issue の中で押して閉じ、ブランチも PR も作らない（終わりは `ARMTEST_DONE <url>`）。x64 と違う結果は `bug` の issue にする。
+- `.claude/windows-role.md`: ARM64 の順番表と規則を消し、「ARM64, once per release」の節にした。順番表は x64 の 1 つだけ。
+- 票はクラウドと x64 の 2 票。揃えば決まり、割れたら持ち主を待つ（`docs/claude/questions.md`）。
+- Merge lanes（`scripts/merge-lanes.py`）は `test/arm-*` の PR をマージせず、`Lane status: arm` は `release-arm64` の issue が開いている間だけ止まりを見張る。
+- `make-testcheck -- --check` が、`TESTING-ARM64.md` の ID が TESTING.md にあることも確かめる。
+- CLAUDE.md・`docs/claude/lanes.md`・`release.md`・`.claude/merge-role.md`・`.claude/dev-routine.md` を 1 つの順番表に合わせた。
+
 ## [0.101.2] - 2026-10-11
 
 ARM64 の `cargo test` と起動の確認を GitHub の ARM64 ランナーで回すようにした。ARM64 の実機が毎時これを回さなくてよくするための最初の段（実機の運用はまだ変えない）。kura そのものの動きは変わらない。

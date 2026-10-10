@@ -24,7 +24,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
     （直すときは tsumugi 側で直し、`rev` を上げて `cargo build` で `Cargo.lock` を合わせる）。
   - 節の項目が全部済んだら、その節を [TODO-DONE.md](TODO-DONE.md) の末尾に移す。
 - **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`.claude/windows-role.md` の
-  2 つの順番表（x64 と ARM64）の先頭の「Re-tests of changed behaviour」に足す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。
+  順番表の先頭の「Re-tests of changed behaviour」に足す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。
 - **実機でしか確かめられないことは [TESTING.md](TESTING.md) に積む**（チェック項目を足してから完了にする）。`[x]` を付けてよいのは実機のセッションと持ち主だけ。
 
 ## 版・変更ログ・push
@@ -55,7 +55,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 
 ## 並行のセッション・確認事項
 
-QA・Windows 実機（x64 / ARM64）・Linux レーン・マージの Routine の約束は [docs/claude/lanes.md](docs/claude/lanes.md)、
+QA・Windows 実機（x64、ARM64 はリリースごと）・Linux レーン・マージの Routine の約束は [docs/claude/lanes.md](docs/claude/lanes.md)、
 QUESTIONS.md の書き方と「多数決で進める質問」は [docs/claude/questions.md](docs/claude/questions.md)。
 
 ## 持ち主の PC への依頼（needs-pc）

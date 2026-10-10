@@ -22,11 +22,14 @@ the PATCH, writes a CHANGELOG line per pull request, copies the report's
 asking for its report to be read, pushes, and starts `main`'s CI. What is
 left for you is the judgment in 4.
 
-There are three lanes: `test/win-*` from the x64 machine, `test/arm-*` from the
-ARM64 laptop, and `test/linux-*` from a cloud session running kura on a
-virtual X display (`.claude/linux-role.md`). The two Windows lanes have their
-queues in `windows-role.md` -- "Where the work is" for `win`, "The ARM64 lane"
-for `arm`; the Linux lane's is in `linux-role.md`, "Where the work is".
+There are two lanes: `test/win-*` from the x64 machine, and `test/linux-*`
+from a cloud session running kura on a virtual X display
+(`.claude/linux-role.md`). The `win` queue is in `windows-role.md`, "Where the
+work is"; the Linux lane's is in `linux-role.md`, "Where the work is". Since
+v0.101.3 the ARM64 laptop opens no pull requests: it presses TESTING-ARM64.md's
+rows once per release, in that release's `release-arm64` issue
+(`windows-role.md`, "ARM64, once per release"). Old `test/arm-*` pull requests
+are not merged; close any that are still open.
 
 Read [CLAUDE.md](../CLAUDE.md) first, with [docs/claude/lanes.md](../docs/claude/lanes.md) and
 [docs/claude/questions.md](../docs/claude/questions.md); their rules apply in full. Reply in Japanese;
@@ -45,7 +48,9 @@ whose `状態` is `投票中`:
   implement it -- that is code, and the development session picks it up.
 - **A lane votes again on a question it already voted on**: the newer vote
   replaces the older; copy it with the pull request's number and count again.
-- **Three votes, all different**: set `状態` back to `未回答` and add
+- **Every voter has voted and no two agree** (since v0.101.3 the voters are the
+  cloud session and `win`; an `arm` line from before still counts as a vote):
+  set `状態` back to `未回答` and add
   `- 多数決: 割れた（<today>）。持ち主を待つ`.
 - **The owner wrote an answer**: that wins; the question leaves the vote.
 - An `owner` vote counts for no option, and so does a Windows vote whose reason
@@ -60,7 +65,7 @@ reply names what changed (`Q57: 多数決 1`).
 - **The workflow's `【後】` lines**: TODO.md's "実機のレーンから" section.
   Each one is sorted in 4.
 - **Merged, without a share** (the workflow failed or was off): the lane pull requests (head branch
-  `test/win-*`, `test/arm-*` or `test/linux-*`) merged in the last 7 days
+  `test/win-*` or `test/linux-*`) merged in the last 7 days
   whose `#N` is nowhere in `origin/main`'s CHANGELOG.md
   (`gh api "repos/uchmk/kura/pulls?state=closed&sort=updated&direction=desc&per_page=50"`,
   keep those with `merged_at` set). Each one gets its share in 4, done by
@@ -86,7 +91,7 @@ votes in 0).
 can tell the owner why a pull request stopped. All of these, or it is not
 merged:
 
-1. **It only touches what the run may write.** `test/win-*` and `test/arm-*`:
+1. **It only touches what the run may write.** `test/win-*`:
    **exactly one new file under `qa-reports/`** (its report; added, not edited),
    `TESTING-CHECKS.md` (every changed line is a `[ ]` turned `[x]` or `[~]`, the
    row's text unchanged) and `TESTING-KEYS.md` (every changed line a `[ ]`
@@ -212,7 +217,7 @@ What goes in it:
   A new question that has an arguable technical answer goes out as `投票中`,
   with your own vote and no "（推奨）" (CLAUDE.md, "多数決で進める質問").
 - **Votes** (the workflow copied them to TODO.md as `【後】` lines): copy each line under the run's `### Votes` into that question's
-  `投票` field as `- win: …` or `- arm: …` with `（#NN）`, then count as in 0.
+  `投票` field as `- win: …` with `（#NN）`, then count as in 0.
 - **The queue of the pull request's lane** in `windows-role.md`: the section just
   run must be out of the table, or cut down to what is left and why. **The run
   cannot edit the table itself** (writes under `.claude/` are refused to it), so
@@ -224,22 +229,14 @@ What goes in it:
   each with how to measure it -- the way the existing rows are written. When
   nothing measurable is left, say so in TODO.md and leave the table empty; the
   Windows run then answers `WINTEST_NOTHING`.
-- **The `arm` queue is empty**: refill it with rows that are native code or
-  architecture-specific (ConPTY, the shell, archives, openers, `kura env`),
-  re-run against their x64 result -- not with appearance rows, which look the
-  same on both.
-- **New x64 ticks go to ARM64's last row** (#260 proposal 4): every row a merged
-  `win` pull request turned `[x]` that ARM64 has not pressed is added to (1) of the
-  ARM64 table's "When every row above is empty" row, and the rows an `arm` run
-  pressed as a second machine come out of it. Without this the lane idles on
-  `cargo test` alone once the rest of its table is empty.
 - **A queue row that waits on a TODO.md item** ("skip this until ... lands"): when
   that item is ticked, edit the row in the same share so it no longer reads as
-  blocked (#275 proposal 3: ARM64's (2) still said "skip" 56 versions after the
+  blocked (#275 proposal 3: a row still said "skip" 56 versions after the
   panic hook landed).
-- **An ARM64 result that differs from x64** is a bug report, whatever the run
-  called it: it goes to TODO.md with both results side by side. So is **a Linux
-  result that differs from Windows**.
+- **A Linux result that differs from Windows** is a bug report, whatever the run
+  called it: it goes to TODO.md with both results side by side. (An ARM64
+  result that differs from x64 is filed as a `bug` issue by the ARM64 run
+  itself.)
 - **The `linux` queue** (`linux-role.md`) -- **paused since 2026-10-04**: a `test/linux-*` pull request that is still open is merged as before, but do not refill the queue. Otherwise: apply the pull request's `## Queue`
   section. When it is empty, refill it from TESTING-LINUX.md with sections whose
   open rows apply on Linux and read as text or a file state.

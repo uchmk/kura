@@ -1,7 +1,7 @@
 name: Merge lanes
 
-# Merges the real-machine lanes' pull requests (test/win-*, test/arm-*,
-# test/linux-*) once they keep to the rules in scripts/merge-lanes.py and
+# Merges the real-machine lanes' pull requests (test/win-*, test/linux-*;
+# test/arm-* until v0.101.3) once they keep to the rules in scripts/merge-lanes.py and
 # their checks are green, with a merge commit pinned to the head. The merge
 # routine (.claude/merge-routine.md) used to merge them, and the cloud
 # session's auto mode refused the merge (2026-10-10, #309 / #310). A pull

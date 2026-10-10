@@ -42,5 +42,10 @@ CLAUDE.md の「ブランチ・バージョン・変更ログ」から分けた�
     v0.64.2 は `mkdir assets` がリポジトリの `assets/` とぶつかって表が載らず、これで後から載せた）。
     **`rewrite` に印を付けると、表の上の本文も `release-body.sh` でコミットから書き直す**（v0.83.4。手で書き足した部分は消える）。
     上限を入れる前のリリース（v0.79.0）の本文を直すのに使う。
+  - **ARM64 の行は issue で押す**（v0.101.3）。`arm64-rows` ジョブが、TESTING-ARM64.md の行をチェックリストにした
+    issue「ARM64 release rows: <タグ>」（ラベル `release-arm64`）を立て、前の版の開いた issue を not planned で閉じる。
+    ARM64 のノート PC（`auto-wintest.ps1 -Lane arm`）は、この issue が開いている間だけ動き、押して閉じる。
+    行を変えるときは TESTING-ARM64.md を書き換える（ID は `make-testcheck -- --check` が TESTING.md と照らす）。
+    リリースの公開は、その前に `arm64.yml`（ARM64 ランナーでの `cargo test` と起動）が緑であることが条件。
   - ノート末尾の「Platforms」の節は `scripts/release-body.sh` が固定で付ける。**Windows 以外は
     ビルドが通ることしか分かっていない**ことを、毎回そこで明示している。
