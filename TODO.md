@@ -49,7 +49,7 @@
 - [ ] 実機のレーンを common.toml から切り離す: レーンの kura が `<C-=>` を押すと持ち主の common.toml の倍率が変わり、机のほかの uchmk のアプリも大きくなる。`scripts/auto-wintest.ps1` で `UCHMK_CONFIG_DIR` を一時フォルダに向けるか、`KURA_SCALE=1` を渡す【実機】
 - [x] （v0.99.1。`keys::display_seq` が macOS で `<C-q>` を `⌘Q`、`<C-A-x>` を `⌥⌘X` と出し、ヘルプ・which-key・パレットの右端・キーを案内するトースト・オーバーレイの案内が使う。照合は今までの `render_seq`）macOS のヘルプのキーの名前を人の読む形（`⌘Q` など）にする。
   - [ ] 設定の画面の説明文に固定で書いた `Ctrl+=` `Ctrl+F5` `Ctrl+T` を、macOS では `⌘` で出す。macOS の目での確認は TESTING に積む【後】
-- [ ] 窓の位置と大きさを覚える処理を ito に寄せる（tsumugi と yagura にも同じものが要る）
+- [ ] 窓の位置と大きさを覚える処理を ito に寄せる（tsumugi と yagura にも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
 - [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は tsumugi と yagura が common.toml を読むようになってから確かめる【実機】
 
 ## 多言語対応（2026-10-10、持ち主の希望）
