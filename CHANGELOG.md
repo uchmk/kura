@@ -9,6 +9,21 @@
 
 ## [未リリース]
 
+## [0.101.0] - 2026-10-11
+
+実機のレーンが、作業フォルダが汚れていても main の最新のスクリプトで動き、汚れは `rescue/` ブランチに救出して続ける。止まったレーンは Merge lanes のワークフローが外から見つけて知らせる。
+
+### 追加
+
+- `scripts/lane-boot.ps1`: タスクの新しい入口。起動のたびに `origin/main` を fetch し、main の `scripts/` と `Cargo.toml` を `git archive` で状態フォルダに書き出し、構文を確かめてから、そこの `auto-wintest.ps1` を同じ引数で動かす。main が読めなければ前回の写しか作業フォルダの写しを動かし、`lane-boot.log` に書く。
+- `scripts/merge-lanes.py` の `watch_lanes`: 開いている `lane-status` の issue の **Last firing** が 3 時間（実行中なら 5 時間）より古ければラベル `lane-stalled` を付け、その最後の起動ごとに 1 回だけコメントする。レーンがまた書けばラベルを外す。タスクの起動そのものの失敗のように、機械の中に何も残らない止まり方も分かる。
+- `scripts/lane-status.ps1` の `Add-LaneComment`: 状態の issue にコメントを足す（救出の知らせに使う）。
+
+### 変更
+
+- **汚れた作業フォルダで止まらなくなった**（2026-09-30 の「人が見るまで止める」を改めた）。`auto-wintest.ps1` は未コミットの変更を `rescue/<レーン>-<日時>` ブランチにコミットして push し（できなければ機械に残す）、作業フォルダを `origin/main` に戻してその回を続け、状態の issue にコメントする。HEAD が detached・`test/<レーン>-*`・`rescue/<レーン>-*` でないとき、rebase の途中、救出に失敗したときだけ前と同じく止まる。
+- **タスクの登録し直しが要る。**`-File <作業フォルダ>\scripts\lane-boot.ps1`（手順は `auto-wintest.ps1` の冒頭）。登録し直すまでは古い `-Command` が作業フォルダの写しを動かすので、汚れていれば新しい版は届かない。
+
 ## [0.100.2] - 2026-10-11
 
 実機のレーンが、起動のたびに自分の様子を GitHub の issue（「Lane status: win」「Lane status: arm」、ラベル `lane-status`）に書くようにした。

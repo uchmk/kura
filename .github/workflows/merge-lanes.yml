@@ -10,7 +10,8 @@ name: Merge lanes
 # only, pushed to main. Since v0.86.11 it also does the mechanical part of the
 # merger's share (version, CHANGELOG, the reports' lines into TODO.md marked
 # 【後】) and pushes it to main, so a lane need not wait for the merge routine,
-# which now runs once a day and sorts those lines.
+# which now runs once a day and sorts those lines. Since v0.101.0 it also
+# labels a lane's status issue lane-stalled when the lane stops firing.
 #
 # It runs when a check workflow finishes (a lane's pull request turns green),
 # every hour as a fallback, and by hand. It reads pull requests through the
