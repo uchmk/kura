@@ -1,5 +1,10 @@
 # Reports from the testing sessions
 
+> **Archive -- do not read through.** The merger reads the one file a pull
+> request adds; anyone else looks up a single row's entry with
+> `grep -l '<id>' qa-reports/*.md` and reads only the file it names. Findings
+> are moving to GitHub Issues (TODO.md, テストと QA の運用を軽くする, 段階 4).
+
 One file per run, added by the run's own pull request and never edited by
 another: `<YYYY-MM-DD>-<branch without test/>.md`, for example
 `2026-10-03-win-32-9a.md` for `test/win-32-9a`. The Windows lanes

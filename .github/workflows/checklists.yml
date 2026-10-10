@@ -8,13 +8,18 @@ name: Checklists
 # checklists, and this runs the one thing that can be wrong in such a change:
 # whether each file still matches what it is generated from.
 #
-# ci.yml's clippy job keeps running the same three steps, for the changes that
-# move the sources (TESTING.md, the keymap, the generators) along with code.
+# ci.yml's clippy job ran the same three steps until v0.101.1. They are here
+# only now, so this also runs on a change to the code or the lock file: a test
+# naming a TESTING.md id takes that row off the list, and ito-pane's tests,
+# read from the rev Cargo.lock pins, count too.
 
 on:
   push:
     branches: [main]
     paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'TESTING.md'
       - 'TESTING-CHECKS.md'
       - 'TESTING-LINUX.md'
@@ -26,6 +31,9 @@ on:
       - '.github/workflows/checklists.yml'
   pull_request:
     paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'TESTING.md'
       - 'TESTING-CHECKS.md'
       - 'TESTING-LINUX.md'

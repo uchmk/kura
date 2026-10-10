@@ -1,5 +1,9 @@
 # QA report
 
+> **Archive -- do not read through.** Nothing has been added here since
+> 2026-10-03 (each run writes its own file under `qa-reports/`). Find a row's
+> entry with `grep`, if a role document sends you here for one.
+
 Findings from the QA session (`.claude/qa-role.md`). Nothing here is fixed by that
 session: it writes tests, and everything else is a proposal for whoever owns the
 code.

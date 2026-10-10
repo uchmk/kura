@@ -204,8 +204,7 @@ What goes in it:
   that can be measured): untick it in this commit, put the row back in the
   lane's "Re-tests of changed behaviour", and say why in the CHANGELOG line.
 - **Proposals and findings**: every item under the run's `### Proposals` and
-  every bug in its report (its `qa-reports/` file, or its QA-REPORT.md section
-  for a pull request from before 2026-10-03) goes somewhere -- TODO.md for what needs
+  every bug in its report (its new `qa-reports/` file) goes somewhere -- TODO.md for what needs
   no decision (ending the line with `【QA】` for a TESTING.md wording change and
   `【実機】` for what only a Windows machine can measure, so the development
   session's "next item" passes over them; CLAUDE.md, 作業ルール), QUESTIONS.md (CLAUDE.md's format, with a recommendation) for a

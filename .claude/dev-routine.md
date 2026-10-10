@@ -42,7 +42,9 @@ Match the surrounding code (comment density, names, the one-line layout).
 ## A round
 
 1. `git fetch origin main && git checkout -B claude/todo-run origin/main`.
-2. Read CLAUDE.md again, every round: the merge routine edits it alongside you.
+2. Read CLAUDE.md again only when the checkout changed it
+   (`git diff --quiet HEAD@{1} HEAD -- CLAUDE.md` fails): the merge routine
+   edits it alongside you, but rarely.
 3. **A red `main` comes first.** Read the Windows `test` job of `main`'s newest
    commit:
 

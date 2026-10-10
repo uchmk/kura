@@ -6,7 +6,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 
 | 読むもの | いつ |
 | --- | --- |
-| [docs/claude/auto-mode.md](docs/claude/auto-mode.md) | 「自動実行モード」で起動されたとき（Routine・`auto-todo.sh`） |
+| [docs/claude/auto-mode.md](docs/claude/auto-mode.md) | 「自動実行モード」で起動されたとき（クラウドの Routine） |
 | [docs/claude/build.md](docs/claude/build.md) | CI・clippy・テストの書き方・Linux での検証を触るとき |
 | [docs/claude/release.md](docs/claude/release.md) | タグ・リリース・成果物（ConPTY の同梱、SHA-256 の表）を触るとき |
 | [docs/claude/lanes.md](docs/claude/lanes.md) | QA・Windows 実機・Linux のセッション、報告とチェック表、マージする側 |
@@ -51,7 +51,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 
 ## 自動実行モード
 
-プロンプトに「自動実行モード」とあるとき（`auto-todo.sh`、クラウドの Routine）は **[docs/claude/auto-mode.md](docs/claude/auto-mode.md) を読み、そのとおりに動く。**
+プロンプトに「自動実行モード」とあるとき（クラウドの Routine）は **[docs/claude/auto-mode.md](docs/claude/auto-mode.md) を読み、そのとおりに動く。**
 
 ## 並行のセッション・確認事項
 
