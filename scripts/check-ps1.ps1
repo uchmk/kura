@@ -1,6 +1,6 @@
 # Parse every PowerShell script under scripts/ and fail on the first syntax
-# error, then check lane-marks.ps1's functions on a small sample. Nothing
-# else is run.
+# error, then check lane-marks.ps1's and lane-status.ps1's functions on small
+# samples. Nothing else is run.
 #
 # The Windows lanes' scheduled task runs scripts/auto-wintest.ps1 from a
 # worktree that the script itself moves to origin/main. A copy that does not
@@ -44,3 +44,27 @@ Expect 'a key dropped' "$($r.Dropped)|$($r.Text)" "``F2`` rename|- [ ] ``F3`` ot
 Expect 'no marks' (Set-LaneMarks -Main "a`nb" -Marks @()).Text "a`nb"
 if ($bad) { exit 1 }
 Write-Output 'Lane marks are made again as they should be.'
+
+# The lane's status issue (lane-status.ps1): the user's folder written as ~,
+# no @ that mentions anyone, the log and the dirty paths folded away, and the
+# history kept to its length.
+. (Join-Path $PSScriptRoot 'lane-status.ps1')
+$when = [datetimeoffset]::Parse('2026-10-10T21:20:00+09:00').LocalDateTime
+$b = Format-LaneStatus -Lane win -When $when -Script 'v1.2.3 (abc1234)' -Outcome 'Done: WINTEST_DONE @claude' -Task t `
+    -Said @('[x] Script: C:\Users\me\dev\a.ps1') -Dirty @(' M TESTING-CHECKS.md') -Failures 2 -UserDir 'C:\Users\me'
+Expect 'the user folder' ($b -match [regex]::Escape('C:\Users\me')) $false
+Expect 'the folder as ~' ($b -match [regex]::Escape('[x] Script: ~\dev\a.ps1')) $true
+Expect 'a mention' ($b -match '@claude') $false
+Expect 'the dirty worktree' ($b -match '\*\*Worktree:\*\* \*\*dirty\*\* \(1 changed') $true
+Expect 'the failures' ($b -match 'Failed runs in a row:\*\* 2') $true
+Expect 'the dirty paths' ($b -match '(?s)git status --porcelain</summary>.* M TESTING-CHECKS\.md') $true
+$b = Format-LaneStatus -Lane arm -When $when -Script 'v1' -Outcome 'Nothing new.' -Task t
+Expect 'a clean worktree' ($b -match '\*\*Worktree:\*\* clean') $true
+Expect 'no log' ($b -match '<details>') $false
+$h = Join-Path ([IO.Path]::GetTempPath()) "lane-history-$PID.txt"
+Remove-Item -LiteralPath $h -ErrorAction SilentlyContinue
+foreach ($i in 1..5) { $kept = Add-LaneHistory $h "firing $i" 3 }
+Remove-Item -LiteralPath $h -ErrorAction SilentlyContinue
+Expect 'the history' ($kept -join ',') 'firing 5,firing 4,firing 3'
+if ($bad) { exit 1 }
+Write-Output 'The lane status reads as it should.'

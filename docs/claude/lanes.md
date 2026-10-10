@@ -138,6 +138,16 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   **モデルは `-Model` で明示する**（v0.78.30。既定は v0.80.15 から `claude-sonnet-5-5`）。機械の `claude` の既定には従わない。
   実機のレーンは 2026-10-04 から Opus だったが、2026-10-09 に持ち主の判断で x64・ARM64 の両方とマージの Routine を Sonnet 5.5 に変えた
   （開発の Routine も Sonnet 5.5）。Opus に戻すときはタスクの引数に `-Model claude-opus-5-5` を足すか、この既定を戻す。
+- **レーンの様子は GitHub の issue で見える（v0.100.2 から）。**`auto-wintest.ps1` は起動のたびに（`scripts/lane-status.ps1`）、
+  レーンごとの issue「Lane status: win」「Lane status: arm」（ラベル `lane-status`、最初の起動で作る）の本文を書き直す。
+  中身は最後の起動の時刻・動いたスクリプトの版・その起動の結末（何も無い・PR 待ち・分け前待ち・作業フォルダが汚れて止まった・実行中・済み・失敗）・
+  作業フォルダが汚れていればその一覧・続けて失敗した回数・その起動のログ・それまでの 24 回の結末。本文の書き直しは通知を出さない。
+  2026-10-10 に kura のレーンから 1 日 PR が来ず、理由が機械の中（ログ・`dirty.txt`・`failures`）にしか無くて、クラウドからは分からなかったため。
+  クラウドからは `gh api 'repos/uchmk/kura/issues?labels=lane-status&state=all' --jq '.[]|{number,title,updated_at,body}'` で読む。
+  **最後の起動が 2 時間より前で、その前の起動が実行を始めていない（実行は最大 4 時間）なら、タスクがスクリプトを起動していない**
+  （機械が止まっているか眠っている、またはスクリプトの前でタスクが落ちている。機械で `Get-ScheduledTaskInfo filer-auto-wintest` の `LastTaskResult`）。
+  リポジトリは公開なので、本文ではユーザーのフォルダを `~` に変え、`@` はメンションにならないようにし、実行の出力は最後の 1 行だけを載せる。
+  作業フォルダが汚れている間はタスクが新しいスクリプトを取り込まないので、この仕組みもそれまでは動かない。
 - **マージと機械的な分け前はワークフロー、振り分けは Routine（v0.86.6、v0.86.11 から）。**`.github/workflows/merge-lanes.yml`（中身は `scripts/merge-lanes.py`）が、
   CI・Checklists・Audit が終わるたびと毎時 :17 に `test/win-*`・`test/arm-*`・`test/linux-*` の PR を見て、規則（触ってよいファイル、
   印の変わり方、印ごとの証拠の行、`[~]` には画像の名前）を守り、必須のチェック（`checklists`）が緑で、ぶつかりが無いものを

@@ -108,6 +108,15 @@
 # the old value is also written to screensaver.json first, and the next firing
 # puts it back before doing anything else.
 #
+# Status on GitHub. Every firing writes the lane's issue, "Lane status: win"
+# or "Lane status: arm" (label lane-status, opened by the first firing), again:
+# when it fired, which copy of this script, what the firing came to, whether
+# the worktree is dirty, the failed runs in a row and this firing's log lines
+# (scripts/lane-status.ps1). A run also writes it when it starts. A cloud
+# session reads it with
+#   gh api 'repos/uchmk/kura/issues?labels=lane-status&state=all'
+# A failure to write it is logged and changes nothing else.
+#
 # Log: %LOCALAPPDATA%\filer-wintest\auto-wintest.log, or in -LogDir. The log
 # may go on the RAM disk (-LogDir R:\Temp): it is for reading what a run did,
 # not evidence. The state file stays in %LOCALAPPDATA% whatever -LogDir says --
@@ -218,10 +227,13 @@ function Set-BuildTarget {
     return $dir
 }
 
+# This firing's lines, for the lane's status issue (Publish-Status).
+$said = [Collections.Generic.List[string]]::new()
 function Say([string]$line) {
     $stamped = '[{0:yyyy-MM-dd HH:mm:ss}] {1}' -f (Get-Date), $line
     $stamped
     Add-Content -Path $log -Value $stamped
+    [void]$script:said.Add($stamped)
 }
 
 # A notification in the corner of the screen (a balloon, which Windows 10 and
@@ -280,6 +292,33 @@ function Note-Dirty([string[]]$changes) {
 }
 
 . (Join-Path $PSScriptRoot 'lane-marks.ps1')
+. (Join-Path $PSScriptRoot 'lane-status.ps1')
+
+# This firing, written into the lane's status issue on GitHub (lane-status.ps1)
+# at the start of a run and at the end of every firing, so a cloud session can
+# tell why a lane is not making pull requests. $outcome says what the firing
+# came to; when it is not set, the last line it logged does. Never throws.
+$outcome = $null
+$failFile = Join-Path $state "failures$suffix"
+function Publish-Status {
+    try {
+        $what = if ($script:outcome) { $script:outcome } elseif ($said.Count) { $said[-1] -replace '^\[[^\]]*\] ', '' } else { 'Nothing to do.' }
+        $now = Get-Date
+        $history = @(Add-LaneHistory (Join-Path $state "status-history$suffix.txt") ('{0:yyyy-MM-dd HH:mm} {1}' -f $now, $what))
+        $toml = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Cargo.toml') -ErrorAction SilentlyContinue
+        $version = if ($toml -match '(?m)^version = "([^"]+)"') { "v$($Matches[1])" } else { '?' }
+        $copy = "$version ($((git -C $PSScriptRoot rev-parse --short HEAD 2>$null) -join ''))"
+        $dirty = if (Test-Path $Work) { @(git -C $Work status --porcelain 2>$null) } else { @() }
+        $fails = if (Test-Path $failFile) { [int](Get-Content -Raw -LiteralPath $failFile) } else { 0 }
+        $task = if ($Lane -eq 'win') { 'filer-auto-wintest' } else { "filer-auto-wintest-$Lane" }
+        $body = Format-LaneStatus -Lane $Lane -When $now -Script $copy -Outcome $what -Task $task `
+            -Said @($said) -Dirty $dirty -Failures $fails -History @($history | Select-Object -Skip 1)
+        $err = Publish-LaneStatus -Repo $repo -Lane $Lane -Body $body -StateDir $state
+        if ($err) { Say "Could not write the lane's status issue: $err" }
+    } catch {
+        Say "Could not write the lane's status issue: $_"
+    }
+}
 
 # A run takes an hour and main moves under it: a row reworded, another lane's
 # ticks, a re-test list changed. The run's marks then sit beside lines main
@@ -481,7 +520,11 @@ try {
 
     $trigger = (git -C $Work log -1 --format=%H origin/main -- $watched).Trim()
     $seen = if (Test-Path $last) { (Get-Content -Raw $last).Trim() } else { '' }
-    if (-not $Force -and $trigger -eq $seen) { exit 0 }   # quiet: this is most runs
+    if (-not $Force -and $trigger -eq $seen) {   # quiet: this is most runs
+        $outcome = "Nothing new on main since the last run (trigger $($trigger.Substring(0, 7)))."
+        if ($changes.Count) { $outcome += " The worktree is dirty, so new work would not start either." }
+        exit 0
+    }
 
     # A merge that only records a lane's result (its "the test suite" row and
     # its "When every row above is empty" row in windows-role.md) is not new
@@ -497,6 +540,7 @@ try {
             $other = @($changed | Where-Object { $_ -notmatch '^[+-]\| \*\*(the test suite|When every row above is empty)\*\* \|' })
             if ($changed.Count -gt 0 -and $other.Count -eq 0) {
                 Set-Content -NoNewline -Path $last -Value $trigger
+                $outcome = "Main changed only a lane's record in windows-role.md (trigger $($trigger.Substring(0, 7))): nothing to run."
                 exit 0
             }
         }
@@ -529,6 +573,7 @@ try {
 
     if (git -C $Work status --porcelain) {
         Say "$Work has uncommitted changes, left by a run that was cut off. Look at them (listed in $dirtyFile), then clean it (git -C $Work stash -u, or git restore/clean) and run again."
+        $outcome = "Stopped: $Work has uncommitted changes, left by a run that was cut off. A person has to look at them and clean the worktree."
         exit 1
     }
 
@@ -541,6 +586,9 @@ try {
     $self = (git -C $PSScriptRoot log -1 --format='%h %s' -- auto-wintest.ps1 2>$null) -join ''
     Say "Script: $PSCommandPath ($self)"
     Say "Model: $Model"
+    $outcome = "A run is going (started $('{0:yyyy-MM-dd HH:mm}' -f (Get-Date)) on $head, model $Model)."
+    Publish-Status
+    $outcome = $null
     $inWork = [IO.Path]::GetFullPath($PSScriptRoot).StartsWith([IO.Path]::GetFullPath($Work), [StringComparison]::OrdinalIgnoreCase)
     if (-not $inWork) {
         Say "This script is not the worktree's copy, so it does not follow origin/main. Point the task at $Work\scripts\auto-wintest.ps1 (see the top of the script)."
@@ -631,13 +679,13 @@ try {
     # Failures in a row: a lane that fails every firing makes no pull request
     # and says nothing anywhere else, so the owner noticed the ten hours above
     # only by the missing pull requests.
-    $failFile = Join-Path $state "failures$suffix"
     if ($code -eq 0) {
         # Only a finished run uses the trigger up. A failed one is tried
         # again on the next firing, from the same commit.
         Set-Content -NoNewline -Path $last -Value $trigger
         Remove-Item -LiteralPath $failFile -ErrorAction SilentlyContinue
         Say "Done: $tail"
+        $outcome = "Done: $tail"
         # The run's branch, from its pull request: kept mergeable while main moves.
         if ($tail -match '^WINTEST_DONE\s+(\S+)') {
             $branch = (gh pr view $Matches[1] --repo $repo --json headRefName --jq .headRefName 2>$null | Out-String).Trim()
@@ -649,12 +697,18 @@ try {
         $fails = 1 + $(if (Test-Path $failFile) { [int](Get-Content -Raw $failFile) } else { 0 })
         Set-Content -NoNewline -Path $failFile -Value $fails
         Say "The run failed (exit $code). See the log. Last line: $tail"
+        $outcome = "The run failed (exit $code), $fails in a row. Last line: $tail"
         if ($fails -ge 3) {
             Say "!!!!! [$Lane] $fails runs in a row have failed. Nothing reaches GitHub until this is fixed. Last line: $tail !!!!!"
         }
         exit 1
     }
+} catch {
+    $outcome = "The script stopped with an error at line $($_.InvocationInfo.ScriptLineNumber): $_"
+    Say $outcome
+    throw
 } finally {
+    Publish-Status
     if ($desktop) { $desktop.ReleaseMutex() }
     $mutex.ReleaseMutex()
 }
