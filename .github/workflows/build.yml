@@ -11,8 +11,9 @@ name: Build
 # passes, but that never links, and linking is where a platform's own frameworks
 # come in. This is the step that actually finds out.
 #
-# The two Windows builds share one x64 runner, since there is no ARM64 Windows
-# runner. Windows on ARM runs x64 binaries under emulation, so an ARM64 machine
+# The two Windows builds share one x64 runner: it was written when there was no
+# ARM64 Windows runner, and the cross build is cheap. (arm64.yml runs the tests
+# and a start on `windows-11-arm` since v0.101.2.) Windows on ARM runs x64 binaries under emulation, so an ARM64 machine
 # can always open the x64 build -- but that tests the emulator as much as the
 # program, and the cross build is nearly free. macOS and Linux both have native
 # runners for each architecture, so those six are built where they run.

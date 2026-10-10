@@ -11,7 +11,8 @@ name: Release
 # fetch while it was private and got 404).
 #
 # Six files, on two jobs. Windows builds both its architectures on one x64
-# runner because there is no ARM64 Windows runner; macOS and Linux have native
+# runner (written when there was no ARM64 Windows runner; arm64.yml tests on
+# one first since v0.101.2); macOS and Linux have native
 # runners for each, so those four build where they run. The split is explained
 # where the second job starts.
 
@@ -32,7 +33,15 @@ permissions:
   contents: write
 
 jobs:
+  # The tests and a start on ARM64 (arm64.yml). Nothing is published until
+  # they pass: since v0.101.2 no machine runs them every hour any more, so
+  # this is the last place an ARM64-only failure can be caught before a
+  # release carries it.
+  arm64:
+    uses: ./.github/workflows/arm64.yml
+
   windows:
+    needs: arm64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7

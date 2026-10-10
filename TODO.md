@@ -78,7 +78,10 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [x] （v0.101.1）段階 1: 片付け（TODO.md の済んだ「実機のセッションの報告」を TODO-DONE.md へ、`auto-todo.sh` の削除、ci.yml の重複した `--check`、
   windows-role.md の再テストの履歴、qa-reports/ を archive に。
   dev-routine.md は CLAUDE.md が変わったときだけ読み直す）
-- [ ] 段階 2: ARM64 を CI に移す（`windows-11-arm` と `ubuntu-24.04-arm` で `cargo test`、ARM64 の zip の起動の確認、リリースの条件に）
+- [x] （v0.101.2）段階 2: ARM64 を CI に移す（`.github/workflows/arm64.yml`: `windows-11-arm` と `ubuntu-24.04-arm` で `cargo test` と起動の確認。
+  main への push で ci.yml から、リリースでは release.yml から呼び、緑でないとリリースしない）
+- [ ] arm64.yml の最初の run を見る。`windows-11-arm` に Rust が無い・リンクできない・起動の step が落ちるなら直す
+- [ ] arm64.yml の 2 つの起動の step（`continue-on-error`）が 1 週間緑なら、`continue-on-error` を外して必須にする（2026-10-18 以降）
 - [ ] 段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ（`TESTING-ARM64.md`、`-Release`）。ARM 機の毎時のタスクを外すのは【人】
 - [ ] 段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
 - [ ] 段階 5: 共通の道具を ito に移す（`ito-testcheck` と `scripts/lanes/`）。ito をセッションに付けてから【後】

@@ -1,0 +1,112 @@
+name: ARM64
+
+# The tests, and a start of the program, on ARM64 runners (v0.101.2).
+#
+# Until then the ARM64 Windows laptop ran `cargo test` and every unticked row
+# of TESTING-CHECKS.md each hour, beside the x64 machine doing the same. Most of
+# those rows do not depend on the architecture, so the owner made x64 the one
+# machine that presses them (2026-10-10, TODO.md "テストと QA の運用を軽くする").
+# What ARM64 still has to answer every time -- do the tests pass, does the
+# binary start and draw -- is answered here, on GitHub's own ARM64 runners,
+# which cost nothing on a public repository. The rows that do depend on the
+# architecture are pressed by hand once per release (TESTING-ARM64.md).
+#
+# Called by ci.yml on a push to main (not on a pull request: the x64 jobs
+# already gate those, and this would add its wait to every one) and by
+# release.yml, which publishes nothing until both jobs here are green.
+#
+# The start is checked on the debug build that `cargo test` has all but built
+# already. The zips ship a release build cross-compiled on an x64 runner for
+# the same target with the same toolset; a native release build here would
+# cost a second compile to tell the two apart.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+      # The windows-11-arm image has not always carried Rust. A no-op when it
+      # does.
+      - name: Rust, if the image has none
+        shell: pwsh
+        run: |
+          if (Get-Command cargo -ErrorAction SilentlyContinue) { cargo --version; exit 0 }
+          $init = Join-Path $env:RUNNER_TEMP 'rustup-init.exe'
+          Invoke-WebRequest -Uri 'https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe' -OutFile $init
+          & $init -y --profile minimal --default-toolchain stable
+          if ($LASTEXITCODE -ne 0) { throw "rustup-init exited $LASTEXITCODE" }
+          Join-Path $env:USERPROFILE '.cargo\bin' | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-arm64
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Test
+        run: cargo test --locked
+      - name: Build
+        run: cargo build --locked
+      - name: It says it is ARM64
+        shell: pwsh
+        run: |
+          $arch = & target/debug/kura.exe env | Select-String 'Process arch'
+          "$arch"
+          if (-not ("$arch" -match 'aarch64')) { throw "kura env says '$arch', not aarch64" }
+      # The window, drawn on a runner with no GPU: wgpu has to find Windows'
+      # software adapter. Not yet known to work, so it does not fail the job
+      # until it has been green for a week (TODO.md).
+      - name: It starts, draws and quits
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'smoke'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $done = Join-Path $out 'done.txt'
+          $env:KURA_KEYS_DONE = $done
+          $p = Start-Process -FilePath target/debug/kura.exe -ArgumentList 'src', '--keys', '<Wait:1500><Shot:windows-arm64><Quit>' -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw 'kura did not quit within 3 minutes' }
+          if (-not (Test-Path $done)) { throw "kura exited $($p.ExitCode) and wrote no $done" }
+          Get-Content -Raw $done
+          if (-not ((Get-Content -Raw $done) -match 'keys: done')) { throw 'the script did not finish' }
+          if (-not (Test-Path (Join-Path $out 'windows-arm64.png'))) { throw 'no screenshot' }
+      - name: Keep the screenshot
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-arm64-smoke-${{ github.sha }}
+          path: ${{ runner.temp }}/smoke/
+          if-no-files-found: warn
+
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-arm64
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Test
+        run: cargo test --locked
+      # The same start as ci.yml's `smoke`, on lavapipe.
+      - name: Install a display and a software GPU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb imagemagick x11-utils \
+            mesa-vulkan-drivers libxkbcommon-x11-0
+      - name: Build
+        run: cargo build --locked
+      - name: Start it and photograph it
+        continue-on-error: true
+        run: scripts/smoke-linux.sh --out smoke-arm64.png
+      - name: Keep the screenshot
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-arm64-smoke-${{ github.sha }}
+          path: smoke-arm64.png
+          if-no-files-found: warn

@@ -118,6 +118,14 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+  # ARM64, Windows and Linux (v0.101.2): the tests and a start, on GitHub's
+  # ARM64 runners. On a push to main and by hand, not on a pull request -- the
+  # x64 jobs gate those, and this would add its wait to every one. arm64.yml
+  # says why the ARM64 machine's hourly runs moved here.
+  arm64:
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/arm64.yml
+
   # Does the Linux binary actually start?
   #
   # Until this job existed, CI knew one thing about the Linux and macOS builds:
