@@ -58,6 +58,18 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 QA・Windows 実機（x64 / ARM64）・Linux レーン・マージの Routine の約束は [docs/claude/lanes.md](docs/claude/lanes.md)、
 QUESTIONS.md の書き方と「多数決で進める質問」は [docs/claude/questions.md](docs/claude/questions.md)。
 
+## 持ち主の PC への依頼（needs-pc）
+
+クラウドのセッションは、持ち主の Windows の PC でしかできないことを、ラベル `needs-pc` の Issue で PC のセッションに頼む
+（雛形 `.github/ISSUE_TEMPLATE/needs-pc.yml`）。
+
+- PC に頼むもの: 実機の確認（窓・キー・ConPTY・トースト・見た目）、Windows でだけ出る失敗の再現、リリース（`release.yml` を回す）、
+  PC の環境（`%APPDATA%\uchmk` の設定・字体・タスク スケジューラ・wintest のレーン）。実装・テスト・文書・マージはクラウドのまま。
+- 書くこと: やること、終わりの条件、版かコミット、頼んだセッションの題。会話の記録を読まなくても進められるように。
+- PC のセッションは 30 分ごとくらいに開いている `needs-pc` を拾い、Issue に結果を書いて閉じ、頼んだセッションにもメッセージで知らせる。
+  クラウドのセッションからは PC のセッションにメッセージを返せないので、PC への連絡は Issue だけで行う。
+- PC のセッションはクラウドが作業しているブランチや main のコードを直接いじらない。直しが要れば担当のセッションに頼む。
+
 ## 構成
 
 | 場所           | 役割                                                                                                                                    |
