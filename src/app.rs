@@ -7055,7 +7055,7 @@ impl App {
         }
         // The selection is what the commands will act on, so say so when it is
         // more than the one file the pointer landed on.
-        let n = self.tabs[self.active].targets().len();
+        let n = self.tabs[self.active].target_count();
         let title = match n > 1 {
             true => format!("Actions: {n} selected"),
             false => format!("Actions: {name}"),

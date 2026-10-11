@@ -298,7 +298,7 @@ pub fn shell_hint(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bo
     let Overlay::Input(ov) = &app.overlay else { return };
     let InputKind::Shell { block } = &ov.kind else { return };
 
-    let n = app.tab().targets().len();
+    let n = app.tab().target_count();
     let what = match n {
         0 => "nothing selected".to_owned(),
         1 => "1 file".to_owned(),

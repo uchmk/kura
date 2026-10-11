@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::fs::SortSpec;
@@ -158,11 +158,36 @@ impl Tab {
 
     /// Files an action applies to: the selection if there is one, else the
     /// hovered file. This is yazi's rule.
+    ///
+    /// The selection comes in the order the list shows it, so copied paths
+    /// and shell arguments line up with what is on screen (#325). Marks the
+    /// list does not show (other folders, filtered out) follow in path order.
     pub fn targets(&self) -> Vec<PathBuf> {
         if !self.selected.is_empty() {
-            return self.selected.iter().cloned().collect();
+            let mut out: Vec<PathBuf> = self
+                .current
+                .view
+                .iter()
+                .filter_map(|&i| self.current.entries.get(i as usize))
+                .filter(|e| self.selected.contains(&e.path))
+                .map(|e| e.path.clone())
+                .collect();
+            if out.len() < self.selected.len() {
+                let shown: HashSet<&PathBuf> = out.iter().collect();
+                let rest: Vec<PathBuf> = self.selected.iter().filter(|p| !shown.contains(p)).cloned().collect();
+                out.extend(rest);
+            }
+            return out;
         }
         self.current.hovered().map(|e| vec![e.path.clone()]).unwrap_or_default()
+    }
+
+    /// How many files `targets` would give, without building the list.
+    pub fn target_count(&self) -> usize {
+        match self.selected.len() {
+            0 => usize::from(self.current.hovered().is_some()),
+            n => n,
+        }
     }
 
     pub fn toggle(&mut self, state: Option<bool>) {
@@ -338,6 +363,25 @@ mod tests {
         t.pending_cd =
             Some(PendingCd { from: PathBuf::from(from), pushed: true, fallback, reveal: None });
         t
+    }
+
+    #[test]
+    fn targets_follow_the_list_not_the_path_order() {
+        let mut t = tab(4);
+        // The list shows d, b, c, a (as a size or reverse sort would).
+        t.current.view = vec![3, 1, 2, 0];
+        for n in ["a", "b", "d"] {
+            t.selected.insert(PathBuf::from(format!("/t/{n}")));
+        }
+        // A mark from another folder comes after the ones on screen.
+        t.selected.insert(PathBuf::from("/s/z"));
+        let got: Vec<String> = t.targets().iter().map(|p| p.display().to_string()).collect();
+        assert_eq!(got, ["/t/d", "/t/b", "/t/a", "/s/z"]);
+        assert_eq!(t.target_count(), 4);
+
+        t.selected.clear();
+        assert_eq!(t.targets(), vec![PathBuf::from("/t/d")]);
+        assert_eq!(t.target_count(), 1);
     }
 
     #[test]
