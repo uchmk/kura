@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 623 件（TESTING.md の全 816 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 624 件（TESTING.md の全 817 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -96,6 +96,7 @@ cd $HOME\Desktop\kura-fixtures
 - [~] **1.46** `<C-t>` のあと長いファイルを `less` で開き（`less /etc/passwd`、Windows では `Get-Content` を `less` か `more` に流す）、`q` を押す。もう一度 `less` を開いて `<C-t>`（v0.83.0、Q77）→ `less` が画面を使っている間、ペインの右上に小さく `<C-t> list` が薄い下地と淡い文字色で出る。ペインを離れるキーの名前で、`[term]` の `close` を割り当て直せば表示も変わる。`q` で `less` を終えると消え、`<C-t>` で一覧にキーを戻しても消える。出ている間 `<State:>` に `pane badge: <C-t> list` が出る — *`<C-t>`, then `less` a long file (`less /etc/passwd`, or `Get-Content` piped into `less`/`more` on Windows); press `q`; run `less` again and press `<C-t>` (v0.83.0, Q77) → While `less` has the screen, a small `<C-t> list` tag shows at the pane's top-right corner on a faint plate, in the dim text colour; it names the key that leaves the pane (rebind `[term]`'s `close` and the tag follows). It goes when `less` quits with `q`, and when `<C-t>` hands the keys back to the list. `<State:>` reads `pane badge: <C-t> list` while it shows*
 - [ ] **1.47** `<C-t>`; in the pane run `cat` (no bracketed paste); copy two lines of text elsewhere, press `<C-v>` in the pane, then right-click it. Answer `n` once and `y` once. Then at pwsh/bash prompt (bash asks for bracketed paste) copy two lines and paste (v0.86.32) → In `cat` and pwsh: a **Paste 2 lines?** box with the first lines of the text; `y` / `<Enter>` pastes, `n` / `<Esc>` pastes nothing; both `<C-v>` and right-click ask. A single copied line (with or without its line end) never asks, and neither does bash/zsh at the prompt 〔未訳〕
 - [ ] **1.48** `<C-t>`; `seq 300` in the pane; drag from a line in the middle of the pane up past its top edge and hold the button there; then drag down past the bottom edge; let go and paste in Notepad (v0.86.32) → While the pointer is above the pane the view scrolls back and the selection grows with it, faster the farther away; below the pane it scrolls toward the newest; held still inside the pane nothing scrolls; the pasted text runs from where it started to where it ended 〔未訳〕
+- [ ] **1.49** `<C-t>` のあと bash で `printf '\e[>q'; read -rs -d '\' r; echo "${r@Q}"`（pwsh では `KURA_PTY_LOG` を付けてログから応答を読む）（v0.103.8）→ 応答が `\EP>|kura X.Y.Z\E\\` で、版は `kura --version` と同じ。前は `tsumugi` と共有のペインのクレートの版だった — *`<C-t>`; in bash: `printf '\e[>q'; read -rs -d '\' r; echo "${r@Q}"` (in pwsh: `[Console]::Write("`e[>q")`, then read the reply with `KURA_PTY_LOG` set) (v0.103.8) → The reply is `\EP>|kura X.Y.Z\E\\` with kura's own version (the one `kura --version` prints). It used to say `tsumugi` and the version of the shared pane crate*
 
 ## 2. ミニマップ
 

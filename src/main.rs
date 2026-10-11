@@ -302,6 +302,7 @@ fn main() -> eframe::Result<()> {
     // Before anything loads a DLL: `conpty.dll` only from beside kura.exe
     // (or System32), never the working folder or the `PATH` (#184).
     ito_pane::restrict_dll_search();
+    ito_pane::set_identity("kura", env!("CARGO_PKG_VERSION"));
     // Before `kura env` or the config reads them: an upgrade from filer
     // finds its folders under the new name.
     let moved = crate::config::move_old_dirs();

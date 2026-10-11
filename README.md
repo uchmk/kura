@@ -669,6 +669,7 @@ The wheel walks the scrollback. Drag to select and the selection is copied when 
 that is what selecting means in a terminal, there is no second step — and a double-click takes
 the word. **Right-click pastes**, which is the other half of that pair; `<C-v>` does the same.
 Click the pane to take the keys back.
+Asked who it is (XTVERSION, `\e[>q`), the pane answers `kura X.Y.Z` with kura's own version.
 
 A paste is wrapped in the bracketed-paste markers when the program on the other end asks for
 them — bash, zsh, fish and vim do; PowerShell's PSReadLine on Windows does not (5.1 and 7.6 both
