@@ -6,7 +6,9 @@
 #
 #   - origin/main has changed TESTING.md, TESTING-CHECKS.md or
 #     .claude/windows-role.md since the last run it started -- a merged run
-#     changes the last two, so merging one pull request is what starts the next;
+#     changes TESTING-CHECKS.md, so merging one pull request is what starts the
+#     next -- or the open `retest` and `vote` issues are not the ones it saw
+#     then (since v0.102.0 a re-test or a question to vote on is an issue);
 #   - no pull request from this lane (test/win-*) is still open (that section
 #     is not done yet, and a second run would take the same one: it happened on
 #     2026-09-28);
@@ -604,11 +606,29 @@ try {
         $trigger = "issue-$armIssue"
         $short = "#$armIssue"
     } else {
-        $trigger = (git -C $Work log -1 --format=%H origin/main -- $watched).Trim()
-        $short = $trigger.Substring(0, 7)
+        # main's last change to $watched, and the open retest and vote issues:
+        # "<sha>+issues:12,15". A state file from before v0.102.0 holds the sha alone.
+        $sha = (git -C $Work log -1 --format=%H origin/main -- $watched).Trim()
+        $nums = foreach ($label in 'retest', 'vote') {
+            gh issue list --repo $repo --label $label --state open --json number --jq '.[].number'
+            if ($LASTEXITCODE -ne 0) { Say 'gh issue list failed (is gh logged in?). Trying again next time.'; exit 0 }
+        }
+        $issues = (@($nums | Where-Object { $_ } | ForEach-Object { [int]$_ } | Sort-Object -Unique) -join ',')
+        $trigger = "$sha+issues:$issues"
+        $short = $sha.Substring(0, 7) + $(if ($issues) { " + issues $issues" } else { '' })
     }
     $seen = if (Test-Path $last) { (Get-Content -Raw $last).Trim() } else { '' }
-    if (-not $Force -and $trigger -eq $seen) {   # quiet: this is most runs
+    # Only an issue that was not open last time is new work: one closed since
+    # (a re-test done, a vote counted) is not.
+    $seenSha = $seen.Split('+')[0]
+    $quiet = $trigger -eq $seen
+    if (-not $armIssue) {
+        $seenIssues = @(if ($seen -match '\+issues:(.*)$') { $Matches[1].Split(',') | Where-Object { $_ } })
+        $newIssues = @($issues.Split(',') | Where-Object { $_ -and $_ -notin $seenIssues })
+        $quiet = $sha -eq $seenSha -and $newIssues.Count -eq 0
+        if ($quiet -and $trigger -ne $seen) { Set-Content -NoNewline -Path $last -Value $trigger }
+    }
+    if (-not $Force -and $quiet) {   # quiet: this is most runs
         $outcome = if ($armIssue) { "Issue #$armIssue has had its run; what is left in it is for a person (or -Force)." }
                    else { "Nothing new on main since the last run (trigger $short)." }
         if ($changes.Count) { $outcome += " The worktree is dirty and could not be saved, so new work would not start either." }
@@ -620,17 +640,18 @@ try {
     # its "When every row above is empty" row in windows-role.md) is not new
     # work: starting on it made an empty queue wake itself every hour (#291,
     # #292). The trigger is used up without a run.
+    # (Only when no issue is new: a new one is work whatever main did.)
     $seenKnown = $false
-    if ($seen) { git -C $Work cat-file -e "$seen^{commit}" 2>$null; $seenKnown = ($LASTEXITCODE -eq 0) }
-    if (-not $Force -and $seenKnown -and -not $armIssue) {
-        $files = @(git -C $Work diff --name-only $seen $trigger -- $watched)
+    if ($seenSha -and -not $armIssue) { git -C $Work cat-file -e "$seenSha^{commit}" 2>$null; $seenKnown = ($LASTEXITCODE -eq 0) }
+    if (-not $Force -and $seenKnown -and -not $armIssue -and $newIssues.Count -eq 0) {
+        $files = @(git -C $Work diff --name-only $seenSha $sha -- $watched)
         if ($files.Count -eq 1 -and $files[0] -eq '.claude/windows-role.md') {
-            $changed = @(git -C $Work diff -U0 $seen $trigger -- '.claude/windows-role.md' |
+            $changed = @(git -C $Work diff -U0 $seenSha $sha -- '.claude/windows-role.md' |
                 Where-Object { $_ -match '^[+-]' -and $_ -notmatch '^(\+\+\+|---) ' })
             $other = @($changed | Where-Object { $_ -notmatch '^[+-]\| \*\*(the test suite|When every row above is empty)\*\* \|' })
             if ($changed.Count -gt 0 -and $other.Count -eq 0) {
                 Set-Content -NoNewline -Path $last -Value $trigger
-                $outcome = "Main changed only a lane's record in windows-role.md (trigger $($trigger.Substring(0, 7))): nothing to run."
+                $outcome = "Main changed only a lane's record in windows-role.md (trigger $($sha.Substring(0, 7))): nothing to run."
                 exit 0
             }
         }

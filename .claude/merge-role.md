@@ -16,11 +16,12 @@ requests is open, and also while its latest merged one is not named in
 pull request left without it stops the loop as surely as an open one did.
 Since v0.86.11 the workflow does the mechanical half right after its merges,
 so a lane no longer waits for this routine (which runs once a day): it bumps
-the PATCH, writes a CHANGELOG line per pull request, copies the report's
-`### Proposals`, `### Queue` and `### Votes` items into TODO.md under
-"実機のレーンから", each ending in `【後】`, adds one line per pull request
-asking for its report to be read, pushes, and starts `main`'s CI. What is
-left for you is the judgment in 4.
+the PATCH, writes a CHANGELOG line per pull request, pushes, and starts
+`main`'s CI. Since v0.102.0 it also files what the report left for others as
+issues instead of TODO.md lines: the `### Proposals` and `### Queue` items as
+one `finding` issue (`lane:win` / `lane:linux`), the `### Votes` lines as
+comments on their question issues; and it labels the pull request
+`lane-review` for you. What is left for you is the judgment in 4.
 
 There are two lanes: `test/win-*` from the x64 machine, and `test/linux-*`
 from a cloud session running kura on a virtual X display
@@ -35,35 +36,24 @@ Read [CLAUDE.md](../CLAUDE.md) first, with [docs/claude/lanes.md](../docs/claude
 [docs/claude/questions.md](../docs/claude/questions.md); their rules apply in full. Reply in Japanese;
 code, comments and commits in English. Nobody is watching: never wait for input.
 
-## 0. Count the votes (every run, before anything else)
+## 0. The votes are the workflow's
 
-CLAUDE.md, "多数決で進める質問". For each question in QUESTIONS.md on `main`
-whose `状態` is `投票中`:
-
-- **Two votes on the same option, no `多数決` line yet**: add
-  `- 多数決: <option>（<today> に揃った）`, and in the same run set `状態` to
-  `多数決で決定` and take `（要確認: Qn）` off its TODO.md task -- no waiting
-  (the owner's word, 2026-10-03; there used to be 24 hours for the owner to
-  answer first). An answer the owner writes later still wins. You do not
-  implement it -- that is code, and the development session picks it up.
-- **A lane votes again on a question it already voted on**: the newer vote
-  replaces the older; copy it with the pull request's number and count again.
-- **Every voter has voted and no two agree** (since v0.101.3 the voters are the
-  cloud session and `win`; an `arm` line from before still counts as a vote):
-  set `状態` back to `未回答` and add
-  `- 多数決: 割れた（<today>）。持ち主を待つ`.
-- **The owner wrote an answer**: that wins; the question leaves the vote.
-- An `owner` vote counts for no option, and so does a Windows vote whose reason
-  does not rest on something seen on the machine (copy it with `（数えない: 理由が実機に無い）`).
-
-Changes here are Markdown: commit them as in 4 (with the merger's share when a
-pull request is merged in this run, alone otherwise) and push to `main`. The
-reply names what changed (`Q57: 多数決 1`).
+Since v0.102.0 a question is a `question` issue and its votes are comments
+(docs/claude/questions.md). The workflow counts them every hour
+(`count_votes` in `scripts/merge-lanes.py`): two votes on one option make it
+`vote-decided`, a split or an `owner` vote `needs-owner`, the owner's `回答:`
+`answered`, each with one comment. You count nothing by hand. One judgment is
+left: a `vote[win]:` whose reason does not rest on something seen on the
+machine does not count -- comment `uncount[win]: the reason is not from the
+machine` on the issue, and the next count leaves it out. QUESTIONS.md is an
+archive (Q1-Q98); nothing in it is counted any more.
 
 ## 1. Find the work
 
-- **The workflow's `【後】` lines**: TODO.md's "実機のレーンから" section.
-  Each one is sorted in 4.
+- **Merged lane pull requests labelled `lane-review`**
+  (`gh api "repos/uchmk/kura/issues?labels=lane-review&state=closed"`): the
+  workflow labels each one it shares. Each one is read in 4, and the label
+  comes off when it is done.
 - **Merged, without a share** (the workflow failed or was off): the lane pull requests (head branch
   `test/win-*` or `test/linux-*`) merged in the last 7 days
   whose `#N` is nowhere in `origin/main`'s CHANGELOG.md
@@ -82,8 +72,7 @@ reply names what changed (`Q57: 多数決 1`).
   checks are running, or it will merge them on its next pass (it runs when a
   check workflow finishes, and at :17 every hour). Leave them.
 
-Nothing in any of these lists: stop here and say so in one line (after the
-votes in 0).
+Nothing in any of these lists: stop here and say so in one line.
 
 ## 2. What the workflow merges
 
@@ -99,8 +88,8 @@ merged:
    `TESTING-LINUX.md` (`[ ]` to `[x]` or `[-]`). Anything else -- `.claude/`,
    `docs/`, `src/`, `CHANGELOG.md`, TESTING.md, a heading, a count line -- is
    not merged. (Until v0.86.5 the routine also merged a run's edits to
-   `windows-role.md` and `docs/`; a run cannot write under `.claude/` and
-   applies its queue through the `## Queue` section of its body instead.)
+   `windows-role.md` and `docs/`; a run cannot write under `.claude/`, and
+   since v0.102.0 says what should change there in a `finding` issue.)
 2. **Every new mark has its evidence line in the pull request body**: a line
    that names the row (`**49.8**`, `49.8`, a range like `49.7-49.9`, or for
    TESTING-KEYS.md the key in backticks) and says something beyond the name.
@@ -137,7 +126,7 @@ merged:
     it here, do not ask). `main` rewrote the row after the run (a fix changed
     its expectation, and unticked it): **take `main`'s line, unticked**; the
     run checked the old expectation, so its tick does not stand for the new
-    one, and the row stays in the lane's "Re-tests of changed behaviour". Say
+    one, and the row stays in its open `retest` issue (add it to one if it is in none). Say
     so in the share (`#N settled A and B; C was rewritten by vX.Y.Z after the
     run, so it stays open`). The same text on both sides, both ticked: take
     either; the tick stands.
@@ -148,9 +137,9 @@ merged:
   as it is, or close and let the next run press those rows again).
 - **`red`**: read the log. A pull request of Markdown cannot break a build, so
   a red check is a flaky test or a broken `main`. **Do not fix code from
-  here** -- nobody reviews what an unattended run pushes to `main`. Write the
-  failing check, the log line and your reading of the cause into TODO.md
-  (commit that as in 4). A `checklists` failure on a pull request that only
+  here** -- nobody reviews what an unattended run pushes to `main`. Open a
+  `bug` issue with the failing check, the log line and your reading of the
+  cause. A `checklists` failure on a pull request that only
   ticks is a mark the generator does not accept: hold it as for `rules`.
 
 **Holding** is a line under TODO.md's "マージで止めている実機の PR" (take out
@@ -172,19 +161,19 @@ decide):
   it: say so under the item and reply `not merged #N: the workflow's rules
   (…); the owner merges it by hand`.
 - **Close it**: close the pull request with a one-line comment naming the
-  answer, check that its rows are still in that lane's "Re-tests of changed
-  behaviour", and take the item out.
+  answer, check that its rows are in an open `retest` issue (add them if
+  not), and take the item out.
 - An answer you cannot carry out as written: write under the item what
   stopped you, and reply `not merged #N: …`.
 
 ## 4. The merger's share, straight on `main`
 
-The workflow has already pushed the version, the CHANGELOG lines and the
-`【後】` lines for each merged pull request. Your part is to sort them: read
-each report, do what the items below ask, and take every `【後】` line out of
-"実機のレーンから" (or replace it with the task it became). One commit for the
-run (CLAUDE.md: one version per push), with its own PATCH and a CHANGELOG line
-naming the `#N` it sorted.
+The workflow has already pushed the version and the CHANGELOG lines, filed
+the report's leftovers as issues, and labelled each merged pull request
+`lane-review`. Your part is to read each one's report, do what the items below
+ask, and take the label off. When that changes files: one commit for the run
+(CLAUDE.md: one version per push), with its own PATCH and a CHANGELOG line
+naming the `#N` it read.
 It holds **Markdown, `Cargo.toml` and `Cargo.lock`
 only** -- this is the one push to `main` an unattended run may make, and it is
 allowed because nothing in it can break a build. **Push it with
@@ -206,23 +195,24 @@ What goes in it:
   each mark has a line naming its row. Read those lines against
   `windows-role.md` ("Ticking TESTING-CHECKS.md", "TESTING-KEYS.md"). A mark
   whose line does not hold up (no before/after for a key, a `[~]` on a row
-  that can be measured): untick it in this commit, put the row back in the
-  lane's "Re-tests of changed behaviour", and say why in the CHANGELOG line.
-- **Proposals and findings**: every item under the run's `### Proposals` and
-  every bug in its report (its new `qa-reports/` file) goes somewhere -- TODO.md for what needs
-  no decision (ending the line with `【QA】` for a TESTING.md wording change and
-  `【実機】` for what only a Windows machine can measure, so the development
-  session's "next item" passes over them; CLAUDE.md, 作業ルール), QUESTIONS.md (CLAUDE.md's format, with a recommendation) for a
-  key, a default or a design choice. Merging without this is half the job.
-  A new question that has an arguable technical answer goes out as `投票中`,
-  with your own vote and no "（推奨）" (CLAUDE.md, "多数決で進める質問").
-- **Votes** (the workflow copied them to TODO.md as `【後】` lines): copy each line under the run's `### Votes` into that question's
-  `投票` field as `- win: …` with `（#NN）`, then count as in 0.
+  that can be measured): untick it in this commit, add the row to the open
+  `retest` issue (or open one), and say why in the CHANGELOG line.
+- **Proposals and findings**: every bug in the report and every item under its
+  `### Proposals` must end up an issue. The run opens them itself (`Findings:
+  #N` in its body), and the workflow files what the report still lists as one
+  `finding` issue. Check that nothing is missing, and open what is
+  (`finding` and the lane's label, the run's `#N` in the body; add `bug` for a
+  bug). A key, a default or a design choice is a `question` issue instead
+  (docs/claude/questions.md), with a recommendation; one with an arguable
+  technical answer gets `vote` and your own `vote[cloud]:` comment.
+  Findings no longer go into TODO.md: the development session takes them from
+  the issues.
 - **The queue of the pull request's lane** in `windows-role.md`: the section just
   run must be out of the table, or cut down to what is left and why. **The run
   cannot edit the table itself** (writes under `.claude/` are refused to it), so
-  apply the `## Queue` section of its pull request body here, or work it out from
-  its report if there is none -- otherwise the next run takes the same section.
+  apply the `finding` issues it opened about the queue (close them in this
+  share), or work it out from its report if there are none -- otherwise the next
+  run takes the same section.
 - **The `win` queue is empty**: refill it. Read TESTING-CHECKS.md for sections with
   unticked rows that are not in the table or the "worked through" line, and add
   the ones whose rows can be read as text, a file state or a process state,
@@ -234,11 +224,11 @@ What goes in it:
   blocked (#275 proposal 3: a row still said "skip" 56 versions after the
   panic hook landed).
 - **A Linux result that differs from Windows** is a bug report, whatever the run
-  called it: it goes to TODO.md with both results side by side. (An ARM64
+  called it: a `bug` issue (`lane:linux`) with both results side by side. (An ARM64
   result that differs from x64 is filed as a `bug` issue by the ARM64 run
   itself.)
-- **The `linux` queue** (`linux-role.md`) -- **paused since 2026-10-04**: a `test/linux-*` pull request that is still open is merged as before, but do not refill the queue. Otherwise: apply the pull request's `## Queue`
-  section. When it is empty, refill it from TESTING-LINUX.md with sections whose
+- **The `linux` queue** (`linux-role.md`) -- **paused since 2026-10-04**: a `test/linux-*` pull request that is still open is merged as before, but do not refill the queue. Otherwise: apply the queue
+  issues it opened. When it is empty, refill it from TESTING-LINUX.md with sections whose
   open rows apply on Linux and read as text or a file state.
 
 
@@ -246,7 +236,7 @@ What goes in it:
 
 - Merge a pull request, or ask anything else to: that is the workflow's.
 - Tick a row yourself, or edit TESTING.md's rows or numbering.
-- Vote for a lane, or count a question that is not `投票中`.
+- Vote for a lane (`vote[win]:`), or count votes by hand: the workflow does.
 - Push to the pull request's branch except to resolve a conflict (3).
-- Change code, workflows or scripts. Anything that needs it goes to TODO.md.
+- Change code, workflows or scripts. Anything that needs it is a `finding` issue.
 - Cut a release, run `cargo fmt`, or force-push anything.

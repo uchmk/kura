@@ -27,6 +27,11 @@ Your report is a file of its own, `qa-reports/<YYYY-MM-DD>-<branch without test/
 (`qa-reports/2026-10-03-harness-preview.md`). Never add to QA-REPORT.md: every run used to
 append to its end, and any two pull requests open at once conflicted there. It stays as
 the record of the runs before 2026-10-03.
+**Each finding that asks for a change is also an issue** (v0.102.0): `finding` and
+`lane:qa` (`gh issue create -l finding,lane:qa`, or the GitHub MCP tools; the form is
+`.github/ISSUE_TEMPLATE/finding.yml`), named by number in your report. The development
+session takes its tasks from those issues, not from reports. A choice for the owner is
+a `question` issue instead (docs/claude/questions.md).
 Never `Cargo.toml`, and never `CHANGELOG.md` -- see "Branch and hand-off" for why.
 **Never TESTING-KEYS.md either: its ticks belong to the owner and the Windows machine's session.** Its `[x]` marks mean
 "tried on a real machine", which is not something you can do or undo, so you report

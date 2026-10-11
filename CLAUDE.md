@@ -10,7 +10,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 | [docs/claude/build.md](docs/claude/build.md) | CI・clippy・テストの書き方・Linux での検証を触るとき |
 | [docs/claude/release.md](docs/claude/release.md) | タグ・リリース・成果物（ConPTY の同梱、SHA-256 の表）を触るとき |
 | [docs/claude/lanes.md](docs/claude/lanes.md) | QA・Windows 実機・Linux のセッション、報告とチェック表、マージする側 |
-| [docs/claude/questions.md](docs/claude/questions.md) | QUESTIONS.md に質問を書く・回答を反映する・票を数えるとき |
+| [docs/claude/questions.md](docs/claude/questions.md) | 確認事項（`question` の issue）を立てる・回答を反映する・票を入れるとき |
 
 ## 作業ルール
 
@@ -18,13 +18,15 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 - 頼まれるまでコミットしない（例外は「自動実行モード」）。
 - 実行中の `kura.exe` を止めるときは事前確認を不要とし、ビルドを優先する。
 - 改行は LF（`.gitattributes` の `eol=lf`）。スクリプトで書き換えるときは改行を変えない（Python なら `newline=''`）。
-- タスクは [TODO.md](TODO.md)、人への確認事項は [QUESTIONS.md](QUESTIONS.md)（書き方は docs/claude/questions.md）。
+- タスクは [TODO.md](TODO.md) と、レーン・QA の所見の issue（ラベル `finding`。直したら版を書いて閉じる）。
+  人への確認事項は `question` の issue（書き方は docs/claude/questions.md。QUESTIONS.md は Q1-Q98 の archive）。
   - 未完了の項目の末尾の `【人】` `【QA】` `【実機】` `【後】` `【pane】` は開発のセッションが進めない印。「次の項目」を探すときは飛ばす。
     `【pane】` はターミナルペイン: コードは uchmk/ito の `ito-pane` にあり、kura は `Cargo.toml` の `rev` で固定して読む
     （直すときは tsumugi 側で直し、`rev` を上げて `cargo build` で `Cargo.lock` を合わせる）。
   - 節の項目が全部済んだら、その節を [TODO-DONE.md](TODO-DONE.md) の末尾に移す。
-- **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`.claude/windows-role.md` の
-  順番表の先頭の「Re-tests of changed behaviour」に足す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。
+- **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`retest` の issue を立てる
+  （題 `Re-test: vX.Y.Z`、本文は行 ID のチェックリストと何が変わったか。フォーム `.github/ISSUE_TEMPLATE/retest.yml`）。
+  x64 のレーンがいちばん古いものから押す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。
 - **実機でしか確かめられないことは [TESTING.md](TESTING.md) に積む**（チェック項目を足してから完了にする）。`[x]` を付けてよいのは実機のセッションと持ち主だけ。
 
 ## 版・変更ログ・push
@@ -56,7 +58,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 ## 並行のセッション・確認事項
 
 QA・Windows 実機（x64、ARM64 はリリースごと）・Linux レーン・マージの Routine の約束は [docs/claude/lanes.md](docs/claude/lanes.md)、
-QUESTIONS.md の書き方と「多数決で進める質問」は [docs/claude/questions.md](docs/claude/questions.md)。
+確認事項の issue と「多数決で進める質問」は [docs/claude/questions.md](docs/claude/questions.md)。
 
 ## 持ち主の PC への依頼（needs-pc）
 
@@ -100,7 +102,7 @@ QUESTIONS.md の書き方と「多数決で進める質問」は [docs/claude/qu
   - プラグインの主な用途（カーソルの下のファイルに何かする）は、`shell` のバインドと `[opener]` で書け、右クリックメニューとパレットに並ぶ（TODO-DONE の 5 節）。
   - だから、よく使われるプラグインは **1 つずつ kura の機能で置き換える**（`toggle-pane`・`bookmarks`・`smart-enter`・`smart-filter` がその形。
     `src/config/cmd.rs` の `plugin` の扱い）。知らない `plugin …` は設定の読み込みを壊さず、ヘルプに未対応と出し、押せばトーストで言う。
-  - Lua の実行環境を入れるなら依存クレートの追加と大きな設計になるので、QUESTIONS.md で範囲を決めてから。
+  - Lua の実行環境を入れるなら依存クレートの追加と大きな設計になるので、`question` の issue で範囲を決めてから。
 
 将来的にこのアプリ（Yazi GUI版）を Windows / macOS / Linux（それぞれ x86_64 / ARM64） で動作させたいと考えています。
 

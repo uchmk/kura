@@ -1,8 +1,10 @@
-# 確認事項
+# 確認事項（archive。Q1-Q98）
 
-Claude が判断に迷った点をここに書きます。各質問の「回答」欄に書き込み、状態を `回答済み` にしてください（状態はそのままでも、回答欄が埋まっていれば Claude が拾います）。書き方は CLAUDE.md の「確認事項」の節を参照。
+**archive です。新しい質問は書かず、読み込みもしない。** v0.102.0 から確認事項は GitHub の issue（ラベル `question`）にした
+（書き方は [docs/claude/questions.md](docs/claude/questions.md)）。ここは Q1-Q98 を番号で引くために残す
+（`grep -n '^## Q57' QUESTIONS.md` で 1 件だけ読む）。未回答だった Q97 は #315 に移した。
 
-<!-- ここから下に Q1, Q2, ... を追記 -->
+<!-- archive: do not add questions here -->
 
 ## Q1: Mikan エディタの行ジャンプ引数
 
@@ -1554,7 +1556,7 @@ Claude が判断に迷った点をここに書きます。各質問の「回答�
 - 回答: 1（2026-10-09、持ち主）。tsumugi v0.75.0 で `crates/tsumugi-ipc` と `crates/tsumugi-mcp`（serde_json の上に手で書いた。`rmcp` も `tokio` も無し）、filer v0.85.0 が `rev` で固定して読む
 
 ## Q97: LLM の書く道具（段 5）を、何から・どの確認で足すか
-- 状態: 未回答            <!-- 未回答 / 回答済み / 反映済み -->
+- 状態: #315 に移した            <!-- 未回答 / 回答済み / 反映済み -->
 - タスク: TODO.md「LLM との連携」の段 5
 - 背景: 段 1〜4（読むだけの道具）は済んだ。filer の 50 節は x64（#303）と ARM64（#302）で通り、tsumugi の `tsumugi mcp` も動いている。
   docs/llm-integration.md は、書く道具を「アプリの窓に確認の箱を出し、人が押すまで動かさない」約束で足すとしている。

@@ -9,6 +9,25 @@
 
 ## [未リリース]
 
+## [0.102.0] - 2026-10-11
+
+所見・再テスト・確認事項を GitHub の issue に移した（テストと QA の運用を軽くする段階 4）。所見は `finding`、再テストは `retest`、確認事項は `question` の issue になり、Markdown の表を何か所も書き換えなくてよくなった。kura そのものの動きは変わらない。
+
+### 追加
+
+- `scripts/labels.sh`: 運用のラベル（`finding`・`question`・`retest`・`lane:win` / `lane:cloud` / `lane:qa`・`vote`・`vote-decided`・`needs-owner`・`answered`・`lane-review` など）を作り、色と説明をそろえる。何度流しても同じ結果になる。Merge lanes も毎時これを行う。
+- issue のフォーム `.github/ISSUE_TEMPLATE/finding.yml`・`question.yml`・`retest.yml`。
+
+### 変更
+
+- **確認事項は `question` の issue。**QUESTIONS.md は Q1-Q98 の archive になり、新しい質問は書かない。TODO.md の印は `（要確認: #N）`。未回答だった Q97 は #315 にした。
+- **票は issue のコメント**（`vote[cloud]: 2 — 理由` / `vote[win]: …`、取り消しは `uncount[…]:`）。Merge lanes（`scripts/merge-lanes.py` の `count_votes`）が毎時数え、揃えば `vote-decided`、割れたら `needs-owner`、持ち主の `回答:` があれば `answered` を付ける。
+- **再テストは `retest` の issue。**動きを変えたセッションが行 ID のチェックリストで立て、x64 のレーンはいちばん古いものから押し、PR に `Closes #N` と書く。windows-role.md の再テストの行は規則だけになり、残っていた 77 行は #316 に移した。
+- **所見は `finding` の issue。**レーンと QA が直接立てる。報告の `### Proposals` に残ったものは、Merge lanes が PR のマージのときに 1 つの issue にし、報告の `### Votes` は issue へのコメントとして写し、PR に `lane-review` を付ける。TODO.md に `【後】` の行を足すのをやめ、「実機のレーンから」の節は TODO-DONE.md に移した。
+- 毎時の Windows の起動（`scripts/auto-wintest.ps1`）は、新しい `retest` か `vote` の issue ができたときも走る。
+- `scripts/claim.sh take '#N'` で issue も取れる。開発の Routine は、回答済みの `question` と `finding` の issue を TODO.md より先に取る。
+- CLAUDE.md・`docs/claude/`・`.claude/` の役割の文書を issue の流れに合わせた。
+
 ## [0.101.4] - 2026-10-11
 
 ### 修正

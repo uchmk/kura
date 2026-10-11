@@ -62,8 +62,15 @@ Match the surrounding code (comment density, names, the one-line layout).
    come from tests that are not `#[cfg(windows)]` yet behave differently there
    (path separators, most often), which `scripts/verify.sh` on Linux cannot see.
 4. Otherwise take, in this order:
-   - a QUESTIONS.md question that is `回答済み` or `多数決で決定` and not yet
-     carried out;
+   - an open `question` issue labelled `answered` or `vote-decided` (the owner's
+     `回答:` or the two votes decided it; docs/claude/questions.md): carry it
+     out, take `（要確認: #N）` off its TODO.md item, and close the issue with a
+     comment naming the version. Issues are read with the GitHub MCP tools
+     (`list_issues` with the label) where `gh` does not work;
+   - an open `finding` issue (from the lanes and QA, v0.102.0), oldest first:
+     fix it and close it with the version, or, when it is a choice for the
+     owner, turn it into a `question` issue and close the finding pointing at
+     it;
    - from TODO.md, items with none of `【人】` `【QA】` `【実機】` `【後】`
      `【pane】` `要確認` (`scripts/todo-open.sh -v` lists them, top first, with their
      line numbers): **the first one you can claim.** One item, and its own
@@ -78,31 +85,32 @@ Match the surrounding code (comment density, names, the one-line layout).
      the QA role would put them. Tick the item as usual and leave `【QA】` on it.
 
    **Claim it before anything else**: `scripts/claim.sh take <its line>`
-   (for a question, the line of the TODO.md item it belongs to). Exit 1 means
+   (for an issue, `scripts/claim.sh take '#N'`). Exit 1 means
    another run is on it: try the next item down. Exit 0: it is yours, and the
    claim lasts an hour. **Release it with `scripts/claim.sh drop` when the
    round ends**, pushed or not -- after `push-main.sh` finishes, or when you
    give the item up. A claim a run left behind lapses by itself after an hour.
 5. **An item you cannot take gets a mark, not a silent skip**, so the next run
-   does not stop at it again. A key or a default: a `投票中` question in
-   QUESTIONS.md (CLAUDE.md's format, your own vote with a reason, no
-   recommendation) and `（要確認: Qn）` on the item. Looks, a new crate, a
-   release, a workflow or security: an `未回答` question with a recommendation,
-   and `（要確認: Qn）`. Only a Windows machine can measure it: `【実機】`. Only
+   does not stop at it again. A key or a default: a `question` issue labelled
+   `vote` (docs/claude/questions.md: no recommendation, your own
+   `vote[cloud]:` comment with a reason) and `（要確認: #N）` on the item. Looks,
+   a new crate, a release, a workflow or security: a `question` issue with a
+   recommendation, and `（要確認: #N）`. Only a Windows machine can measure it: `【実機】`. Only
    the owner can do it: `【人】`. Add a few words saying why. A round that only
    adds marks is still a round: commit and push it.
    `【実機】` is for what has to be **run or measured** on Windows. A
    PowerShell script, a Windows-only code path or a TESTING.md row can be
    written here: write it, say at its top that it has not run yet, and queue
-   the run in the order tables. v0.78.236 marked two such items `【実機】`
+   the run in a `retest` issue. v0.78.236 marked two such items `【実機】`
    and the routine had nothing to take for a day. A mark quoted in backticks
    (`` `【pane】` ``) is a mention and does not count; write a real mark bare.
 6. Do the work. When behaviour changes (CLAUDE.md, 作業ルール): check it on
    the virtual display (`scripts/xrun.sh`, `--keys`, `<State:name>`); add or fix
    the TESTING.md row and its Japanese in `scripts/testcheck-ja.toml`, then
    regenerate (`cargo run --example make-testcheck` and `-- --lane linux`);
-   untick the changed rows in the checklists; queue them under "Re-tests of
-   changed behaviour" in `.claude/windows-role.md`'s table (not
+   untick the changed rows in the checklists; open a `retest` issue for them
+   (title `Re-test: vX.Y.Z`, the row ids as a checklist and what changed;
+   `.github/ISSUE_TEMPLATE/retest.yml`), which the x64 lane presses (not
    `linux-role.md`, whose lane is paused). A fix that came from a
    machine's finding goes to the re-tests even when its row has no tick.
 7. `scripts/verify.sh`. Everything passes, or you fix it.
@@ -126,7 +134,8 @@ Match the surrounding code (comment density, names, the one-line layout).
 
 - After the round's push, or after a round that found nothing to take.
 - **`ALL_DONE` only when `scripts/todo-open.sh` and `scripts/todo-open.sh --qa`
-  both print `0`** and no answered question is waiting to be carried out. Never on your own reading of what is
+  both print `0`**, no answered question is waiting to be carried out and no
+  `finding` issue is open. Never on your own reading of what is
   left: on 2026-10-05 a session stopped on "the rest is mostly for the machine
   or the eye" with 70 such items open. When an item cannot be taken, step 5
   marks it, and the count goes down.
@@ -142,6 +151,7 @@ At the end, in Japanese, three to five lines:
 
 - the version pushed with its SHA and what it fixed or added (or what stopped
   the round);
-- `未回答の確認事項 N 件（QUESTIONS.md）`, counting `未回答` and `投票中`.
+- `未回答の確認事項 N 件`: open `question` issues with neither `answered` nor
+  `vote-decided`.
 
 With `ALL_DONE`, the last line is `ALL_DONE` alone.

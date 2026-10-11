@@ -11,7 +11,7 @@ the run produced something worth landing, an open pull request.
 Your role and its limits are in [.claude/qa-role.md](../../qa-role.md). Read it
 before anything else here. The short version: you write only inside
 `#[cfg(test)]` modules, and anything else you find goes in your report (`qa-reports/<date>-<branch>.md`, a file per run; `.claude/qa-role.md`) as a
-proposal.
+proposal, and into a `finding` issue labelled `lane:qa` when it asks for a change.
 
 ---
 
@@ -60,7 +60,8 @@ Then the file's own structure:
 6. **The "what is covered automatically" paragraph** at the top matches what
    `cargo test` actually covers now.
 
-**Write the findings to your report** (`qa-reports/`, never QA-REPORT.md). What you may change in TESTING.md is in
+**Write the findings to your report** (`qa-reports/`, never QA-REPORT.md), and open a
+`finding` + `lane:qa` issue for each one that asks for a change (`.claude/qa-role.md`). What you may change in TESTING.md is in
 `.claude/qa-role.md` and only there: the note under a section heading, never a
 number or a row. Renumbering a section renumbers everything after it — TESTING.md
 says so, and it is why 11 is followed by 28.

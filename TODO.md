@@ -86,7 +86,7 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
   開いている間だけ押して閉じる。ブランチも PR も作らない。windows-role.md の ARM の順番表を消し、Merge lanes は `test/arm-*` をマージせず、
   issue が無い間は arm の止まりを見張らない。票はクラウドと x64 の 2 票）段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
-- [ ] 段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
+- [x] （v0.102.0。所見は `finding`、再テストは `retest`、確認事項は `question` の issue。Merge lanes が毎時ラベルをそろえ票を数え、報告の残りを `finding` の issue にする。Q97 は #315、残っていた再テストは #316 に移した）段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
 - [ ] 段階 5: 共通の道具を ito に移す（`ito-testcheck` と `scripts/lanes/`）。ito をセッションに付けてから【後】
 - [ ] 段階 6: tsumugi・yagura に展開する【後】
 
@@ -210,12 +210,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
   単体テストは `count_changes` だけで、下端の文字列は通らない。5 節に「`a.txt` と `b.txt` の比較の下端が `x–y of z  ·  N differences` で、N は `n` が止まる数」の行を足し
   （`ui::overlay::diff_frame` で読めるなら自動テストにしてもよい）、訳と両レーンの再テストに積む
 
-## 実機のセッションの報告（v0.78.170 で受けた分: #294、ARM64 の実行 66）
-
-印は付けていない。`cargo test` は 700 / 0。消える `--keys` の数は、#293 から `src/` も tsumugi-pane の `rev` も変わっていないので順番表の決まりどおり飛ばした（ARM64 で 0 / 140 のまま）。所見は無い。
-提案 1（見えるものが何も変わっていなければ実行そのものを飛ばす）は、v0.78.167 と v0.78.169 で入った判定（`windows-role.md` の差分が結果の行だけなら起動しない）で足りる。#294 は、
-v0.78.167 のスクリプトが構文エラーで読めなかった間に、前の版のスクリプトが #293 の記録で起動した回。v0.78.169 の後も同じ空振りが続くようなら、改めて項目にする。
-
 ## LLM との連携（2026-10-09、持ち主の希望）
 
 filer・tsumugi・これから作るアプリを LLM とつなげたい。ソースを使い回せる形にすることも含めて課題にする（持ち主の言葉）。
@@ -228,7 +222,7 @@ filer・tsumugi・これから作るアプリを LLM とつなげたい。ソー
 - [x] （tsumugi v0.75.0）段 1・2: `tsumugi-ipc` を `tsumugi-mux` から切り出し、`tsumugi-mcp` と `tsumugi mcp`（`tsumugi_sessions` / `tsumugi_screen`）
 - [x] （v0.85.0）段 3: 窓の口（`[mcp] enable`、既定は入）と `filer mcp`、`filer_state` / `filer_reveal`。Xvfb で窓に JSON-RPC を流して確かめた
 - [x] （#302 / #303、v0.85.8）段 4: 実機で Claude Code に登録して呼ぶ（TESTING.md 50 節）
-- [ ] 段 5: 書く道具（窓の確認の箱つき）。範囲は QUESTIONS.md の Q97 で聞いている 【人】
+- [ ] 段 5: 書く道具（窓の確認の箱つき）。範囲は #315（旧 Q97）で聞いている（要確認: #315）【人】
 - [x] 「別アプリと双方向 API」（ロードマップの案 3）とまとめて考える: (a) の `filer_reveal` が Q16 の「このファイルへ飛べ」になる（docs/llm-integration.md）
 
 ## 印の意味（2026-10-04）
@@ -1243,12 +1237,3 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
 - [ ] **CI の Windows の `test` が 1 回、`cargo test` の中で 30 分以上止まった**（2026-10-03、#194 の CI、run 37088219242）。同じコードは main で
   4 分で通り、取り消して流し直すと 5 分で通った。取り消した実行のログは取れなかった（404）。また起きたら、取り消す前に
   `cargo test -- --test-threads=1` などで止まるテストを特定する。止まり続けるテストがあれば、それは不具合。 【後】（また止まるまで調べようがない）
-
-## 実機のレーンから
-
-- [x] （v0.93.7。27.6 / 27.7 に測り方と訳を足した）（#311・#312 の提案）TESTING.md 27.6 / 27.7 の行に測り方を足す: `j<Now>` を N 回 → `<Wait:100>` → `<State:>`、27.6 の前半は `<Now><State:a><Wait:150><State:b>`（素の `<State:>` は先頭の早い画面を隠す）。`scripts/testcheck-ja.toml` の訳も。【QA】
-- [x] （v0.86.31。49.10 に「信頼済みのフォルダで」を足した）TESTING.md 49.10 を「信頼済みのフォルダで」と書く（`claude` の信頼ダイアログが出ると行が押せない）。書けないなら人の run に回す。【QA】
-- [x] （v0.86.21。待ちを 5→10 秒と 20→40 秒に広げた）（#311 の提案）`ending_a_busy_shell_asks_first`（`src/app.rs`）の待ち時間を見直す。ARM64 の機械で時間切れに近い。
-- [x] （v0.86.22。`PreviewSlot::early` を足し、`<State:>` に出した）（#312 の提案）`<State:>` に `preview: early|whole` の行を足す。`App::settled()` が `preview.in_flight` を含むので、普通のキーでは全体が出るまで待ってしまい、v0.86.12 の早い画面が `<Now>` + `<Wait:>` 抜きでは見えない。
-- [x] （2026-10-10、#311・#312 の share）再テストの順番表（x64 と ARM64）から `[x]` になった行を外した。残りは 1.44 / 16.13 / 16.13a / 16.3b / 33.7（直し待ち）と 49.7。両方の表が空に近いので、次の run は `WINTEST_NOTHING` に近い。
-- 1.43 / 40.16 の書き換えの提案（#312 の 3）は、この節の上にある既存の項目と同じ。足していない。

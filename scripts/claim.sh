@@ -5,6 +5,8 @@
 #
 #   scripts/claim.sh take <TODO.md line>   claim the item that starts there;
 #                                          exit 1 when another run holds it
+#   scripts/claim.sh take '#N'             the same for issue N (a finding or
+#                                          an answered question, v0.102.0)
 #   scripts/claim.sh drop                  release this run's claim
 #   scripts/claim.sh list                  the claims held now, with their age
 #
@@ -54,10 +56,16 @@ write_claims() {
 
 case "${1:-}" in
 take)
-    line=${2:?usage: claim.sh take <TODO.md line>}
-    text=$(sed -n "${line}p" TODO.md)
-    case "$text" in *"- [ ] "*) ;; *) echo "claim: TODO.md:$line is not an open item: $text"; exit 2 ;; esac
-    k=$(key "$line")
+    line=${2:?usage: claim.sh take <TODO.md line> | '#N'}
+    case "$line" in
+    \#*[0-9])
+        k="issue-${line#\#}"
+        text="- [ ] issue $line" ;;
+    *)
+        text=$(sed -n "${line}p" TODO.md)
+        case "$text" in *"- [ ] "*) ;; *) echo "claim: TODO.md:$line is not an open item: $text"; exit 2 ;; esac
+        k=$(key "$line") ;;
+    esac
     for _ in 1 2 3 4 5; do
         read_claims || { echo "claim: could not read the claims branch"; exit 2; }
         if printf '%s\n' "$held" | grep -q "^$k "; then
@@ -89,7 +97,7 @@ list)
         while read -r k t rest; do echo "$k  $(( (now - t) / 60 )) min  ${rest:0:80}"; done
     ;;
 *)
-    sed -n '2,9p' "$0"
+    sed -n '2,11p' "$0"
     exit 2
     ;;
 esac

@@ -12,10 +12,11 @@ wins.
 **The routine no longer merges** (v0.86.6). The `Merge lanes` workflow merges
 the lanes' pull requests, and since v0.86.9 also those that conflict only in
 the checklists, and since v0.86.11 it also does the mechanical half of the
-merger's share (the version, CHANGELOG.md, the reports' sections copied into
-TODO.md with `【後】`) and starts `main`'s CI. The routine sorts those `【後】`
-lines, resolves the other conflicts, and tells the owner about the ones the
-workflow stopped on. The cloud session's auto mode refused the routine's merges of
+merger's share (the version, CHANGELOG.md) and starts `main`'s CI; since
+v0.102.0 what a report leaves over becomes a `finding` issue and the pull
+request is labelled `lane-review`. The routine reads those reports, resolves
+the other conflicts, and tells the owner about the ones the workflow stopped
+on. The cloud session's auto mode refused the routine's merges of
 #309 and #310 on 2026-10-10. Do not merge, and do not look for another way
 to: a merge the workflow will not make is the owner's.
 
@@ -29,7 +30,7 @@ and merge-role.md from `origin/main` at the start of every run.
 1. `git fetch origin main && git checkout -B claude/merge-run origin/main`.
 2. Do merge-role.md from 0 to 4: the votes; the open pull requests the
    workflow stopped on, and any merged one still without a share (1);
-   conflicts and holds (3); the sorting of the `【後】` lines (4). GitHub from here: the GitHub tools your
+   conflicts and holds (3); the `lane-review` reports (4). GitHub from here: the GitHub tools your
    session has, or `gh api` (`gh api "repos/uchmk/kura/pulls?state=open"`,
    `gh api repos/uchmk/kura/issues/N/comments` for the workflow's
    comments; GraphQL may be unavailable).
@@ -42,11 +43,11 @@ and merge-role.md from `origin/main` at the start of every run.
    set to this checkout's `target`), and push the merge commit to the
    branch. Do not wait for its CI; the workflow merges it when that is green.
    The workflow does its share once it has merged it.
-4. **Push what you sorted with `scripts/push-main.sh`**, in the background,
+4. **Push what you changed with `scripts/push-main.sh`**, in the background,
    and wait for it to finish (merge-role.md, 4). It replays your commit on top
    when the development routine pushed first, renumbers it, runs the checks,
    and waits for `main`'s CI. Never `git merge origin/main` + `git push`, never
-   `--force`. Nothing to sort and nothing else to fix: no commit.
+   `--force`. Nothing to change: no commit.
 5. Then the development routine's pushes (below).
 
 ## Watching the development routine's pushes
@@ -59,7 +60,7 @@ share, `Co-Authored-By` naming Sonnet), and check:
 - CLAUDE.md's rules held: no `cargo fmt` reformatting of files the change did
   not need; the version and CHANGELOG.md together; a behaviour change came with
   its TESTING.md row, its `scripts/testcheck-ja.toml` text, the untick, and the
-  re-tests in both tables of `windows-role.md`; no default the owner decided
+  re-tests in a `retest` issue; no default the owner decided
   was changed; no item marked `【人】` `【QA】` `【実機】` `【後】` `【pane】` or `要確認`
   was taken; an item it could not take was marked, not skipped.
 - its CI is green:
@@ -76,10 +77,10 @@ needs code goes near the top of TODO.md, in the "Sonnet の見張り" section, a
 
 In Japanese:
 
-- one line per pull request: `sorted #N` (its `【後】` lines are sorted in this
-  run's commit) / `shared #N` (a share the workflow missed, done by hand) /
+- one line per pull request: `read #N` (its `lane-review` report, and the
+  issues it led to) / `shared #N` (a share the workflow missed, done by hand) /
   `resolved conflict on #N` / `held #N: why（TODO.md）` / `closed #N: …` /
   `not merged #N: why`; a held one with no answer yet:
   `held #N: 持ち主の答え待ち（TODO.md）`; nothing to do: `nothing to do`;
-- the votes counted, when any (`Q57: 多数決 1`);
+- the votes you took back with `uncount[…]:`, when any (`#315: uncount[win]`);
 - `Sonnet の push: N 件、問題 M 件（中身）`.

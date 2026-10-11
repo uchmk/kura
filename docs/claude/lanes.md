@@ -111,9 +111,13 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   PR に 1 キー 1 行で両方の半分を書く。詳しくは `windows-role.md` の「TESTING-KEYS.md」。
   **x64 の順番表の 2 番目（再テストの次）が「未チェックのキー」**（v0.76.3）で、キーを足すと次の実行が押しに行く。それまでは印を付けてよいだけで、取りに行く行が無かった。
 - 版と CHANGELOG は触らない（QA セッションと同じ理由。PR 本文に 1 行書く）。
-- **改善案を出す。**実機のセッションは毎回、報告の `### Proposals` に「こうするべき」を
-  書いてくる（役割の定義の Proposals の節）。**マージする側は、そのうち採るものを TODO.md のタスクに、
-  持ち主の判断が要るものを QUESTIONS.md の質問に移す。**PR をマージしただけで終わらせない。
+- **改善案と所見は issue にする（v0.102.0 から）。**実機のセッションは毎回「こうするべき」とバグを
+  `finding`（と `lane:win`）の issue で立てる（役割の定義の Proposals の節）。gh が使えなかった回は報告の `### Proposals` に書き、
+  merge-lanes がマージのときに 1 つの issue にまとめる（本文の `<!-- kura-lane:#N -->` で二重に作らない）。
+  開発のセッションは `finding` の issue をタスクとして取り、持ち主の判断が要るものは `question` の issue にする。
+- **再テストも issue（v0.102.0 から）。**動きを変えた開発のセッションは `retest` の issue（行 ID のチェックリスト）を立て、
+  x64 のレーンはいちばん古いものを押して、PR に `Closes #N`（全部押せたとき）か `Refs #N` と書く。
+  以前は `windows-role.md` の表に行を書き足し、レーンは `.claude/` に書けないので PR 本文の `## Queue` で消し方を伝えていた。
 - **無人で回せる（v0.50.0 から）。**`scripts/auto-wintest.ps1` をタスク スケジューラで 1 時間おき（:20。2026-10-05、持ち主の判断）に
   呼ぶと、`main` の TESTING.md / TESTING-CHECKS.md / `windows-role.md` が変わっていて、`test/win-*` の
   PR が開いていないときに 1 本起動する（別 worktree の `C:\dev\filer-wintest` で）。登録の仕方は
@@ -167,13 +171,14 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   （`<!-- merge-lanes:<種類>:<sha> -->`）。チェック表だけのぶつかりは、main の表に PR の印を入れ直し、印の変化だけかを確かめて自分でマージする
   （v0.86.9 から。main が言葉を変えた行の印は落とし、`dropped` のコメントで名前を出す）。Actions のタブから `dry_run` を付けて手で回すと、何をマージするかだけを出す。
   それまでは Routine がマージしていたが、2026-10-10 に自動モードの分類器が #309・#310 のマージを「レビューの無いマージ」として拒んだ。
-  マージした PR の機械的な分け前（PATCH・Cargo.lock・CHANGELOG の 1 行・報告の Proposals / Queue / Votes を TODO.md の
-  「実機のレーンから」へ `【後】` 付きで、PR ごとに「報告を読んで振り分ける」の 1 行）もワークフローが push し、
+  マージした PR の機械的な分け前（PATCH・Cargo.lock・CHANGELOG の 1 行）もワークフローが push し、
+  報告の Proposals / Queue を `finding` の issue に、Votes を質問の issue へのコメントにし、PR にラベル `lane-review` を付け、
   `ci.yml` を `workflow_dispatch` で起こす（v0.86.11 から。GITHUB_TOKEN の push はワークフローを起こさない）。
-  クラウドの Routine は 1 日 1 回（10:01 JST。2026-10-10、持ち主の設定）`.claude/merge-role.md` を読み、`【後】` の行を
-  振り分け（証拠の読み直し・提案を TODO / QUESTIONS へ・票・順番表の補充）、ワークフローが分け前をしそこねた PR は手でし、ぶつかった PR は PR のブランチで解いて push し、
+  同じワークフローが毎時、ラベルを揃え（`scripts/labels.sh` と同じ）、質問の issue の票を数える（v0.102.0）。
+  クラウドの Routine は 1 日 1 回（10:01 JST。2026-10-10、持ち主の設定）`.claude/merge-role.md` を読み、`lane-review` の PR を
+  読み直し（証拠の読み直し・issue になっていない所見・順番表の補充）、ワークフローが分け前をしそこねた PR は手でし、ぶつかった PR は PR のブランチで解いて push し、
   ワークフローが止めたものは TODO.md の「マージで止めている実機の PR」に積んで持ち主に回す（そこにある `#N` はワークフローも飛ばす）。**無人の実行が `main` に直接 push してよいのは、この
-  Markdown と版だけのコミットに限る**（ビルドを壊しうるものが入らないから）。コードの修正が要るものは TODO.md に書いて止まり、
+  Markdown と版だけのコミットに限る**（ビルドを壊しうるものが入らないから）。コードの修正が要るものは `finding` の issue に書いて止まり、
   開発の Routine（「自動実行モード」）が拾う。
 - **毎回押す機械は x64 だけ（v0.101.3 から。2026-10-10、持ち主の判断）。**x64 の機械が `win`（`test/win-*`）の順番表を進める。
   ARM64 のノート PC（`auto-wintest.ps1 -Lane arm`）は、**リリースごとに 1 回**、release.yml の `arm64-rows` が立てる
@@ -191,7 +196,7 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
 ## Linux レーン（クラウドのセッション）— 2026-10-04 から止めている
 
 **持ち主の判断で、Windows に集中するために止めた**（Linux には yazi 本体があり、GUI 版の需要は小さい）。新しい Linux レーンの実行は立てず、
-`linux-role.md` の順番表にも再テストを積まない。TESTING-LINUX.md と道具はそのまま残す。再開は TODO.md の `【後】` の項目。
+`linux-role.md` の順番表にも再テストを積まない。TESTING-LINUX.md と道具はそのまま残す。再開は TODO.md の「Linux レーンを再開する」（`【後】`）。
 開発のセッションが自分の修正を Xvfb で確かめるのは続ける（「作業ルール」）。CI の `test-linux` も残す（安く、移植の崩れを捕まえる）。
 
 クラウドのコンテナ（Ubuntu、x86_64）は画面が無いが、**Xvfb の仮想ディスプレイと CPU 描画（lavapipe）で kura を

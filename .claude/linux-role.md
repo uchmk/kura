@@ -136,9 +136,10 @@ Worked through before, and not in the table any more: 25 (#131; 25.4, 25.4a, 25.
 
 ## Proposals
 
-Finish your report with `### Proposals`: what should change,
-from what you ran into this run -- the same shape as the Windows lane's
-(`windows-role.md`, "Proposals"). Do not implement them.
+Open what should change, from what you ran into this run, as `finding` issues
+labelled `lane:linux` -- the same shape as the Windows lane's (`windows-role.md`,
+"Proposals"); when that is not possible, finish your report with `### Proposals`
+and merge-lanes files them. Do not implement them.
 
 ## Unattended runs
 
