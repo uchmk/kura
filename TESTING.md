@@ -924,6 +924,7 @@ the same lines -- so what is being tested here is mostly the instructions.
 | 29.16 | Move and resize the window (and once maximize it), close kura, start it again (v0.107.0, #345) | It opens where and as big as it was, maximized if it was; `window.toml` is in the state folder. After deleting the file it opens at `window_width` x `window_height`. With the window on a second monitor that is then unplugged, it still opens on a screen you can reach |
 | 29.17 | Settings (Ctrl+,) General page, UPDATES section: the "Check for updates" switch (v0.108.0, #345) | It is on by default. With it on and the network up, starting while a newer release is out toasts "kura X is available (this is Y)". Off, offline, or with no `curl`: nothing is said and the start is not slower |
 | 29.18 | With the hook in (29.14), run `cmd /c exit 3` (or `false`) and then a command that succeeds; scroll so both are on screen (v0.108.1, #345) | A thin bar in the pane's left margin spans each finished command from its prompt to the next one: **green** for the one that succeeded, **red** for the one that failed. The command still running (the last prompt) has none. A full-screen program (`vim`) shows no bars |
+| 29.19 | Settings (Ctrl+,), a number field (e.g. Font size): type `abc` or `9999` and `<Enter>` (v0.108.2) | The toast says it is not a number in range, nothing is written, and the caret is still in the field on what you typed, so you can correct it and `<Enter>` again |
 
 ## 30. Right-click paste in a prompt (v0.14.0)
 

@@ -337,7 +337,12 @@ fn number_row(ui: &mut Ui, l: Look, drafts: &mut Drafts, n: Num, k: &KuraWords, 
     let Some(text) = row(ui, l, n.label, n.note, |ui| field(ui, drafts, n.key, n.now, "", 110.0)) else { return };
     match number_toml(&text, n.lo, n.hi, n.whole) {
         Some(value) => out.push(KuraChange { table: "ui", key: n.key, value: Some(value) }),
-        None => *bad = Some((k.not_a_number)(n.label, text.trim(), n.lo, n.hi)),
+        None => {
+            *bad = Some((k.not_a_number)(n.label, text.trim(), n.lo, n.hi));
+            // Enter took the caret out of the field; put it back on what was
+            // typed (the draft is kept for the retry) so it can be corrected.
+            ui.memory_mut(|m| m.request_focus(ito_prefs::field_id(n.key)));
+        }
     }
 }
 
