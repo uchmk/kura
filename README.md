@@ -630,7 +630,7 @@ rather than another set of bindings. Only what the `[term]` keymap section binds
 | `<S-PageUp>` `<S-PageDown>` | half a screen back / forward through the scrollback |
 | `<S-Home>` `<S-End>` | to the top of the scrollback / back to the bottom |
 | `<C-S-f>` `<C-S-n>` `<C-S-b>` | find in the scrollback / next match / previous |
-| `<C-S-Up>` `<C-S-Down>` | scroll to the prompt above / below (the shell has to mark its prompts, OSC 133) |
+| `<C-S-Up>` `<C-S-Down>` | scroll to the prompt above / below (the shell has to mark its prompts, OSC 133; `kura shell-hook` does, v0.105.0) |
 | `<C-S-l>` | copy the last command's output (OSC 133 again) |
 | Ctrl+click | open a web address in the browser, or show a printed path in the list |
 
@@ -1345,7 +1345,8 @@ to paste by hand:
 
 ```powershell
 
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, where it ends and how the command before it ended (OSC 133)
 $prev = $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction
 $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     param($sender, $e)
@@ -1353,6 +1354,14 @@ $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     $p = $e.NewPath.ProviderPath -replace '\\', '/' -replace '^(?!/)', '/'
     [Console]::Write("$([char]27)]7;file://$p$([char]27)\")
 }.GetNewClosure()
+if (-not $global:__kura_marks_input) {
+    $global:__kura_marks_input = $true
+    if ("$function:prompt" -notmatch '__kura_prompt') { $global:__kura_prompt = $function:prompt }
+    function global:prompt {
+        $c = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }
+        "$([char]27)]133;D;$c$([char]27)\$([char]27)]133;A$([char]27)\" + (& $global:__kura_prompt) + "$([char]27)]133;B$([char]27)\"
+    }
+}
 ```
 
 `LocationChangedAction` has room for one handler per session, and other tools use it too — `mise
@@ -1408,17 +1417,24 @@ outside Windows):
 
 ```bash
 
-# kura: report the directory to kura's terminal pane (OSC 7)
-__kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"; }
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
+__kura_osc7() { printf '\e]133;D;%s\e\\\e]7;file://%s%s\e\\\e]133;A\e\\' "$?" "$HOSTNAME" "$PWD"; }
 PROMPT_COMMAND="__kura_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+PS0="${PS0}\e]133;C\a"
 ```
 
 ```zsh
 
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
 __kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD" }
+__kura_mark() { printf '\e]133;D;%s\e\\\e]133;A\e\\' "$?" }
+__kura_run() { printf '\e]133;C\e\\' }
 autoload -Uz add-zsh-hook
 add-zsh-hook chpwd __kura_osc7
+add-zsh-hook precmd __kura_mark
+add-zsh-hook preexec __kura_run
 __kura_osc7
 ```
 
