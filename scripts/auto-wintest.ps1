@@ -555,6 +555,17 @@ function Resume-ScreenSaver {
     }
 }
 
+# claude and git write UTF-8, and PowerShell decodes a native command's
+# output with the console's code page -- CP932 on a Japanese Windows. Every
+# Japanese line of a run's answer reached the log as mojibake (2026-10-03),
+# and CP932 took the `#` after a full-width `（` or `、` as the second byte of
+# a character, so the CHANGELOG check below never found `（#312` and both
+# lanes waited from 2026-10-10 on. Set before the first native command, as
+# tsumugi's copy does.
+$utf8 = [Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+
 # Task Scheduler's IgnoreNew already keeps its own firings apart; this also
 # covers one started by hand while a scheduled one is running.
 $mutex = [Threading.Mutex]::new($false, "Local\filer-auto-wintest$suffix")
@@ -765,13 +776,6 @@ try {
     if ($desk -ne 'Default') {
         $prompt += " 起動時の入力デスクトップは `"$desk`" で、Default ではありません。SendInput のキーとマウスは届かないので、そういう行は測らずに理由を書いて残し、--keys と PostMessage で進められる行だけを進めてください。"
     }
-    # claude writes UTF-8, and PowerShell decodes a native command's output
-    # with the console's code page -- CP932 on a Japanese Windows -- so every
-    # Japanese line of the run's answer reached the log as mojibake
-    # (2026-10-03). Decoded as UTF-8 here, it is written to the log as it was.
-    $utf8 = [Text.UTF8Encoding]::new($false)
-    [Console]::OutputEncoding = $utf8
-    $OutputEncoding = $utf8
     Push-Location $Work
     try {
         $out = claude -p $prompt --model $Model --permission-mode acceptEdits --allowedTools $Tools --disallowedTools $Denied 2>&1 | Out-String
