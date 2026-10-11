@@ -1847,60 +1847,12 @@ fn on_key_event(app: &mut App, key: egui::Key, modifiers: &egui::Modifiers) {
             // cannot mistake `<Esc>` and the key after it for one sequence
             // (Q27, #99). Plain text still goes as text.
             let win32 = app.term.as_ref().is_some_and(|t| t.win32_input());
-            let vt = match special(key, mods.shift) {
-                // On Windows `Esc` goes as one win32-input-mode key press, not
-                // as a plain ESC. ConPTY makes a press *and a release* out of a
-                // plain ESC, and the release, reaching a tcell program right
-                // behind the press, turns the key into an Alt prefix that never
-                // resolves -- so `Esc` did nothing in lazygit or gh-dash. See
-                // `terminal::win32_key`.
-                Some(terminal::Special::Escape) if cfg!(windows) => {
-                    Some(terminal::win32_key(0x1b, 1, 0x1b, mods))
-                }
-                Some(s) => {
-                    let app_cursor =
-                        app.term.as_ref().is_some_and(|t| t.with_grid(terminal::app_cursor));
-                    Some(terminal::encode(s, mods, app_cursor))
-                }
-                // A letter with Ctrl held is a control code; egui sends no
-                // Text event for those, so this is where they are made.
-                None if mods.ctrl => key.name().chars().next().and_then(|c| {
-                    terminal::control_code(c.to_ascii_lowercase(), mods.alt)
-                }),
-                // The same goes for Alt without Ctrl: no Text event arrives for
-                // it, so a key that the `[term]` layer does not claim used to
-                // reach the shell as nothing at all. `Alt-b` and `Alt-f` are
-                // readline's word motions, and they never moved.
-                None if mods.alt => keys::printable(key).map(|c| {
-                    let c = if mods.shift { c.to_ascii_uppercase() } else { c };
-                    terminal::meta_char(c)
-                }),
-                None => None,
-            };
-            // A chord with no record form (`Ctrl+[`, `Ctrl+Space`) keeps its
-            // old bytes rather than going missing. So does Ctrl+C: ConPTY
-            // raises the console's Ctrl+C event for a plain ETX, and a press
-            // record alone left `Start-Sleep` running (tsumugi 2.58).
-            let interrupt = mods.ctrl && !mods.alt && keys::printable(key) == Some('c');
-            // Shift+Enter goes as CSI-u once a program behind ConPTY asked for
-            // keys told apart: ConPTY made its record a plain `\r`, so Claude
-            // Code's new line was a send (tsumugi 2.55).
-            let told_apart = win32
-                && key == egui::Key::Enter
-                && mods.shift
-                && !mods.ctrl
-                && !mods.alt
+            // Both read the grid, so only for the keys that need them.
+            let app_cursor = special(key, mods.shift).is_some()
+                && app.term.as_ref().is_some_and(|t| t.with_grid(terminal::app_cursor));
+            let kitty = key == egui::Key::Enter
                 && app.term.as_ref().is_some_and(|t| terminal::Pane::kitty_flags(t) != 0);
-            let bytes = match (win32, special(key, mods.shift)) {
-                (true, Some(_)) if told_apart => Some(b"\x1b[13;2u".to_vec()),
-                (true, Some(s)) => Some(terminal::special_record(s, mods)),
-                (true, None) if interrupt => vt,
-                (true, None) if mods.ctrl || mods.alt => keys::printable(key)
-                    .or_else(|| key.name().chars().next())
-                    .and_then(|c| terminal::char_record(c, mods))
-                    .or(vt),
-                _ => vt,
-            };
+            let bytes = pane_key_bytes(key, mods, win32, app_cursor, kitty);
             app.feed_term_key(k, bytes);
         }
         Overlay::None => {
@@ -1908,6 +1860,57 @@ fn on_key_event(app: &mut App, key: egui::Key, modifiers: &egui::Modifiers) {
                 app.feed_key(k);
             }
         }
+    }
+}
+
+/// The bytes a key sends to the terminal pane's shell, or `None` for a key
+/// the shell has no bytes for. `win32` is whether the other end asked for
+/// win32-input-mode, `app_cursor` whether it asked for application cursor
+/// keys and `kitty` whether it asked for keys told apart.
+fn pane_key_bytes(key: egui::Key, mods: terminal::Mods, win32: bool, app_cursor: bool, kitty: bool) -> Option<Vec<u8>> {
+    let vt = match special(key, mods.shift) {
+        // On Windows `Esc` goes as one win32-input-mode key press, not
+        // as a plain ESC. ConPTY makes a press *and a release* out of a
+        // plain ESC, and the release, reaching a tcell program right
+        // behind the press, turns the key into an Alt prefix that never
+        // resolves -- so `Esc` did nothing in lazygit or gh-dash. See
+        // `terminal::win32_key`.
+        Some(terminal::Special::Escape) if cfg!(windows) => Some(terminal::win32_key(0x1b, 1, 0x1b, mods)),
+        Some(s) => Some(terminal::encode(s, mods, app_cursor)),
+        // A letter with Ctrl held is a control code; egui sends no
+        // Text event for those, so this is where they are made. The
+        // character is the key's own, not the first letter of its
+        // name: that made `Ctrl+,` ("Comma") a Ctrl+C that stopped
+        // the running command, `Ctrl+.` a Ctrl+P and `Ctrl+/` a
+        // Ctrl+S (#334). A key with no control code sends nothing.
+        None if mods.ctrl => keys::printable(key).and_then(|c| terminal::control_code(c.to_ascii_lowercase(), mods.alt)),
+        // The same goes for Alt without Ctrl: no Text event arrives for
+        // it, so a key that the `[term]` layer does not claim used to
+        // reach the shell as nothing at all. `Alt-b` and `Alt-f` are
+        // readline's word motions, and they never moved.
+        None if mods.alt => keys::printable(key).map(|c| {
+            let c = if mods.shift { c.to_ascii_uppercase() } else { c };
+            terminal::meta_char(c)
+        }),
+        None => None,
+    };
+    // A chord with no record form (`Ctrl+[`, `Ctrl+Space`) keeps its
+    // old bytes rather than going missing. So does Ctrl+C: ConPTY
+    // raises the console's Ctrl+C event for a plain ETX, and a press
+    // record alone left `Start-Sleep` running (tsumugi 2.58).
+    let interrupt = mods.ctrl && !mods.alt && keys::printable(key) == Some('c');
+    // Shift+Enter goes as CSI-u once a program behind ConPTY asked for
+    // keys told apart: ConPTY made its record a plain `\r`, so Claude
+    // Code's new line was a send (tsumugi 2.55).
+    let told_apart = win32 && key == egui::Key::Enter && mods.shift && !mods.ctrl && !mods.alt && kitty;
+    match (win32, special(key, mods.shift)) {
+        (true, Some(_)) if told_apart => Some(b"\x1b[13;2u".to_vec()),
+        (true, Some(s)) => Some(terminal::special_record(s, mods)),
+        (true, None) if interrupt => vt,
+        (true, None) if mods.ctrl || mods.alt => {
+            keys::printable(key).and_then(|c| terminal::char_record(c, mods)).or(vt)
+        }
+        _ => vt,
     }
 }
 
@@ -1960,6 +1963,48 @@ fn _unused(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ctrl() -> terminal::Mods {
+        terminal::Mods { ctrl: true, ..Default::default() }
+    }
+
+    /// #334: a Ctrl chord in the terminal pane sends the key's own control
+    /// code, not the one for the first letter of the key's name. `Ctrl+,`
+    /// ("Comma") was a Ctrl+C that stopped the running command, `Ctrl+.` a
+    /// Ctrl+P, `Ctrl+/` a Ctrl+S and `Ctrl+-` ("Minus") an Enter.
+    #[test]
+    fn ctrl_with_punctuation_is_not_the_letter_of_its_name() {
+        use egui::Key as K;
+        for win32 in [false, true] {
+            for key in [K::Comma, K::Period, K::Slash, K::Minus] {
+                let sent = pane_key_bytes(key, ctrl(), win32, false, false);
+                assert_eq!(sent, None, "{key:?} (win32 {win32}) sends nothing");
+            }
+            // The chords that have a control code keep it.
+            assert_eq!(pane_key_bytes(K::C, ctrl(), win32, false, false), Some(vec![0x03]), "Ctrl+C is ETX");
+            assert_eq!(pane_key_bytes(K::OpenBracket, ctrl(), win32, false, false), Some(vec![0x1b]), "Ctrl+[ is ESC");
+            assert_eq!(pane_key_bytes(K::CloseBracket, ctrl(), win32, false, false), Some(vec![0x1d]), "Ctrl+]");
+            assert_eq!(pane_key_bytes(K::Space, ctrl(), win32, false, false), Some(vec![0x00]), "Ctrl+Space is NUL");
+        }
+        assert_eq!(pane_key_bytes(K::A, ctrl(), false, false, false), Some(vec![0x01]), "Ctrl+A");
+        // Ctrl+1 ("Num1") was 0x0e; with no control code it sends nothing.
+        assert_eq!(pane_key_bytes(K::Num1, ctrl(), false, false, false), None, "Ctrl+1");
+        let alt = terminal::Mods { alt: true, ..Default::default() };
+        assert_eq!(pane_key_bytes(K::B, alt, false, false, false), Some(terminal::meta_char('b')), "Alt+B is ESC b");
+    }
+
+    /// Behind ConPTY a letter or a digit with Ctrl goes as a key record; a
+    /// key with no record form falls back to its VT bytes, and a key with
+    /// neither sends nothing rather than a record for a letter of its name.
+    #[test]
+    fn ctrl_chords_behind_conpty_go_as_records() {
+        use egui::Key as K;
+        let mods = ctrl();
+        assert_eq!(pane_key_bytes(K::A, mods, true, false, false), terminal::char_record('a', mods));
+        assert_eq!(pane_key_bytes(K::Num1, mods, true, false, false), terminal::char_record('1', mods));
+        assert!(pane_key_bytes(K::A, mods, true, false, false).is_some_and(|b| b.starts_with(b"\x1b[")));
+        assert_eq!(pane_key_bytes(K::F13, mods, true, false, false), None, "F13 is not a Ctrl+F record");
+    }
 
     /// `{rows}` and `{pane}` in `title_format`: what is on screen, readable
     /// from the window title, with no pane open an empty `{pane}`.

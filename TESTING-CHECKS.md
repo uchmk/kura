@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 624 件（TESTING.md の全 817 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 625 件（TESTING.md の全 818 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -97,6 +97,7 @@ cd $HOME\Desktop\kura-fixtures
 - [ ] **1.47** `<C-t>`; in the pane run `cat` (no bracketed paste); copy two lines of text elsewhere, press `<C-v>` in the pane, then right-click it. Answer `n` once and `y` once. Then at pwsh/bash prompt (bash asks for bracketed paste) copy two lines and paste (v0.86.32) → In `cat` and pwsh: a **Paste 2 lines?** box with the first lines of the text; `y` / `<Enter>` pastes, `n` / `<Esc>` pastes nothing; both `<C-v>` and right-click ask. A single copied line (with or without its line end) never asks, and neither does bash/zsh at the prompt 〔未訳〕
 - [ ] **1.48** `<C-t>`; `seq 300` in the pane; drag from a line in the middle of the pane up past its top edge and hold the button there; then drag down past the bottom edge; let go and paste in Notepad (v0.86.32) → While the pointer is above the pane the view scrolls back and the selection grows with it, faster the farther away; below the pane it scrolls toward the newest; held still inside the pane nothing scrolls; the pasted text runs from where it started to where it ended 〔未訳〕
 - [x] **1.49** `<C-t>` のあと bash で `printf '\e[>q'; read -rs -d '\' r; echo "${r@Q}"`（pwsh では `KURA_PTY_LOG` を付けてログから応答を読む）（v0.103.8）→ 応答が `\EP>|kura X.Y.Z\E\\` で、版は `kura --version` と同じ。前は `tsumugi` と共有のペインのクレートの版だった — *`<C-t>`; in bash: `printf '\e[>q'; read -rs -d '\' r; echo "${r@Q}"` (in pwsh: `[Console]::Write("`e[>q")`, then read the reply with `KURA_PTY_LOG` set) (v0.103.8) → The reply is `\EP>|kura X.Y.Z\E\\` with kura's own version (the one `kura --version` prints). It used to say `tsumugi` and the version of the shared pane crate*
+- [ ] **1.50** `<C-t>` のあと bash で `sleep 30`、`<C-,>`・`<C-.>`・`<C-/>`・`<C-->`、それから `<C-c>` と `cat -v`、`<C-[>`・`<C-Space>`・`<Enter>`・`<C-c>`（pwsh では前半を `Start-Sleep 30` で）（v0.103.11）→ 4 つのキーでは `sleep` は止まらず何も出ない。`<C-c>` で止まる。`cat -v` は `^[^@` と返す。前はキーの名前の頭文字の制御文字になり、`<C-,>` が Ctrl+C としてコマンドを止め、`<C-.>` は Ctrl+P、`<C-/>` は Ctrl+S、`<C-->` は Enter だった（#334） — *`<C-t>`; in bash: `sleep 30`, then `<C-,>`, `<C-.>`, `<C-/>` and `<C-->`; then `<C-c>` and `cat -v`, then `<C-[>`, `<C-Space>`, `<Enter>` and `<C-c>` (in pwsh: `Start-Sleep 30` for the first half) (v0.103.11) → The four chords leave `sleep` running and print nothing; `<C-c>` stops it. `cat -v` echoes `^[^@`. They used to be the control code for the first letter of the key's name: `<C-,>` stopped the command as a Ctrl+C, `<C-.>` was a Ctrl+P, `<C-/>` a Ctrl+S, `<C-->` an Enter (#334)*
 
 ## 2. ミニマップ
 
