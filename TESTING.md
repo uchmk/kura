@@ -1589,13 +1589,19 @@ and its `tools` lists `mcp__kura__kura_state` and `mcp__kura__kura_reveal`.
 
 | # | Do | Expect |
 | --- | --- | --- |
-| 50.1 | Start kura, go to a folder and put the cursor on a file; then in `claude`, `/mcp` | `kura` is listed as connected, with two tools, `kura_state` and `kura_reveal` |
+| 50.1 | Start kura, go to a folder and put the cursor on a file; then in `claude`, `/mcp` | `kura` is listed as connected, with six tools: `kura_state`, `kura_reveal`, `kura_copy`, `kura_move`, `kura_rename` and `kura_trash` |
 | 50.2 | Select two files with `<Space>`, then ask Claude "which file is under the cursor in kura, and what is selected?" | Claude calls `kura_state` and answers with that folder, that file and the two selected paths, as full Windows paths (`C:\…`) |
 | 50.3 | Ask Claude "show me `C:\Windows\notepad.exe` in kura" | Claude calls `kura_reveal`; the window goes to `C:\Windows` with the cursor on `notepad.exe`, without being clicked first, and Claude reports `kura is showing …`. Asking for a path that does not exist gets `… does not exist` and the window does not move |
 | 50.4 | Close every kura window, then ask Claude for `kura_state` again | The tool fails with `kura is not running (or its [mcp] enable is false in config.toml); start kura and ask again`. Claude Code itself keeps working, and `/mcp` still lists `kura` |
 | 50.5 | Put `[mcp]` / `enable = false` in `config.toml`, start kura, ask for `kura_state` | The same `kura is not running …` answer: the window opens no door. Take the line out again afterwards |
 | 50.6 | Open two kura windows on different folders, ask for `kura_state`; close the first window, wait 30 seconds, ask again | The first answer is the first window's folder. After it closes, the second answer is the second window's folder |
 | 50.7 | Register `kura.com` instead (`claude mcp add kura -- "<folder>\kura.com" mcp`) and repeat 50.2 | The same answer: `kura.com` passes `mcp` to `kura.exe` with its input and output. No console window flashes when Claude Code starts it |
+| 50.8 | In a scratch folder with `a.txt`, ask Claude "rename `a.txt` in the scratch folder to `b.txt` with kura" | A box titled `Claude asks to rename an item` shows the full path and `to b.txt`. Its first button is `[n] / <Enter> Refuse`. Press `<Enter>`: nothing is renamed and Claude says the user refused |
+| 50.9 | Ask again and press `y` (Allow) | `a.txt` is now `b.txt`, the cursor is not required to move, and Claude reports `renamed to …`. `u` in kura puts `a.txt` back |
+| 50.10 | Ask Claude to copy two files into another folder, press `y`; then to move them to the trash, press `y` | The copy shows in the jobs list like a `y`-`p` copy and the files are there; the trash job shows too and `u` brings them back. The box named both paths each time |
+| 50.11 | Ask Claude to trash 12 files; look at the box, then press `<Esc>` | The box lists 8 paths and `… and 4 more`; after `<Esc>` nothing is trashed and Claude is told the box was closed |
+| 50.12 | Ask for a rename while another box (`<F1>`'s help or a prompt) is open in kura | Claude is told another box is open; nothing queues up behind it |
+| 50.13 | Ask for a write, leave the box for over two minutes, then press `y` | Claude was told the user did not answer; pressing `y` late changes nothing |
 
 ## 51. One rule for `s`, `S` and `f` (v0.87.0)
 

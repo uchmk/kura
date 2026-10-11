@@ -228,7 +228,7 @@ filer・tsumugi・これから作るアプリを LLM とつなげたい。ソー
 - [x] （tsumugi v0.75.0）段 1・2: `tsumugi-ipc` を `tsumugi-mux` から切り出し、`tsumugi-mcp` と `tsumugi mcp`（`tsumugi_sessions` / `tsumugi_screen`）
 - [x] （v0.85.0）段 3: 窓の口（`[mcp] enable`、既定は入）と `filer mcp`、`filer_state` / `filer_reveal`。Xvfb で窓に JSON-RPC を流して確かめた
 - [x] （#302 / #303、v0.85.8）段 4: 実機で Claude Code に登録して呼ぶ（TESTING.md 50 節）
-- [ ] 段 5: 書く道具（窓の確認の箱つき）。範囲は #315（旧 Q97）で聞いている（要確認: #315）【人】
+- [ ] 段 5: 書く道具（窓の確認の箱つき）。#315 の 1 で決まり、kura は v0.109.0 で入れた（TESTING.md 50.8-50.13）【実機】。tsumugi のセッションへの入力は未着手
 - [x] 「別アプリと双方向 API」（ロードマップの案 3）とまとめて考える: (a) の `filer_reveal` が Q16 の「このファイルへ飛べ」になる（docs/llm-integration.md）
 
 ## 印の意味（2026-10-04）

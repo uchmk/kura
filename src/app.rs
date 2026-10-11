@@ -77,6 +77,10 @@ pub enum ConfirmAction {
     Junctions { links: Vec<ops::Link> },
     /// `<F12>`'s report, shown before anything leaves the machine (Q62).
     BugReport { url: String },
+    /// A change an AI client asked for through `kura mcp` (#315). `Refuse` is
+    /// the first button, so `<Enter>` says no. `expired` is set once the
+    /// client stopped waiting; a late Allow then does nothing.
+    Mcp { write: crate::mcp::Write, reply: Sender<crate::mcp::Reply>, expired: std::sync::Arc<std::sync::atomic::AtomicBool> },
 }
 
 pub struct ConfirmOverlay {
@@ -7259,6 +7263,58 @@ impl App {
         });
     }
 
+    /// Ask the user about a change `kura mcp` wants. Nothing is done until
+    /// they press Allow; one box at a time, so a request that finds another
+    /// overlay open is turned away rather than queued behind it.
+    pub fn mcp_write(
+        &mut self,
+        write: crate::mcp::Write,
+        reply: Sender<crate::mcp::Reply>,
+        expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) {
+        if !matches!(self.overlay, Overlay::None) {
+            let _ = reply.send(Err("another box is open in the kura window; ask again in a moment".into()));
+            return;
+        }
+        self.overlay = Overlay::Confirm(ConfirmOverlay {
+            title: write.title(),
+            body: write.body(),
+            options: vec![('n', "Refuse".into()), ('y', "Allow".into())],
+            action: ConfirmAction::Mcp { write, reply, expired },
+            dest: None,
+        });
+    }
+
+    /// Carry out what the user allowed; the text goes back to the client.
+    fn run_mcp_write(&mut self, w: crate::mcp::Write) -> Result<String, String> {
+        use crate::mcp::WriteTool;
+        let n = w.paths.len();
+        match w.tool {
+            WriteTool::Copy | WriteTool::Move => {
+                let kind = if w.tool == WriteTool::Copy { OpKind::Copy } else { OpKind::Move };
+                let dest = PathBuf::from(w.to.unwrap_or_default());
+                self.submit_op(kind, w.paths, dest, false);
+                Ok(format!("started: {n} item(s); progress is in kura's jobs list"))
+            }
+            WriteTool::Trash => {
+                let dir = w.paths[0].parent().map(Path::to_path_buf).unwrap_or_default();
+                let id = self.submit_op(OpKind::Trash, w.paths.clone(), dir.clone(), true);
+                self.record_job(id, UndoStep::Trash { paths: w.paths, dir }, Land::Fresh);
+                Ok(format!("started: {n} item(s) to the trash; the user can undo it in kura"))
+            }
+            WriteTool::Rename => {
+                let from = w.paths[0].clone();
+                let to = from.with_file_name(w.to.unwrap_or_default());
+                if to.exists() {
+                    return Err(format!("{} already exists; nothing renamed", to.display()));
+                }
+                self.apply_rename(&from, &to)?;
+                self.undos.land(UndoStep::Rename { from, to: to.clone() }, Land::Fresh);
+                Ok(format!("renamed to {}", to.display()))
+            }
+        }
+    }
+
     pub fn answer_confirm(&mut self, ch: char) {
         // A key the box does not offer leaves it open (Q71): a stray `(`
         // used to close the `<F12>` box in silence, and the `<Enter>` meant
@@ -7333,6 +7389,16 @@ impl App {
                 }
                 _ => {}
             },
+            ConfirmAction::Mcp { write, reply, expired } => {
+                let r = if ch != 'y' {
+                    Err("the user refused: not done".to_owned())
+                } else if expired.load(std::sync::atomic::Ordering::Relaxed) {
+                    Err("too late: the request had timed out, nothing was done".to_owned())
+                } else {
+                    self.run_mcp_write(write)
+                };
+                let _ = reply.send(r);
+            }
             ConfirmAction::BookmarkDeleteAll => {
                 if ch == 'y' {
                     self.bookmarks.clear();
@@ -12597,6 +12663,80 @@ mod find_marks {
         a.act(Act::FindArrow { prev: false });
         assert_eq!(name(&a), "three.log");
         assert!(!a.find_in_body(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// A change an AI client asked for through `kura mcp` waits for Allow (#315).
+#[cfg(test)]
+mod mcp_writes {
+    use super::*;
+    use crate::mcp::{Write, WriteTool};
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    fn app_in(dir: &Path) -> App {
+        let mut a = App::new(Config::load(), dir.to_path_buf(), egui::Context::default());
+        a.tabs[a.active].cwd = dir.to_path_buf();
+        a
+    }
+
+    fn ask(a: &mut App, dir: &Path) -> (crossbeam_channel::Receiver<crate::mcp::Reply>, Arc<AtomicBool>) {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let expired = Arc::new(AtomicBool::new(false));
+        let w = Write { tool: WriteTool::Rename, paths: vec![dir.join("a.txt")], to: Some("b.txt".into()) };
+        a.mcp_write(w, tx, expired.clone());
+        (rx, expired)
+    }
+
+    fn files() -> (PathBuf, App) {
+        let dir = crate::util::test_dir("mcp-writes");
+        std::fs::write(dir.join("a.txt"), "x").unwrap();
+        let a = app_in(&dir);
+        (dir, a)
+    }
+
+    #[test]
+    fn nothing_changes_until_allow_and_enter_refuses() {
+        let (dir, mut a) = files();
+        let (rx, _) = ask(&mut a, &dir);
+        let Overlay::Confirm(c) = &a.overlay else { panic!("no box") };
+        assert_eq!(c.options.first().map(|o| o.0), Some('n'), "the default is Refuse");
+        assert!(dir.join("a.txt").exists());
+        a.answer_confirm('n');
+        assert!(rx.recv().unwrap().is_err());
+        assert!(dir.join("a.txt").exists() && !dir.join("b.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn allow_renames_and_can_be_undone() {
+        let (dir, mut a) = files();
+        let (rx, _) = ask(&mut a, &dir);
+        a.answer_confirm('y');
+        assert!(rx.recv().unwrap().is_ok());
+        assert!(!dir.join("a.txt").exists() && dir.join("b.txt").exists());
+        a.act(Act::Undo);
+        assert!(dir.join("a.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_late_allow_does_nothing() {
+        let (dir, mut a) = files();
+        let (rx, expired) = ask(&mut a, &dir);
+        expired.store(true, Ordering::Relaxed);
+        a.answer_confirm('y');
+        assert!(rx.recv().unwrap().is_err());
+        assert!(dir.join("a.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_second_request_is_turned_away_while_a_box_is_open() {
+        let (dir, mut a) = files();
+        let _first = ask(&mut a, &dir);
+        let (rx, _) = ask(&mut a, &dir);
+        assert!(rx.recv().unwrap().unwrap_err().contains("another box"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

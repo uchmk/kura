@@ -12,12 +12,16 @@
 //! that one hands the door on. A request is answered on the UI thread, from
 //! the state already in memory: nothing here waits on the disk there.
 //!
-//! The tools only read, `kura_reveal` aside, which moves the cursor and
-//! changes no file. Writing tools are a later step, behind a confirm box in
-//! the window (docs/llm-integration.md).
+//! The tools read, `kura_reveal` aside, which moves the cursor and changes no
+//! file. The writing ones (`kura_copy`, `kura_move`, `kura_rename`,
+//! `kura_trash`; #315, option 1) change nothing until the user has pressed
+//! Allow in a box in the window, whose default is Refuse. There is no tool
+//! that deletes for good, and no "do not ask again".
 
 use std::io;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::{bounded, Receiver, Sender};
@@ -28,11 +32,18 @@ use ito_mcp::{arg_str, Server, Tool};
 
 /// Bumped when [`Request`] or [`Reply`] change shape, so a window and a
 /// `kura mcp` from different versions say so instead of misreading.
-const PROTO: u32 = 1;
+const PROTO: u32 = 2;
 
 /// How long `kura mcp` and the door wait for the window to answer. A window
 /// that is busy for longer (a modal dialog on Windows) is reported, not waited for.
 const ANSWER_WAIT: Duration = Duration::from_secs(5);
+
+/// How long a writing request waits for the user to answer its box. Past it
+/// the box no longer does anything (see [`Ask::expired`]).
+const DECIDE_WAIT: Duration = Duration::from_secs(120);
+
+/// Most paths one writing request may name; the box lists the first few.
+const MAX_PATHS: usize = 500;
 
 /// The door: `\\.\pipe\kura-<user>` on Windows, `$XDG_RUNTIME_DIR/kura/sock`
 /// (or `/tmp/kura-<user>/sock`) elsewhere; `KURA_ADDRESS` names another.
@@ -46,6 +57,93 @@ pub enum Request {
     State,
     /// Go to this absolute path's folder and put the cursor on it.
     Reveal(PathBuf),
+    /// A change to files, which the window asks the user about first.
+    Write(Write),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteTool {
+    Copy,
+    Move,
+    Rename,
+    Trash,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct Write {
+    pub tool: WriteTool,
+    pub paths: Vec<PathBuf>,
+    /// The folder to copy or move into, or the new name for a rename.
+    pub to: Option<String>,
+}
+
+impl Write {
+    /// What is wrong with the request on its face, checked off the UI thread
+    /// (`symlink_metadata` reads the disk).
+    pub fn check(&self) -> Result<(), String> {
+        if self.paths.is_empty() {
+            return Err("no paths given".into());
+        }
+        if self.paths.len() > MAX_PATHS {
+            return Err(format!("{} paths is more than the {MAX_PATHS} one request may name", self.paths.len()));
+        }
+        for p in &self.paths {
+            if !p.is_absolute() {
+                return Err(format!("{} is not an absolute path", p.display()));
+            }
+            if std::fs::symlink_metadata(p).is_err() {
+                return Err(format!("{} does not exist", p.display()));
+            }
+        }
+        let to = self.to.as_deref().unwrap_or("");
+        match self.tool {
+            WriteTool::Copy | WriteTool::Move => {
+                let dir = std::path::Path::new(to);
+                if !dir.is_absolute() || !dir.is_dir() {
+                    return Err(format!("{to} is not an existing absolute folder path"));
+                }
+            }
+            WriteTool::Rename => {
+                if self.paths.len() != 1 {
+                    return Err("rename takes exactly one path".into());
+                }
+                if to.is_empty() || to == "." || to == ".." || to.contains(['/', '\\']) {
+                    return Err("the new name must be a file name, not a path".into());
+                }
+            }
+            WriteTool::Trash => {}
+        }
+        Ok(())
+    }
+
+    /// The box's title.
+    pub fn title(&self) -> String {
+        let n = self.paths.len();
+        let items = if n == 1 { "1 item".to_owned() } else { format!("{n} items") };
+        match self.tool {
+            WriteTool::Copy => format!("Claude asks to copy {items}"),
+            WriteTool::Move => format!("Claude asks to move {items}"),
+            WriteTool::Rename => "Claude asks to rename an item".to_owned(),
+            WriteTool::Trash => format!("Claude asks to move {items} to the trash"),
+        }
+    }
+
+    /// The box's lines: every path, or the first few and how many more, then
+    /// where they go.
+    pub fn body(&self) -> Vec<String> {
+        const SHOWN: usize = 8;
+        let mut out: Vec<String> = self.paths.iter().take(SHOWN).map(|p| p.display().to_string()).collect();
+        if self.paths.len() > SHOWN {
+            out.push(format!("… and {} more", self.paths.len() - SHOWN));
+        }
+        let to = self.to.clone().unwrap_or_default();
+        match self.tool {
+            WriteTool::Copy | WriteTool::Move => out.extend([String::new(), format!("into {to}")]),
+            WriteTool::Rename => out.extend([String::new(), format!("to {to}")]),
+            WriteTool::Trash => {}
+        }
+        out
+    }
 }
 
 /// What the window says: the tool's text, or why it could not.
@@ -55,6 +153,9 @@ pub type Reply = Result<String, String>;
 pub struct Ask {
     pub request: Request,
     pub reply: Sender<Reply>,
+    /// Set when the one asking stopped waiting: a box for it that is pressed
+    /// after that does nothing.
+    pub expired: Arc<AtomicBool>,
 }
 
 /// Opens the door on a thread of its own and hands each request to the UI
@@ -109,10 +210,25 @@ fn answer(request: Request, tx: &Sender<Ask>, ctx: &egui::Context) -> Reply {
             return Err(format!("{} does not exist", p.display()));
         }
     }
+    let writes = matches!(request, Request::Write(_));
+    if let Request::Write(w) = &request {
+        w.check()?;
+    }
     let (reply_tx, reply_rx) = bounded(1);
-    tx.send_timeout(Ask { request, reply: reply_tx }, ANSWER_WAIT).map_err(|_| "the kura window is busy".to_owned())?;
+    let expired = Arc::new(AtomicBool::new(false));
+    tx.send_timeout(Ask { request, reply: reply_tx, expired: expired.clone() }, ANSWER_WAIT)
+        .map_err(|_| "the kura window is busy".to_owned())?;
     ctx.request_repaint();
-    reply_rx.recv_timeout(ANSWER_WAIT).map_err(|_| "the kura window did not answer in time".to_owned())?
+    let wait = if writes { DECIDE_WAIT } else { ANSWER_WAIT };
+    match reply_rx.recv_timeout(wait) {
+        Ok(reply) => reply,
+        // The box was closed with Esc: that is an answer, and it is no.
+        Err(crossbeam_channel::RecvTimeoutError::Disconnected) => Err("the user closed the box: not done".to_owned()),
+        Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+            expired.store(true, Ordering::Relaxed);
+            Err(if writes { "the user did not answer in time: not done" } else { "the kura window did not answer in time" }.to_owned())
+        }
+    }
 }
 
 /// Asks the running window, for `kura mcp`.
@@ -132,7 +248,9 @@ pub fn server() -> Server {
         .instructions(
             "kura is the file manager the user has open. kura_state says which folder they are \
              looking at, the file under the cursor and the files they selected; kura_reveal shows \
-             them a file. Read the files themselves with your own tools.",
+             them a file. Read the files themselves with your own tools. kura_copy, kura_move, \
+             kura_rename and kura_trash change files only after the user presses Allow in a box \
+             in their window; they can say no, so tell them what you are asking for and why.",
         )
         .tool(Tool::new(
             "kura_state",
@@ -154,6 +272,80 @@ pub fn server() -> Server {
                 "required": ["path"]
             })),
         )
+        .tool(
+            Tool::new(
+                "kura_copy",
+                "Ask to copy files or folders into a folder. The user is asked in their kura window and \
+                 nothing is copied unless they press Allow; the copy then runs as one of kura's jobs.",
+                |args| write(WriteTool::Copy, args),
+            )
+            .input(write_schema(true, "The absolute folder to copy into")),
+        )
+        .tool(
+            Tool::new(
+                "kura_move",
+                "Ask to move files or folders into a folder. The user is asked in their kura window and \
+                 nothing is moved unless they press Allow.",
+                |args| write(WriteTool::Move, args),
+            )
+            .input(write_schema(true, "The absolute folder to move into")),
+        )
+        .tool(
+            Tool::new(
+                "kura_rename",
+                "Ask to rename one file or folder, keeping it where it is. The user is asked in their \
+                 kura window and nothing is renamed unless they press Allow.",
+                |args| write(WriteTool::Rename, args),
+            )
+            .input(json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "The absolute path to rename" },
+                    "new_name": { "type": "string", "description": "The new file name, without a folder" }
+                },
+                "required": ["path", "new_name"]
+            })),
+        )
+        .tool(
+            Tool::new(
+                "kura_trash",
+                "Ask to move files or folders to the trash (they can be taken back out). The user is \
+                 asked in their kura window and nothing is trashed unless they press Allow. There is \
+                 no tool that deletes for good.",
+                |args| write(WriteTool::Trash, args),
+            )
+            .input(write_schema(false, "")),
+        )
+}
+
+/// A writing tool's call, as the request the window is asked about.
+fn write(tool: WriteTool, args: &Value) -> Reply {
+    let paths: Vec<PathBuf> = match tool {
+        WriteTool::Rename => vec![PathBuf::from(arg_str(args, "path")?)],
+        _ => args
+            .get("paths")
+            .and_then(Value::as_array)
+            .ok_or("paths must be a list of absolute paths")?
+            .iter()
+            .map(|v| v.as_str().map(PathBuf::from).ok_or("paths must be strings"))
+            .collect::<Result<_, _>>()?,
+    };
+    let to = match tool {
+        WriteTool::Rename => Some(arg_str(args, "new_name")?.to_owned()),
+        WriteTool::Copy | WriteTool::Move => Some(arg_str(args, "to")?.to_owned()),
+        WriteTool::Trash => None,
+    };
+    ask(Request::Write(Write { tool, paths, to }))
+}
+
+fn write_schema(has_to: bool, to_doc: &str) -> Value {
+    let mut props = json!({ "paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths" } });
+    let mut need = vec!["paths"];
+    if has_to {
+        props["to"] = json!({ "type": "string", "description": to_doc });
+        need.push("to");
+    }
+    json!({ "type": "object", "properties": props, "required": need })
 }
 
 /// `kura mcp`: serve until the client closes standard input.
@@ -203,12 +395,46 @@ mod tests {
 
     /// The tools Claude Code is offered, and that `kura_reveal` asks for a path.
     #[test]
-    fn lists_the_two_tools() {
+    fn lists_the_tools() {
         let out = server().handle(r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#).unwrap();
         let v: Value = ito_mcp::serde_json::from_str(&out).unwrap();
         let names: Vec<&str> = v["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-        assert_eq!(names, ["kura_state", "kura_reveal"]);
+        assert_eq!(names, ["kura_state", "kura_reveal", "kura_copy", "kura_move", "kura_rename", "kura_trash"]);
+        // No tool deletes for good.
+        assert!(!names.iter().any(|n| n.contains("delete")));
         assert_eq!(v["result"]["tools"][1]["inputSchema"]["required"][0], "path");
+    }
+
+    /// A writing request is turned away on its face before the window is asked.
+    #[test]
+    fn a_bad_write_is_refused_before_any_box() {
+        let dir = crate::util::test_dir("mcp-write-check");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("a.txt");
+        std::fs::write(&file, "x").unwrap();
+        let w = |tool, paths: Vec<PathBuf>, to: Option<&str>| Write { tool, paths, to: to.map(str::to_owned) };
+        let ok = dir.display().to_string();
+        assert!(w(WriteTool::Trash, vec![file.clone()], None).check().is_ok());
+        assert!(w(WriteTool::Copy, vec![file.clone()], Some(&ok)).check().is_ok());
+        assert!(w(WriteTool::Rename, vec![file.clone()], Some("b.txt")).check().is_ok());
+        assert!(w(WriteTool::Trash, vec![], None).check().is_err(), "nothing named");
+        assert!(w(WriteTool::Trash, vec![PathBuf::from("a.txt")], None).check().is_err(), "relative");
+        assert!(w(WriteTool::Trash, vec![dir.join("none")], None).check().is_err(), "missing");
+        assert!(w(WriteTool::Copy, vec![file.clone()], Some("rel")).check().is_err(), "folder is relative");
+        assert!(w(WriteTool::Move, vec![file.clone()], Some(&file.display().to_string())).check().is_err(), "folder is a file");
+        assert!(w(WriteTool::Rename, vec![file.clone()], Some("../b")).check().is_err(), "a path, not a name");
+        assert!(w(WriteTool::Rename, vec![file.clone(), file.clone()], Some("b")).check().is_err(), "two paths");
+    }
+
+    /// The box names the tool and the paths, and says how many it leaves out.
+    #[test]
+    fn the_box_lists_the_first_paths_and_the_count() {
+        let paths: Vec<PathBuf> = (0..12).map(|i| PathBuf::from(format!("/x/{i}"))).collect();
+        let w = Write { tool: WriteTool::Trash, paths, to: None };
+        assert_eq!(w.title(), "Claude asks to move 12 items to the trash");
+        let body = w.body();
+        assert_eq!(body.len(), 9);
+        assert_eq!(body[8], "… and 4 more");
     }
 
     /// With no window behind the door, the tool says so as a tool error the

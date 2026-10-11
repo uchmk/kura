@@ -866,6 +866,11 @@ impl Kura {
                     self.app.reveal(path.display().to_string());
                     Ok(format!("kura is showing {}", path.display()))
                 }
+                mcp::Request::Write(w) => {
+                    // Answered when the user presses a button, not now.
+                    self.app.mcp_write(w, ask.reply, ask.expired);
+                    continue;
+                }
             };
             let _ = ask.reply.send(reply);
         }

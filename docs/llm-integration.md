@@ -46,6 +46,7 @@ Claude Code ──stdio(JSON-RPC)── kura mcp ──名前付きパイプ / �
 | --- | --- |
 | `kura_state` | 今のフォルダ、カーソルの下のパス、選択したパス、タブの一覧 |
 | `kura_reveal` | パスを受けて、そのフォルダに移ってカーソルを置く（Q16 の「このファイルへ飛べ」） |
+| `kura_copy` / `kura_move` / `kura_rename` / `kura_trash` | ファイルを変える（#315 の 1、v0.109.0）。窓に確認の箱が出て、許すを押すまで何もしない。既定は Refuse。完全な削除と「聞かない」は無い |
 | `tsumugi_sessions` | セッションの一覧と状態（待っている・動いている）。`tsumugi ls` と同じ中身 |
 | `tsumugi_screen` | 1 つのセッションの見えている画面の文字 |
 

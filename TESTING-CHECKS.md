@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 631 件（TESTING.md の全 824 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 637 件（TESTING.md の全 830 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 47 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 53 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -858,13 +858,19 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 確かめる `kura.exe` をフルパスで、`claude` を動かすターミナルから 1 度だけ登録する: `claude mcp add kura -- "<フォルダ>\kura.exe" mcp`。終わったら `claude mcp remove kura` で外す。持ち主の窓と扉を奪い合わないよう、確かめる窓と `claude` の両方を、同じ値の `KURA_ADDRESS`（自分用のパス）を付けて起動する。`claude` の画面に打てないときは、`claude -p "hi" --mcp-config <ファイル> --output-format stream-json --verbose` の `init` イベントで 50.1 が読める: `mcp_servers` に `kura` が `connected` で、`tools` に `mcp__kura__kura_state` と `mcp__kura__kura_reveal` がある。
 
-- [x] **50.1** kura を起動してフォルダに入り、カーソルをファイルに置く → `claude` で `/mcp` → `kura` が接続済みで、ツールが 2 つ（`kura_state` と `kura_reveal`） — *Start kura, go to a folder and put the cursor on a file; then in `claude`, `/mcp` → `kura` is listed as connected, with two tools, `kura_state` and `kura_reveal`*
+- [x] **50.1** kura を起動してフォルダに入り、カーソルをファイルに置く → `claude` で `/mcp` → `kura` が接続済みで、ツールが 2 つ（`kura_state` と `kura_reveal`） — *Start kura, go to a folder and put the cursor on a file; then in `claude`, `/mcp` → `kura` is listed as connected, with six tools: `kura_state`, `kura_reveal`, `kura_copy`, `kura_move`, `kura_rename` and `kura_trash`*
 - [x] **50.2** `<Space>` で 2 ファイル選び、Claude に「kura でカーソルの下のファイルと選んだものは？」と聞く → Claude が `kura_state` を呼び、そのフォルダ・そのファイル・選んだ 2 つのパスを Windows のフルパス（`C:\…`）で答える — *Select two files with `<Space>`, then ask Claude "which file is under the cursor in kura, and what is selected?" → Claude calls `kura_state` and answers with that folder, that file and the two selected paths, as full Windows paths (`C:\…`)*
 - [x] **50.3** Claude に「kura で `C:\Windows\notepad.exe` を見せて」→ Claude が `kura_reveal` を呼び、窓をクリックしなくても `C:\Windows` に移ってカーソルが `notepad.exe` に乗る。Claude は `kura is showing …` と言う。無いパスなら `… does not exist` で、窓は動かない — *Ask Claude "show me `C:\Windows\notepad.exe` in kura" → Claude calls `kura_reveal`; the window goes to `C:\Windows` with the cursor on `notepad.exe`, without being clicked first, and Claude reports `kura is showing …`. Asking for a path that does not exist gets `… does not exist` and the window does not move*
 - [x] **50.4** kura の窓を全部閉じて、もう一度 `kura_state` を頼む → ツールが `kura is not running (or its [mcp] enable is false in config.toml); start kura and ask again` で失敗する。Claude Code 自体は動き続け、`/mcp` にも `kura` が残る — *Close every kura window, then ask Claude for `kura_state` again → The tool fails with `kura is not running (or its [mcp] enable is false in config.toml); start kura and ask again`. Claude Code itself keeps working, and `/mcp` still lists `kura`*
 - [x] **50.5** `config.toml` に `[mcp]` / `enable = false` を書いて起動し、`kura_state` を頼む → 同じ `kura is not running …`: 窓は扉を開かない。終わったら行を消す — *Put `[mcp]` / `enable = false` in `config.toml`, start kura, ask for `kura_state` → The same `kura is not running …` answer: the window opens no door. Take the line out again afterwards*
 - [x] **50.6** 別々のフォルダで kura の窓を 2 つ開き、`kura_state` を頼む。1 つ目の窓を閉じて 30 秒待ち、もう一度 → 1 回目は 1 つ目の窓のフォルダ。閉じたあとの 2 回目は 2 つ目の窓のフォルダ — *Open two kura windows on different folders, ask for `kura_state`; close the first window, wait 30 seconds, ask again → The first answer is the first window's folder. After it closes, the second answer is the second window's folder*
 - [x] **50.7** `kura.com` で登録し直し（`claude mcp add kura -- "<フォルダ>\kura.com" mcp`）、50.2 をする → 同じ答え: `kura.com` が `mcp` を入出力ごと `kura.exe` に渡す。Claude Code が起動するときにコンソールの窓は出ない — *Register `kura.com` instead (`claude mcp add kura -- "<folder>\kura.com" mcp`) and repeat 50.2 → The same answer: `kura.com` passes `mcp` to `kura.exe` with its input and output. No console window flashes when Claude Code starts it*
+- [ ] **50.8** In a scratch folder with `a.txt`, ask Claude "rename `a.txt` in the scratch folder to `b.txt` with kura" → A box titled `Claude asks to rename an item` shows the full path and `to b.txt`. Its first button is `[n] / <Enter> Refuse`. Press `<Enter>`: nothing is renamed and Claude says the user refused 〔未訳〕
+- [ ] **50.9** Ask again and press `y` (Allow) → `a.txt` is now `b.txt`, the cursor is not required to move, and Claude reports `renamed to …`. `u` in kura puts `a.txt` back 〔未訳〕
+- [ ] **50.10** Ask Claude to copy two files into another folder, press `y`; then to move them to the trash, press `y` → The copy shows in the jobs list like a `y`-`p` copy and the files are there; the trash job shows too and `u` brings them back. The box named both paths each time 〔未訳〕
+- [ ] **50.11** Ask Claude to trash 12 files; look at the box, then press `<Esc>` → The box lists 8 paths and `… and 4 more`; after `<Esc>` nothing is trashed and Claude is told the box was closed 〔未訳〕
+- [ ] **50.12** Ask for a rename while another box (`<F1>`'s help or a prompt) is open in kura → Claude is told another box is open; nothing queues up behind it 〔未訳〕
+- [ ] **50.13** Ask for a write, leave the box for over two minutes, then press `y` → Claude was told the user did not answer; pressing `y` late changes nothing 〔未訳〕
 
 ## 51. One rule for `s`, `S` and `f` (v0.87.0)
 
