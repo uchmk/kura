@@ -389,6 +389,11 @@ fn main() -> eframe::Result<()> {
             // What earlier runs unpacked from archives and left (a copy `l`
             // opened is kept while its editor may hold it).
             util::sweep_archive_scratch();
+            // One question to GitHub per run; never under `--keys`.
+            let update = (cfg.ui.check_updates && cli.keys.is_empty()).then(|| {
+                let ctx = cc.egui_ctx.clone();
+                ito_common::update::check("uchmk/kura", env!("CARGO_PKG_VERSION"), move || ctx.request_repaint())
+            });
             let mcp = cfg.mcp.enable.then(|| mcp::listen(cc.egui_ctx.clone()));
             let mut a = App::new(cfg, start, cc.egui_ctx.clone());
             a.start_unproven(home);
@@ -422,6 +427,7 @@ fn main() -> eframe::Result<()> {
                 last_geometry: None,
                 place,
                 place_saved: place,
+                update,
                 place_changed: std::time::Instant::now(),
                 remember_place: cli.keys.is_empty(),
                 script,
@@ -708,6 +714,8 @@ struct Kura {
     place_changed: std::time::Instant,
     /// Off under `--keys`.
     remember_place: bool,
+    /// The start-up check for a newer release, until it has answered.
+    update: Option<std::sync::mpsc::Receiver<ito_common::update::Update>>,
     /// `--keys`, as the events each press arrives as, still to be pressed.
     script: std::collections::VecDeque<keyscript::Press>,
     /// The frame and the moment the last scripted key went in.
@@ -1106,6 +1114,14 @@ impl eframe::App for Kura {
         self.answer_mcp();
         self.record_geometry(&ctx);
         self.remember_place(&ctx, false);
+        if let Some(rx) = &self.update {
+            if let Ok(found) = rx.try_recv() {
+                self.update = None;
+                if let ito_common::update::Update::Newer(v) = found {
+                    self.app.toast(format!("kura {v} is available (this is {})", env!("CARGO_PKG_VERSION")));
+                }
+            }
+        }
         self.take_shot(&ctx);
         let frame_nr = ctx.cumulative_frame_nr();
         if frame_nr != self.last_input_frame {
