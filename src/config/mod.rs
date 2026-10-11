@@ -128,13 +128,6 @@ impl Default for Ui {
     }
 }
 
-/// `[term]`: what the terminal pane runs.
-///
-/// Empty means the platform's own default, which is what alacritty picks when
-/// it is told nothing: `powershell` on Windows -- Windows PowerShell 5.1, not
-/// `pwsh` -- and the login shell elsewhere. Those are different programs
-/// reading different profiles, so a hook that works in one is simply absent in
-/// the other, and there was no way to say which one to start.
 /// `[mcp]` in `config.toml`: the local door `kura mcp` reads the window
 /// through (Q95). On unless `enable = false`; only the same user can reach it.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -153,6 +146,12 @@ fn yes() -> bool {
     true
 }
 
+/// `[term]`: what the terminal pane runs.
+///
+/// Empty means the pane crate's own default, which is whatever `kura env`
+/// reports on the `terminal pane` line (`pwsh` on a Windows machine that has
+/// it). It is not a fixed program, so a hook that works in one shell is simply
+/// absent in another, and there was no way to say which one to start.
 #[derive(Deserialize, Debug, Default, Clone, PartialEq, Eq)]
 pub struct TermCfg {
     /// The program, e.g. `pwsh`. Looked up on `PATH`, or an absolute path.
@@ -1118,12 +1117,9 @@ mod files {
 
     /// `[term]` decides what the pane starts, and says nothing by default.
     ///
-    /// The default matters as much as the setting. On Windows, telling
-    /// alacritty nothing gets `powershell` — Windows PowerShell 5.1, whose
-    /// `$PROFILE` is a different file from `pwsh`'s, so a shell hook put in
-    /// one is absent in the other with nothing on screen to say why. An empty
-    /// `shell` has to keep meaning "the platform's own", because that is what
-    /// every existing install already gets.
+    /// The default matters as much as the setting. An empty `shell` has to
+    /// keep meaning "the platform's own" (`kura env` names it), because that
+    /// is what every existing install already gets.
     #[test]
     fn it_is_absent_until_it_is_asked_for() {
         let none: KuraToml = toml::from_str("[ui]\nfont_size = 14.0\n").unwrap();
