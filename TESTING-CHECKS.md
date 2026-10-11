@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 626 件（TESTING.md の全 819 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 627 件（TESTING.md の全 820 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 42 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 43 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -544,6 +544,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **29.12** `config.toml` に `[term] shell = "pwsh"` と `args` を書いた状態で、`$env:KURA_TERM_SHELL = 'powershell'` にして kura を起動し `<C-t>`、同じシェルから `kura env`。次に `Remove-Item Env:KURA_TERM_SHELL` してもう一度（v0.70.0、Q51）→ 変数があるときはトーストが `Started powershell (Windows PowerShell 5.1) — …` で、`kura env` は `powershell` を `terminal pane, from KURA_TERM_SHELL; [term] args not used: <args>` と出し（`config.toml` の `args`。v0.73.11 から、#190）、変数の欄に `KURA_TERM_SHELL` がある。無いときは `pwsh` と `from [term] shell` に戻り、`config.toml` に `args = ["-NoLogo"]` があればトーストにも `Started pwsh -NoLogo — …` と出る（v0.79.2、#281）。どちらでも `config.toml` の他の設定（フォント、テーマ）は効いている — *With `[term] shell = "pwsh"` and `args` in `config.toml`: `$env:KURA_TERM_SHELL = 'powershell'`, start kura, `<C-t>`, then `kura env` from the same shell; then `Remove-Item Env:KURA_TERM_SHELL` and again (v0.70.0, Q51) → With the variable: the toast is `Started powershell (Windows PowerShell 5.1) — …`, and `kura env` lists `powershell` as `terminal pane, from KURA_TERM_SHELL; [term] args not used: <the args>` (the `args` from `config.toml`, since v0.73.11, #190) with `KURA_TERM_SHELL` among the variables. Without it: `pwsh` and `from [term] shell` again, and with `args = ["-NoLogo"]` in `config.toml` the toast names them too: `Started pwsh -NoLogo — …` (v0.79.2, #281). The rest of the config took effect both times: `config.toml`'s other settings (the font) and the `theme.toml` beside it (the theme lives there, not in `config.toml`)*
 - [x] **29.13** `$env:KURA_TERM_SHELL = 'pwsh'; $env:KURA_TERM_ARGS = '-NoProfile'` にして kura を起動し `<C-t>`、同じシェルから `kura env`。次に `KURA_TERM_ARGS` だけにしてもう一度（v0.78.34、Q81）→ 両方あるときはトーストが `Started pwsh -NoProfile — …` で、PTY ログにプロファイルの出力が無く、`kura env` は `terminal pane, from KURA_TERM_SHELL; args from KURA_TERM_ARGS: -NoProfile` と出し、変数の欄に `KURA_TERM_ARGS` がある。引数だけのときは、シェルは `[term]` が決めたもの（無ければ既定）のままで、引数は使われず、`kura env` が `KURA_TERM_ARGS not used: it needs KURA_TERM_SHELL` と言う（v0.78.49） — *`$env:KURA_TERM_SHELL = 'pwsh'; $env:KURA_TERM_ARGS = '-NoProfile'`, start kura, `<C-t>`, then `kura env` from the same shell; then with `KURA_TERM_ARGS` alone (v0.78.37, Q81) → With both: the toast reads `Started pwsh -NoProfile — …`, the pane's PTY log shows no profile output, and `kura env` lists `terminal pane, from KURA_TERM_SHELL; args from KURA_TERM_ARGS: -NoProfile` with `KURA_TERM_ARGS` among the variables. With the arguments alone: the shell is the one `[term]` names (or the platform default), the arguments are not used, and `kura env` says `KURA_TERM_ARGS not used: it needs KURA_TERM_SHELL` (v0.78.49)*
 - [ ] **29.14** Put the new hook in (`kura shell-hook \| Add-Content $PROFILE` in a fresh profile, or `kura shell-hook bash >> ~/.bashrc` / `zsh`), new pane, run a few commands (one that fails, `cmd /c exit 3` or `false`), then `<C-S-Up>` / `<C-S-Down>` and `<C-S-l>` (v0.105.0, #345) → The view jumps between the prompts, `<C-S-l>` copies the last command's output, and the Starship (or other) prompt still draws as before; `<A-Up>` still follows `cd` 〔未訳〕
+- [ ] **29.15** Copy something big enough to take more than 10 s (a few GB to a slow disk), then put another window in front before it ends (v0.106.0, #345) → When the copy ends the OS shows a toast, `Copy finished`, with the job's label; a copy done in front, a short one and one cancelled from the tasks list show none; with an error it says `Copy failed` and the first error 〔未訳〕
 
 ## 30. プロンプトでの右クリック貼り付け
 

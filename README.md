@@ -710,6 +710,9 @@ Copy  42%  18.4 M/s  1m12s  +2
 ```
 
 the percentage, the speed, how long the rest should take, and how many other jobs are waiting.
+A job that ran 10 seconds or more and ends while kura's window is behind another one is
+announced by the system's own notification (a toast, a macOS notification, `notify-send`), with the
+first error if it failed; one stopped from the list is not (v0.106.0).
 The speed is measured over a window rather than between reports, and smoothed, so it stays
 readable instead of flickering; the time left is only shown when the size is known, since a file
 count says nothing about how big the files are.

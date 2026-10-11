@@ -561,6 +561,25 @@ impl Task {
     }
 }
 
+/// A job that ran this long is one to be told about when it ends.
+const LONG_OP: Duration = Duration::from_secs(10);
+
+/// The system toast for a finished job: only for one that ran [`LONG_OP`] or
+/// more, ended on its own or with an error (a cancel is the reader's own act),
+/// while the window was behind another (`behind`).
+fn long_op_notice(t: &Task, behind: bool) -> Option<(String, String)> {
+    if !behind || t.state == TaskState::Cancelled || t.started_at.elapsed() < LONG_OP {
+        return None;
+    }
+    let (title, tail) = match t.errors.first() {
+        Some(e) => (format!("{} failed", t.kind.verb()), e.clone()),
+        None => (format!("{} finished", t.kind.verb()), String::new()),
+    };
+    let body = if tail.is_empty() { t.label.clone() } else { format!("{}
+{tail}", t.label) };
+    Some((title, body))
+}
+
 impl Task {
     /// The row's first line. The label already starts with the verb, so it is
     /// not put in front a second time (`Trash  Trash 5 item(s)`).
@@ -4876,6 +4895,15 @@ impl App {
                     t.errors = errors.clone();
                     t.finished = Some(Instant::now());
                 }
+                // A long job nobody is watching: the system's own toast says
+                // it is over (#345). `focused` is `None` until the window has
+                // said; then nothing is claimed.
+                let behind = self.ctx.input(|i| i.viewport().focused) == Some(false);
+                if let Some(t) = self.tasks.iter().find(|t| t.id == id) {
+                    if let Some((title, body)) = long_op_notice(t, behind) {
+                        ito_notify::toast::show(ito_notify::toast::App { id: "uchmk.kura", name: "kura" }, &title, &body);
+                    }
+                }
                 if !errors.is_empty() {
                     self.error(format!("{}: {}", kind.verb(), errors[0]));
                 } else if cancelled {
@@ -7858,6 +7886,28 @@ mod tests {
         let mut c = task(2048);
         c.bytes_done = 1024;
         assert!(c.detail().starts_with("0/1 files · 1.0 K / 2.0 K"), "{}", c.detail());
+    }
+
+    #[test]
+    fn a_long_job_behind_another_window_is_told_about_and_nothing_else() {
+        let mut t = task(0);
+        t.label = "Copy 3 item(s)".into();
+        t.state = TaskState::Done;
+        // Short, or in front: nothing.
+        assert_eq!(long_op_notice(&t, true), None);
+        t.started_at = Instant::now() - Duration::from_secs(11);
+        assert_eq!(long_op_notice(&t, false), None);
+        // Long and behind: the toast.
+        let (title, body) = long_op_notice(&t, true).unwrap();
+        assert_eq!((title.as_str(), body.as_str()), ("Copy finished", "Copy 3 item(s)"));
+        // An error is in the toast; a cancel is the reader's own and silent.
+        t.state = TaskState::Failed;
+        t.errors = vec!["disk full".into()];
+        let (title, body) = long_op_notice(&t, true).unwrap();
+        assert_eq!(title, "Copy failed");
+        assert!(body.ends_with("disk full"));
+        t.state = TaskState::Cancelled;
+        assert_eq!(long_op_notice(&t, true), None);
     }
 
     fn task(bytes: u64) -> Task {
