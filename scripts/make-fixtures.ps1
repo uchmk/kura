@@ -231,6 +231,12 @@ try {
     Pop-Location
 }
 
+# --- a light overall theme for 33.6: copy it into %APPDATA%\yazi\config\.
+# ASCII, so Windows PowerShell writes no byte-order mark in front of the TOML.
+$light = New-Dir 'theme-light'
+Set-Content -LiteralPath (Join-Path $light 'theme.toml') -Value @('[app]', 'overall = { bg = "#ffffff", fg = "#222222" }') -Encoding ASCII
+Write-Host '  theme-light\         theme.toml with a white overall ground (33.6)'
+
 # --- a directory big enough to scroll, for the list itself.
 $many = New-Dir 'many'
 1..500 | ForEach-Object {

@@ -1276,6 +1276,9 @@ fn state_report(app: &App) -> String {
     if let app::Overlay::Input(ov) = &app.overlay {
         lines.push(format!("input: {}", ov.text));
     }
+    if let app::Overlay::Settings(ov) = &app.overlay {
+        lines.push(format!("settings page: {}", ui::settings::page_name(ov.state.page)));
+    }
     // What a picker is offering, in the order on screen, and the row under
     // its cursor (#196): `overlay: pick` alone said a list was open, not what
     // was in it, and the README's opener order could only be read off a
@@ -1982,10 +1985,16 @@ mod tests {
             }
             // The chords that have a control code keep it.
             assert_eq!(pane_key_bytes(K::C, ctrl(), win32, false, false), Some(vec![0x03]), "Ctrl+C is ETX");
-            assert_eq!(pane_key_bytes(K::OpenBracket, ctrl(), win32, false, false), Some(vec![0x1b]), "Ctrl+[ is ESC");
             assert_eq!(pane_key_bytes(K::CloseBracket, ctrl(), win32, false, false), Some(vec![0x1d]), "Ctrl+]");
-            assert_eq!(pane_key_bytes(K::Space, ctrl(), win32, false, false), Some(vec![0x00]), "Ctrl+Space is NUL");
         }
+        // #341: behind ConPTY a bare ESC or NUL was read as another key, so
+        // Ctrl+[ and Ctrl+Space go as win32 records carrying the code.
+        let bracket = pane_key_bytes(K::OpenBracket, ctrl(), true, false, false);
+        assert_eq!(bracket, Some(b"\x1b[219;26;27;1;8;1_".to_vec()), "Ctrl+[ is a record for ESC");
+        let space = pane_key_bytes(K::Space, ctrl(), true, false, false);
+        assert_eq!(space, Some(b"\x1b[32;57;0;1;8;1_".to_vec()), "Ctrl+Space is a record for NUL");
+        assert_eq!(pane_key_bytes(K::OpenBracket, ctrl(), false, false, false), Some(vec![0x1b]), "Ctrl+[ is ESC");
+        assert_eq!(pane_key_bytes(K::Space, ctrl(), false, false, false), Some(vec![0x00]), "Ctrl+Space is NUL");
         assert_eq!(pane_key_bytes(K::A, ctrl(), false, false, false), Some(vec![0x01]), "Ctrl+A");
         // Ctrl+1 ("Num1") was 0x0e; with no control code it sends nothing.
         assert_eq!(pane_key_bytes(K::Num1, ctrl(), false, false, false), None, "Ctrl+1");
@@ -2074,6 +2083,17 @@ mod tests {
         let total = app.spot_sections().iter().map(|s| s.rows.len()).sum::<usize>();
         assert!(report.lines().any(|l| l == format!("spot: 2 of {total}")), "{report}");
         assert!(report.lines().any(|l| l.starts_with("spot row: ")) && report.lines().any(|l| l == format!("spot top: 0 of {total}")), "{report}");
+    }
+
+    /// #336: the Settings page shown is a line of the state.
+    #[test]
+    fn the_state_names_the_settings_page() {
+        let dir = crate::util::test_dir("state-settings");
+        let mut app = App::new(crate::config::Config::load(), dir, egui::Context::default());
+        assert!(!state_report(&app).contains("settings page:"), "only while Settings is open");
+        app.overlay = app::Overlay::Settings(app::SettingsOverlay::default());
+        let report = state_report(&app);
+        assert!(report.lines().any(|l| l == "settings page: general"), "{report}");
     }
 
     /// #197, #201: what kura put on the clipboard, and the frames drawn.

@@ -1623,7 +1623,11 @@ hears `<C-v>` as a real keyboard would deliver it.
 any other, and the compare view, the terminal pane and a prompt take it for something else, so a
 script ending in `q` there never ended. The report it leaves describes what was open when it quit.
 
-A space is written `<Space>`; a plain one is refused.
+A space is written `<Space>`; a plain one is refused. Since v0.104.0 `<Space>` arrives as a real
+keyboard sends it: the key goes down, a space is typed, the key comes up -- so a switch on the
+settings screen flips and a text box gets the space. `<Key:Name>` presses and lets go of one key by
+egui's name (`<Key:Space>`, `<Key:F13>`) with no text typed. While the settings screen (`<C-,>`) is
+open, `<State:>` has `settings page: general` (or `theme`, `kura`, `advanced`).
 
 A script driving kura from outside needs to know when the keys are done, and guessing from the
 `<Wait:N>` it wrote misses the time each key spends waiting to settle. Nor does the command itself

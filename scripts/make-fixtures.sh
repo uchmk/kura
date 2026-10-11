@@ -171,6 +171,11 @@ else
     warn 'git is missing: skipping the repository fixture'
 fi
 
+# --- a light overall theme for 33.6: copy it into the yazi config folder.
+mkdir -p "$root/theme-light"
+printf '[app]\noverall = { bg = "#ffffff", fg = "#222222" }\n' > "$root/theme-light/theme.toml"
+echo '  theme-light/         theme.toml with a white overall ground (33.6)'
+
 # --- a directory big enough to scroll.
 many="$root/many"
 mkdir -p "$many"

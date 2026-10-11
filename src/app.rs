@@ -6561,8 +6561,12 @@ impl App {
             }
             return;
         }
-        if let (Some(term), Some(bytes)) = (&self.term, bytes) {
-            term.send(bytes);
+        match (&self.term, bytes) {
+            (Some(term), Some(bytes)) => term.send(bytes),
+            // #336: a key the shell is given nothing for left no trace in
+            // KURA_PTY_LOG, so "sent nothing" and "never arrived" looked alike.
+            (Some(term), None) => term.log_note(&format!("in key {k} (nothing sent)")),
+            (None, _) => {}
         }
     }
 

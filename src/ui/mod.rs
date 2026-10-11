@@ -5,7 +5,7 @@
 mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;
-mod settings;
+pub(crate) mod settings;
 mod term;
 
 use egui::{Align2, Color32, CornerRadius, FontFamily, FontId, Rect, Stroke, Ui, Vec2};
@@ -1531,6 +1531,11 @@ pub(crate) mod harness {
         pub(crate) fn caret(&self) -> Option<usize> {
             let state = egui::text_edit::TextEditState::load(&self.ctx, egui::Id::new("kura-input"))?;
             state.cursor.char_range().map(|r| usize::from(r.primary.index))
+        }
+
+        /// The context the frames run in, to ask egui what has the keys.
+        pub(crate) fn app_ctx(&self) -> &egui::Context {
+            &self.ctx
         }
 
         /// The window frames are drawn into.

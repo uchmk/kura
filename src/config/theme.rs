@@ -569,6 +569,28 @@ impl Theme {
             }
             self.bg = bg;
             self.bg_alt = toward(bg, self.fg, 0.03);
+            // #321: the quiet text was the common theme's, and on a ground
+            // of the file's own it can fade out (Nord's grey on white reads
+            // at a contrast under 3). Then it is made again from this text and ground,
+            // everywhere kura drew it, before the rest of the file sets its own.
+            let dim = self.fg_dim;
+            if ito_theme::contrast(dim, bg) < 3.5 {
+                let new = quiet_on(self.fg, bg);
+                self.fg_dim = new;
+                for s in [&mut self.tab_inactive, &mut self.which_rest] {
+                    if s.fg == Some(dim) {
+                        s.fg = Some(new);
+                    }
+                }
+                if self.git_untracked == dim {
+                    self.git_untracked = new;
+                }
+                for r in &mut self.filetypes {
+                    if r.style.fg == Some(dim) {
+                        r.style.fg = Some(new);
+                    }
+                }
+            }
         }
         self.cwd = self.cwd.overlay(&t.mgr.cwd);
         self.hovered = self.hovered.overlay(&t.mgr.hovered);
@@ -778,6 +800,20 @@ fn quiet(t: &Colors) -> Color32 {
     }
 }
 
+/// Quiet text made from `fg` and `bg` alone: as far into the ground as it can
+/// go and still read at 4.5:1.
+fn quiet_on(fg: Color32, bg: Color32) -> Color32 {
+    let mut t = 0.4;
+    while t > 0.0 {
+        let dim = mix(fg, bg, t);
+        if ito_theme::contrast(dim, bg) >= 4.5 {
+            return dim;
+        }
+        t -= 0.05;
+    }
+    fg
+}
+
 /// Of the theme's text and its ground, the one that reads better on `fill`.
 fn text_on(t: &Colors, fill: Color32) -> Color32 {
     if ito_theme::contrast(t.fg, fill) >= ito_theme::contrast(t.bg, fill) {
@@ -969,6 +1005,27 @@ mod tests {
         let mut plain = Theme::default();
         plain.apply(&toml::from_str::<ThemeToml>("").unwrap());
         assert_eq!((plain.bg, plain.fg), (Theme::default().bg, Theme::default().fg));
+    }
+
+    /// #321: a white window over Nord made the quiet text Nord's grey, at
+    /// a contrast under 3; it is made again from the window's text and reads.
+    #[test]
+    fn the_quiet_text_reads_on_a_ground_the_file_sets() {
+        let nord = ito_theme::builtin().into_iter().find(|t| t.name == "Nord").expect("Nord").colors;
+        for toml in ["[app]\noverall = { bg = \"#ffffff\" }\n", "[app]\noverall = { bg = \"#ffffff\", fg = \"#222222\" }\n"] {
+            let mut t = Theme::from_common(&nord);
+            let before = t.fg_dim;
+            assert!(contrast(before, Color32::WHITE) < 3.5, "the case #321 saw");
+            t.apply(&toml::from_str::<ThemeToml>(toml).unwrap());
+            assert!(contrast(t.fg_dim, t.bg) >= 4.5, "{toml}");
+            assert_eq!(t.tab_inactive.fg, Some(t.fg_dim), "the inactive tab follows");
+            assert_eq!(t.git_untracked, t.fg_dim);
+        }
+        // A dim that still reads stays the theme's.
+        let mut t = Theme::default();
+        let before = t.fg_dim;
+        t.apply(&toml::from_str::<ThemeToml>("[app]\noverall = { bg = \"#101010\" }\n").unwrap());
+        assert_eq!(t.fg_dim, before);
     }
 
     /// Q93: on a light background the warning and a plain file's name turn

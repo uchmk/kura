@@ -80,6 +80,13 @@ pub enum Step {
     /// `<Drag:0.2,0.3-0.6,0.3>`: the left button down at the first place, moved
     /// to the second and let go there (#280; `SendInput` could not move the cursor).
     Drag { from: At, to: At },
+    /// `<Key:Tab>`, `<Key:C-A>`: that egui key pressed and let go, with no
+    /// text. A key written as itself (`<Tab>`, `a`) arrives the way a keyboard
+    /// sends it, which for a character is the text alone; this one shows
+    /// whether a key event on its own reaches what was meant (#344). The name
+    /// is egui's (`Space`, `A`, `ArrowDown`); `C-` / `A-` / `S-` before it hold
+    /// that modifier.
+    Raw { key: egui::Key, mods: u8 },
 }
 
 /// `Step::Wheel`'s modifiers: these bits.
@@ -123,6 +130,11 @@ pub fn press(step: &Step) -> Option<Press> {
         Step::Hover { at } => Some(Press::Hover { at: *at }),
         Step::Wheel { milli, mods, at } => Some(Press::Wheel { milli: *milli, mods: *mods, at: *at }),
         Step::Drag { from, to } => Some(Press::Drag { from: *from, to: *to }),
+        Step::Raw { key, mods } => {
+            let modifiers = modifiers(*mods);
+            let press = |pressed| egui::Event::Key { key: *key, physical_key: None, pressed, repeat: false, modifiers };
+            Some(Press::Events(vec![press(true), press(false)]))
+        }
         Step::Wait(d) => Some(Press::Wait(*d)),
         Step::Now => Some(Press::Now),
         Step::Shot(name) => Some(Press::Shot(name.clone())),
@@ -150,7 +162,19 @@ pub fn label(step: &Step) -> String {
             format!("<Wheel:{}{}@{}>", held_text(*mods), *milli as f32 / 1000.0, at_text(*at))
         }
         Step::Drag { from, to } => format!("<Drag:{}-{}>", at_text(*from), at_text(*to)),
+        Step::Raw { key, mods } => format!("<Key:{}{}>", held_text(*mods), key.name()),
     }
+}
+
+/// `<Key:C-Tab>` as the egui key and modifiers it names; `None` for a token
+/// that is not one.
+fn raw(token: &str) -> Option<Result<Step, String>> {
+    let (mods, name) = held_prefix(token.strip_prefix("<Key:")?.strip_suffix('>')?);
+    Some(
+        egui::Key::from_name(name)
+            .map(|key| Step::Raw { key, mods })
+            .ok_or_else(|| format!("`{token}` is not a key; write egui's name for it, as `<Key:Tab>`, `<Key:Space>` or `<Key:C-A>`")),
+    )
 }
 
 fn held_text(mods: u8) -> String {
@@ -446,6 +470,7 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
             None if token.starts_with("<PaneText:") => Step::PaneText(named(token, "PaneText")?),
             None if token.starts_with("<PreviewText:") => Step::PreviewText(named(token, "PreviewText")?),
             None if pointer(token).is_some() => pointer(token).unwrap_or_else(|| unreachable!())?,
+            None if raw(token).is_some() => raw(token).unwrap_or_else(|| unreachable!())?,
             None => Step::Key(Key::parse(token).ok_or_else(|| format!("`{token}` is not a key"))?),
         };
         rest = &rest[token.len()..];
@@ -472,7 +497,7 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
     }
     // `<Now>` is about the key after it, so there has to be one.
     for (i, step) in out.iter().enumerate() {
-        if *step == Step::Now && !matches!(out.get(i + 1), Some(Step::Key(_) | Step::State(_) | Step::Shot(_) | Step::PaneText(_) | Step::PreviewText(_) | Step::Paste | Step::PasteText(_) | Step::Click { .. } | Step::Hover { .. } | Step::Wheel { .. } | Step::Drag { .. })) {
+        if *step == Step::Now && !matches!(out.get(i + 1), Some(Step::Key(_) | Step::Raw { .. } | Step::State(_) | Step::Shot(_) | Step::PaneText(_) | Step::PreviewText(_) | Step::Paste | Step::PasteText(_) | Step::Click { .. } | Step::Hover { .. } | Step::Wheel { .. } | Step::Drag { .. })) {
             return Err("`<Now>` has to come right before a key or a reading (`<State:x>`, `<Shot:x>`, `<PaneText:x>`), as `d<Now>w` or `<A-c><Now><State:mid>`".into());
         }
     }
@@ -486,6 +511,15 @@ pub fn events(key: &Key) -> Option<Vec<egui::Event>> {
     // `handle_input` expects it -- a key event for it would be dropped.
     if let Code::Char(c) = key.code {
         if !key.ctrl && !key.alt && !key.sup {
+            // Space is a key as well as a character: a switch or a button with
+            // the focus toggles on the key, and the list and the pane take the
+            // text. A keyboard sends both, the key first (egui-winit), so the
+            // settings screen's switches could not be pressed from a script
+            // (#336, #344).
+            if c == ' ' && !key.shift {
+                let press = |pressed| egui::Event::Key { key: egui::Key::Space, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE };
+                return Some(vec![press(true), egui::Event::Text(" ".into()), press(false)]);
+            }
             return Some(vec![egui::Event::Text(c.to_string())]);
         }
     }
@@ -618,6 +652,39 @@ mod tests {
         }
         let c = Key::parse("C").unwrap();
         assert_eq!(events(&c), Some(vec![egui::Event::Text("C".into())]));
+    }
+
+    /// #336, #344: `<Space>` is the key and the text, in a keyboard's order,
+    /// and `<Key:X>` the bare key event with no text.
+    #[test]
+    fn space_is_a_key_and_text_and_key_names_a_bare_event() {
+        let key = |pressed, modifiers| egui::Event::Key { key: egui::Key::Space, physical_key: None, pressed, repeat: false, modifiers };
+        let none = egui::Modifiers::NONE;
+        assert_eq!(events(&Key::parse("<Space>").unwrap()), Some(vec![key(true, none), egui::Event::Text(" ".into()), key(false, none)]));
+        let got = parse("<Key:Space><Key:C-S-Tab>").unwrap();
+        assert_eq!(got, [Step::Raw { key: egui::Key::Space, mods: 0 }, Step::Raw { key: egui::Key::Tab, mods: MOD_CTRL | MOD_SHIFT }]);
+        assert_eq!(press(&got[0]), Some(Press::Events(vec![key(true, none), key(false, none)])));
+        assert_eq!(got.iter().map(label).collect::<Vec<_>>(), ["<Key:Space>", "<Key:C-S-Tab>"]);
+        assert_eq!(parse("<Key:Tab>*3").unwrap().len(), 3);
+        for bad in ["<Key:>", "<Key:Nonsense>", "<Key:tab>"] {
+            let err = parse(bad).unwrap_err();
+            assert!(err.contains("<Key:Tab>"), "{bad}: {err}");
+        }
+    }
+
+    /// The list takes `<Space>` once: the key event is not a key to it, so the
+    /// text alone toggles the file and moves on.
+    #[test]
+    fn space_selects_one_file_in_the_list() {
+        let dir = crate::util::test_dir("keyscript-space");
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            std::fs::write(dir.join(name), name).unwrap();
+        }
+        let mut s = crate::ui::harness::Screen::open(dir);
+        s.settle();
+        s.feed(events(&Key::parse("<Space>").unwrap()).unwrap());
+        assert_eq!(s.app.tab().selected.len(), 1, "one file toggled");
+        assert_eq!(s.app.tab().current.cursor, 1, "and the cursor moved one row");
     }
 
     /// The events reach the app through the door a keyboard uses: `<Tab>` opens

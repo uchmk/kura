@@ -254,6 +254,18 @@ const THEME: usize = 1;
 const KURA: usize = 2;
 const ADVANCED: usize = 3;
 
+/// The page's name for `<State:>`'s `settings page:` line (#336): a script
+/// read which page was open off a picture before.
+pub fn page_name(page: usize) -> &'static str {
+    match page {
+        GENERAL => "general",
+        THEME => "theme",
+        KURA => "kura",
+        ADVANCED => "advanced",
+        _ => "?",
+    }
+}
+
 /// What the config.toml page shows: the settings in force, read before the
 /// screen takes the overlay.
 struct KuraNow {
@@ -725,6 +737,35 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(text.contains("theme = \"Nord\"") && text.contains("# mine"), "{text}");
+    }
+
+    /// #340: Tab walks from the search to the first field of the page, and
+    /// kura's key handling does not take it on the way.
+    #[test]
+    fn tab_goes_from_the_search_to_the_font_size() {
+        let dir = crate::util::test_dir("settings-tab");
+        let mut s = crate::ui::harness::Screen::open(dir);
+        s.app.overlay = Overlay::Settings(Default::default());
+        if let Overlay::Settings(ov) = &mut s.app.overlay {
+            ov.state.page = KURA;
+        }
+        let tab = |pressed| egui::Event::Key {
+            key: egui::Key::Tab,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.draw();
+        s.feed(vec![tab(true), tab(false)]);
+        s.feed(vec![tab(true), tab(false)]);
+        let p = s.draw();
+        let focused = s.app_ctx().memory(|m| m.focused());
+        assert_eq!(focused, Some(egui::Id::new(("prefs-field", "font_size"))));
+        // The ring round it shows where the keys are (#340).
+        let run = ito_theme::colors().run;
+        assert!(p.strokes.iter().any(|(r, c)| *c == run && r.width() > 100.0), "{:?}", p.strokes);
+        assert!(matches!(s.app.overlay, Overlay::Settings(_)), "the screen stays open");
     }
 
     /// What was typed and the range it takes are said, in either language.
