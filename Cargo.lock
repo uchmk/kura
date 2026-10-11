@@ -2037,8 +2037,8 @@ dependencies = [
 
 [[package]]
 name = "ito-common"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "chrono",
  "serde",
@@ -2049,8 +2049,8 @@ dependencies = [
 
 [[package]]
 name = "ito-i18n"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "ito-common",
  "toml",
@@ -2058,8 +2058,8 @@ dependencies = [
 
 [[package]]
 name = "ito-ipc"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "postcard",
  "serde",
@@ -2068,32 +2068,32 @@ dependencies = [
 
 [[package]]
 name = "ito-layout"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-match"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "fancy-regex",
 ]
 
 [[package]]
 name = "ito-mcp"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "ito-pane"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "alacritty_terminal",
  "crossbeam-channel",
@@ -2112,8 +2112,8 @@ dependencies = [
 
 [[package]]
 name = "ito-prefs"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "egui",
  "ito-common",
@@ -2122,9 +2122,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ito-testcheck"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+dependencies = [
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "ito-theme"
-version = "0.4.1"
-source = "git+https://github.com/uchmk/ito?rev=efa73768608cd062ed737fa586681c6932076fdf#efa73768608cd062ed737fa586681c6932076fdf"
+version = "0.7.0"
+source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
 dependencies = [
  "egui",
  "toml",
@@ -2254,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.102.1"
+version = "0.103.0"
 dependencies = [
  "ab_glyph",
  "alacritty_terminal",
@@ -2275,6 +2284,7 @@ dependencies = [
  "ito-mcp",
  "ito-pane",
  "ito-prefs",
+ "ito-testcheck",
  "ito-theme",
  "notify",
  "open",

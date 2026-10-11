@@ -1,3 +1,5 @@
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its scripts/lanes.sh sync, so edit ito's.
+#
 # A lane's state on GitHub, where a cloud session can read it: one issue per
 # lane, "Lane status: <lane>" with the label lane-status, whose body every
 # firing of auto-wintest.ps1 writes again. Editing a body sends no
@@ -5,8 +7,7 @@
 # machine (the log, dirty.txt, the failures file): on 2026-10-10 kura's lanes
 # had made no pull request for a day, and nobody outside the machine could
 # tell why.
-# Dot-sourced by auto-wintest.ps1 and checked by check-ps1.ps1. The same file
-# in kura and tsumugi.
+# Dot-sourced by auto-wintest.ps1 and checked by check-ps1.ps1.
 
 # The last $Keep lines of a firing history kept in $File, with $Line added
 # first. Never throws.

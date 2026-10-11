@@ -74,7 +74,7 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [x] ARM64 の `filer-auto-wintest-arm` を `lane-boot.ps1 -Lane arm` で登録し直す（2026-10-11、持ち主。PC のセッションが確かめた）。
   v0.101.3 から arm のレーンは `release-arm64` の issue が無い間は何もせずに終わるので、毎時のまま残す
 - [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
-- [ ] tsumugi の :50 のタスクにも `lane-boot.ps1` と救出を写す（段階 5 で ito に一本化する）【後】
+- [ ] tsumugi の :50 のタスクにも `lane-boot.ps1` と救出を写す（段階 6 で ito の `scripts/lanes/` を `lanes.sh sync` で入れる）【後】
 - [x] （v0.101.1）段階 1: 片付け（TODO.md の済んだ「実機のセッションの報告」を TODO-DONE.md へ、`auto-todo.sh` の削除、ci.yml の重複した `--check`、
   windows-role.md の再テストの履歴、qa-reports/ を archive に。
   dev-routine.md は CLAUDE.md が変わったときだけ読み直す）
@@ -87,7 +87,8 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
   issue が無い間は arm の止まりを見張らない。票はクラウドと x64 の 2 票）段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [x] （v0.102.0。所見は `finding`、再テストは `retest`、確認事項は `question` の issue。Merge lanes が毎時ラベルをそろえ票を数え、報告の残りを `finding` の issue にする。Q97 は #315、残っていた再テストは #316 に移した）段階 4: 所見・再テスト・確認事項を Issues に移す（`scripts/labels.sh`、`.github/ISSUE_TEMPLATE/`、merge-lanes.py の票の集計）
-- [ ] 段階 5: 共通の道具を ito に移す（`ito-testcheck` と `scripts/lanes/`）。ito をセッションに付けてから【後】
+- [x] （v0.103.0。ito v0.7.0 の `ito-testcheck` が checklists を生成し、レーンの共通のスクリプト 11 本の正は ito の `scripts/lanes/`。kura の `scripts/lanes.sh sync` が Cargo.toml の rev から写し、verify.sh の `lanes.sh check` が写しの食い違いで落ちる。アプリの値は `scripts/lanes.conf`）段階 5: 共通の道具を ito に移す
+- [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
 - [ ] 段階 6: tsumugi・yagura に展開する【後】
 
 ## マージで止めている実機の PR

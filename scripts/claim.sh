@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its
+# scripts/lanes.sh sync, so edit ito's.
 # Claims for the development routine's overlapping runs: a run writes which
 # TODO.md item it is on into the `claims` branch on GitHub, and the other runs
 # leave that item alone (.claude/dev-routine.md, 4).
@@ -29,7 +31,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
-state="$(git rev-parse --git-dir)/kura-claim"
+# The app's name, from scripts/lanes.conf beside this file.
+app=$(sed -n 's/^app=//p' scripts/lanes.conf)
+state="$(git rev-parse --git-dir)/${app:?scripts/lanes.conf has no app=}-claim"
 stale=3600
 ref=refs/heads/claims
 

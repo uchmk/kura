@@ -42,6 +42,9 @@ run cargo +stable clippy -q --all-targets --target x86_64-pc-windows-msvc -- -D 
 run cargo run -q --example make-testcheck -- --check
 run cargo run -q --example make-testcheck -- --lane linux --check
 run cargo run -q --example make-keycheck -- --check
+# The lanes' shared scripts are copies of ito's at Cargo.toml's rev
+# (scripts/lanes.sh); an edit made here instead of in ito fails this.
+run scripts/lanes.sh check
 # The merge-lanes workflow merges the lanes' pull requests with main's copy
 # of this script; a broken copy would stop every merge.
 run python3 scripts/merge-lanes.py --self-test

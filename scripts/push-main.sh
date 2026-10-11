@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its
+# scripts/lanes.sh sync, so edit ito's.
 # Push this checkout's own commits to main, renumbered onto whatever main has
 # become, verified, without a merge commit and without --force.
 #
@@ -142,6 +144,10 @@ def show(rev, path):
     r = git("show", f"{rev}:{path}", check=False)
     return r.stdout.decode() if r.returncode == 0 else None
 
+# The app's crate, whose version Cargo.lock carries, from scripts/lanes.conf.
+CRATE = dict(l.split("=", 1) for l in open("scripts/lanes.conf", encoding="utf-8").read().splitlines()
+             if "=" in l and not l.startswith("#"))["crate"]
+
 VERSION = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"', re.M)
 
 def version(text):
@@ -177,7 +183,7 @@ try:
         tip = version(open(os.path.join(wt, "Cargo.toml"), encoding="utf-8", newline="").read())
         new = bump(tip, base, own)
 
-        # Cargo.toml and Cargo.lock may differ only in kura's own version.
+        # Cargo.toml and Cargo.lock may differ only in the app's own version.
         for f in ("Cargo.toml", "Cargo.lock"):
             for line in out("diff", "-U0", f"{c}^", c, "--", f).splitlines():
                 if line.startswith(("+++", "---", "@@", "diff ", "index ")):
@@ -216,7 +222,7 @@ try:
             open(path, "w", encoding="utf-8", newline="").write(log)
 
             for f, pat in (("Cargo.toml", r'^(version = ")[\d.]+(")'),
-                           ("Cargo.lock", r'^(name = "kura"\nversion = ")[\d.]+(")')):
+                           ("Cargo.lock", r'^(name = "' + re.escape(CRATE) + r'"\nversion = ")[\d.]+(")')):
                 path = os.path.join(wt, f)
                 text = open(path, encoding="utf-8", newline="").read()
                 text, n = re.subn(pat, r"\g<1>" + vs(new) + r"\g<2>", text, count=1, flags=re.M)

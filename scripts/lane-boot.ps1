@@ -1,3 +1,5 @@
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its scripts/lanes.sh sync, so edit ito's.
+#
 # The scheduled task's entry point for a Windows test lane: runs origin/main's
 # copy of auto-wintest.ps1, whatever state the worktree is in.
 #
@@ -19,8 +21,8 @@
 #
 #   pwsh -NoProfile -File C:\dev\filer-wintest\scripts\lane-boot.ps1 [-Lane arm] [auto-wintest.ps1's other arguments]
 #
-# The task's registration is at the top of auto-wintest.ps1. The same file in
-# kura and tsumugi, but for $app.
+# The task's registration is at the top of auto-wintest.ps1. The state folder
+# under %LOCALAPPDATA% is scripts\lanes.conf's `state` (kura: filer-wintest).
 
 param(
     [string]$Lane = 'win',
@@ -29,6 +31,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $app = 'filer-wintest'
+$conf = Join-Path $PSScriptRoot 'lanes.conf'
+if (Test-Path -LiteralPath $conf) {
+    $line = Get-Content -LiteralPath $conf | Where-Object { $_ -match '^state=.' } | Select-Object -First 1
+    if ($line) { $app = $line.Substring(6) }
+}
 $script = 'auto-wintest.ps1'
 
 $suffix = if ($Lane -eq 'win') { '' } else { "-$Lane" }

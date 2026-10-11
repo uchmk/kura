@@ -9,6 +9,17 @@
 
 ## [未リリース]
 
+## [0.103.0] - 2026-10-11
+
+レーンの道具の正を uchmk/ito に移した（テストと QA の運用を軽くする段階 5）。checklists の生成は ito の `ito-testcheck` になり、レーンの共通のスクリプト 11 本は ito の `scripts/lanes/` の写しになった。tsumugi・yagura も同じものを使えるようにするため。kura そのものの動きは変わらない。
+
+### 変更
+
+- **checklists の生成は ito の `ito-testcheck`**（ito v0.7.0、dev-dependency）。`examples/make-testcheck.rs`・`make-keycheck.rs` はパス・レーン・前書き・層の注記を渡すだけになった。出力・`--check`・`--stats`・終了コードは前と同じ。
+- **レーンの共通のスクリプトの正は ito の `scripts/lanes/`**（`merge-lanes.py`・`lane-boot.ps1`・`lane-status.ps1`・`lane-marks.ps1`・`labels.sh`・`check-ps1.ps1`・`claim.sh`・`todo-open.sh`・`push-main.sh`・`xrun.sh`・`keys.ps1`）。kura の `scripts/` のものは、新しい `scripts/lanes.sh sync` が Cargo.toml の ito の `rev` から写すバイト単位の写しで、`scripts/verify.sh` の `scripts/lanes.sh check` が食い違いで落ちる。アプリの値（名前・crate・exe・`KURA_KEYS_DONE`・状態フォルダ `filer-wintest`・TODO の印）は新しい `scripts/lanes.conf` から読む。
+- `scripts/keys.ps1`: exe の引数を `-Bin` にした。`-Kura` は別名として残る。
+- ito のクレートの `rev` を d6fbe0a に上げた（ito 0.5.0〜0.7.0）。kura が使う部分の動きは変わらない（0.5.0 の `ito-pane` の録画は kura が使っていない。0.6.0 は kura が使っていない `ito-keys`）。
+
 ## [0.102.1] - 2026-10-11
 
 ### 修正

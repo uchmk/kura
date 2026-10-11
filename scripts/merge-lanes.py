@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its
+# scripts/lanes.sh sync, so edit ito's.
 """Merge the real-machine lanes' pull requests that keep to the rules.
 
 Run by .github/workflows/merge-lanes.yml. It merges a pull request from a lane
@@ -61,8 +63,8 @@ runs only main's copy of this script.
     python3 scripts/merge-lanes.py --self-test
     python3 scripts/merge-lanes.py --labels     # what scripts/labels.sh runs
 
-The same file lives in uchmk/kura and uchmk/tsumugi; keep the two copies
-identical (the repository picks its rules from RULES).
+Every app runs the same bytes (the source is uchmk/ito scripts/lanes/); the
+repository picks its rules from RULES.
 """
 
 import base64
@@ -547,8 +549,10 @@ RELAYED_VOTE = re.compile(r"^#(\d+):\s*(\S+)\s*(?:[—–-]+\s*(.*))?$")
 
 
 def finding_marker(number):
-    """The hidden line that ties a finding issue to its lane pull request."""
-    return f"<!-- kura-lane:#{number} -->"
+    """The hidden line that ties a finding issue to its lane pull request:
+    `<!-- kura-lane:#N -->` in uchmk/kura, named after the repository."""
+    app = REPO.rsplit("/", 1)[-1] or "kura"
+    return f"<!-- {app}-lane:#{number} -->"
 
 
 def finding_body(number, machine, items):
@@ -1317,7 +1321,12 @@ def self_test():
     body = finding_body(331, "x64", [("Proposals", "qa-reports/a.md", "Reword 2.62."),
                                      ("Votes", "PR 本文", "Q57: 1 -- old"),
                                      ("Proposals", "PR 本文", "Kit helpers.")])
-    assert body.startswith(finding_marker(331) + "\n") and "<!-- kura-lane:#331 -->" in body
+    assert body.startswith(finding_marker(331) + "\n")
+    global REPO
+    saved = REPO
+    for REPO, marker in (("uchmk/kura", "<!-- kura-lane:#331 -->"), ("uchmk/tsumugi", "<!-- tsumugi-lane:#331 -->")):
+        assert finding_marker(331) == marker, finding_marker(331)
+    REPO = saved
     assert "### Proposals\n\n- Reword 2.62. (qa-reports/a.md)\n- Kit helpers. (PR 本文)\n" in body, body
     assert "### Queue" not in body and "### Votes\n\n- Q57: 1 -- old (PR 本文)\n" in body, body
     print("merge-lanes self-test: OK")

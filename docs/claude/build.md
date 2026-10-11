@@ -53,6 +53,25 @@ cargo check --release --target x86_64-pc-windows-msvc --all-targets
 ビルド、チェック表 3 つの `--check` を順に回し、1 つでも落ちたらその出力を出して止まる。最後の行が `ALL OK: test result: ok. …` なら push してよい。
 `main` へ push するときは `scripts/push-main.sh`（v0.78.38）がこれを回してから push するので、別に回さなくてよい（「自動実行モード」）。
 
+### レーンの共通のスクリプト（`scripts/lanes.sh`、v0.103.0）
+
+`merge-lanes.py`・`lane-boot.ps1`・`lane-status.ps1`・`lane-marks.ps1`・`labels.sh`・`check-ps1.ps1`・`claim.sh`・`todo-open.sh`・`push-main.sh`・
+`xrun.sh`・`keys.ps1` の 11 本は、uchmk/ito の `scripts/lanes/` が正（一覧はそこの `FILES`）。kura の `scripts/` にあるのは、
+Cargo.toml の ito の `rev` の時点の**バイト単位の写し**で、tsumugi・yagura も同じものを持つ。アプリごとの値（名前・crate・exe・
+`KURA_KEYS_DONE`・状態フォルダ・TODO の印）は `scripts/lanes.conf` から読む。
+
+```bash
+scripts/lanes.sh check              # 写しが rev の ito と違えば差を出して落ちる（verify.sh が回す）
+scripts/lanes.sh sync               # rev の ito から写し直す（cargo の git のチェックアウトから）
+ITO_DIR=../ito scripts/lanes.sh sync  # 手元の ito を一緒に直しているとき
+```
+
+- 直すときは ito で直して push し、kura の Cargo.toml の ito の `rev`（全部の ito のクレートで同じ commit）を上げて `cargo build`、
+  `scripts/lanes.sh sync` で写す。kura 側だけを書き換えると `check` が落ちる。
+- checklists の生成（`examples/make-testcheck.rs`・`make-keycheck.rs`）も、中身は ito の `ito-testcheck`（dev-dependency、同じ rev）。
+  example はパス・レーン・前書き・層の注記を渡すだけ。
+- `keys.ps1` の exe の引数は `-Bin`（別名 `-Kura`）。
+
 - ただし型検査なので実行時の問題は捕まえない。実際、`format!("{:?}", "status")` が
   ディレクトリ名に引用符を入れ（Unix では合法、Windows では不正）、CI で初めて落ちたことがある。
   パス文字列は目視でも確認すること。

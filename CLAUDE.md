@@ -49,6 +49,9 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 - Linux では `#[cfg(windows)]` のコードがコンパイルされないので、`verify.sh` が `x86_64-pc-windows-msvc` の clippy も回す。
 - `cargo test` は Linux でも全件緑。Windows 固有の入力を assert するテストは `#[cfg(windows)]` を付ける。
 - テストは機械の設定ファイルに左右されてはいけない。一時ディレクトリは `util::test_dir("ラベル")` を使う。
+- **レーンの共通のスクリプト（ito の `scripts/lanes/FILES` に並ぶもの）の正は ito。**kura の `scripts/` の写しは直さない。
+  ito で直して push → Cargo.toml の ito の `rev` を上げて `cargo build` → `scripts/lanes.sh sync`。kura の値は `scripts/lanes.conf`。
+  checklists の生成（`examples/make-*check.rs`）も中身は ito の `ito-testcheck` で、example は設定だけ。
 - 詳細（CI の構成と待ちを増やさない運用、Linux 上の注意）は docs/claude/build.md。
 
 ## 自動実行モード
@@ -71,6 +74,9 @@ QA・Windows 実機（x64、ARM64 はリリースごと）・Linux レーン・�
 - PC のセッションは 30 分ごとくらいに開いている `needs-pc` を拾い、Issue に結果を書いて閉じ、頼んだセッションにもメッセージで知らせる。
   クラウドのセッションからは PC のセッションにメッセージを返せないので、PC への連絡は Issue だけで行う。
 - PC のセッションはクラウドが作業しているブランチや main のコードを直接いじらない。直しが要れば担当のセッションに頼む。
+- 持ち主の GitHub Project「uchmk」（[ユーザーの project #2](https://github.com/users/uchmk/projects/2)）に 4 つのリポジトリの開いている issue と PR が集まる。
+  kura の分は Project の自動追加（`is:issue,pr is:open -label:lane-status`）が、ito・yagura・tsumugi の分は PC の needs-pc の巡回（:07 と :37）が入れる。
+  個人の Project はクラウドのセッションから触れないので、クラウドは操作しない。
 
 ## 構成
 

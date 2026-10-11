@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its
+# scripts/lanes.sh sync, so edit ito's.
+#
 # Create or correct the issue labels the lanes and sessions use (LABELS in
 # scripts/merge-lanes.py): a missing one is created, one whose colour or
 # description differs is corrected, any other label is left alone. Running it

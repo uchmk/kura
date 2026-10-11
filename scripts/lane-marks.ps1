@@ -1,6 +1,8 @@
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its scripts/lanes.sh sync, so edit ito's.
+#
 # A Windows run's checklist marks, made again on a main that moved under it.
 # Dot-sourced by auto-wintest.ps1 (Sync-LaneBranch) and checked by
-# check-ps1.ps1. The same functions as tsumugi's scripts/wintest-queue.ps1.
+# check-ps1.ps1.
 
 # The marks a run set in one checklist: each `- [x] …` or `- [~] …` line of
 # the run's copy whose line at the run's base was `- [ ] …` with the same

@@ -1,3 +1,5 @@
+# Source is uchmk/ito scripts/lanes/; an app's copy is written by its scripts/lanes.sh sync, so edit ito's.
+#
 # Parse every PowerShell script under scripts/ and fail on the first syntax
 # error, then check lane-marks.ps1's and lane-status.ps1's functions on small
 # samples. Nothing else is run.
