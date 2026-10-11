@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 629 件（TESTING.md の全 822 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 630 件（TESTING.md の全 823 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 45 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 46 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -507,6 +507,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **29.15** Copy something big enough to take more than 10 s (a few GB to a slow disk), then put another window in front before it ends (v0.106.0, #345) → When the copy ends the OS shows a toast, `Copy finished`, with the job's label; a copy done in front, a short one and one cancelled from the tasks list show none; with an error it says `Copy failed` and the first error 〔未訳〕
 - [ ] **29.16** Move and resize the window (and once maximize it), close kura, start it again (v0.107.0, #345) → It opens where and as big as it was, maximized if it was; `window.toml` is in the state folder. After deleting the file it opens at `window_width` x `window_height`. With the window on a second monitor that is then unplugged, it still opens on a screen you can reach 〔未訳〕
 - [ ] **29.17** Settings (Ctrl+,) General page, UPDATES section: the "Check for updates" switch (v0.108.0, #345) → It is on by default. With it on and the network up, starting while a newer release is out toasts "kura X is available (this is Y)". Off, offline, or with no `curl`: nothing is said and the start is not slower 〔未訳〕
+- [ ] **29.18** With the hook in (29.14), run `cmd /c exit 3` (or `false`) and then a command that succeeds; scroll so both are on screen (v0.108.1, #345) → A thin bar in the pane's left margin spans each finished command from its prompt to the next one: **green** for the one that succeeded, **red** for the one that failed. The command still running (the last prompt) has none. A full-screen program (`vim`) shows no bars 〔未訳〕
 
 ## 30. プロンプトでの右クリック貼り付け
 
