@@ -22,6 +22,9 @@ pub struct ListStyle<'a> {
     /// The largest total in the disk-usage view, which every row's bar is drawn
     /// against. Zero everywhere else, and no bar is drawn.
     pub usage_max: u64,
+    /// The folder a fuzzy search started from: its letters run over the path
+    /// below it, so the highlight has to be worked out over the same text.
+    pub search_root: Option<&'a std::path::Path>,
 }
 
 pub struct RowFlags {
@@ -221,7 +224,10 @@ pub fn draw(
         let positions: &[usize] = match (hits, find) {
             (true, _) if !folder.hit_at(row).is_empty() => folder.hit_at(row),
             (_, Some(m)) => {
-                found = m.positions(&entry.name);
+                found = match st.search_root {
+                    Some(root) if m.is_fuzzy() => path_hits(m, &entry.path, root, &entry.name),
+                    _ => m.positions(&entry.name),
+                };
                 &found
             }
             (true, None) => folder.hit_at(row),
@@ -412,6 +418,16 @@ fn elided(name: &str, hits: &[usize], (head, tail): (usize, usize)) -> (String, 
         })
         .collect();
     (text, moved)
+}
+
+/// Where a fuzzy search's letters fall in the name, when it matched them over
+/// the path below `root` (`src/main.rs` for `srcmain`): the hits in the
+/// directory part have no place in the name and are dropped.
+fn path_hits(m: &ito_match::Matcher, path: &std::path::Path, root: &std::path::Path, name: &str) -> Vec<usize> {
+    let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
+    let shift = rel.chars().count().saturating_sub(name.chars().count());
+    m.positions(&rel)
+        .into_iter().filter_map(|i| i.checked_sub(shift)).collect()
 }
 
 fn name_job(
@@ -667,6 +683,16 @@ mod elision {
         assert_eq!(show(c, &[d]), "buil…1-x.log");
         // Already apart: unchanged.
         assert_eq!(show(a, &["zzzzzzzzzzzzzzzzzzzzzz.log"]), shown(a, 12.0));
+    }
+
+    /// `srcmain` matched over `src/main.rs`: the name keeps its letters, the
+    /// directory part has none to show.
+    #[test]
+    fn a_fuzzy_hit_in_the_path_lands_in_the_name() {
+        use std::path::Path;
+        let m = ito_match::Matcher::fuzzy("srcmain");
+        let hits = super::path_hits(&m, Path::new("/r/src/main.rs"), Path::new("/r"), "main.rs");
+        assert_eq!(hits, [0, 1, 2, 3]);
     }
 
     /// The search highlight moves with the characters it marked, and a hit

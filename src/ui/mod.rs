@@ -509,6 +509,7 @@ pub(super) fn draw_preview(
                 active: false,
                 linemode: crate::fs::entry::Linemode::None,
                 usage_max: 0,
+                search_root: None,
             };
             let mut p = clone_view(folder);
             // A directory preview scrolls with the same `preview_offset`, so it
@@ -686,6 +687,7 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
             active: false,
             linemode: crate::fs::entry::Linemode::None,
             usage_max: 0,
+            search_root: None,
         };
         let mut p = clone_view(parent);
         let rows = ((rect.height() / row_h).floor() as usize).max(1);
@@ -738,6 +740,7 @@ fn draw_pane(
         active: focused && app.preview.outline.is_none(),
         linemode,
         usage_max: app.usage_max,
+        search_root: app.tabs[idx].finder.as_ref().filter(|f| f.names && f.matcher.as_ref().is_some_and(|m| m.is_fuzzy())).map(|_| app.tabs[idx].cwd.as_path()),
     };
     // Where this pane is, so a drop let go anywhere can find its target.
     app.pane_rects.push((idx, rect));
