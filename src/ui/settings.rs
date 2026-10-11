@@ -641,7 +641,15 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     app.write_common(changes);
     app.write_kura(kura);
     if let Some(e) = bad {
-        app.error(e);
+        // The field reports its Enter on two frames in a row; one Enter is one toast.
+        let id = egui::Id::new("kura-bad-said");
+        let frame = ui.ctx().cumulative_frame_nr();
+        let prev: Option<(String, u64)> = ui.ctx().data(|d| d.get_temp(id));
+        let again = prev.is_some_and(|(text, at)| text == e && frame.saturating_sub(at) <= 1);
+        ui.ctx().data_mut(|d| d.insert_temp(id, (e.clone(), frame)));
+        if !again {
+            app.error(e);
+        }
     }
 }
 
