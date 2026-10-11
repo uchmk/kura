@@ -58,7 +58,9 @@ cargo check --release --target x86_64-pc-windows-msvc --all-targets
 `merge-lanes.py`・`lane-boot.ps1`・`lane-status.ps1`・`lane-marks.ps1`・`labels.sh`・`check-ps1.ps1`・`claim.sh`・`todo-open.sh`・`push-main.sh`・
 `xrun.sh`・`keys.ps1` の 11 本は、uchmk/ito の `scripts/lanes/` が正（一覧はそこの `FILES`）。kura の `scripts/` にあるのは、
 Cargo.toml の ito の `rev` の時点の**バイト単位の写し**で、tsumugi・yagura も同じものを持つ。アプリごとの値（名前・crate・exe・
-`KURA_KEYS_DONE`・状態フォルダ・TODO の印）は `scripts/lanes.conf` から読む。
+`KURA_KEYS_DONE`・状態フォルダ・TODO の印）は `scripts/lanes.conf` から読む。`lanes.sh` 自身も ito の写し（v0.103.1 から）。
+一部だけを取るアプリは `lanes.conf` の `files=` に並べる（tsumugi は 8 本、yagura は 4 本。kura は書かないので全部）。
+`check-ps1.ps1` はあれば `scripts/check-ps1-app.ps1` を続けて読む（アプリ固有の確認。kura には無い）。
 
 ```bash
 scripts/lanes.sh check              # 写しが rev の ito と違えば差を出して落ちる（verify.sh が回す）

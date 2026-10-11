@@ -2037,8 +2037,8 @@ dependencies = [
 
 [[package]]
 name = "ito-common"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "chrono",
  "serde",
@@ -2049,8 +2049,8 @@ dependencies = [
 
 [[package]]
 name = "ito-i18n"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "ito-common",
  "toml",
@@ -2058,8 +2058,8 @@ dependencies = [
 
 [[package]]
 name = "ito-ipc"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "postcard",
  "serde",
@@ -2068,32 +2068,32 @@ dependencies = [
 
 [[package]]
 name = "ito-layout"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-match"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "fancy-regex",
 ]
 
 [[package]]
 name = "ito-mcp"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "ito-pane"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "alacritty_terminal",
  "crossbeam-channel",
@@ -2112,8 +2112,8 @@ dependencies = [
 
 [[package]]
 name = "ito-prefs"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "egui",
  "ito-common",
@@ -2123,8 +2123,8 @@ dependencies = [
 
 [[package]]
 name = "ito-testcheck"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "serde",
  "toml",
@@ -2132,8 +2132,8 @@ dependencies = [
 
 [[package]]
 name = "ito-theme"
-version = "0.7.0"
-source = "git+https://github.com/uchmk/ito?rev=d6fbe0a259677e638afd4b59654605ba1a077498#d6fbe0a259677e638afd4b59654605ba1a077498"
+version = "0.8.0"
+source = "git+https://github.com/uchmk/ito?rev=202627b60413e17e30a5b97ddafd822371b25376#202627b60413e17e30a5b97ddafd822371b25376"
 dependencies = [
  "egui",
  "toml",
@@ -2263,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.103.1"
+version = "0.103.2"
 dependencies = [
  "ab_glyph",
  "alacritty_terminal",

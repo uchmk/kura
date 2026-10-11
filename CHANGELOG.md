@@ -9,6 +9,14 @@
 
 ## [未リリース]
 
+## [0.103.2] - 2026-10-11
+
+### 変更
+
+- ito を v0.8.0 に上げた。`scripts/lanes.sh` も ito の写しになり（tsumugi・yagura と同じバイト）、`lanes.conf` の `files=` で一部だけを取れる。
+  `check-ps1.ps1` はアプリ固有の `scripts/check-ps1-app.ps1` があれば続けて読む。`merge-lanes.py` は tsumugi・yagura の規則も持つ。
+- 段階 6（tsumugi v0.94.0・yagura v0.42.0 への展開）が済んだ。TODO.md の印を更新した。
+
 ## [0.103.1] - 2026-10-11
 
 ### 変更
