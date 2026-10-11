@@ -4101,6 +4101,30 @@ impl App {
                     doc.src_for_line(tab.preview_offset)
                 };
             }
+            // A body search's `n` / `N` go on from the match last shown, and its
+            // line number is the old view's: put it on the nearest match of this one.
+            let at = self.tabs[self.active].finder.as_ref().and_then(|f| f.at);
+            if let Some(at) = at {
+                let was = if self.render_markdown { self.markdown_src_to_line(at) } else { self.markdown_line_to_src(at) };
+                let near = self.body_matches().into_iter().min_by_key(|&m| m.abs_diff(was));
+                if let Some(f) = self.tabs[self.active].finder.as_mut() {
+                    f.at = near;
+                }
+            }
+    }
+
+    fn markdown_line_to_src(&self, line: usize) -> usize {
+        match &self.preview.state {
+            PreviewState::Ready(Payload::Markdown { doc, .. }) => doc.src_for_line(line),
+            _ => line,
+        }
+    }
+
+    fn markdown_src_to_line(&self, line: usize) -> usize {
+        match &self.preview.state {
+            PreviewState::Ready(Payload::Markdown { doc, .. }) => doc.line_for_src(line),
+            _ => line,
+        }
     }
 
     /// Go to a tab by number, or step between them.
@@ -12263,6 +12287,11 @@ mod find_marks {
         assert_eq!(a.body_matches(), [1], "rendered: the second line, split over three spans");
         a.render_markdown = false;
         assert_eq!(a.body_matches(), [2], "source: its own line numbers");
+        // Toggling keeps `n` going on from the match on show, in the new view's numbers.
+        a.render_markdown = true;
+        a.show_match(1);
+        a.act(Act::ToggleRender);
+        assert_eq!(at(&a), Some(2), "`n` after `M` must not start again from the top");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
