@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 627 件（TESTING.md の全 820 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 628 件（TESTING.md の全 821 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 43 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 44 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -545,6 +545,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **29.13** `$env:KURA_TERM_SHELL = 'pwsh'; $env:KURA_TERM_ARGS = '-NoProfile'` にして kura を起動し `<C-t>`、同じシェルから `kura env`。次に `KURA_TERM_ARGS` だけにしてもう一度（v0.78.34、Q81）→ 両方あるときはトーストが `Started pwsh -NoProfile — …` で、PTY ログにプロファイルの出力が無く、`kura env` は `terminal pane, from KURA_TERM_SHELL; args from KURA_TERM_ARGS: -NoProfile` と出し、変数の欄に `KURA_TERM_ARGS` がある。引数だけのときは、シェルは `[term]` が決めたもの（無ければ既定）のままで、引数は使われず、`kura env` が `KURA_TERM_ARGS not used: it needs KURA_TERM_SHELL` と言う（v0.78.49） — *`$env:KURA_TERM_SHELL = 'pwsh'; $env:KURA_TERM_ARGS = '-NoProfile'`, start kura, `<C-t>`, then `kura env` from the same shell; then with `KURA_TERM_ARGS` alone (v0.78.37, Q81) → With both: the toast reads `Started pwsh -NoProfile — …`, the pane's PTY log shows no profile output, and `kura env` lists `terminal pane, from KURA_TERM_SHELL; args from KURA_TERM_ARGS: -NoProfile` with `KURA_TERM_ARGS` among the variables. With the arguments alone: the shell is the one `[term]` names (or the platform default), the arguments are not used, and `kura env` says `KURA_TERM_ARGS not used: it needs KURA_TERM_SHELL` (v0.78.49)*
 - [ ] **29.14** Put the new hook in (`kura shell-hook \| Add-Content $PROFILE` in a fresh profile, or `kura shell-hook bash >> ~/.bashrc` / `zsh`), new pane, run a few commands (one that fails, `cmd /c exit 3` or `false`), then `<C-S-Up>` / `<C-S-Down>` and `<C-S-l>` (v0.105.0, #345) → The view jumps between the prompts, `<C-S-l>` copies the last command's output, and the Starship (or other) prompt still draws as before; `<A-Up>` still follows `cd` 〔未訳〕
 - [ ] **29.15** Copy something big enough to take more than 10 s (a few GB to a slow disk), then put another window in front before it ends (v0.106.0, #345) → When the copy ends the OS shows a toast, `Copy finished`, with the job's label; a copy done in front, a short one and one cancelled from the tasks list show none; with an error it says `Copy failed` and the first error 〔未訳〕
+- [ ] **29.16** Move and resize the window (and once maximize it), close kura, start it again (v0.107.0, #345) → It opens where and as big as it was, maximized if it was; `window.toml` is in the state folder. After deleting the file it opens at `window_width` x `window_height`. With the window on a second monitor that is then unplugged, it still opens on a screen you can reach 〔未訳〕
 
 ## 30. プロンプトでの右クリック貼り付け
 

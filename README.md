@@ -346,7 +346,7 @@ render_markdown = true     # start Markdown previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144
 max_history = 200
-window_width = 1280.0
+window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
 window_height = 800.0
 backend = "auto"           # auto | vulkan | dx12 | metal | gl; read at start
 

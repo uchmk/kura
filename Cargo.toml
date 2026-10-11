@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.106.1"
+version = "0.107.0"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -40,29 +40,29 @@ alacritty_terminal = { version = "0.26", default-features = false }
 # v0.93.10. Pinned to a commit, the same one for every ito crate; to take a
 # fix, move `rev` and run `cargo build` so Cargo.lock follows. Pure Rust, like
 # the rest.
-ito-pane = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599", features = ["egui", "wgpu"] }
+ito-pane = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682", features = ["egui", "wgpu"] }
 # The border above the terminal pane, dragged to change its height (Q94).
 # From the same commit as the pane; it depends on nothing but egui.
-ito-layout = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599", features = ["egui"] }
+ito-layout = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682", features = ["egui"] }
 # `kura mcp` (Q95, Q96): the per-user door into the running window (Unix
 # socket / named pipe) and the MCP server Claude Code talks to over stdio.
 # Hand-written on serde_json, no async runtime. The same commit as the pane.
-ito-ipc = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
+ito-ipc = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
 # The rule a search query matches by (`f` `s` `S` `/` `?` `F`), shared with tsumugi; the same commit as the others.
-ito-match = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
+ito-match = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
 # The clock at the status bar's right end and the `[clock]` / `language` of the
 # config shared by every uchmk app (common.toml); the same commit as the others.
-ito-common = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599", features = ["clock"] }
-ito-mcp = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
+ito-common = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682", features = ["clock"] }
+ito-mcp = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
 # The settings screen (Ctrl+,): the frame, side nav, search and the shared
 # Language / CLOCK rows every uchmk app draws alike, and the palette it paints
 # with. The same commit as the others; pure Rust on egui.
-ito-prefs = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
-ito-theme = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
+ito-prefs = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
+ito-theme = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
 # A toast from the OS when a long copy, move or delete ends behind another window (#345); the same commit as the others.
-ito-notify = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599", default-features = false }
+ito-notify = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682", default-features = false }
 # The key notation (parse, print, from egui, `display_seq`), shared with yagura; the same commit as the others.
-ito-keys = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599", features = ["egui"] }
+ito-keys = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682", features = ["egui"] }
 # Already in the tree: syntect's `default-fancy` builds it. Naming it here is
 # what lets bulk rename use it, and adds no crate to the build.
 #
@@ -97,7 +97,7 @@ default-features = false
 [dev-dependencies]
 # The checklists' generator behind examples/make-testcheck.rs and
 # make-keycheck.rs (v0.103.0); the same commit as the ito crates above.
-ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "caa41e8014543be3ed8d0cbf1bcd2393683d1599" }
+ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "f959cd8588aa6bf0663cdb57294cbf41cd859682" }
 
 [profile.dev]
 opt-level = 1
