@@ -1349,8 +1349,8 @@ to paste by hand:
 
 ```powershell
 
-# kura: report the directory to kura's terminal pane (OSC 7), and mark each
-# prompt, where it ends and how the command before it ended (OSC 133)
+# kura: say where the shell is (OSC 7), for the terminal pane to follow,
+# and mark each prompt, where it ends and how the command before it ended (OSC 133)
 $prev = $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction
 $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     param($sender, $e)
@@ -1359,7 +1359,8 @@ $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     [Console]::Write("$([char]27)]7;file://$p$([char]27)\")
 }.GetNewClosure()
 if (-not $global:__kura_marks_input) {
-    $global:__kura_marks_input = $true
+    $global:__kura_marks_input = $global:__kura_marked = $true
+    # An older hook's wrapper is replaced, around the prompt it kept.
     if ("$function:prompt" -notmatch '__kura_prompt') { $global:__kura_prompt = $function:prompt }
     function global:prompt {
         $c = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }
@@ -1435,8 +1436,8 @@ outside Windows):
 
 ```bash
 
-# kura: report the directory to kura's terminal pane (OSC 7), and mark each
-# prompt, each command's output and how it ended (OSC 133)
+# kura: say where the shell is (OSC 7), for the terminal pane to follow,
+# and mark each prompt, each command's output and how it ended (OSC 133)
 __kura_osc7() { printf '\e]133;D;%s\e\\\e]7;file://%s%s\e\\\e]133;A\e\\' "$?" "$HOSTNAME" "$PWD"; }
 PROMPT_COMMAND="__kura_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 PS0="${PS0}\e]133;C\a"
@@ -1444,8 +1445,8 @@ PS0="${PS0}\e]133;C\a"
 
 ```zsh
 
-# kura: report the directory to kura's terminal pane (OSC 7), and mark each
-# prompt, each command's output and how it ended (OSC 133)
+# kura: say where the shell is (OSC 7), for the terminal pane to follow,
+# and mark each prompt, each command's output and how it ended (OSC 133)
 __kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD" }
 __kura_mark() { printf '\e]133;D;%s\e\\\e]133;A\e\\' "$?" }
 __kura_run() { printf '\e]133;C\e\\' }

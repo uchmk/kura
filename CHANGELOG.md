@@ -7,6 +7,12 @@
 1.0.0 未満なので、MINOR に破壊的変更が入ることがある。既定キーや設定の互換性に関わるものは
 **変更**の節に明記する。
 
+## [0.109.12] - 2026-10-12
+
+### 変更
+
+- `kura shell-hook` の pwsh・bash・zsh の行を、ito v0.25.0 の `ito_common::shellhook` に移した（tsumugi と共通。ito を ede78b7 に上げた）。出る行は tsumugi の文面にそろえた: 冒頭のコメントが「say where the shell is (OSC 7), for the terminal pane to follow」になり、pwsh の行に `__kura_marked` と一言のコメントが入った。動きは変わらない。README の写しも直した。
+
 ## [0.109.11] - 2026-10-12
 
 ### 変更
