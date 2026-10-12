@@ -1375,6 +1375,20 @@ replaced theirs, and mise's `cd` hook went quiet). The path is taken from the ev
 `$PWD`, which `GetNewClosure` would freeze at the folder the profile was read in. The same lines
 work in `pwsh` on Linux and macOS, where the path already starts with `/`.
 
+**Starship** (and any prompt generator that defines `prompt` itself) goes **before** the hook:
+
+```powershell
+Invoke-Expression (&starship init powershell)
+# ... the lines `kura shell-hook` printed, below the line above
+```
+
+The hook wraps the `prompt` that exists when it runs, so it has to come last. With Starship's
+line after it, Starship builds a new `prompt` over the hook's and the prompt marks (OSC 133) stop:
+`<C-S-l>` says `No finished command to copy`, `<C-S-Up>` / `<C-S-Down>` say the shell does not mark
+its prompts, and the green / red bars are gone, while `<A-Up>` keeps working (it does not use
+`prompt`). Nothing else on screen changes, so the order is easy to get wrong. If the marks went
+missing, look at the end of `$PROFILE` first (v0.109.5).
+
 Then `<C-S-t>` and `<C-t>` — a profile is read when the shell starts, and plain `<C-t>` hands the
 keys back without ending it. `cd` somewhere and press `<A-Up>`. Paths with spaces or non-ASCII
 characters work as they are: percent-escapes are undone on the way in, so escaping them first is
