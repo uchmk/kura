@@ -7,6 +7,12 @@
 1.0.0 未満なので、MINOR に破壊的変更が入ることがある。既定キーや設定の互換性に関わるものは
 **変更**の節に明記する。
 
+## [0.109.10] - 2026-10-12
+
+### 変更
+
+- exe のアイコンと版の情報を、`winresource`（rc.exe が要り、Windows のホストでだけ付いた）から ito v0.23.0 の `ito-winres` に替えた。`assets/icon.ico` はそのままで、Linux や macOS からの Windows 向けビルドにもアイコンが付き、`kura.exe` に版の情報（FileVersion・ProductName など）も付く。ito を 55766b5 に上げた。
+
 ## [未リリース]
 
 ## [0.109.9] - 2026-10-12
