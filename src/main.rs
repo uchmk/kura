@@ -500,6 +500,17 @@ fn app_icon(svg: &[u8], px: u32) -> Option<egui::IconData> {
     Some(egui::IconData { rgba, width: px, height: px })
 }
 
+/// Whether the list draws plain letters instead of Nerd Font glyphs: `auto`
+/// does when no Nerd Font was found, `nerd` never does, `ascii` and `none`
+/// always do (`ascii` used to be treated as `auto`, #359).
+fn plain_icons(icons: &str, has_nerd: bool) -> bool {
+    match icons {
+        "ascii" | "none" => true,
+        "nerd" => false,
+        _ => !has_nerd,
+    }
+}
+
 /// Install the fonts `cfg` asks for and fold the outcome back into it: without
 /// a Nerd Font the icon glyphs would come out as boxes, and `icons = "none"`
 /// asks for none either way. Returns whether a bold face was found.
@@ -508,7 +519,7 @@ fn app_icon(svg: &[u8], px: u32) -> Option<egui::IconData> {
 /// exactly the fonts a fresh start would have given it.
 fn apply_fonts(ctx: &egui::Context, cfg: &mut Config, used: &mut crate::runinfo::RunInfo) -> bool {
     let (has_nerd, has_bold) = install_fonts(ctx, cfg, used);
-    if (!has_nerd && cfg.ui.icons != "nerd") || cfg.ui.icons == "none" {
+    if plain_icons(&cfg.ui.icons, has_nerd) {
         // The one place the theme is changed after `Config::load` built it, and
         // it runs once at startup or on a reload -- so paying for a copy here is
         // what keeps every frame from paying for one.
@@ -2064,6 +2075,14 @@ fn _unused(app: &mut App) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ascii_and_none_force_plain_icons_even_with_a_nerd_font() {
+        use super::plain_icons;
+        assert!(plain_icons("ascii", true) && plain_icons("none", true));
+        assert!(!plain_icons("nerd", false), "nerd always draws the glyphs");
+        assert!(!plain_icons("auto", true) && plain_icons("auto", false));
+    }
+
     use super::*;
 
     fn ctrl() -> terminal::Mods {
