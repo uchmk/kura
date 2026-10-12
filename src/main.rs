@@ -1088,20 +1088,25 @@ impl eframe::App for Kura {
                 }
                 self.script_at = (frame, std::time::Instant::now());
             }
-            // The pane's own text, beside the state: `name.pane.txt`, so a
-            // `<State:name>` of the same name does not take its place (#229).
-            Some(keyscript::Press::PaneText(name)) => {
-                let path = self.shot_dir.join(format!("{name}.pane.txt"));
-                let text = self.app.term.as_ref().map_or_else(|| "(no pane)\n".to_owned(), |t| t.screen_text());
-                if let Err(e) = std::fs::write(&path, text) {
-                    self.app.error(format!("PaneText {name}: {e}"));
-                }
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            Some(keyscript::Press::PreviewText(name)) => {
-                let path = self.shot_dir.join(format!("{name}.preview.txt"));
-                if let Err(e) = std::fs::write(&path, preview_text(&self.app.preview.state)) {
-                    self.app.error(format!("PreviewText {name}: {e}"));
+            // The readings kura adds to the common script (`keyscript::DIALECT`).
+            Some(keyscript::Press::Read { tag, name }) => {
+                match tag.as_str() {
+                    // The pane's own text, beside the state: `name.pane.txt`, so a
+                    // `<State:name>` of the same name does not take its place (#229).
+                    "PaneText" => {
+                        let path = self.shot_dir.join(format!("{name}.pane.txt"));
+                        let text = self.app.term.as_ref().map_or_else(|| "(no pane)\n".to_owned(), |t| t.screen_text());
+                        if let Err(e) = std::fs::write(&path, text) {
+                            self.app.error(format!("PaneText {name}: {e}"));
+                        }
+                    }
+                    "PreviewText" => {
+                        let path = self.shot_dir.join(format!("{name}.preview.txt"));
+                        if let Err(e) = std::fs::write(&path, preview_text(&self.app.preview.state)) {
+                            self.app.error(format!("PreviewText {name}: {e}"));
+                        }
+                    }
+                    _ => {}
                 }
                 self.script_at = (frame, std::time::Instant::now());
             }

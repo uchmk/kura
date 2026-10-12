@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.109.7] - 2026-10-12
+
+### 変更
+
+- `--keys` の台本の解析・イベントへの変換・終わり方の報告（`KURA_KEYS_DONE`）・panic の報告を、ito v0.21.0 の `ito-keyscript` に移した（ito を 9d88cd3 に上げた）。`src/keyscript.rs` には kura 固有の `<PaneText:>`・`<PreviewText:>`・`<Shot:name@preview>`・クリップボードだけが残る。台本の書き方と報告の文面は変わらない。
+
 ## [0.109.6] - 2026-10-12
 
 ### 変更
