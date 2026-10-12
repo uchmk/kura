@@ -22,7 +22,7 @@
 #     every firing says so in the log and in dirty<suffix>.txt in the state
 #     folder, and a Windows notification says so once a day (see Note-Dirty).
 #
-# It is meant to be run by Task Scheduler once an hour at :20, as you, "only
+# It is meant to be run by Task Scheduler once an hour at :41, as you, "only
 # when the user is logged on" -- the run drives a real window. The merge-lanes
 # workflow merges and shares within minutes; a firing while the lane's pull
 # request is still open does nothing, so every 15 minutes only added firings that
@@ -155,8 +155,8 @@
 # tried once more (v0.78.104); three failed runs in a row put a line of
 # `!!!!!` in the log.
 #
-# The desktop. tsumugi's lane (uchmk/tsumugi, :50) drives the same desktop
-# with SendInput, so both scripts hold Local\wintest-desktop while their run
+# The desktop. The other lanes (tsumugi at :21, yagura at :01) drive the same desktop
+# with SendInput, so all the scripts hold Local\wintest-desktop while their run
 # goes, and wait up to -DesktopWaitMin minutes (20) for the other. Still held
 # after that: the trigger is left for the next firing, and the log says
 # "desktop lock: still held". A wait is logged as "desktop lock: waited N min".
