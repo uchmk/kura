@@ -327,6 +327,17 @@ fn main() -> eframe::Result<()> {
         .with_inner_size([cfg.ui.window_width, cfg.ui.window_height])
         .with_min_inner_size([520.0, 360.0])
         .with_title("Kura");
+    // Where the window was when it last closed (`window.toml` in the state
+    // folder), unless a script is driving it: its screenshots want the size
+    // they ask for. What no screen could show is not put back.
+    let place = if cli.keys.is_empty() {
+        ito_common::window::read(&Config::state_dir()).filter(|w| w.reachable(PRIMARY_GUESS, 100.0))
+    } else {
+        None
+    };
+    if let Some(w) = place {
+        viewport = viewport.with_inner_size([w.w, w.h]).with_position([w.x, w.y]).with_maximized(w.maximized);
+    }
     // The title bar, Alt+Tab and the taskbar button. `kura.exe`'s own icon is
     // a resource compiled in by `build.rs`, from an `.ico` made of this same
     // drawing. Without an icon the window still opens.
@@ -378,6 +389,11 @@ fn main() -> eframe::Result<()> {
             // What earlier runs unpacked from archives and left (a copy `l`
             // opened is kept while its editor may hold it).
             util::sweep_archive_scratch();
+            // One question to GitHub per run; never under `--keys`.
+            let update = (cfg.ui.check_updates && cli.keys.is_empty()).then(|| {
+                let ctx = cc.egui_ctx.clone();
+                ito_common::update::check("uchmk/kura", env!("CARGO_PKG_VERSION"), move || ctx.request_repaint())
+            });
             let mcp = cfg.mcp.enable.then(|| mcp::listen(cc.egui_ctx.clone()));
             let mut a = App::new(cfg, start, cc.egui_ctx.clone());
             a.start_unproven(home);
@@ -409,6 +425,11 @@ fn main() -> eframe::Result<()> {
                 focused: true,
                 last_input_frame: u64::MAX,
                 last_geometry: None,
+                place,
+                place_saved: place,
+                update,
+                place_changed: std::time::Instant::now(),
+                remember_place: cli.keys.is_empty(),
                 script,
                 script_at: (0, std::time::Instant::now()),
                 script_now: false,
@@ -670,6 +691,11 @@ fn bold_siblings(path: &std::path::Path) -> Vec<PathBuf> {
     out
 }
 
+/// A screen to judge a saved window by, before any is known: the biggest ones
+/// in common use. Other monitors can put a window outside it, so this only
+/// refuses what none could show.
+const PRIMARY_GUESS: (f32, f32) = (1920.0, 1080.0);
+
 struct Kura {
     app: App,
     title: String,
@@ -681,6 +707,15 @@ struct Kura {
     /// costs nothing while nothing moves. A resize or a drag onto a monitor at
     /// another scale changes it; a frame does not.
     last_geometry: Option<([f32; 2], f32, [usize; 2])>,
+    /// Where the window is now, where it was last written down, and since
+    /// when it has been where it is: a drag is one write after it stops.
+    place: Option<ito_common::window::Window>,
+    place_saved: Option<ito_common::window::Window>,
+    place_changed: std::time::Instant,
+    /// Off under `--keys`.
+    remember_place: bool,
+    /// The start-up check for a newer release, until it has answered.
+    update: Option<std::sync::mpsc::Receiver<ito_common::update::Update>>,
     /// `--keys`, as the events each press arrives as, still to be pressed.
     script: std::collections::VecDeque<keyscript::Press>,
     /// The frame and the moment the last scripted key went in.
@@ -831,6 +866,11 @@ impl Kura {
                     self.app.reveal(path.display().to_string());
                     Ok(format!("kura is showing {}", path.display()))
                 }
+                mcp::Request::Write(w) => {
+                    // Answered when the user presses a button, not now.
+                    self.app.mcp_write(w, ask.reply, ask.expired);
+                    continue;
+                }
             };
             let _ = ask.reply.send(reply);
         }
@@ -842,6 +882,50 @@ impl Kura {
     /// The record is carried over rather than rebuilt, for the same reason the
     /// font reload carries it -- the adapter cannot be re-read without holding
     /// the render state, and a geometry change is no reason to lose it.
+    /// Note where the window is, and write it to `window.toml` once it has
+    /// stayed there for a moment (`force` at the end: now). The disk is
+    /// touched on a thread of its own.
+    fn remember_place(&mut self, ctx: &egui::Context, force: bool) {
+        use ito_common::window::Window;
+        if !self.remember_place {
+            return;
+        }
+        let (outer, inner, maximized, minimized) =
+            ctx.input(|i| {
+                let v = i.viewport();
+                (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false))
+            });
+        if let (Some(o), Some(i)) = (outer, inner) {
+            if !minimized {
+                // Maximized, the place is the one before it: leaving the
+                // maximum goes back there.
+                let was = self.place.filter(|_| maximized);
+                let now = Window { x: o.min.x, y: o.min.y, w: i.width(), h: i.height(), maximized };
+                let now = Window { x: was.map_or(now.x, |w| w.x), y: was.map_or(now.y, |w| w.y), w: was.map_or(now.w, |w| w.w), h: was.map_or(now.h, |w| w.h), maximized };
+                if self.place != Some(now) {
+                    self.place = Some(now);
+                    self.place_changed = std::time::Instant::now();
+                }
+            }
+        }
+        let Some(place) = self.place.filter(|p| self.place_saved != Some(*p)) else { return };
+        let still = std::time::Duration::from_millis(800);
+        let left = still.saturating_sub(self.place_changed.elapsed());
+        if !force && !left.is_zero() {
+            ctx.request_repaint_after(left);
+            return;
+        }
+        self.place_saved = Some(place);
+        let dir = Config::state_dir();
+        if force {
+            let _ = ito_common::window::write(&dir, &place);
+        } else {
+            let _ = std::thread::Builder::new().name("window-place".into()).spawn(move || {
+                let _ = ito_common::window::write(&dir, &place);
+            });
+        }
+    }
+
     fn record_geometry(&mut self, ctx: &egui::Context) {
         let (size, ppp) = ctx.input(|i| (i.viewport_rect().size(), i.pixels_per_point()));
         let now = ([size.x, size.y], ppp);
@@ -869,6 +953,11 @@ impl Kura {
 }
 
 impl eframe::App for Kura {
+    fn on_exit(&mut self) {
+        let ctx = self.app.ctx.clone();
+        self.remember_place(&ctx, true);
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         self.app.cfg.theme.bg.to_normalized_gamma_f32()
     }
@@ -1029,6 +1118,15 @@ impl eframe::App for Kura {
         self.app.set_os_light(ctx.system_theme() == Some(egui::Theme::Light));
         self.answer_mcp();
         self.record_geometry(&ctx);
+        self.remember_place(&ctx, false);
+        if let Some(rx) = &self.update {
+            if let Ok(found) = rx.try_recv() {
+                self.update = None;
+                if let ito_common::update::Update::Newer(v) = found {
+                    self.app.toast(format!("kura {v} is available (this is {})", env!("CARGO_PKG_VERSION")));
+                }
+            }
+        }
         self.take_shot(&ctx);
         let frame_nr = ctx.cumulative_frame_nr();
         if frame_nr != self.last_input_frame {

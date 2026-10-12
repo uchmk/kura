@@ -346,9 +346,10 @@ render_markdown = true     # start Markdown previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144
 max_history = 200
-window_width = 1280.0
+window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
 window_height = 800.0
 backend = "auto"           # auto | vulkan | dx12 | metal | gl; read at start
+check_updates = true       # ask GitHub once at start whether a newer kura is out (curl); a toast says so
 
 [term]                     # what `<C-t>` starts; omit for the default
 # shell = "powershell"     # Windows without this is pwsh (7) when installed, else 5.1
@@ -630,7 +631,7 @@ rather than another set of bindings. Only what the `[term]` keymap section binds
 | `<S-PageUp>` `<S-PageDown>` | half a screen back / forward through the scrollback |
 | `<S-Home>` `<S-End>` | to the top of the scrollback / back to the bottom |
 | `<C-S-f>` `<C-S-n>` `<C-S-b>` | find in the scrollback / next match / previous |
-| `<C-S-Up>` `<C-S-Down>` | scroll to the prompt above / below (the shell has to mark its prompts, OSC 133) |
+| `<C-S-Up>` `<C-S-Down>` | scroll to the prompt above / below (the shell has to mark its prompts, OSC 133; `kura shell-hook` does, v0.105.0) |
 | `<C-S-l>` | copy the last command's output (OSC 133 again) |
 | Ctrl+click | open a web address in the browser, or show a printed path in the list |
 
@@ -710,6 +711,9 @@ Copy  42%  18.4 M/s  1m12s  +2
 ```
 
 the percentage, the speed, how long the rest should take, and how many other jobs are waiting.
+A job that ran 10 seconds or more and ends while kura's window is behind another one is
+announced by the system's own notification (a toast, a macOS notification, `notify-send`), with the
+first error if it failed; one stopped from the list is not (v0.106.0).
 The speed is measured over a window rather than between reports, and smoothed, so it stays
 readable instead of flickering; the time left is only shown when the size is known, since a file
 count says nothing about how big the files are.
@@ -1345,7 +1349,8 @@ to paste by hand:
 
 ```powershell
 
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, where it ends and how the command before it ended (OSC 133)
 $prev = $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction
 $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     param($sender, $e)
@@ -1353,6 +1358,14 @@ $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     $p = $e.NewPath.ProviderPath -replace '\\', '/' -replace '^(?!/)', '/'
     [Console]::Write("$([char]27)]7;file://$p$([char]27)\")
 }.GetNewClosure()
+if (-not $global:__kura_marks_input) {
+    $global:__kura_marks_input = $true
+    if ("$function:prompt" -notmatch '__kura_prompt') { $global:__kura_prompt = $function:prompt }
+    function global:prompt {
+        $c = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }
+        "$([char]27)]133;D;$c$([char]27)\$([char]27)]133;A$([char]27)\" + (& $global:__kura_prompt) + "$([char]27)]133;B$([char]27)\"
+    }
+}
 ```
 
 `LocationChangedAction` has room for one handler per session, and other tools use it too — `mise
@@ -1408,17 +1421,24 @@ outside Windows):
 
 ```bash
 
-# kura: report the directory to kura's terminal pane (OSC 7)
-__kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"; }
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
+__kura_osc7() { printf '\e]133;D;%s\e\\\e]7;file://%s%s\e\\\e]133;A\e\\' "$?" "$HOSTNAME" "$PWD"; }
 PROMPT_COMMAND="__kura_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+PS0="${PS0}\e]133;C\a"
 ```
 
 ```zsh
 
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
 __kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD" }
+__kura_mark() { printf '\e]133;D;%s\e\\\e]133;A\e\\' "$?" }
+__kura_run() { printf '\e]133;C\e\\' }
 autoload -Uz add-zsh-hook
 add-zsh-hook chpwd __kura_osc7
+add-zsh-hook precmd __kura_mark
+add-zsh-hook preexec __kura_run
 __kura_osc7
 ```
 
@@ -1542,6 +1562,8 @@ claude mcp add kura -- kura mcp                             # macOS / Linux, wit
 | --- | --- |
 | `kura_state` | The current folder, the path under the cursor, the selected paths (up to 500) and the tabs, as JSON |
 | `kura_reveal` | Goes to a file's folder and puts the cursor on it. Takes an absolute `path`; changes no file |
+| `kura_copy`, `kura_move` | Copy or move absolute `paths` into the folder `to`. A box in the window asks first; nothing happens unless you press Allow (the default button is Refuse) |
+| `kura_rename`, `kura_trash` | Rename one `path` to `new_name`, or move `paths` to the trash. Same box. There is no tool that deletes for good |
 
 Then "what's the file I have open in kura?" or "show me the config you just edited in kura" work
 without pasting paths. Claude Code reads the files with its own tools; kura only says where you are.

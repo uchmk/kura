@@ -1,5 +1,9 @@
 //! `kura shell-hook`: the lines that make a shell report its directory
-//! (OSC 7), so `<A-Up>` in the terminal pane can follow it.
+//! (OSC 7), so `<A-Up>` in the terminal pane can follow it, and mark where
+//! each prompt starts (OSC 133;A) with how the command before it ended
+//! (`D;<code>`), and where its output starts (`C`) or where the prompt ends
+//! (`B`), for the prompt jumps and copying the last output. These are the
+//! same marks as tsumugi's `shell-hook`.
 //!
 //! They were only in the README, and the way to them was to find a 7-line
 //! block there and copy it into a profile; one test run cut it out by line
@@ -13,7 +17,8 @@
 /// would break Starship and the other prompt generators, and calls whatever
 /// handler was there before, which `mise activate pwsh` puts there.
 pub const PWSH: &str = r#"
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, where it ends and how the command before it ended (OSC 133)
 $prev = $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction
 $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     param($sender, $e)
@@ -21,23 +26,38 @@ $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
     $p = $e.NewPath.ProviderPath -replace '\\', '/' -replace '^(?!/)', '/'
     [Console]::Write("$([char]27)]7;file://$p$([char]27)\")
 }.GetNewClosure()
+if (-not $global:__kura_marks_input) {
+    $global:__kura_marks_input = $true
+    if ("$function:prompt" -notmatch '__kura_prompt') { $global:__kura_prompt = $function:prompt }
+    function global:prompt {
+        $c = if ($?) { 0 } elseif ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }
+        "$([char]27)]133;D;$c$([char]27)\$([char]27)]133;A$([char]27)\" + (& $global:__kura_prompt) + "$([char]27)]133;B$([char]27)\"
+    }
+}
 "#;
 
 /// bash has no hook on `cd`, so this says it at every prompt; kura only acts
 /// on a directory that differs from the one it already has.
 pub const BASH: &str = r#"
-# kura: report the directory to kura's terminal pane (OSC 7)
-__kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"; }
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
+__kura_osc7() { printf '\e]133;D;%s\e\\\e]7;file://%s%s\e\\\e]133;A\e\\' "$?" "$HOSTNAME" "$PWD"; }
 PROMPT_COMMAND="__kura_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+PS0="${PS0}\e]133;C\a"
 "#;
 
 /// zsh has one: `chpwd`. It does not fire for the directory the shell starts
 /// in, hence the call at the end.
 pub const ZSH: &str = r#"
-# kura: report the directory to kura's terminal pane (OSC 7)
+# kura: report the directory to kura's terminal pane (OSC 7), and mark each
+# prompt, each command's output and how it ended (OSC 133)
 __kura_osc7() { printf '\e]7;file://%s%s\e\\' "$HOST" "$PWD" }
+__kura_mark() { printf '\e]133;D;%s\e\\\e]133;A\e\\' "$?" }
+__kura_run() { printf '\e]133;C\e\\' }
 autoload -Uz add-zsh-hook
 add-zsh-hook chpwd __kura_osc7
+add-zsh-hook precmd __kura_mark
+add-zsh-hook preexec __kura_run
 __kura_osc7
 "#;
 
@@ -85,6 +105,8 @@ mod tests {
         for hook in [PWSH, BASH, ZSH] {
             assert!(hook.starts_with("\n#") && hook.ends_with('\n'), "{hook:?}");
             assert!(hook.contains("]7;file://"), "{hook:?}");
+            // The prompt marks `<C-S-Up>` / `<C-S-l>` need, and how a command ended.
+            assert!(hook.contains("]133;A") && hook.contains("133;D;"), "{hook:?}");
         }
     }
 }

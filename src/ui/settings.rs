@@ -73,6 +73,9 @@ pub struct KuraWords {
     pub backend_note: &'static str,
     pub mcp: &'static str,
     pub mcp_note: &'static str,
+    pub updates: &'static str,
+    pub check_updates: &'static str,
+    pub check_updates_note: &'static str,
     pub terminal: &'static str,
     pub shell: &'static str,
     pub shell_note: &'static str,
@@ -143,6 +146,9 @@ pub const EN: KuraWords = KuraWords {
     backend_note: "What draws the window; read at start (WGPU_BACKEND wins for one run)",
     mcp: "kura mcp",
     mcp_note: "Lets `kura mcp` read this window, for the same user only. Read at start",
+    updates: "UPDATES",
+    check_updates: "Check for updates",
+    check_updates_note: "Asks GitHub once at start whether a newer kura is out (through curl) and says so in a toast. Read at start",
     terminal: "TERMINAL",
     shell: "Shell",
     shell_note: "What Ctrl+T starts; empty for the system's default. A pane already open keeps its own",
@@ -203,6 +209,9 @@ pub const JA: KuraWords = KuraWords {
     backend_note: "ウィンドウを描くもの。起動時に読む（WGPU_BACKEND があればその回はそちら）",
     mcp: "kura mcp",
     mcp_note: "`kura mcp` がこのウィンドウを読めるようにする（同じユーザーだけ）。起動時に読む",
+    updates: "更新",
+    check_updates: "更新を確かめる",
+    check_updates_note: "起動時に 1 回、GitHub に新しい kura が出ているか聞き（curl を使う）、あればトーストで知らせる。起動時に読む",
     terminal: "ターミナル",
     shell: "シェル",
     shell_note: "Ctrl+T で起動するもの。空なら OS の既定。開いているペインはそのまま",
@@ -281,6 +290,7 @@ struct KuraNow {
     height: String,
     backend: String,
     mcp: bool,
+    check_updates: bool,
     shell: String,
     shell_from_env: bool,
 }
@@ -301,6 +311,7 @@ impl KuraNow {
             height: u.window_height.to_string(),
             backend: u.backend_name().ok().flatten().unwrap_or("auto").to_owned(),
             mcp: app.cfg.mcp.enable,
+            check_updates: u.check_updates,
             shell: app.cfg.term.shell.clone(),
             shell_from_env: app.cfg.term.from_env,
         }
@@ -326,7 +337,12 @@ fn number_row(ui: &mut Ui, l: Look, drafts: &mut Drafts, n: Num, k: &KuraWords, 
     let Some(text) = row(ui, l, n.label, n.note, |ui| field(ui, drafts, n.key, n.now, "", 110.0)) else { return };
     match number_toml(&text, n.lo, n.hi, n.whole) {
         Some(value) => out.push(KuraChange { table: "ui", key: n.key, value: Some(value) }),
-        None => *bad = Some((k.not_a_number)(n.label, text.trim(), n.lo, n.hi)),
+        None => {
+            *bad = Some((k.not_a_number)(n.label, text.trim(), n.lo, n.hi));
+            // Enter took the caret out of the field; put it back on what was
+            // typed (the draft is kept for the retry) so it can be corrected.
+            ui.memory_mut(|m| m.request_focus(ito_prefs::field_id(n.key)));
+        }
     }
 }
 
@@ -398,6 +414,11 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
         sep(ui, l);
         if row(ui, l, k.mcp, k.mcp_note, |ui| switch(ui, l, now.mcp)) {
             out.push(KuraChange { table: "mcp", key: "enable", value: Some((!now.mcp).to_string()) });
+        }
+    });
+    section(ui, l, k.updates, |ui| {
+        if row(ui, l, k.check_updates, k.check_updates_note, |ui| switch(ui, l, now.check_updates)) {
+            out.push(set("check_updates", (!now.check_updates).to_string()));
         }
     });
     section(ui, l, k.terminal, |ui| {
@@ -553,6 +574,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (KURA, k.backend_note),
         (KURA, k.mcp),
         (KURA, k.mcp_note),
+        (KURA, k.updates),
+        (KURA, k.check_updates),
+        (KURA, k.check_updates_note),
         (KURA, k.terminal),
         (KURA, k.shell),
         (KURA, k.shell_note),

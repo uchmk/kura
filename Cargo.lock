@@ -979,7 +979,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1278,7 +1278,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2037,11 +2037,12 @@ dependencies = [
 
 [[package]]
 name = "ito-common"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "chrono",
  "serde",
+ "serde_json",
  "sys-locale",
  "toml",
  "toml_edit 0.23.10+spec-1.0.0",
@@ -2050,8 +2051,8 @@ dependencies = [
 
 [[package]]
 name = "ito-i18n"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "ito-common",
  "toml",
@@ -2059,8 +2060,8 @@ dependencies = [
 
 [[package]]
 name = "ito-ipc"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "postcard",
  "serde",
@@ -2068,33 +2069,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "ito-keys"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "ito-layout"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-match"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "fancy-regex",
 ]
 
 [[package]]
 name = "ito-mcp"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
+name = "ito-notify"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
+dependencies = [
+ "windows",
+]
+
+[[package]]
 name = "ito-pane"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "alacritty_terminal",
  "crossbeam-channel",
@@ -2114,8 +2131,8 @@ dependencies = [
 
 [[package]]
 name = "ito-prefs"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "egui",
  "ito-common",
@@ -2125,8 +2142,8 @@ dependencies = [
 
 [[package]]
 name = "ito-testcheck"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "serde",
  "toml",
@@ -2134,8 +2151,8 @@ dependencies = [
 
 [[package]]
 name = "ito-theme"
-version = "0.14.0"
-source = "git+https://github.com/uchmk/ito?rev=778d1b04bde0be63ea8242498fe1f6cc1b464923#778d1b04bde0be63ea8242498fe1f6cc1b464923"
+version = "0.19.1"
+source = "git+https://github.com/uchmk/ito?rev=c4785979c1e10489666ffb51c15b07a768bc6b66#c4785979c1e10489666ffb51c15b07a768bc6b66"
 dependencies = [
  "egui",
  "toml",
@@ -2265,7 +2282,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.104.1"
+version = "0.109.1"
 dependencies = [
  "ab_glyph",
  "alacritty_terminal",
@@ -2281,9 +2298,11 @@ dependencies = [
  "image",
  "ito-common",
  "ito-ipc",
+ "ito-keys",
  "ito-layout",
  "ito-match",
  "ito-mcp",
+ "ito-notify",
  "ito-pane",
  "ito-prefs",
  "ito-testcheck",
@@ -2477,7 +2496,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3546,7 +3565,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3993,7 +4012,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4325,7 +4344,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4930,7 +4949,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

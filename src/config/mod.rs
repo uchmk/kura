@@ -75,6 +75,8 @@ pub struct Ui {
     /// driver thread keeps a core busy under Vulkan and DX12 while kura
     /// sits idle, and only GL stops it, #204, #207, #232).
     pub backend: String,
+    /// Ask GitHub once at start whether a newer release is out.
+    pub check_updates: bool,
 }
 
 impl Ui {
@@ -124,6 +126,7 @@ impl Default for Ui {
             window_width: 1280.0,
             window_height: 800.0,
             backend: "auto".into(),
+            check_updates: true,
         }
     }
 }
