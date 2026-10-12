@@ -10,6 +10,7 @@
 //! It prints rather than opens a browser, unlike `<F12>`, because this is text
 //! to paste into a report that already exists.
 
+use ito_common::report::{finish, section, variables as env_rows};
 use std::process::Command;
 
 /// The whole report.
@@ -21,37 +22,8 @@ pub fn text() -> String {
     section(&mut out, "Last run", &last_run());
     section(&mut out, "Tools", &tools(&cfg));
     section(&mut out, "Variables", &variables());
-    // One newline after the last row, not the blank line every section ends
-    // with: the report's line count came out 47, 48 or 49 depending on how it
-    // was counted (#189).
-    out.truncate(out.trim_end_matches('\n').len());
-    out.push('\n');
+    finish(&mut out);
     out
-}
-
-fn section(out: &mut String, title: &str, rows: &[(String, String)]) {
-    out.push_str(title);
-    out.push('\n');
-    // A key longer than this (a config directory, as long as the path) goes on
-    // a line of its own with the value under it, so the column does not push
-    // every other row past the width of a console (#248).
-    const MAX_KEY: usize = 24;
-    let width = rows.iter().map(|(k, _)| k.chars().count()).filter(|&n| n <= MAX_KEY).max().unwrap_or(0);
-    for (k, v) in rows {
-        // A value that runs to several lines is indented under its own key, so
-        // the column stays readable however long the answer is.
-        let mut lines = v.split('\n');
-        let first = lines.next().unwrap_or_default();
-        if k.chars().count() > MAX_KEY {
-            out.push_str(&format!("    {k}\n    {:width$}   {first}\n", ""));
-        } else {
-            out.push_str(&format!("    {k:width$} : {first}\n"));
-        }
-        for rest in lines {
-            out.push_str(&format!("    {:width$}   {rest}\n", ""));
-        }
-    }
-    out.push('\n');
 }
 
 fn version() -> Vec<(String, String)> {
@@ -477,10 +449,10 @@ fn last_run() -> Vec<(String, String)> {
 }
 
 fn variables() -> Vec<(String, String)> {
-    ["EDITOR", "VISUAL", "SHELL", "TERM", "YAZI_CONFIG_HOME", "KURA_CONFIG_HOME", "KURA_STATE_HOME", "KURA_TERM_SHELL", "KURA_TERM_ARGS", "KURA_SCALE"]
-        .iter()
-        .map(|k| (k.to_string(), std::env::var(k).unwrap_or_else(|_| "unset".into())))
-        .collect()
+    env_rows(
+        &["EDITOR", "VISUAL", "SHELL", "TERM", "YAZI_CONFIG_HOME", "KURA_CONFIG_HOME", "KURA_STATE_HOME", "KURA_TERM_SHELL", "KURA_TERM_ARGS", "KURA_SCALE"],
+        "unset",
+    )
 }
 
 /// The `Backend` row: the env var, else the setting, with `auto` completed by
