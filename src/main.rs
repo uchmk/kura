@@ -858,6 +858,7 @@ impl Kura {
     /// memory. A reveal moves the cursor as `reveal` would; the door checked
     /// the path exists before it came here.
     fn answer_mcp(&mut self) {
+        self.app.drop_expired_mcp_box();
         let Some(rx) = &self.mcp else { return };
         while let Ok(ask) = rx.try_recv() {
             let reply = match ask.request {

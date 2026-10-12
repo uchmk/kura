@@ -7285,6 +7285,17 @@ impl App {
         });
     }
 
+    /// Close a `kura mcp` box whose request has timed out: the client was
+    /// told "not done", so the box asks nothing any more (#356).
+    pub fn drop_expired_mcp_box(&mut self) {
+        let Overlay::Confirm(c) = &self.overlay else { return };
+        let ConfirmAction::Mcp { expired, .. } = &c.action else { return };
+        if expired.load(std::sync::atomic::Ordering::Relaxed) {
+            self.overlay = Overlay::None;
+            self.toast("The request from Claude timed out -- nothing was done");
+        }
+    }
+
     /// Carry out what the user allowed; the text goes back to the client.
     fn run_mcp_write(&mut self, w: crate::mcp::Write) -> Result<String, String> {
         use crate::mcp::WriteTool;
@@ -12727,6 +12738,19 @@ mod mcp_writes {
         expired.store(true, Ordering::Relaxed);
         a.answer_confirm('y');
         assert!(rx.recv().unwrap().is_err());
+        assert!(dir.join("a.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_timed_out_box_closes_by_itself() {
+        let (dir, mut a) = files();
+        let (_rx, expired) = ask(&mut a, &dir);
+        a.drop_expired_mcp_box();
+        assert!(matches!(a.overlay, Overlay::Confirm(_)), "a live box stays");
+        expired.store(true, Ordering::Relaxed);
+        a.drop_expired_mcp_box();
+        assert!(matches!(a.overlay, Overlay::None));
         assert!(dir.join("a.txt").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }

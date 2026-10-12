@@ -226,6 +226,8 @@ fn answer(request: Request, tx: &Sender<Ask>, ctx: &egui::Context) -> Reply {
         Err(crossbeam_channel::RecvTimeoutError::Disconnected) => Err("the user closed the box: not done".to_owned()),
         Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
             expired.store(true, Ordering::Relaxed);
+            // An idle window draws nothing, so wake it to close the box.
+            ctx.request_repaint();
             Err(if writes { "the user did not answer in time: not done" } else { "the kura window did not answer in time" }.to_owned())
         }
     }

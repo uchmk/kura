@@ -822,7 +822,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **50.10** Ask Claude to copy two files into another folder, press `y`; then to move them to the trash, press `y` → The copy shows in the jobs list like a `y`-`p` copy and the files are there; the trash job shows too and `u` brings them back. The box named both paths each time 〔未訳〕
 - [ ] **50.11** Ask Claude to trash 12 files; look at the box, then press `<Esc>` → The box lists 8 paths and `… and 4 more`; after `<Esc>` nothing is trashed and Claude is told the box was closed 〔未訳〕
 - [ ] **50.12** Ask for a rename while another box (`<F1>`'s help or a prompt) is open in kura → Claude is told another box is open; nothing queues up behind it 〔未訳〕
-- [ ] **50.13** Ask for a write, leave the box for over two minutes, then press `y` → Claude was told the user did not answer; pressing `y` late changes nothing 〔未訳〕
+- [ ] **50.13** Ask for a write, leave the box for over two minutes → Claude was told the user did not answer, and the box closes by itself with a toast (v0.109.2, #356); nothing was changed 〔未訳〕
 
 ## 51. One rule for `s`, `S` and `f` (v0.87.0)
 
