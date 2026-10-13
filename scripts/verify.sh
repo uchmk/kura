@@ -10,7 +10,8 @@
 # with a test build that did not compile (CLAUDE.md, 自動実行モード).
 #
 # The Windows clippy is a type check only -- it never runs Windows code, so
-# read path strings by eye as CLAUDE.md asks. Never add `cargo fmt` here.
+# read path strings by eye as CLAUDE.md asks. `cargo fmt --all --check` runs
+# first (since v0.109.15); fix a failure with `cargo fmt --all`.
 
 set -o pipefail
 cd "$(dirname "$0")/.." || exit 1
@@ -30,7 +31,10 @@ run() {
     last=$out
 }
 
-# First, and `--locked`: CI builds that way, and a plain cargo command quietly
+# Formatting first: it is the cheapest, and CI's `fmt` job fails on it.
+run cargo fmt --all --check
+
+# Then the build, and `--locked`: CI builds that way, and a plain cargo command quietly
 # rewrites a stale Cargo.lock, so the commit that bumped Cargo.toml without it
 # passed every later step here (v0.78.42 to v0.78.44 went red on main). When
 # this fails, run `cargo build`, then commit Cargo.lock with the version bump.

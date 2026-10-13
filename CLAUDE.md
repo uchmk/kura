@@ -44,7 +44,8 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 
 ## ビルド・検証
 
-- **`cargo fmt` は走らせない**（手で整形している。確認は `cargo fmt --check` だけ）。
+- **`cargo fmt --all` で整形する**（v0.109.15 から。設定は `rustfmt.toml`＝`max_width = 140`、`use_small_heuristics = "Max"`。ito・yagura・minato・tsumugi と同じ）。
+  CI の `fmt` ジョブと `scripts/verify.sh` が `cargo fmt --all --check` で見る。整形だけのコミットは `.git-blame-ignore-revs` に載せてある。
 - clippy は `--all-targets -- -D warnings` で警告ゼロ（CI が強制）。検証は CI と同じ stable で回す。
 - Linux では `#[cfg(windows)]` のコードがコンパイルされないので、`verify.sh` が `x86_64-pc-windows-msvc` の clippy も回す。
 - `cargo test` は Linux でも全件緑。Windows 固有の入力を assert するテストは `#[cfg(windows)]` を付ける。

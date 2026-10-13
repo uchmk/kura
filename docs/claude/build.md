@@ -11,11 +11,9 @@ cargo clippy        --manifest-path C:\dev\kura\Cargo.toml
 cargo build --release --manifest-path C:\dev\kura\Cargo.toml
 ```
 
-- **`cargo fmt` は走らせない。**このリポジトリは手で整形してある（`Self { a, b, c }` を 1 行に
-  収める書き方）。`rustfmt.toml` は無く、CI も整形を検査していないので、`cargo fmt` を一度
-  走らせると**触る必要のないファイルまで既定スタイルへ書き換わる**（v0.33.13 では 47 ファイル
-  ・4300 行が混入した）。`use_small_heuristics = "Max"` を当てても 238 か所が合わないため、
-  設定で追従することもできない。整形の確認が要るときは `cargo fmt --check` で見るだけにする。
+- **`cargo fmt --all` で整形する**（v0.109.15 から）。設定は `rustfmt.toml`（`max_width = 140`、`use_small_heuristics = "Max"`。ito・yagura・minato・tsumugi と同じで、
+  `Self { a, b, c }` を 1 行に収める書き方を保つ）。CI の `fmt` ジョブと `scripts/verify.sh` が `cargo fmt --all --check` で見る。
+  v0.109.14 までは手で整形していたため、一度だけ全体を流した（そのコミットは `.git-blame-ignore-revs`。`git config blame.ignoreRevsFile .git-blame-ignore-revs` で blame から外せる）。
 - clippy は `--all-targets` で警告ゼロを保っている。増やさないこと。
   **v0.33.0 から CI が `-D warnings` で強制している**ので、警告は即 CI 落ちになる。
 - **検証は CI と同じ stable で回すこと。**`rustup update stable` してから

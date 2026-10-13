@@ -31,7 +31,7 @@ Read [CLAUDE.md](../CLAUDE.md) and the files it points to for this work:
 Their rules apply in full, above all "作業ルール", "自動実行モード", "確認事項"
 and "設計の約束事". Reply in Japanese; code, comments and commits in English.
 Match the surrounding code (comment density, names, the one-line layout).
-**Never run `cargo fmt`.**
+Format with `cargo fmt --all` (since v0.109.15; `scripts/verify.sh` and CI check it).
 
 ## Start
 

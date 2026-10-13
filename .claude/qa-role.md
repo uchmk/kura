@@ -99,8 +99,8 @@ your report as a proposal and carry on.
 
 ## Four rules that are easy to break while writing tests
 
-1. **Never run `cargo fmt`.** This tree is hand-formatted; one run rewrites 47
-   files.
+1. **Do not run `cargo fmt`.** A lane does not change code, and a reformat
+   would conflict with the development session's pushes.
 2. **Verify with `cargo +stable`**, after `rustup update stable`. CI's toolchain
    is the only one whose lints count.
 3. **clippy `--all-targets` stays at zero warnings**, for the host and for

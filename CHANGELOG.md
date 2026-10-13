@@ -7,6 +7,12 @@
 1.0.0 未満なので、MINOR に破壊的変更が入ることがある。既定キーや設定の互換性に関わるものは
 **変更**の節に明記する。
 
+## [0.109.15] - 2026-10-14
+
+### 変更
+
+- コードの整形に `cargo fmt` を使うことにした（持ち主の判断。ito・yagura・minato・tsumugi と同じ）。`rustfmt.toml`（`max_width = 140`、`use_small_heuristics = "Max"`）を足して `cargo fmt --all` を全体に 1 回流し（47 ファイル、整形だけのコミット。`.git-blame-ignore-revs` に載せた）、CI に `fmt` ジョブ、`scripts/verify.sh` に `cargo fmt --all --check` を足した。CLAUDE.md と docs/claude/build.md の「`cargo fmt` は走らせない」を「`cargo fmt --all` で整形する」に改めた。動作は変わらない。
+
 ## [0.109.14] - 2026-10-12
 
 ### 修正

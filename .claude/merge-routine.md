@@ -57,8 +57,8 @@ The development routine (`.claude/dev-routine.md`, Sonnet) pushes straight to
 last run and is not a merger's share (`git log` since the previous merger's
 share, `Co-Authored-By` naming Sonnet), and check:
 
-- CLAUDE.md's rules held: no `cargo fmt` reformatting of files the change did
-  not need; the version and CHANGELOG.md together; a behaviour change came with
+- CLAUDE.md's rules held: no reformatting of files the change did
+  not need (`cargo fmt --all --check` stays clean); the version and CHANGELOG.md together; a behaviour change came with
   its TESTING.md row, its `scripts/testcheck-ja.toml` text, the untick, and the
   re-tests in a `retest` issue; no default the owner decided
   was changed; no item marked `【人】` `【QA】` `【実機】` `【後】` `【pane】` or `要確認`

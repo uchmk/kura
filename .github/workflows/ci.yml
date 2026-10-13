@@ -55,6 +55,13 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all --check
+
   test:
     # Windows is the target platform, so that is where the build has to hold.
     #

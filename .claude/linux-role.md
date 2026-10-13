@@ -75,7 +75,7 @@ cat /tmp/r1/title.txt /tmp/r1/clip.txt
   `main`, never `--force`.
 - **Do not bump the version and do not write CHANGELOG.md.** Put the changelog
   line in the pull request body, in English; whoever merges bumps the PATCH.
-- **Never run `cargo fmt`.**
+- **Do not run `cargo fmt`**: a lane does not change code, and a reformat would conflict with the development session's pushes.
 - A bug in the program, a Linux-only difference, or a TESTING.md row that is
   wrong goes in your report. **Each run writes a file of its own,
   `qa-reports/<YYYY-MM-DD>-<branch without test/>.md`**
