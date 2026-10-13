@@ -446,8 +446,9 @@ pwsh -NoProfile -File C:\dev\kura\scripts\fetch-conpty.ps1 -Dest C:\dev\kura\tar
   touches `Cargo.toml` and `CHANGELOG.md` conflicts with every other one that
   does -- and every one does. Put the changelog line in the pull request body,
   in English, ready to paste; whoever merges bumps the PATCH.
-- **Never run `cargo fmt`.** This tree is hand-formatted; one run rewrites 47
-  files.
+- **Do not run `cargo fmt`.** The tree is formatted with `cargo fmt --all` (CI and
+  `scripts/verify.sh` check it), but a lane does not change code, so it has no
+  reason to run it.
 - Anything you find that is a bug in the program, or a row in TESTING.md that is
   wrong, is a `finding` issue ([Proposals](#proposals-say-what-should-change)) and a
   line in your report. Do not fix it and do not quietly correct the row --
