@@ -18,7 +18,9 @@ use super::{archive, restore};
 pub enum OpKind {
     Copy,
     Move,
-    Symlink { relative: bool },
+    Symlink {
+        relative: bool,
+    },
     Hardlink,
     Trash,
     Delete,
@@ -66,12 +68,29 @@ pub struct OpRequest {
 
 #[derive(Debug)]
 pub enum OpEvent {
-    Started { id: u64, files: u64, bytes: u64 },
-    Progress { id: u64, files_done: u64, bytes_done: u64, current: String },
+    Started {
+        id: u64,
+        files: u64,
+        bytes: u64,
+    },
+    Progress {
+        id: u64,
+        files_done: u64,
+        bytes_done: u64,
+        current: String,
+    },
     /// The worker is blocked until the UI sends a [`Resolution`].
-    Conflict { id: u64, src: PathBuf, dest: PathBuf, reply: Sender<Resolution> },
+    Conflict {
+        id: u64,
+        src: PathBuf,
+        dest: PathBuf,
+        reply: Sender<Resolution>,
+    },
     /// The job has parked, or started moving again.
-    Paused { id: u64, paused: bool },
+    Paused {
+        id: u64,
+        paused: bool,
+    },
     Finished {
         id: u64,
         kind: OpKind,
@@ -287,9 +306,7 @@ impl Ctx<'_> {
             // Extract counts each archive as one unit: what is inside is only
             // known by reading it, and reading it twice to fill a progress bar
             // is not worth it. The name of each entry still goes past.
-            OpKind::Copy | OpKind::Move | OpKind::Compress(_) | OpKind::Extract => {
-                measure(&req.srcs)
-            }
+            OpKind::Copy | OpKind::Move | OpKind::Compress(_) | OpKind::Extract => measure(&req.srcs),
         };
         let _ = self.ev.send(OpEvent::Started { id: self.id, files, bytes });
         (self.wake)();
@@ -374,11 +391,7 @@ impl Ctx<'_> {
                         break;
                     }
                     self.report(&p.to_string_lossy());
-                    let r = if p.is_dir() && !is_symlink(p) {
-                        std::fs::remove_dir_all(p)
-                    } else {
-                        std::fs::remove_file(p)
-                    };
+                    let r = if p.is_dir() && !is_symlink(p) { std::fs::remove_dir_all(p) } else { std::fs::remove_file(p) };
                     if let Err(e) = r {
                         self.errors.push(format!("{}: {e}", short(p)));
                     }
@@ -389,11 +402,7 @@ impl Ctx<'_> {
                 for src in &req.srcs {
                     let dest = req.dest_dir.join(file_name(src));
                     let Some(dest) = self.resolve_dest(src, dest) else { continue };
-                    let target = if relative {
-                        relative_to(&req.dest_dir, src).unwrap_or_else(|| src.clone())
-                    } else {
-                        src.clone()
-                    };
+                    let target = if relative { relative_to(&req.dest_dir, src).unwrap_or_else(|| src.clone()) } else { src.clone() };
                     let link = Link { at: dest, target, dir: src.is_dir(), hard: false, junction: false };
                     match link.make() {
                         Ok(()) => self.linked.push(link),
@@ -435,8 +444,7 @@ impl Ctx<'_> {
                         continue;
                     }
                     if is_inside(src, &dest) {
-                        self.errors
-                            .push(format!("{}: cannot copy into itself", short(src)));
+                        self.errors.push(format!("{}: cannot copy into itself", short(src)));
                         continue;
                     }
                     let Some(dest) = self.resolve_dest(src, dest) else { continue };
@@ -601,12 +609,7 @@ impl Ctx<'_> {
             Policy::Ask => {}
         }
         let (reply_tx, reply_rx) = crossbeam_channel::bounded(1);
-        let _ = self.ev.send(OpEvent::Conflict {
-            id: self.id,
-            src: src.to_path_buf(),
-            dest: dest.clone(),
-            reply: reply_tx,
-        });
+        let _ = self.ev.send(OpEvent::Conflict { id: self.id, src: src.to_path_buf(), dest: dest.clone(), reply: reply_tx });
         (self.wake)();
         match reply_rx.recv() {
             Ok(Resolution::Overwrite) => Some(dest),
@@ -619,9 +622,7 @@ impl Ctx<'_> {
                 self.policy = Policy::SkipAll;
                 None
             }
-            Ok(Resolution::Rename(name)) => {
-                Some(dest.parent().unwrap_or(Path::new(".")).join(name))
-            }
+            Ok(Resolution::Rename(name)) => Some(dest.parent().unwrap_or(Path::new(".")).join(name)),
             Ok(Resolution::Cancel) | Err(_) => {
                 self.cancelled = true;
                 None
@@ -672,11 +673,7 @@ impl Ctx<'_> {
                     return;
                 }
                 let target = dest.join(file_name(&child));
-                let Some(target) = (if exists(&target) {
-                    self.resolve_dest(&child, target)
-                } else {
-                    Some(target)
-                }) else {
+                let Some(target) = (if exists(&target) { self.resolve_dest(&child, target) } else { Some(target) }) else {
                     continue;
                 };
                 self.transfer(&child, &target, moving);
@@ -1014,11 +1011,7 @@ fn hardlink_error(e: &std::io::Error, src: &Path, dest_dir: &Path) -> String {
     if e.raw_os_error() != Some(cross) {
         return e.to_string();
     }
-    format!(
-        "hardlinks can't cross drives ({} → {}). Use p to copy instead",
-        volume(src),
-        volume(dest_dir)
-    )
+    format!("hardlinks can't cross drives ({} → {}). Use p to copy instead", volume(src), volume(dest_dir))
 }
 
 /// The drive a path is on, as its prefix (`R:`, `\\host\share`), or the

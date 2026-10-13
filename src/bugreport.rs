@@ -21,11 +21,7 @@ const TEMPLATE: &str = "bug_report.yml";
 /// The URL that opens a pre-filled report: the version and OS lines, and
 /// any `extra` fields as `(id, text)`, ids from the template.
 pub fn url(extra: &[(&str, String)]) -> String {
-    let mut u = format!(
-        "{REPO}/issues/new?template={TEMPLATE}&version={}&os={}",
-        encode(&version_line()),
-        encode(&os_line()),
-    );
+    let mut u = format!("{REPO}/issues/new?template={TEMPLATE}&version={}&os={}", encode(&version_line()), encode(&os_line()),);
     for (id, text) in extra.iter().filter(|(_, t)| !t.is_empty()) {
         u.push_str(&format!("&{id}={}", encode(text)));
     }
@@ -117,12 +113,7 @@ pub fn version_line() -> String {
 /// disagreement is the finding.
 #[cfg(windows)]
 pub fn os_line() -> String {
-    format!(
-        "OS: {}\nOS arch: {}\nProcess arch: {}",
-        windows_name(),
-        native_arch(),
-        process_arch(native_arch(), std::env::consts::ARCH),
-    )
+    format!("OS: {}\nOS arch: {}\nProcess arch: {}", windows_name(), native_arch(), process_arch(native_arch(), std::env::consts::ARCH),)
 }
 
 /// The process's own architecture, saying so outright when it is not the
@@ -130,7 +121,11 @@ pub fn os_line() -> String {
 /// who compared them; #84 read past it twice.
 #[cfg(any(windows, test))]
 fn process_arch(native: &str, own: &str) -> String {
-    if native == own { own.to_owned() } else { format!("{own} (emulated on {native})") }
+    if native == own {
+        own.to_owned()
+    } else {
+        format!("{own} (emulated on {native})")
+    }
 }
 
 /// `Windows 11 Pro 25H2 (build 26200.9457)`, assembled from the two places
@@ -140,10 +135,7 @@ fn windows_name() -> String {
     use windows::Wdk::System::SystemServices::RtlGetVersion;
     use windows::Win32::System::SystemInformation::OSVERSIONINFOW;
 
-    let mut info = OSVERSIONINFOW {
-        dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32,
-        ..Default::default()
-    };
+    let mut info = OSVERSIONINFOW { dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32, ..Default::default() };
     // `RtlGetVersion` rather than `GetVersionEx`, which lies about anything
     // past Windows 8 unless the binary carries a compatibility manifest.
     if unsafe { RtlGetVersion(&mut info) }.is_err() {
@@ -201,9 +193,8 @@ fn edition_name(id: &str) -> &str {
 #[cfg(windows)]
 fn native_arch() -> &'static str {
     use windows::Win32::System::SystemInformation::{
-        GetNativeSystemInfo, IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM64,
-        IMAGE_FILE_MACHINE_I386, PROCESSOR_ARCHITECTURE_AMD64, PROCESSOR_ARCHITECTURE_ARM64,
-        PROCESSOR_ARCHITECTURE_INTEL, SYSTEM_INFO,
+        GetNativeSystemInfo, IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM64, IMAGE_FILE_MACHINE_I386,
+        PROCESSOR_ARCHITECTURE_AMD64, PROCESSOR_ARCHITECTURE_ARM64, PROCESSOR_ARCHITECTURE_INTEL, SYSTEM_INFO,
     };
     use windows::Win32::System::Threading::{GetCurrentProcess, IsWow64Process2};
 
@@ -305,9 +296,7 @@ fn encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.as_bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(*b as char)
-            }
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(*b as char),
             _ => out.push_str(&format!("%{b:02X}")),
         }
     }
@@ -400,10 +389,8 @@ mod tests {
     /// `What happened / 何が起きたか`, the form's own title included (Q63).
     #[test]
     fn every_heading_on_the_form_is_in_both_languages() {
-        let headings: Vec<&str> = FORM
-            .lines()
-            .filter_map(|l| l.trim_start().strip_prefix("label: ").or_else(|| l.strip_prefix("name: ")))
-            .collect();
+        let headings: Vec<&str> =
+            FORM.lines().filter_map(|l| l.trim_start().strip_prefix("label: ").or_else(|| l.strip_prefix("name: "))).collect();
         assert!(headings.len() >= 8, "the form's title and its fields: {headings:?}");
         for h in headings {
             let (en, ja) = h.split_once(" / ").unwrap_or_else(|| panic!("{h:?} has no ` / `"));

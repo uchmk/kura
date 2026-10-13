@@ -13,15 +13,7 @@ use trash::TrashItem;
 
 /// Whether the trash can be read back on this platform. Mirrors the `cfg` that
 /// gates `trash::os_limited`.
-pub const SUPPORTED: bool = cfg!(any(
-    windows,
-    all(
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "ios"),
-        not(target_os = "android")
-    )
-));
+pub const SUPPORTED: bool = cfg!(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))));
 
 /// What to tell the person where [`SUPPORTED`] is false.
 pub const UNSUPPORTED: &str = "restoring from the trash is not supported on this platform";
@@ -81,41 +73,17 @@ fn key(p: &Path) -> String {
     }
 }
 
-#[cfg(any(
-    windows,
-    all(
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "ios"),
-        not(target_os = "android")
-    )
-))]
+#[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
 fn list_trash() -> Result<Vec<TrashItem>, String> {
     trash::os_limited::list().map_err(|e| format!("trash: {e}"))
 }
 
-#[cfg(not(any(
-    windows,
-    all(
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "ios"),
-        not(target_os = "android")
-    )
-)))]
+#[cfg(not(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))))]
 fn list_trash() -> Result<Vec<TrashItem>, String> {
     Err(UNSUPPORTED.into())
 }
 
-#[cfg(any(
-    windows,
-    all(
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "ios"),
-        not(target_os = "android")
-    )
-))]
+#[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
 fn restore_one(item: TrashItem) -> Result<(), String> {
     trash::os_limited::restore_all([item]).map_err(|e| say(&e))
 }
@@ -127,22 +95,12 @@ fn restore_one(item: TrashItem) -> Result<(), String> {
 #[cfg_attr(any(target_os = "macos", target_os = "ios", target_os = "android"), allow(dead_code))]
 fn say(e: &trash::Error) -> String {
     match e {
-        trash::Error::RestoreCollision { .. } => {
-            "a file by that name is already there. Move it away and press u again".to_owned()
-        }
+        trash::Error::RestoreCollision { .. } => "a file by that name is already there. Move it away and press u again".to_owned(),
         other => other.to_string(),
     }
 }
 
-#[cfg(not(any(
-    windows,
-    all(
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "ios"),
-        not(target_os = "android")
-    )
-)))]
+#[cfg(not(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))))]
 fn restore_one(_item: TrashItem) -> Result<(), String> {
     Err(UNSUPPORTED.into())
 }

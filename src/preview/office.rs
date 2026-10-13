@@ -257,11 +257,7 @@ fn slides(zip: &mut zip::ZipArchive<std::fs::File>) -> Result<Read1, String> {
     let mut outline = Vec::new();
     for (i, name) in names.iter().enumerate() {
         let Some(xml) = part(zip, name) else { continue };
-        outline.push(TocEntry {
-            level: 1,
-            label: format!("Slide {}", i + 1),
-            line: lines.len(),
-        });
+        outline.push(TocEntry { level: 1, label: format!("Slide {}", i + 1), line: lines.len() });
         lines.push(format!("--- Slide {} ---", i + 1));
         // One line per text shape, which is roughly one line per bullet.
         for shape in xml.split("<a:p>").skip(1) {
@@ -322,11 +318,7 @@ fn unescape(s: &str) -> String {
     if !s.contains('&') {
         return s.to_owned();
     }
-    s.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&")
+    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
 }
 
 /// The value of the attribute `name` in `s`.
@@ -453,8 +445,7 @@ fn date_styles(zip: &mut zip::ZipArchive<std::fs::File>) -> Vec<bool> {
         // A format code is a date's if it positions any date or time part.
         // The quoted literals inside one can hold anything, so they go first.
         let bare: String = code.split('"').step_by(2).collect();
-        let looks = bare.chars().any(|c| matches!(c, 'y' | 'd' | 'h' | 's' | 'Y' | 'D' | 'H' | 'S'))
-            || bare.contains("mm");
+        let looks = bare.chars().any(|c| matches!(c, 'y' | 'd' | 'h' | 's' | 'Y' | 'D' | 'H' | 'S')) || bare.contains("mm");
         custom.push((id, looks));
     }
 
@@ -463,8 +454,7 @@ fn date_styles(zip: &mut zip::ZipArchive<std::fs::File>) -> Vec<bool> {
         .skip(1)
         .map(|xf| {
             let id = attr(xf, "numFmtId").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
-            matches!(id, 14..=22 | 45..=47)
-                || custom.iter().any(|(c, looks)| *c == id && *looks)
+            matches!(id, 14..=22 | 45..=47) || custom.iter().any(|(c, looks)| *c == id && *looks)
         })
         .collect()
 }
@@ -532,10 +522,7 @@ fn sheet_names(zip: &mut zip::ZipArchive<std::fs::File>) -> Vec<(String, String)
         .filter_map(|s| {
             let name = unescape(attr(s, "name")?);
             let rid = attr(s, "r:id")?;
-            let target = rels
-                .split("<Relationship ")
-                .find(|r| attr(r, "Id") == Some(rid))
-                .and_then(|r| attr(r, "Target"))?;
+            let target = rels.split("<Relationship ").find(|r| attr(r, "Id") == Some(rid)).and_then(|r| attr(r, "Target"))?;
             let target = target.trim_start_matches("/xl/").trim_start_matches("xl/");
             Some((name, format!("xl/{target}")))
         })
@@ -594,14 +581,17 @@ mod tests {
     #[test]
     fn a_word_document_reads_out_as_its_paragraphs() {
         let p = tmp("a.docx");
-        make(&p, &[(
-            "word/document.xml",
-            r#"<w:document><w:body>
+        make(
+            &p,
+            &[(
+                "word/document.xml",
+                r#"<w:document><w:body>
                <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>
                <w:p><w:r><w:t>Hello </w:t></w:r><w:r><w:t>world</w:t></w:r></w:p>
                <w:p><w:r><w:t>Caf&#233; &amp; bar</w:t></w:r></w:p>
                </w:body></w:document>"#,
-        )]);
+            )],
+        );
 
         let doc = read(&p, Kind::Word, 1 << 20).unwrap();
         // Runs inside one paragraph join into one line, which is what a
@@ -622,22 +612,25 @@ mod tests {
     #[test]
     fn heading_styles_are_found_by_their_name() {
         let p = tmp("ja.docx");
-        make(&p, &[
-            (
-                "word/styles.xml",
-                r#"<w:styles><w:style w:type="paragraph" w:styleId="1"><w:name w:val="heading 1"/></w:style>
+        make(
+            &p,
+            &[
+                (
+                    "word/styles.xml",
+                    r#"<w:styles><w:style w:type="paragraph" w:styleId="1"><w:name w:val="heading 1"/></w:style>
                    <w:style w:type="paragraph" w:styleId="2"><w:name w:val="heading 2"/></w:style>
                    <w:style w:type="paragraph" w:styleId="a3"><w:name w:val="Title"/></w:style></w:styles>"#,
-            ),
-            (
-                "word/document.xml",
-                r#"<w:document><w:body>
+                ),
+                (
+                    "word/document.xml",
+                    r#"<w:document><w:body>
                    <w:p><w:pPr><w:pStyle w:val="1"/></w:pPr><w:r><w:t>はじめに</w:t></w:r></w:p>
                    <w:p><w:pPr><w:pStyle w:val="2"/></w:pPr><w:r><w:t>背景</w:t></w:r></w:p>
                    <w:p><w:pPr><w:pStyle w:val="a3"/></w:pPr><w:r><w:t>not a heading</w:t></w:r></w:p>
                    </w:body></w:document>"#,
-            ),
-        ]);
+                ),
+            ],
+        );
         let doc = read(&p, Kind::Word, 1 << 20).unwrap();
         let outline: Vec<(u8, &str)> = doc.outline.iter().map(|t| (t.level, t.label.as_str())).collect();
         assert_eq!(outline, vec![(1, "はじめに"), (2, "背景")]);
@@ -663,22 +656,37 @@ mod tests {
     #[test]
     fn a_workbook_reads_out_as_rows() {
         let p = tmp("b.xlsx");
-        make(&p, &[
-            ("xl/workbook.xml", r#"<workbook><sheets>
+        make(
+            &p,
+            &[
+                (
+                    "xl/workbook.xml",
+                    r#"<workbook><sheets>
                 <sheet name="Totals" r:id="rId9"/><sheet name="Raw" r:id="rId2"/>
-              </sheets></workbook>"#),
-            ("xl/_rels/workbook.xml.rels", r#"<Relationships>
+              </sheets></workbook>"#,
+                ),
+                (
+                    "xl/_rels/workbook.xml.rels",
+                    r#"<Relationships>
                 <Relationship Id="rId9" Target="worksheets/sheet2.xml"/>
                 <Relationship Id="rId2" Target="worksheets/sheet1.xml"/>
-              </Relationships>"#),
-            ("xl/sharedStrings.xml", r#"<sst><si><t>Name</t></si><si><t>Ada</t></si></sst>"#),
-            ("xl/worksheets/sheet2.xml", r#"<worksheet><sheetData>
+              </Relationships>"#,
+                ),
+                ("xl/sharedStrings.xml", r#"<sst><si><t>Name</t></si><si><t>Ada</t></si></sst>"#),
+                (
+                    "xl/worksheets/sheet2.xml",
+                    r#"<worksheet><sheetData>
                 <row><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42</v></c></row>
-              </sheetData></worksheet>"#),
-            ("xl/worksheets/sheet1.xml", r#"<worksheet><sheetData>
+              </sheetData></worksheet>"#,
+                ),
+                (
+                    "xl/worksheets/sheet1.xml",
+                    r#"<worksheet><sheetData>
                 <row><c r="A1" t="s"><v>1</v></c></row>
-              </sheetData></worksheet>"#),
-        ]);
+              </sheetData></worksheet>"#,
+                ),
+            ],
+        );
 
         let doc = read(&p, Kind::Sheet, 1 << 20).unwrap();
         let text = doc.lines.join("\n");
@@ -699,18 +707,27 @@ mod tests {
     #[test]
     fn a_dated_cell_reads_as_a_date() {
         let p = tmp("c.xlsx");
-        make(&p, &[
-            ("xl/styles.xml", r#"<styleSheet>
+        make(
+            &p,
+            &[
+                (
+                    "xl/styles.xml",
+                    r#"<styleSheet>
                 <numFmts><numFmt numFmtId="164" formatCode="yyyy\-mm\-dd"/></numFmts>
                 <cellXfs count="3">
                   <xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="164"/>
-                </cellXfs></styleSheet>"#),
-            ("xl/worksheets/sheet1.xml", r#"<worksheet><sheetData><row>
+                </cellXfs></styleSheet>"#,
+                ),
+                (
+                    "xl/worksheets/sheet1.xml",
+                    r#"<worksheet><sheetData><row>
                 <c r="A1" s="0"><v>45000</v></c>
                 <c r="B1" s="1"><v>45000</v></c>
                 <c r="C1" s="2"><v>45000.5</v></c>
-              </row></sheetData></worksheet>"#),
-        ]);
+              </row></sheetData></worksheet>"#,
+                ),
+            ],
+        );
 
         let doc = read(&p, Kind::Sheet, 1 << 20).unwrap();
         let row = doc.lines.iter().find(|l| l.contains('\t')).expect("a row");
@@ -736,20 +753,21 @@ mod tests {
     fn a_deck_reads_out_slide_by_slide() {
         let p = tmp("d.pptx");
         let slide = |t: &str| format!(r#"<p:sld><a:p><a:r><a:t>{t}</a:t></a:r></a:p></p:sld>"#);
-        make(&p, &[
-            ("ppt/slides/slide10.xml", &slide("Tenth")),
-            ("ppt/slides/slide2.xml", &slide("Second")),
-            ("ppt/slides/slide1.xml", &slide("First")),
-        ]);
+        make(
+            &p,
+            &[
+                ("ppt/slides/slide10.xml", &slide("Tenth")),
+                ("ppt/slides/slide2.xml", &slide("Second")),
+                ("ppt/slides/slide1.xml", &slide("First")),
+            ],
+        );
 
         let doc = read(&p, Kind::Slides, 1 << 20).unwrap();
         let text = doc.lines.join("\n");
         // Sorted by number, not by name: `slide10` sorts before `slide2` as a
         // string, and a deck read in that order is nonsense.
-        let order: Vec<usize> = ["First", "Second", "Tenth"]
-            .iter()
-            .map(|w| text.find(w).unwrap_or_else(|| panic!("{w} missing in {text:?}")))
-            .collect();
+        let order: Vec<usize> =
+            ["First", "Second", "Tenth"].iter().map(|w| text.find(w).unwrap_or_else(|| panic!("{w} missing in {text:?}"))).collect();
         assert!(order.windows(2).all(|w| w[0] < w[1]), "out of order: {text:?}");
         assert_eq!(doc.outline.len(), 3);
 

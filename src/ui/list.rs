@@ -75,36 +75,18 @@ pub fn draw(
 
     match &folder.state {
         LoadState::Error(e) => {
-            painter.text(
-                rect.left_top() + Vec2::new(8.0, 6.0),
-                Align2::LEFT_TOP,
-                e,
-                st.font.clone(),
-                st.theme.progress_error,
-            );
+            painter.text(rect.left_top() + Vec2::new(8.0, 6.0), Align2::LEFT_TOP, e, st.font.clone(), st.theme.progress_error);
             return out;
         }
         LoadState::Loading if folder.entries.is_empty() => {
-            painter.text(
-                rect.left_top() + Vec2::new(8.0, 6.0),
-                Align2::LEFT_TOP,
-                "…",
-                st.font.clone(),
-                st.theme.fg_dim,
-            );
+            painter.text(rect.left_top() + Vec2::new(8.0, 6.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
             return out;
         }
         _ => {}
     }
 
     if folder.view.is_empty() {
-        painter.text(
-            rect.left_top() + Vec2::new(8.0, 6.0),
-            Align2::LEFT_TOP,
-            empty_label(&folder.path),
-            st.font.clone(),
-            st.theme.fg_dim,
-        );
+        painter.text(rect.left_top() + Vec2::new(8.0, 6.0), Align2::LEFT_TOP, empty_label(&folder.path), st.font.clone(), st.theme.fg_dim);
         return out;
     }
 
@@ -114,10 +96,7 @@ pub fn draw(
     for (i, row) in (start..end).enumerate() {
         let Some(entry) = folder.at(row) else { continue };
         let y = rect.top() + i as f32 * st.row_h;
-        let row_rect = Rect::from_min_size(
-            egui::pos2(rect.left(), y),
-            Vec2::new(rect.width(), st.row_h),
-        );
+        let row_rect = Rect::from_min_size(egui::pos2(rect.left(), y), Vec2::new(rect.width(), st.row_h));
         let f = flags(entry);
         let hovered = row == folder.cursor;
 
@@ -151,21 +130,13 @@ pub fn draw(
         // first would have dropped that column, starting file names one place
         // to the left of the folders' on the same list.
         if !icon.text.is_empty() {
-            let g = painter.layout_no_wrap(
-                icon.text.clone(),
-                st.font.clone(),
-                icon.fg.unwrap_or(base_color),
-            );
+            let g = painter.layout_no_wrap(icon.text.clone(), st.font.clone(), icon.fg.unwrap_or(base_color));
             // Nerd Font glyphs differ in advance width, so they are padded to a
             // full em to line the names up. ASCII icons are monospace and line
             // up on their own; padding *those* to an em opens a gap wide enough
             // to read as indentation -- `/      config` instead of `/ config`.
             let w = if icon.text.is_ascii() { g.size().x } else { g.size().x.max(st.font.size) };
-            painter.galley(
-                egui::pos2(x, y + (st.row_h - g.size().y) / 2.0),
-                g,
-                base_color,
-            );
+            painter.galley(egui::pos2(x, y + (st.row_h - g.size().y) / 2.0), g, base_color);
             x += w + 8.0;
         }
 
@@ -178,10 +149,8 @@ pub fn draw(
         if st.usage_max > 0 {
             let frac = entry.usage_bytes() as f32 / st.usage_max as f32;
             let w = 44.0;
-            let track = egui::Rect::from_min_size(
-                egui::pos2(row_rect.right() - w - 6.0, y + (st.row_h - 4.0) / 2.0),
-                egui::Vec2::new(w, 4.0),
-            );
+            let track =
+                egui::Rect::from_min_size(egui::pos2(row_rect.right() - w - 6.0, y + (st.row_h - 4.0) / 2.0), egui::Vec2::new(w, 4.0));
             painter.rect_filled(track, egui::CornerRadius::same(2), st.theme.border);
             if frac > 0.0 {
                 painter.rect_filled(
@@ -209,11 +178,7 @@ pub fn draw(
             let color = st.theme.git_color(f.git);
             let g = painter.layout_no_wrap(mark.to_string(), st.font.clone(), color);
             let w = g.size().x;
-            painter.galley(
-                egui::pos2(row_rect.right() - right_w - w - 2.0, y + (st.row_h - g.size().y) / 2.0),
-                g,
-                color,
-            );
+            painter.galley(egui::pos2(row_rect.right() - right_w - w - 2.0, y + (st.row_h - g.size().y) / 2.0), g, color);
             right_w += w + 8.0;
         }
 
@@ -252,28 +217,17 @@ pub fn draw(
         out.shown.push(name.clone());
         let job = name_job(&name, &positions, &st.font, base_color, &style, st.theme, avail);
         let galley = painter.layout_job(job);
-        painter.galley(
-            egui::pos2(x, y + (st.row_h - galley.size().y) / 2.0),
-            galley,
-            base_color,
-        );
+        painter.galley(egui::pos2(x, y + (st.row_h - galley.size().y) / 2.0), galley, base_color);
     }
 
     // Scrollbar hint when the list overflows.
     if folder.view.len() > rows {
-        let track = Rect::from_min_size(
-            egui::pos2(rect.right() - 3.0, rect.top()),
-            Vec2::new(2.0, rect.height()),
-        );
+        let track = Rect::from_min_size(egui::pos2(rect.right() - 3.0, rect.top()), Vec2::new(2.0, rect.height()));
         let frac = rows as f32 / folder.view.len() as f32;
         let h = (track.height() * frac).max(16.0);
         let t = folder.offset as f32 / (folder.view.len() - rows) as f32;
         let y = track.top() + (track.height() - h) * t;
-        painter.rect_filled(
-            Rect::from_min_size(egui::pos2(track.left(), y), Vec2::new(2.0, h)),
-            CornerRadius::same(1),
-            st.theme.border,
-        );
+        painter.rect_filled(Rect::from_min_size(egui::pos2(track.left(), y), Vec2::new(2.0, h)), CornerRadius::same(1), st.theme.border);
     }
 
     // Interaction
@@ -329,7 +283,11 @@ fn entry_name(name: &str, kind: &crate::fs::Kind) -> String {
 /// from a folder with no files, and `(empty)` read as the enumeration still
 /// being out (#105).
 fn empty_label(path: &std::path::Path) -> &'static str {
-    if util::host_only_unc(path) { "(no shares)" } else { "(empty)" }
+    if util::host_only_unc(path) {
+        "(no shares)"
+    } else {
+        "(empty)"
+    }
 }
 
 /// Where to cut a name that is wider than `max_width` (Q34): keep its first
@@ -355,9 +313,8 @@ fn elide_at(name: &str, max_width: f32, width: &dyn Fn(&str) -> f32) -> Option<(
         let back = keep / 3;
         (keep - back, n - ext - back)
     };
-    let shown = |(head, tail): (usize, usize)| -> String {
-        chars[..head].iter().chain(['…'].iter()).chain(chars[tail..].iter()).collect()
-    };
+    let shown =
+        |(head, tail): (usize, usize)| -> String { chars[..head].iter().chain(['…'].iter()).chain(chars[tail..].iter()).collect() };
     let (mut lo, mut hi) = (1, stem - 1);
     if width(&shown(cut(lo))) > max_width {
         return None;
@@ -426,19 +383,10 @@ fn elided(name: &str, hits: &[usize], (head, tail): (usize, usize)) -> (String, 
 fn path_hits(m: &ito_match::Matcher, path: &std::path::Path, root: &std::path::Path, name: &str) -> Vec<usize> {
     let rel = path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/");
     let shift = rel.chars().count().saturating_sub(name.chars().count());
-    m.positions(&rel)
-        .into_iter().filter_map(|i| i.checked_sub(shift)).collect()
+    m.positions(&rel).into_iter().filter_map(|i| i.checked_sub(shift)).collect()
 }
 
-fn name_job(
-    name: &str,
-    positions: &[usize],
-    font: &FontId,
-    color: Color32,
-    style: &Style,
-    theme: &Theme,
-    max_width: f32,
-) -> LayoutJob {
+fn name_job(name: &str, positions: &[usize], font: &FontId, color: Color32, style: &Style, theme: &Theme, max_width: f32) -> LayoutJob {
     let mut job = LayoutJob::default();
     job.wrap.max_width = max_width;
     job.wrap.max_rows = 1;
@@ -450,11 +398,7 @@ fn name_job(
         color: c,
         background: bg,
         italics: style.italic,
-        underline: if underline {
-            Stroke::new(1.0, c)
-        } else {
-            Stroke::NONE
-        },
+        underline: if underline { Stroke::new(1.0, c) } else { Stroke::NONE },
         ..Default::default()
     };
 
@@ -470,11 +414,7 @@ fn name_job(
     for (i, ch) in name.chars().enumerate() {
         let is_hl = positions.contains(&i);
         if is_hl != buf_hl && !buf.is_empty() {
-            let f = if buf_hl {
-                fmt(hl_fg, hl_bg, false)
-            } else {
-                fmt(color, Color32::TRANSPARENT, style.underline)
-            };
+            let f = if buf_hl { fmt(hl_fg, hl_bg, false) } else { fmt(color, Color32::TRANSPARENT, style.underline) };
             job.append(&buf, 0.0, f);
             buf.clear();
         }
@@ -482,11 +422,7 @@ fn name_job(
         buf.push(ch);
     }
     if !buf.is_empty() {
-        let f = if buf_hl {
-            fmt(hl_fg, hl_bg, false)
-        } else {
-            fmt(color, Color32::TRANSPARENT, style.underline)
-        };
+        let f = if buf_hl { fmt(hl_fg, hl_bg, false) } else { fmt(color, Color32::TRANSPARENT, style.underline) };
         job.append(&buf, 0.0, f);
     }
     job
@@ -563,8 +499,7 @@ mod icon_column {
 
     fn listing(cfg: crate::config::Config, dir: &std::path::Path, entries: std::sync::Arc<Vec<crate::fs::Entry>>) -> Screen {
         let mut s = Screen::with_config(cfg, dir.to_path_buf());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.to_path_buf(), entries, true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.to_path_buf(), entries, true);
         s
     }
 
@@ -579,10 +514,7 @@ mod icon_column {
         let (dir, entries) = one_of_each("icon-column");
 
         let one = listing(without_icon_font(), &dir, entries.clone()).draw();
-        let (icon, name) = (
-            one.placed("/").expect("the folder's fallback icon is drawn"),
-            one.placed("config").expect("and its name"),
-        );
+        let (icon, name) = (one.placed("/").expect("the folder's fallback icon is drawn"), one.placed("config").expect("and its name"));
 
         let mut wider = without_icon_font();
         std::sync::Arc::make_mut(&mut wider.theme).icon_dir_default.text = "//".into();
@@ -615,12 +547,7 @@ mod icon_column {
 
         let folder = f.placed("config").expect("the folder's name");
         let file = f.placed("notes.txt").expect("the file's name");
-        assert!(
-            (folder.x - file.x).abs() < 0.01,
-            "both names start at the same x: folder {}, file {}",
-            folder.x,
-            file.x,
-        );
+        assert!((folder.x - file.x).abs() < 0.01, "both names start at the same x: folder {}, file {}", folder.x, file.x,);
     }
 }
 

@@ -205,10 +205,28 @@ mod tests {
     /// The text commands are waited for; anything that opens the window is not.
     #[test]
     fn it_waits_only_for_what_answers_in_text() {
-        for waits in [&["env"][..], &["env", "--out", "r.txt"], &["--version"], &["-V"], &["--help"], &["shell-hook", "bash"], &["mcp"], &["C:\\dev", "env"], &["--keys", "j", "-V"]] {
+        for waits in [
+            &["env"][..],
+            &["env", "--out", "r.txt"],
+            &["--version"],
+            &["-V"],
+            &["--help"],
+            &["shell-hook", "bash"],
+            &["mcp"],
+            &["C:\\dev", "env"],
+            &["--keys", "j", "-V"],
+        ] {
             assert!(answers_in_text(&line(waits)), "{waits:?}");
         }
-        for opens in [&[][..], &["C:\\dev"], &["--keys", "<Tab>"], &["--cwd-file", "x"], &["environment"], &["--keys", "env"], &["--cwd-file", "--help"]] {
+        for opens in [
+            &[][..],
+            &["C:\\dev"],
+            &["--keys", "<Tab>"],
+            &["--cwd-file", "x"],
+            &["environment"],
+            &["--keys", "env"],
+            &["--cwd-file", "--help"],
+        ] {
             assert!(!answers_in_text(&line(opens)), "{opens:?}");
         }
     }

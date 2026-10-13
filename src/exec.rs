@@ -39,7 +39,10 @@ impl RuleSet {
 /// opener named by no rule (the `open` / `edit` fallback) counts as `rules`.
 pub fn openers_from<'a>(cfg: &'a YaziToml, entry: &Entry, mime: &str) -> Vec<(&'a Opener, RuleSet)> {
     let open = &cfg.open;
-    let sets = open.prepend_rules.iter().map(|r| (r, RuleSet::Prepend))
+    let sets = open
+        .prepend_rules
+        .iter()
+        .map(|r| (r, RuleSet::Prepend))
         .chain(open.rules.iter().map(|r| (r, RuleSet::Rules)))
         .chain(open.append_rules.iter().map(|r| (r, RuleSet::Append)));
     let mut names: Vec<(&str, RuleSet)> = Vec::new();
@@ -202,10 +205,7 @@ pub fn editor_key(program: &str) -> String {
         Some(n) => n.to_string_lossy().to_ascii_lowercase(),
         None => return String::new(),
     };
-    let stem = [".exe", ".cmd", ".bat"]
-        .iter()
-        .find_map(|x| name.strip_suffix(x))
-        .unwrap_or(&name);
+    let stem = [".exe", ".cmd", ".bat"].iter().find_map(|x| name.strip_suffix(x)).unwrap_or(&name);
     stem.to_owned()
 }
 
@@ -410,9 +410,8 @@ impl Launch {
 /// be told apart, and only off the UI thread, since it walks `PATH`. A
 /// shell's own command (`start`, `echo`) is never "missing".
 fn missing_program(cmdline: &str, found: &dyn Fn(&str) -> bool) -> Option<String> {
-    const BUILTIN: [&str; 17] = [
-        "start", "call", "echo", "cd", "set", "exec", "type", "dir", "copy", "del", "move", "ren", "mkdir", "md", "rd", "cls", "ver",
-    ];
+    const BUILTIN: [&str; 17] =
+        ["start", "call", "echo", "cd", "set", "exec", "type", "dir", "copy", "del", "move", "ren", "mkdir", "md", "rd", "cls", "ver"];
     let exe = crate::envreport::program(cmdline)?;
     if BUILTIN.contains(&exe.to_ascii_lowercase().as_str()) || found(&exe) {
         return None;
@@ -473,7 +472,11 @@ fn cmd_s_c_arg(cmdline: &str) -> String {
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn held(line: &str) -> String {
     let says_pause = line.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| w.eq_ignore_ascii_case("pause"));
-    if says_pause { line.to_owned() } else { format!("{line} & pause") }
+    if says_pause {
+        line.to_owned()
+    } else {
+        format!("{line} & pause")
+    }
 }
 
 /// The command line the new console runs: `cmd` by its full path, so a
@@ -497,9 +500,11 @@ fn console_command_line(system_root: &str, cmdline: &str) -> (String, String) {
 #[cfg(windows)]
 fn new_console(cmdline: &str, cwd: &Path) -> std::io::Result<u32> {
     use std::os::windows::ffi::OsStrExt;
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Threading::{CreateProcessW, CREATE_NEW_CONSOLE, CREATE_UNICODE_ENVIRONMENT, PROCESS_INFORMATION, STARTUPINFOW};
     use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        CreateProcessW, CREATE_NEW_CONSOLE, CREATE_UNICODE_ENVIRONMENT, PROCESS_INFORMATION, STARTUPINFOW,
+    };
     let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
     let (app, line) = console_command_line(&root, cmdline);
     let wide = |s: &std::ffi::OsStr| s.encode_wide().chain(std::iter::once(0)).collect::<Vec<u16>>();
@@ -580,18 +585,8 @@ fn configure(_cmd: &mut Command, _block: bool, _orphan: bool) {}
 /// system was set up to prefer. xterm is last because it is everywhere and
 /// nobody's favourite.
 #[cfg_attr(windows, allow(dead_code))]
-pub const TERMINALS: [&str; 10] = [
-    "x-terminal-emulator",
-    "gnome-terminal",
-    "konsole",
-    "xfce4-terminal",
-    "kitty",
-    "alacritty",
-    "wezterm",
-    "foot",
-    "ghostty",
-    "xterm",
-];
+pub const TERMINALS: [&str; 10] =
+    ["x-terminal-emulator", "gnome-terminal", "konsole", "xfce4-terminal", "kitty", "alacritty", "wezterm", "foot", "ghostty", "xterm"];
 
 /// macOS's own terminal, which is driven through `osascript` rather than run.
 #[cfg_attr(windows, allow(dead_code))]
@@ -616,7 +611,8 @@ pub fn terminals(env: Option<&str>, macos: bool) -> Vec<String> {
 /// is `eval`ed from an argument rather than pasted in, so no quoting of ours
 /// can break it.
 #[cfg_attr(windows, allow(dead_code))]
-const TERMINAL_SCRIPT: &str = r#"cd -- "$1" || exit; eval "$2"; s=$?; if [ "$s" -ne 0 ]; then printf '\n[exit %s] Press Enter to close. ' "$s"; read -r _; fi"#;
+const TERMINAL_SCRIPT: &str =
+    r#"cd -- "$1" || exit; eval "$2"; s=$?; if [ "$s" -ne 0 ]; then printf '\n[exit %s] Press Enter to close. ' "$s"; read -r _; fi"#;
 
 /// The argv that opens `term` running `cmdline` in `cwd`.
 ///
@@ -697,7 +693,10 @@ fn in_terminal(cmdline: &str, cwd: &Path) -> std::io::Result<Launch> {
             Err(e) => return Err(e),
         }
     }
-    Err(Error::new(ErrorKind::NotFound, format!("no terminal to run it in — set TERMINAL, or install one of {}", TERMINALS[1..].join(", "))))
+    Err(Error::new(
+        ErrorKind::NotFound,
+        format!("no terminal to run it in — set TERMINAL, or install one of {}", TERMINALS[1..].join(", ")),
+    ))
 }
 
 /// Open with whatever the OS considers the default handler.
@@ -712,14 +711,23 @@ pub fn has_default_app(path: &Path) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
-        use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF_NONE, ASSOCSTR_EXECUTABLE};
         use windows::core::{PCWSTR, PWSTR};
+        use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF_NONE, ASSOCSTR_EXECUTABLE};
         let Some(ext) = path.extension() else { return true };
         let wide: Vec<u16> = std::ffi::OsStr::new(".").encode_wide().chain(ext.encode_wide()).chain(Some(0)).collect();
         let mut buf = [0u16; 1024];
         let mut len = buf.len() as u32;
         // SAFETY: `wide` is NUL-terminated and `buf` holds `len` units.
-        let r = unsafe { AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_EXECUTABLE, PCWSTR(wide.as_ptr()), PCWSTR::null(), Some(PWSTR(buf.as_mut_ptr())), &mut len) };
+        let r = unsafe {
+            AssocQueryStringW(
+                ASSOCF_NONE,
+                ASSOCSTR_EXECUTABLE,
+                PCWSTR(wide.as_ptr()),
+                PCWSTR::null(),
+                Some(PWSTR(buf.as_mut_ptr())),
+                &mut len,
+            )
+        };
         r.is_ok()
     }
     #[cfg(not(windows))]
@@ -1001,10 +1009,7 @@ mod tests {
     fn a_missing_program_is_named() {
         let only_code = |p: &str| p == "code";
         assert_eq!(missing_program("Hidemruu.exe /j10 a.txt", &only_code).as_deref(), Some("Hidemruu.exe"));
-        assert_eq!(
-            missing_program(r#""C:/Tools/Hide maru.exe" a.txt"#, &only_code).as_deref(),
-            Some("C:/Tools/Hide maru.exe")
-        );
+        assert_eq!(missing_program(r#""C:/Tools/Hide maru.exe" a.txt"#, &only_code).as_deref(), Some("C:/Tools/Hide maru.exe"));
         assert_eq!(missing_program("code -g a.txt:3", &only_code), None);
         assert_eq!(missing_program(r#"start "" a.txt"#, &only_code), None);
     }
@@ -1133,10 +1138,7 @@ mod tests {
         assert_eq!(at("Code.CMD").as_deref(), Some(format!(r#"Code.CMD -g "{pn}""#).as_str()));
         // An editor named by its full path, with a space in a directory: the key
         // is matched on the file name without its extension.
-        assert_eq!(
-            at(&format!(r#""{}" -O %s"#, s.nvim)).as_deref(),
-            Some(format!(r#""{}" +12 -O "{p}""#, s.nvim).as_str())
-        );
+        assert_eq!(at(&format!(r#""{}" -O %s"#, s.nvim)).as_deref(), Some(format!(r#""{}" +12 -O "{p}""#, s.nvim).as_str()));
         // A program that takes no line number is opened the plain way.
         assert_eq!(at("explorer %s"), None);
         assert_eq!(at(""), None);
@@ -1167,15 +1169,9 @@ mod tests {
         assert_eq!(at("notepad %s"), None);
         // Word takes none either; `open_at` says so in the toast (16.3b).
         assert_eq!(at("winword %s"), None);
-        assert_eq!(
-            at(&format!(r#""{}" %s"#, s.sakura)).as_deref(),
-            Some(format!(r#""{}" -Y=123 "{p}""#, s.sakura).as_str())
-        );
+        assert_eq!(at(&format!(r#""{}" %s"#, s.sakura)).as_deref(), Some(format!(r#""{}" -Y=123 "{p}""#, s.sakura).as_str()));
         // `++` in the file name must not stop the key being found.
-        assert_eq!(
-            at(&format!(r#""{}" %s"#, s.notepadpp)).as_deref(),
-            Some(format!(r#""{}" -n123 "{p}""#, s.notepadpp).as_str())
-        );
+        assert_eq!(at(&format!(r#""{}" %s"#, s.notepadpp)).as_deref(), Some(format!(r#""{}" -n123 "{p}""#, s.notepadpp).as_str()));
     }
 
     /// The `[line_args]` config: an editor the built-in table does not know, the
@@ -1199,10 +1195,7 @@ mod tests {
         assert_eq!(at("goto %s").as_deref(), Some(format!(r#"goto --goto "{p}@123""#).as_str()));
         assert_eq!(at("sakura %s").as_deref(), Some(format!(r#"sakura /LINE=123 "{p}""#).as_str()));
         // Keys and programs are matched by file name, without the extension.
-        assert_eq!(
-            at(&format!(r#""{}" -w %s"#, s.mikan)).as_deref(),
-            Some(format!(r#""{}" -l 123 -w "{p}""#, s.mikan).as_str())
-        );
+        assert_eq!(at(&format!(r#""{}" -w %s"#, s.mikan)).as_deref(), Some(format!(r#""{}" -l 123 -w "{p}""#, s.mikan).as_str()));
         // An opener with no placeholder still gets the path appended.
         assert_eq!(at("mikan").as_deref(), Some(format!(r#"mikan -l 123 "{p}""#).as_str()));
         // Editors outside both the table and the config are unchanged.
@@ -1355,10 +1348,7 @@ mod hint_is_true {
 
         // No placeholder — appended.
         let bare = substitute("cmd", &paths);
-        assert!(
-            bare.contains("one.txt") && bare.contains("two.txt"),
-            "a command with no placeholder must still get the files: {bare}",
-        );
+        assert!(bare.contains("one.txt") && bare.contains("two.txt"), "a command with no placeholder must still get the files: {bare}",);
     }
 
     /// The hint shows no quoting, because the quoting is done for you. A name
@@ -1371,4 +1361,3 @@ mod hint_is_true {
         assert!(out.contains("\"/a file.txt\""), "not quoted: {out}");
     }
 }
-

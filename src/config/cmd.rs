@@ -106,7 +106,10 @@ pub enum Act {
     Enter,
     Back,
     Forward,
-    Cd { target: String, interactive: bool },
+    Cd {
+        target: String,
+        interactive: bool,
+    },
     Reveal(String),
     Follow,
     Refresh,
@@ -114,9 +117,15 @@ pub enum Act {
     /// Scroll the preview pane.
     Seek(Step),
 
-    TabCreate { current: bool, path: Option<String> },
+    TabCreate {
+        current: bool,
+        path: Option<String>,
+    },
     TabClose(Option<usize>),
-    TabSwitch { n: i64, relative: bool },
+    TabSwitch {
+        n: i64,
+        relative: bool,
+    },
     TabSwap(i64),
 
     /// Open / close the second pane (a kura extra; yazi has one pane).
@@ -125,21 +134,52 @@ pub enum Act {
     /// side is named. Opens the split if it is closed.
     PaneFocus(Option<bool>),
 
-    Toggle { state: Tri },
-    ToggleAll { state: Tri },
-    VisualMode { unset: bool },
+    Toggle {
+        state: Tri,
+    },
+    ToggleAll {
+        state: Tri,
+    },
+    VisualMode {
+        unset: bool,
+    },
 
-    Open { interactive: bool, hovered: bool },
-    Yank { cut: bool },
+    Open {
+        interactive: bool,
+        hovered: bool,
+    },
+    Yank {
+        cut: bool,
+    },
     Unyank,
-    Paste { force: bool, follow: bool },
-    Link { relative: bool },
+    Paste {
+        force: bool,
+        follow: bool,
+    },
+    Link {
+        relative: bool,
+    },
     Hardlink,
-    Remove { permanently: bool, force: bool, hovered: bool },
-    Create { dir: bool, force: bool },
-    Rename { force: bool, cursor: RenameCursor },
+    Remove {
+        permanently: bool,
+        force: bool,
+        hovered: bool,
+    },
+    Create {
+        dir: bool,
+        force: bool,
+    },
+    Rename {
+        force: bool,
+        cursor: RenameCursor,
+    },
     Copy(CopyWhat),
-    Shell { run: String, block: bool, confirm: bool, orphan: bool },
+    Shell {
+        run: String,
+        block: bool,
+        confirm: bool,
+        orphan: bool,
+    },
 
     /// Unpack the selected archives, each into a folder of its own.
     Extract,
@@ -149,15 +189,31 @@ pub enum Act {
 
     Hidden(Tri),
     Linemode(crate::fs::entry::Linemode),
-    Sort { by: Option<SortBy>, reverse: Tri, dir_first: Tri },
+    Sort {
+        by: Option<SortBy>,
+        reverse: Tri,
+        dir_first: Tri,
+    },
 
-    Find { prev: bool, smart: bool, insensitive: bool },
-    FindArrow { prev: bool },
+    Find {
+        prev: bool,
+        smart: bool,
+        insensitive: bool,
+    },
+    FindArrow {
+        prev: bool,
+    },
     /// In a folder comparison, hide the `=` rows or bring them back (kura's
     /// own `hide_same`, Q23).
     HideSame,
-    Filter { smart: bool, insensitive: bool },
-    Search { via: SearchVia, insensitive: bool },
+    Filter {
+        smart: bool,
+        insensitive: bool,
+    },
+    Search {
+        via: SearchVia,
+        insensitive: bool,
+    },
     /// Measure what is under each child of the current directory and list them
     /// largest first. Not a yazi command: see the README.
     Usage,
@@ -211,7 +267,9 @@ pub enum Act {
     Spot,
     /// Copy (or move) the selection straight into the other pane, without
     /// yanking and pasting to get there.
-    SendPane { cut: bool },
+    SendPane {
+        cut: bool,
+    },
 
     /// Open the terminal pane and give it the keys, or take them back.
     /// `Some(false)` closes the pane and the shell with it.
@@ -223,12 +281,17 @@ pub enum Act {
     /// Search the terminal's scrollback. `prev` walks back through the
     /// matches; with no string yet, it asks for one.
     Scale(ScaleTo),
-    TermFind { prev: bool, repeat: bool },
+    TermFind {
+        prev: bool,
+        repeat: bool,
+    },
     /// Move the terminal's view through its scrollback.
     TermScroll(Step),
     /// Scroll the terminal to the prompt above the view's top, or below it
     /// (`prev` goes up). Needs a shell that marks its prompts (OSC 133).
-    TermPrompt { prev: bool },
+    TermPrompt {
+        prev: bool,
+    },
     /// Put the last command's output on the clipboard (OSC 133 again).
     TermCopyOutput,
     /// Give the terminal pane the window, or hand it back.
@@ -411,10 +474,7 @@ pub fn parse(line: &str) -> Act {
         "enter" => Act::Enter,
         "back" => Act::Back,
         "forward" => Act::Forward,
-        "cd" => Act::Cd {
-            target: a.pos.join(" "),
-            interactive: a.has("interactive"),
-        },
+        "cd" => Act::Cd { target: a.pos.join(" "), interactive: a.has("interactive") },
         "reveal" => Act::Reveal(a.pos.join(" ")),
         "follow" => Act::Follow,
         "refresh" => Act::Refresh,
@@ -422,15 +482,9 @@ pub fn parse(line: &str) -> Act {
         "seek" => Act::Seek(parse_step(a.first().unwrap_or("1"))),
         "peek" => Act::Seek(parse_step(a.first().unwrap_or("1"))),
 
-        "tab_create" => Act::TabCreate {
-            current: a.has("current"),
-            path: a.first().map(str::to_owned),
-        },
+        "tab_create" => Act::TabCreate { current: a.has("current"), path: a.first().map(str::to_owned) },
         "tab_close" => Act::TabClose(a.first().and_then(|s| s.parse().ok())),
-        "tab_switch" => Act::TabSwitch {
-            n: a.first().and_then(|s| s.parse().ok()).unwrap_or(0),
-            relative: a.has("relative"),
-        },
+        "tab_switch" => Act::TabSwitch { n: a.first().and_then(|s| s.parse().ok()).unwrap_or(0), relative: a.has("relative") },
         "tab_swap" => Act::TabSwap(a.first().and_then(|s| s.parse().ok()).unwrap_or(0)),
 
         "split" => Act::Split(match a.first() {
@@ -450,10 +504,7 @@ pub fn parse(line: &str) -> Act {
         "select" => Act::Toggle { state: Some(true) },
         "select_all" => Act::ToggleAll { state: Some(true) },
 
-        "open" | "open_do" => Act::Open {
-            interactive: a.has("interactive"),
-            hovered: a.has("hovered"),
-        },
+        "open" | "open_do" => Act::Open { interactive: a.has("interactive"), hovered: a.has("hovered") },
         "yank" => Act::Yank { cut: a.has("cut") },
         "unyank" => Act::Unyank,
         "paste" => Act::Paste { force: a.has("force"), follow: a.has("follow") },
@@ -462,11 +513,7 @@ pub fn parse(line: &str) -> Act {
         "extract" => Act::Extract,
         "compress" => Act::Compress,
         "send_pane" => Act::SendPane { cut: a.has("cut") },
-        "remove" => Act::Remove {
-            permanently: a.has("permanently"),
-            force: a.has("force"),
-            hovered: a.has("hovered"),
-        },
+        "remove" => Act::Remove { permanently: a.has("permanently"), force: a.has("force"), hovered: a.has("hovered") },
         "create" => Act::Create { dir: a.has("dir"), force: a.has("force") },
         "rename" => Act::Rename {
             force: a.has("force"),
@@ -484,12 +531,7 @@ pub fn parse(line: &str) -> Act {
             Some("all") => CopyWhat::All,
             _ => CopyWhat::Path,
         }),
-        "shell" => Act::Shell {
-            run: a.pos.join(" "),
-            block: a.has("block"),
-            confirm: a.has("confirm"),
-            orphan: a.has("orphan"),
-        },
+        "shell" => Act::Shell { run: a.pos.join(" "), block: a.has("block"), confirm: a.has("confirm"), orphan: a.has("orphan") },
 
         "hidden" => Act::Hidden(match a.first() {
             Some("show") => Some(true),
@@ -507,17 +549,9 @@ pub fn parse(line: &str) -> Act {
                 None => Act::Unsupported(format!("linemode {s}")),
             },
         },
-        "sort" => Act::Sort {
-            by: a.first().and_then(SortBy::parse),
-            reverse: a.tri("reverse"),
-            dir_first: a.tri("dir-first"),
-        },
+        "sort" => Act::Sort { by: a.first().and_then(SortBy::parse), reverse: a.tri("reverse"), dir_first: a.tri("dir-first") },
 
-        "find" => Act::Find {
-            prev: a.has("previous"),
-            smart: a.has("smart"),
-            insensitive: a.has("insensitive"),
-        },
+        "find" => Act::Find { prev: a.has("previous"), smart: a.has("smart"), insensitive: a.has("insensitive") },
         "find_arrow" => Act::FindArrow { prev: a.has("previous") },
         "hide_same" => Act::HideSame,
         "filter" => Act::Filter { smart: a.has("smart"), insensitive: a.has("insensitive") },
@@ -662,11 +696,10 @@ mod tests {
 
     #[test]
     fn lexes_quotes() {
-        assert_eq!(lex("shell 'git log --oneline' --block"), vec![
-            "shell".to_string(),
-            "git log --oneline".to_string(),
-            "--block".to_string()
-        ]);
+        assert_eq!(
+            lex("shell 'git log --oneline' --block"),
+            vec!["shell".to_string(), "git log --oneline".to_string(), "--block".to_string()]
+        );
     }
 
     /// Q37 (#119): a Windows path written straight into a keymap's `run`
@@ -686,11 +719,7 @@ mod tests {
         assert_eq!(parse("arrow -1"), Act::Arrow(Step::Rel(-1)));
         assert_eq!(parse("arrow 50%"), Act::Arrow(Step::Pct(50)));
         assert_eq!(parse("arrow top"), Act::Arrow(Step::Top));
-        assert_eq!(parse("remove --permanently"), Act::Remove {
-            permanently: true,
-            force: false,
-            hovered: false
-        });
+        assert_eq!(parse("remove --permanently"), Act::Remove { permanently: true, force: false, hovered: false });
         assert_eq!(parse("tab_switch 1 --relative"), Act::TabSwitch { n: 1, relative: true });
         assert_eq!(parse("plugin toggle-pane max-preview"), Act::MaxPreview);
         // The pane's own maximise, under both spellings it can arrive in.
@@ -712,11 +741,7 @@ mod tests {
         assert_eq!(parse("toggle_render"), Act::ToggleRender);
         assert_eq!(parse("toggle_outline"), Act::ToggleOutline);
         assert_eq!(parse("plugin smart-enter"), Act::Open { interactive: false, hovered: true });
-        assert!(matches!(parse("sort mtime --reverse"), Act::Sort {
-            by: Some(SortBy::Mtime),
-            reverse: Some(true),
-            ..
-        }));
+        assert!(matches!(parse("sort mtime --reverse"), Act::Sort { by: Some(SortBy::Mtime), reverse: Some(true), .. }));
     }
 
     #[test]

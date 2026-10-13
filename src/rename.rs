@@ -36,8 +36,7 @@ pub enum Part {
 /// parser stopped taking it would be worse than no legend at all, so the two
 /// are tied together here rather than by remembering.
 #[cfg(test)]
-pub const LEGEND_EXAMPLES: &[&str] =
-    &["{name}{ext}", "{n}", "shot-{n:3}{ext}", "s/a/b/", "s/a/b/g", "s/a/b/i"];
+pub const LEGEND_EXAMPLES: &[&str] = &["{name}{ext}", "{n}", "shot-{n:3}{ext}", "s/a/b/", "s/a/b/g", "s/a/b/i"];
 
 /// Read the prompt. Text starting with `s/` is a substitution, as in sed and
 /// vim; anything else is a template, so the common case — typing a new name
@@ -156,8 +155,7 @@ pub fn plan(paths: &[PathBuf], text: &str, taken: &BTreeSet<String>) -> Result<V
         })
         .collect();
     // The names this batch gives up. Only a file that actually moves does.
-    let vacated: BTreeSet<&str> =
-        named.iter().filter(|(from, to)| from != to).map(|(from, _)| from.as_str()).collect();
+    let vacated: BTreeSet<&str> = named.iter().filter(|(from, to)| from != to).map(|(from, _)| from.as_str()).collect();
 
     let mut rows: Vec<Row> = Vec::with_capacity(paths.len());
     let mut seen: BTreeSet<String> = BTreeSet::new();
@@ -334,8 +332,7 @@ mod tests {
     /// does not match a file leaves that file exactly where it was.
     #[test]
     fn a_name_in_use_is_a_problem_unless_its_owner_actually_moves() {
-        let taken: BTreeSet<String> =
-            ["a.txt", "b.txt", "bystander.txt"].iter().map(|s| s.to_string()).collect();
+        let taken: BTreeSet<String> = ["a.txt", "b.txt", "bystander.txt"].iter().map(|s| s.to_string()).collect();
 
         let rows = plan(&names(&["a.txt"]), "bystander.txt", &taken).unwrap();
         assert!(rows[0].problem.is_some(), "nothing frees bystander.txt");
@@ -368,8 +365,7 @@ mod tests {
         assert_eq!(rows[1].to, "ab.txt");
         assert!(rows.iter().all(|r| r.problem.is_none()), "each frees what the other wants");
 
-        let pairs: Vec<(String, String)> =
-            rows.iter().map(|r| (util::file_name(&r.from), r.to.clone())).collect();
+        let pairs: Vec<(String, String)> = rows.iter().map(|r| (util::file_name(&r.from), r.to.clone())).collect();
         let steps = order(&pairs);
         assert_eq!(steps.iter().filter(|s| matches!(s, Step::Park(_))).count(), 1);
     }
@@ -377,20 +373,14 @@ mod tests {
     #[test]
     fn a_rename_into_a_name_the_batch_frees_happens_second() {
         // a -> b, b -> c: `b` has to get out of the way before `a` arrives.
-        let rows = vec![
-            ("a".to_string(), "b".to_string()),
-            ("b".to_string(), "c".to_string()),
-        ];
+        let rows = vec![("a".to_string(), "b".to_string()), ("b".to_string(), "c".to_string())];
 
         assert_eq!(order(&rows), [Step::Rename(1), Step::Rename(0)]);
     }
 
     #[test]
     fn two_files_swapping_names_park_one_of_them_first() {
-        let rows = vec![
-            ("a".to_string(), "b".to_string()),
-            ("b".to_string(), "a".to_string()),
-        ];
+        let rows = vec![("a".to_string(), "b".to_string()), ("b".to_string(), "a".to_string())];
 
         let steps = order(&rows);
         assert_eq!(steps.len(), 3, "one park and two renames: {steps:?}");
@@ -401,19 +391,11 @@ mod tests {
     /// Three files rotating is the same problem one turn further round.
     #[test]
     fn a_longer_cycle_still_comes_out_with_every_file_renamed_once() {
-        let rows = vec![
-            ("a".to_string(), "b".to_string()),
-            ("b".to_string(), "c".to_string()),
-            ("c".to_string(), "a".to_string()),
-        ];
+        let rows = vec![("a".to_string(), "b".to_string()), ("b".to_string(), "c".to_string()), ("c".to_string(), "a".to_string())];
 
         let steps = order(&rows);
         for i in 0..3 {
-            assert_eq!(
-                steps.iter().filter(|s| **s == Step::Rename(i)).count(),
-                1,
-                "row {i} renamed exactly once: {steps:?}"
-            );
+            assert_eq!(steps.iter().filter(|s| **s == Step::Rename(i)).count(), 1, "row {i} renamed exactly once: {steps:?}");
         }
         assert_eq!(steps.iter().filter(|s| matches!(s, Step::Park(_))).count(), 1);
     }
@@ -427,10 +409,7 @@ mod legend_is_true {
     #[test]
     fn the_prompt_accepts_everything_it_advertises() {
         for ex in super::LEGEND_EXAMPLES {
-            assert!(
-                super::parse_rule(ex).is_ok(),
-                "the legend offers `{ex}`, which the parser refuses",
-            );
+            assert!(super::parse_rule(ex).is_ok(), "the legend offers `{ex}`, which the parser refuses",);
         }
     }
 }

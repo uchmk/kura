@@ -17,8 +17,7 @@ const MAX_LEVEL: usize = 4;
 /// A name longer than this is not one anybody reads in an outline.
 const MAX_NAME: usize = 80;
 /// Kinds shown with their kind in front; functions go bare.
-const TAGGED: [&str; 10] =
-    ["class", "struct", "enum", "union", "trait", "interface", "impl", "namespace", "macro", "type"];
+const TAGGED: [&str; 10] = ["class", "struct", "enum", "union", "trait", "interface", "impl", "namespace", "macro", "type"];
 
 /// Fed the parse of a file line by line; keeps the first declaration on each
 /// line, nested by how far it is indented.
@@ -58,11 +57,7 @@ impl Collector {
         }
         self.indents.push(indent);
         let level = self.indents.len().min(MAX_LEVEL);
-        self.entries.push(TocEntry {
-            level: level as u8,
-            label: format!("{}{}", "  ".repeat(level - 1), clip(&label)),
-            line: line_idx,
-        });
+        self.entries.push(TocEntry { level: level as u8, label: format!("{}{}", "  ".repeat(level - 1), clip(&label)), line: line_idx });
     }
 
     /// The entries found in the lines fed so far.
@@ -210,10 +205,7 @@ fn main() {}
     #[test]
     fn python_methods_sit_under_their_class() {
         let src = "class Foo(Base):\n    def method(self):\n        call()\n\ndef top():\n    pass\n";
-        assert_eq!(
-            outline("py", src),
-            [(0, 1, "class Foo".into()), (1, 2, "  method".into()), (4, 1, "top".into())]
-        );
+        assert_eq!(outline("py", src), [(0, 1, "class Foo".into()), (1, 2, "  method".into()), (4, 1, "top".into())]);
     }
 
     #[test]
@@ -231,10 +223,7 @@ enum E { A }
 namespace N {}
 const arrow = (x) => x;
 ";
-        assert_eq!(
-            labels("ts", src),
-            ["f", "class C", "  method", "interface I", "type T", "enum E", "namespace N", "arrow"]
-        );
+        assert_eq!(labels("ts", src), ["f", "class C", "  method", "interface I", "type T", "enum E", "namespace N", "arrow"]);
         // JSX.Element in a return type is a reference, not a namespace.
         assert_eq!(labels("tsx", "export function App(): JSX.Element { return <Foo /> }\n"), ["App"]);
     }

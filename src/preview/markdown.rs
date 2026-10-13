@@ -7,9 +7,7 @@
 
 use std::ops::Range;
 
-use pulldown_cmark::{
-    Alignment, BlockQuoteKind, CodeBlockKind, Event, MetadataBlockKind, Options, Parser, Tag, TagEnd,
-};
+use pulldown_cmark::{Alignment, BlockQuoteKind, CodeBlockKind, Event, MetadataBlockKind, Options, Parser, Tag, TagEnd};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Highlighter, Theme};
 use syntect::parsing::{Scope, SyntaxReference, SyntaxSet};
@@ -44,16 +42,10 @@ pub fn render(text: &str, cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Do
     // are collected before anything is laid out.
     let headings = outline(text, opts);
     let top = headings.iter().map(|h| h.0).min().unwrap_or(1);
-    let labels: Vec<String> = headings
-        .iter()
-        .map(|(level, title)| format!("{}{title}", "  ".repeat((level - top) as usize)))
-        .collect();
+    let labels: Vec<String> = headings.iter().map(|(level, title)| format!("{}{title}", "  ".repeat((level - top) as usize))).collect();
     let named = headings.iter().filter(|h| !h.1.is_empty()).count();
-    let toc_cols = if cols >= 80 && named >= 2 {
-        super::outline_cols(labels.iter().map(|l| str_width(l)).max().unwrap_or(0), cols)
-    } else {
-        0
-    };
+    let toc_cols =
+        if cols >= 80 && named >= 2 { super::outline_cols(labels.iter().map(|l| str_width(l)).max().unwrap_or(0), cols) } else { 0 };
     let body_cols = if toc_cols > 0 { cols - toc_cols - 3 } else { cols }.min(MAX_BODY);
 
     let mut b = Builder::new(text, theme, syntaxes, body_cols as usize);
@@ -682,7 +674,11 @@ impl<'a> Builder<'a> {
                 _ => {
                     let text = line.trim_end_matches(['\n', '\r']);
                     let span = Span { text: text.into(), color: self.pal.code, ..Default::default() };
-                    if text.is_empty() { Vec::new() } else { vec![span] }
+                    if text.is_empty() {
+                        Vec::new()
+                    } else {
+                        vec![span]
+                    }
                 }
             };
             for (j, piece) in hard_wrap(&spans, width).into_iter().enumerate() {
@@ -743,12 +739,7 @@ pub(super) fn dim_of(theme: &Theme) -> Option<[u8; 3]> {
 /// result. Returns each line with the source line it came from, which the caller
 /// pushes -- `DocLine.src` has to stay monotonically non-decreasing for
 /// `Doc::line_for_src` to work.
-pub(super) fn table_lines(
-    rows: &[Row],
-    aligns: &[Alignment],
-    avail: usize,
-    dim: Option<[u8; 3]>,
-) -> Vec<(Vec<Span>, usize)> {
+pub(super) fn table_lines(rows: &[Row], aligns: &[Alignment], avail: usize, dim: Option<[u8; 3]>) -> Vec<(Vec<Span>, usize)> {
     let ncols = rows.iter().map(|r| r.cells.len()).max().unwrap_or(0).max(aligns.len());
     let mut out = Vec::new();
     if ncols == 0 {
@@ -992,8 +983,21 @@ fn html_pieces(html: &str, dim: Option<[u8; 3]>) -> Vec<Span> {
         }
         let block = matches!(
             name.as_str(),
-            "br" | "p" | "div" | "li" | "tr" | "table" | "ul" | "ol" | "summary" | "details" | "hr" | "pre"
-                | "blockquote" | "center" | "picture" | "section"
+            "br" | "p"
+                | "div"
+                | "li"
+                | "tr"
+                | "table"
+                | "ul"
+                | "ol"
+                | "summary"
+                | "details"
+                | "hr"
+                | "pre"
+                | "blockquote"
+                | "center"
+                | "picture"
+                | "section"
         );
         if heading || block {
             out.push(Span { text: "\n".into(), ..Default::default() });
@@ -1027,18 +1031,13 @@ fn html_text(out: &mut Vec<Span>, text: &str, bold: bool) {
 }
 
 fn tag_name(inner: &str) -> String {
-    inner
-        .trim_start_matches('/')
-        .split(|c: char| c.is_whitespace() || c == '/' || c == '>')
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase()
+    inner.trim_start_matches('/').split(|c: char| c.is_whitespace() || c == '/' || c == '>').next().unwrap_or("").to_ascii_lowercase()
 }
 
 fn image_label(tag: &str) -> String {
-    let name = attr(tag, "alt").filter(|a| !a.trim().is_empty()).or_else(|| {
-        attr(tag, "src").map(|s| s.rsplit(['/', '\\']).next().unwrap_or("").to_owned())
-    });
+    let name = attr(tag, "alt")
+        .filter(|a| !a.trim().is_empty())
+        .or_else(|| attr(tag, "src").map(|s| s.rsplit(['/', '\\']).next().unwrap_or("").to_owned()));
     format!("[image: {}]", name.unwrap_or_default().trim())
 }
 

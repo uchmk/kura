@@ -15,12 +15,8 @@ const MAX_BYTES: u64 = 128 * 1024 * 1024;
 /// points are drawn at twice as many pixels.
 const K: f32 = 2.0;
 
-const ALPHABET: &[&str] = &[
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    "abcdefghijklmnopqrstuvwxyz",
-    "0123456789 !?&@#$%*()[]{}<>/+-=",
-    "あいうえお アイウエオ 永和漢字",
-];
+const ALPHABET: &[&str] =
+    &["ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", "0123456789 !?&@#$%*()[]{}<>/+-=", "あいうえお アイウエオ 永和漢字"];
 const PANGRAM: &str = "The quick brown fox jumps over the lazy dog";
 const WATERFALL: &[f32] = &[12.0, 18.0, 24.0, 36.0, 48.0];
 
@@ -158,8 +154,7 @@ impl Sheet {
             let x = x0 + (n % cols) as f32 * cell + (cell - sf.h_advance(id)).max(0.0) / 2.0;
             let baseline = cy + (cell + sf.ascent() + sf.descent()) / 2.0;
             // Blank glyphs (space, control) don't take a cell.
-            let Some(outline) = font.outline_glyph(id.with_scale_and_position(px, point(x, baseline)))
-            else {
+            let Some(outline) = font.outline_glyph(id.with_scale_and_position(px, point(x, baseline))) else {
                 continue;
             };
             self.blit(&outline);

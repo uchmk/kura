@@ -2,11 +2,10 @@
 
 mod app;
 mod bugreport;
-mod envreport;
-mod runinfo;
 mod config;
 mod core;
 mod diff;
+mod envreport;
 mod exec;
 mod fs;
 mod glob;
@@ -15,6 +14,7 @@ mod mcp;
 mod mime;
 mod preview;
 mod rename;
+mod runinfo;
 mod search;
 mod shellhook;
 mod spot;
@@ -85,18 +85,13 @@ fn say_err(text: &str) {
 fn say_on(text: &str, err: bool) {
     use std::io::Write;
     use windows::Win32::Storage::FileSystem::{GetFileType, FILE_TYPE_DISK, FILE_TYPE_PIPE};
-    use windows::Win32::System::Console::{
-        AttachConsole, GetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
-    };
+    use windows::Win32::System::Console::{AttachConsole, GetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 
     let which = if err { STD_ERROR_HANDLE } else { STD_OUTPUT_HANDLE };
-    let redirected = unsafe { GetStdHandle(which) }
-        .ok()
-        .filter(|h| !h.is_invalid())
-        .is_some_and(|h| {
-            let kind = unsafe { GetFileType(h) };
-            kind == FILE_TYPE_DISK || kind == FILE_TYPE_PIPE
-        });
+    let redirected = unsafe { GetStdHandle(which) }.ok().filter(|h| !h.is_invalid()).is_some_and(|h| {
+        let kind = unsafe { GetFileType(h) };
+        kind == FILE_TYPE_DISK || kind == FILE_TYPE_PIPE
+    });
     if redirected {
         if err {
             let mut out = std::io::stderr().lock();
@@ -289,10 +284,7 @@ fn write_whole(path: &std::path::Path, text: &str) -> std::io::Result<()> {
 /// typed: `{:?}` doubled every `\` of a Windows path (#194).
 fn take_path(cli: &mut Cli, arg: &str) -> Result<(), String> {
     if let Some(first) = &cli.path {
-        return Err(format!(
-            "more than one path: \"{}\" and \"{arg}\" (a path with a space in it needs quotes)",
-            first.display()
-        ));
+        return Err(format!("more than one path: \"{}\" and \"{arg}\" (a path with a space in it needs quotes)", first.display()));
     }
     cli.path = Some(PathBuf::from(arg));
     Ok(())
@@ -314,10 +306,7 @@ fn main() -> eframe::Result<()> {
     // path it did name is taken on faith: `is_dir` on a share that stopped
     // answering would hold the window back for half a minute, so the first
     // listing is what decides (see `App::start_unproven`).
-    let home = std::env::current_dir()
-        .ok()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."));
+    let home = std::env::current_dir().ok().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."));
     // Against the directory kura was started in, as `g<Space>` resolves what
     // is typed there: `kura .` and `kura ..\other` are how a shell names a
     // place, and a relative one left the tab with no parent column (#126).
@@ -356,9 +345,7 @@ fn main() -> eframe::Result<()> {
             // it: `kura env` cannot work either of these out for itself.
             let mut used = crate::runinfo::RunInfo {
                 version: env!("CARGO_PKG_VERSION").into(),
-                started: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(0, |d| d.as_secs()),
+                started: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
                 backend_setting: match std::env::var("WGPU_BACKEND").ok().filter(|v| !v.is_empty()) {
                     Some(v) => format!("WGPU_BACKEND={v}"),
                     None => format!("[ui] backend = \"{}\"", cfg.ui.backend),
@@ -402,8 +389,7 @@ fn main() -> eframe::Result<()> {
             a.start_scaled(std::env::var("KURA_SCALE").ok().as_deref());
             a.cwd_file = cli.cwd_file;
             a.chooser_file = cli.chooser_file;
-            let script_done =
-                std::env::var_os("KURA_KEYS_DONE").filter(|_| !cli.keys.is_empty()).map(PathBuf::from);
+            let script_done = std::env::var_os("KURA_KEYS_DONE").filter(|_| !cli.keys.is_empty()).map(PathBuf::from);
             if let Some(done) = &script_done {
                 keyscript::install_panic_report(done.clone());
             }
@@ -483,11 +469,7 @@ fn app_icon(svg: &[u8], px: u32) -> Option<egui::IconData> {
     let dx = (px as f32 - size.width() * scale) / 2.0;
     let dy = (px as f32 - size.height() * scale) / 2.0;
     let mut pixmap = tiny_skia::Pixmap::new(px, px)?;
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::from_scale(scale, scale).post_translate(dx, dy),
-        &mut pixmap.as_mut(),
-    );
+    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale).post_translate(dx, dy), &mut pixmap.as_mut());
     // `IconData` wants straight alpha; tiny-skia works premultiplied.
     let rgba = pixmap
         .pixels()
@@ -532,11 +514,7 @@ fn apply_fonts(ctx: &egui::Context, cfg: &mut Config, used: &mut crate::runinfo:
 /// bold faces for the `bold` family when any can be found.
 /// Returns whether the chosen font looks like a Nerd Font, and whether the
 /// `bold` family was registered.
-fn install_fonts(
-    ctx: &egui::Context,
-    cfg: &Config,
-    used: &mut crate::runinfo::RunInfo,
-) -> (bool, bool) {
+fn install_fonts(ctx: &egui::Context, cfg: &Config, used: &mut crate::runinfo::RunInfo) -> (bool, bool) {
     let mut candidates: Vec<PathBuf> = cfg.ui.fonts.iter().map(PathBuf::from).collect();
     candidates.extend(system_fonts());
 
@@ -629,8 +607,7 @@ fn system_fonts() -> Vec<PathBuf> {
     let mut out = Vec::new();
     // `font_dir` is `~/.local/share/fonts` on Linux and `~/Library/Fonts` on
     // macOS; Windows has none, and keeps a user's fonts under LOCALAPPDATA.
-    let user = dirs::font_dir()
-        .or_else(|| dirs::data_local_dir().map(|d| d.join("Microsoft").join("Windows").join("Fonts")));
+    let user = dirs::font_dir().or_else(|| dirs::data_local_dir().map(|d| d.join("Microsoft").join("Windows").join("Fonts")));
     if let Some(dir) = user {
         out.extend(ito_common::fonts::NERD_FONTS.iter().map(|n| dir.join(n)));
     }
@@ -658,19 +635,15 @@ fn fallback_fonts() -> Vec<PathBuf> {
 /// same trap as the regular face; elsewhere bold is overstruck instead.
 fn system_bold_fonts() -> Vec<PathBuf> {
     match cfg!(windows) {
-        true => ito_common::fonts::JAPANESE_BOLD
-            .iter()
-            .map(PathBuf::from)
-            .chain([PathBuf::from(r"C:\Windows\Fonts\consolab.ttf")])
-            .collect(),
+        true => {
+            ito_common::fonts::JAPANESE_BOLD.iter().map(PathBuf::from).chain([PathBuf::from(r"C:\Windows\Fonts\consolab.ttf")]).collect()
+        }
         false => Vec::new(),
     }
 }
 
 fn font_stem(path: &std::path::Path) -> String {
-    path.file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "font".into())
+    path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "font".into())
 }
 
 fn load_face(fonts: &mut egui::FontDefinitions, path: &std::path::Path, name: &str) -> bool {
@@ -902,18 +875,23 @@ impl Kura {
         if !self.remember_place {
             return;
         }
-        let (outer, inner, maximized, minimized) =
-            ctx.input(|i| {
-                let v = i.viewport();
-                (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false))
-            });
+        let (outer, inner, maximized, minimized) = ctx.input(|i| {
+            let v = i.viewport();
+            (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false))
+        });
         if let (Some(o), Some(i)) = (outer, inner) {
             if !minimized {
                 // Maximized, the place is the one before it: leaving the
                 // maximum goes back there.
                 let was = self.place.filter(|_| maximized);
                 let now = Window { x: o.min.x, y: o.min.y, w: i.width(), h: i.height(), maximized };
-                let now = Window { x: was.map_or(now.x, |w| w.x), y: was.map_or(now.y, |w| w.y), w: was.map_or(now.w, |w| w.w), h: was.map_or(now.h, |w| w.h), maximized };
+                let now = Window {
+                    x: was.map_or(now.x, |w| w.x),
+                    y: was.map_or(now.y, |w| w.y),
+                    w: was.map_or(now.w, |w| w.w),
+                    h: was.map_or(now.h, |w| w.h),
+                    maximized,
+                };
                 if self.place != Some(now) {
                     self.place = Some(now);
                     self.place_changed = std::time::Instant::now();
@@ -1015,11 +993,7 @@ impl eframe::App for Kura {
         }
         // `<Now>`: one frame after the last key is enough -- it has been
         // handed to the app, which is all the next one needs.
-        let ready = if self.script_now {
-            frame > last_frame
-        } else {
-            frame >= last_frame + 2 && (self.app.settled() || waited_long)
-        };
+        let ready = if self.script_now { frame > last_frame } else { frame >= last_frame + 2 && (self.app.settled() || waited_long) };
         if !ready {
             return;
         }
@@ -1062,7 +1036,12 @@ impl eframe::App for Kura {
                 self.script_at = (frame, std::time::Instant::now());
                 self.script_now = false;
             }
-            Some(p @ (keyscript::Press::Click { .. } | keyscript::Press::Hover { .. } | keyscript::Press::Wheel { .. } | keyscript::Press::Drag { .. })) => {
+            Some(
+                p @ (keyscript::Press::Click { .. }
+                | keyscript::Press::Hover { .. }
+                | keyscript::Press::Wheel { .. }
+                | keyscript::Press::Drag { .. }),
+            ) => {
                 let rect = ctx.input(|i| i.viewport_rect());
                 let mut events = keyscript::pointer_events(&p, rect);
                 // A drag one event per frame: in one frame egui never sees the
@@ -1181,11 +1160,9 @@ impl eframe::App for Kura {
             self.title = title;
         }
 
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(self.app.cfg.theme.bg))
-            .show(ui, |ui| {
-                ui::draw(&mut self.app, ui);
-            });
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(self.app.cfg.theme.bg)).show(ui, |ui| {
+            ui::draw(&mut self.app, ui);
+        });
 
         // egui walks focus across clickable rows on Tab / Shift+Tab, and a
         // focused row then takes Space / Enter as a click. The keymap owns
@@ -1252,13 +1229,7 @@ fn title_for(app: &App) -> String {
 /// The folder comparison as text: the footer's totals, then the rows on
 /// screen (`shown`, so `z` takes the `same` ones out) numbered as drawn, the
 /// first 60.
-fn compare_tree_lines(
-    rows: &[diff::TreeRow],
-    counts: &diff::TreeCounts,
-    truncated: bool,
-    hide_same: bool,
-    shown: &[usize],
-) -> Vec<String> {
+fn compare_tree_lines(rows: &[diff::TreeRow], counts: &diff::TreeCounts, truncated: bool, hide_same: bool, shown: &[usize]) -> Vec<String> {
     const MAX: usize = 60;
     let mut lines = vec![format!(
         "compare tree: {} left only, {} right only, {} differ, {} same, {} unread{}{}",
@@ -1316,9 +1287,7 @@ fn compare_row_line(n: usize, row: &diff::Row) -> String {
 fn preview_text(state: &app::PreviewState) -> String {
     let joined = |spans: &[preview::Span]| spans.iter().map(|s| s.text.as_str()).collect::<String>();
     let mut out = match state {
-        app::PreviewState::Ready(preview::Payload::Text { lines, .. }) => {
-            lines.iter().map(|l| joined(l)).collect::<Vec<_>>().join("\n")
-        }
+        app::PreviewState::Ready(preview::Payload::Text { lines, .. }) => lines.iter().map(|l| joined(l)).collect::<Vec<_>>().join("\n"),
         app::PreviewState::Ready(preview::Payload::Markdown { doc, .. }) => {
             doc.lines.iter().map(|l| joined(&l.spans)).collect::<Vec<_>>().join("\n")
         }
@@ -1476,10 +1445,7 @@ fn state_report(app: &App) -> String {
             lines.extend(compare_tree_lines(rows, counts, *truncated, ov.hide_same, &ov.shown()));
         }
     }
-    lines.push(format!(
-        "pane: {}",
-        app.term.as_ref().map_or("closed".into(), |t| format!("{}x{}", t.size().lines, t.size().cols))
-    ));
+    lines.push(format!("pane: {}", app.term.as_ref().map_or("closed".into(), |t| format!("{}x{}", t.size().lines, t.size().cols))));
     // The report link `<F12>` opened or copied: the one key whose effect
     // leaves the program could not be read back (#221, #222).
     if let Some(u) = &app.last_report {
@@ -1577,11 +1543,7 @@ fn state_report(app: &App) -> String {
     }
     // The file jobs not yet over, one line each, and how many: a run had to
     // infer a copy was done from the wording of a toast (#241, #257).
-    let active: Vec<&app::Task> = app
-        .tasks
-        .iter()
-        .filter(|t| t.state.is_live())
-        .collect();
+    let active: Vec<&app::Task> = app.tasks.iter().filter(|t| t.state.is_live()).collect();
     // What kura last put on the clipboard (`c` and friends), one line, cut
     // at 200 characters: read from outside it needed a second tool (#197).
     // Not what is on the clipboard, which may be someone else's.
@@ -1630,7 +1592,8 @@ fn state_report(app: &App) -> String {
     // How long the text on show is (`5237+` when the read was cut): the top
     // above is the last place to scroll to, which is not the line count
     // (#262).
-    if let app::PreviewState::Ready(preview::Payload::Text { extent, .. } | preview::Payload::Markdown { extent, .. }) = &app.preview.state {
+    if let app::PreviewState::Ready(preview::Payload::Text { extent, .. } | preview::Payload::Markdown { extent, .. }) = &app.preview.state
+    {
         lines.push(format!("preview lines: {}", extent.lines()));
     }
     // Which picture an external preview is on -- the `{n}` its command was
@@ -1640,7 +1603,8 @@ fn state_report(app: &App) -> String {
         lines.push(format!("picture: {}", app.preview.n));
         // And the one on screen, which is not that while a request for
         // another is out (#255): the key of what the pane last drew.
-        if let Some(k) = app.preview.key.as_ref().filter(|k| k.path == tab.current.hovered().map_or_else(PathBuf::new, |e| e.path.clone())) {
+        if let Some(k) = app.preview.key.as_ref().filter(|k| k.path == tab.current.hovered().map_or_else(PathBuf::new, |e| e.path.clone()))
+        {
             lines.push(format!("picture shown: {}", k.n));
         }
     }
@@ -1677,10 +1641,7 @@ fn state_report(app: &App) -> String {
     if let Some(note) = app.ctx.data(|d| d.get_temp::<String>(egui::Id::new(ui::preview::MINIMAP_NOTE))) {
         lines.push(format!("minimap: {note}"));
     }
-    lines.push(format!(
-        "split: {}",
-        app.split.map_or("no".into(), |s| format!("yes, keys {}", if s.right { "right" } else { "left" }))
-    ));
+    lines.push(format!("split: {}", app.split.map_or("no".into(), |s| format!("yes, keys {}", if s.right { "right" } else { "left" }))));
     // What the clock shows and in which language, from common.toml, so a
     // change to the file can be read without a picture (53.7).
     let clock = if app.clock.show { app.clock.format() } else { "off".into() };
@@ -1749,10 +1710,10 @@ fn pick_backends(
     let name = name.ok().flatten();
     match ito_pane::gpu::pick_backends(name, windows, has) {
         Ok(backends) => (backends, None),
-        Err(auto) => (auto, Some(format!(
-            "[ui] backend = \"{}\": this machine has no adapter for it; drawing with the default",
-            name.unwrap_or_default()
-        ))),
+        Err(auto) => (
+            auto,
+            Some(format!("[ui] backend = \"{}\": this machine has no adapter for it; drawing with the default", name.unwrap_or_default())),
+        ),
     }
 }
 
@@ -1954,11 +1915,7 @@ fn on_key_event(app: &mut App, key: egui::Key, modifiers: &egui::Modifiers) {
         // are the pane's own; the rest become the bytes a shell expects.
         Overlay::None if app.term_focus => {
             let Some(k) = keys::from_egui(key, modifiers) else { return };
-            let mods = terminal::Mods {
-                ctrl: modifiers.command || modifiers.ctrl,
-                alt: modifiers.alt,
-                shift: modifiers.shift,
-            };
+            let mods = terminal::Mods { ctrl: modifiers.command || modifiers.ctrl, alt: modifiers.alt, shift: modifiers.shift };
             // Once the other end has asked for win32-input-mode (ConPTY does,
             // as it starts), every key whose VT form begins with ESC goes as a
             // key record, as Windows Terminal sends them: a tcell program then
@@ -1966,10 +1923,8 @@ fn on_key_event(app: &mut App, key: egui::Key, modifiers: &egui::Modifiers) {
             // (Q27, #99). Plain text still goes as text.
             let win32 = app.term.as_ref().is_some_and(|t| t.win32_input());
             // Both read the grid, so only for the keys that need them.
-            let app_cursor = special(key, mods.shift).is_some()
-                && app.term.as_ref().is_some_and(|t| t.with_grid(terminal::app_cursor));
-            let kitty = key == egui::Key::Enter
-                && app.term.as_ref().is_some_and(|t| terminal::Pane::kitty_flags(t) != 0);
+            let app_cursor = special(key, mods.shift).is_some() && app.term.as_ref().is_some_and(|t| t.with_grid(terminal::app_cursor));
+            let kitty = key == egui::Key::Enter && app.term.as_ref().is_some_and(|t| terminal::Pane::kitty_flags(t) != 0);
             let bytes = pane_key_bytes(key, mods, win32, app_cursor, kitty);
             app.feed_term_key(k, bytes);
         }
@@ -2025,9 +1980,7 @@ fn pane_key_bytes(key: egui::Key, mods: terminal::Mods, win32: bool, app_cursor:
         (true, Some(_)) if told_apart => Some(b"\x1b[13;2u".to_vec()),
         (true, Some(s)) => Some(terminal::special_record(s, mods)),
         (true, None) if interrupt => vt,
-        (true, None) if mods.ctrl || mods.alt => {
-            keys::printable(key).and_then(|c| terminal::char_record(c, mods)).or(vt)
-        }
+        (true, None) if mods.ctrl || mods.alt => keys::printable(key).and_then(|c| terminal::char_record(c, mods)).or(vt),
         _ => vt,
     }
 }
@@ -2205,7 +2158,10 @@ mod tests {
         let report = state_report(&app);
         let total = app.spot_sections().iter().map(|s| s.rows.len()).sum::<usize>();
         assert!(report.lines().any(|l| l == format!("spot: 2 of {total}")), "{report}");
-        assert!(report.lines().any(|l| l.starts_with("spot row: ")) && report.lines().any(|l| l == format!("spot top: 0 of {total}")), "{report}");
+        assert!(
+            report.lines().any(|l| l.starts_with("spot row: ")) && report.lines().any(|l| l == format!("spot top: 0 of {total}")),
+            "{report}"
+        );
     }
 
     /// #336: the Settings page shown is a line of the state.
@@ -2816,7 +2772,10 @@ mod bug_report_f12 {
             s.app.drain_channels(&ctx);
             if state_report(&s.app).contains("launch failed: no-such-tool-xyz") {
                 assert!(!state_report(&s.app).contains("launched: "));
-                assert!(!s.app.toasts.iter().any(|t| t.text.starts_with("$ no-such-tool-xyz")), "the `$` toast is replaced by the failure (#278)");
+                assert!(
+                    !s.app.toasts.iter().any(|t| t.text.starts_with("$ no-such-tool-xyz")),
+                    "the `$` toast is replaced by the failure (#278)"
+                );
                 return;
             }
             std::thread::sleep(std::time::Duration::from_millis(50));

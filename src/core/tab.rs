@@ -88,12 +88,7 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(
-        cwd: PathBuf,
-        sort: SortSpec,
-        show_hidden: bool,
-        linemode: crate::fs::entry::Linemode,
-    ) -> Self {
+    pub fn new(cwd: PathBuf, sort: SortSpec, show_hidden: bool, linemode: crate::fs::entry::Linemode) -> Self {
         Self {
             current: Folder::loading(cwd.clone(), None),
             parent: crate::util::parent_dir(&cwd).map(|p| Folder::loading(p, None)),
@@ -203,12 +198,7 @@ impl Tab {
 
     pub fn toggle_all(&mut self, state: Option<bool>) {
         let paths: Vec<PathBuf> =
-            self.current
-                .view
-                .iter()
-                .filter_map(|&i| self.current.entries.get(i as usize))
-                .map(|e| e.path.clone())
-                .collect();
+            self.current.view.iter().filter_map(|&i| self.current.entries.get(i as usize)).map(|e| e.path.clone()).collect();
         match state {
             Some(true) => self.selected.extend(paths),
             Some(false) => {
@@ -227,11 +217,7 @@ impl Tab {
     }
 
     pub fn enter_visual(&mut self, unset: bool) {
-        self.visual = Some(VisualState {
-            anchor: self.current.cursor,
-            unset,
-            base: self.selected.clone(),
-        });
+        self.visual = Some(VisualState { anchor: self.current.cursor, unset, base: self.selected.clone() });
         self.sync_visual();
     }
 
@@ -276,11 +262,7 @@ impl Tab {
     pub fn right_click(&mut self, row: usize) {
         self.leave_visual();
         self.mouse_range = None;
-        let inside = self
-            .current
-            .at(row)
-            .map(|e| self.selected.contains(&e.path))
-            .unwrap_or(false);
+        let inside = self.current.at(row).map(|e| self.selected.contains(&e.path)).unwrap_or(false);
         if !inside {
             self.selected.clear();
         }
@@ -303,11 +285,7 @@ impl Tab {
         let v = match self.mouse_range.clone() {
             Some(v) => v,
             None => {
-                let v = VisualState {
-                    anchor: self.current.cursor,
-                    unset: false,
-                    base: self.selected.clone(),
-                };
+                let v = VisualState { anchor: self.current.cursor, unset: false, base: self.selected.clone() };
                 self.mouse_range = Some(v.clone());
                 v
             }
@@ -337,13 +315,7 @@ mod tests {
         let entries: Vec<Entry> = (0..n)
             .map(|i| {
                 let name = ((b'a' + i as u8) as char).to_string();
-                Entry {
-                    path: PathBuf::from(format!("/t/{name}")),
-                    name,
-                    ext: None,
-                    kind: Kind::File,
-                    ..Default::default()
-                }
+                Entry { path: PathBuf::from(format!("/t/{name}")), name, ext: None, kind: Kind::File, ..Default::default() }
             })
             .collect();
         let mut t = Tab::new(PathBuf::from("/t"), SortSpec::default(), true, crate::fs::entry::Linemode::None);
@@ -360,8 +332,7 @@ mod tests {
     fn jumped(from: &str, to: &str, fallback: bool) -> Tab {
         let mut t = Tab::new(PathBuf::from(to), SortSpec::default(), true, crate::fs::entry::Linemode::None);
         t.back.push(PathBuf::from(from));
-        t.pending_cd =
-            Some(PendingCd { from: PathBuf::from(from), pushed: true, fallback, reveal: None });
+        t.pending_cd = Some(PendingCd { from: PathBuf::from(from), pushed: true, fallback, reveal: None });
         t
     }
 
@@ -428,8 +399,7 @@ mod tests {
     fn a_start_path_that_names_a_file_reveals_it() {
         let cwd = PathBuf::from("/b/note.txt");
         let mut t = Tab::new(cwd, SortSpec::default(), true, crate::fs::entry::Linemode::None);
-        t.pending_cd =
-            Some(PendingCd { from: PathBuf::from("/home"), pushed: false, fallback: true, reveal: None });
+        t.pending_cd = Some(PendingCd { from: PathBuf::from("/home"), pushed: false, fallback: true, reveal: None });
         let fallout = t.cd_failed();
         let CdFallout::Reveal { to, pending } = fallout else { panic!("want Reveal") };
         assert_eq!(to, PathBuf::from("/b"));

@@ -80,9 +80,7 @@ fn fonts_for(dir: Option<&Path>) -> Arc<usvg::fontdb::Database> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| {
-            p.extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| ["ttf", "otf", "ttc", "otc"].contains(&e.to_ascii_lowercase().as_str()))
+            p.extension().and_then(|e| e.to_str()).is_some_and(|e| ["ttf", "otf", "ttc", "otc"].contains(&e.to_ascii_lowercase().as_str()))
         })
         .take(16)
         .collect();

@@ -10,7 +10,10 @@ pub enum Kind {
     #[default]
     File,
     /// Symlink / junction / reparse point, with the kind of its target when known.
-    Link { to_dir: bool, broken: bool },
+    Link {
+        to_dir: bool,
+        broken: bool,
+    },
 }
 
 impl Kind {
@@ -141,12 +144,7 @@ impl Entry {
         Ok(Self::build(path, name, ft, Some(md)))
     }
 
-    fn build(
-        path: PathBuf,
-        name: String,
-        ft: Option<std::fs::FileType>,
-        md: Option<Metadata>,
-    ) -> Self {
+    fn build(path: PathBuf, name: String, ft: Option<std::fs::FileType>, md: Option<Metadata>) -> Self {
         let is_symlink = ft.map(|f| f.is_symlink()).unwrap_or(false);
         let mut kind = match ft {
             Some(f) if f.is_dir() => Kind::Dir,
@@ -173,20 +171,7 @@ impl Entry {
             ),
             None => (0, None, None, None, name.starts_with('.'), false),
         };
-        Self {
-            path,
-            name,
-            ext,
-            kind,
-            len,
-            modified,
-            created,
-            accessed,
-            hidden,
-            readonly,
-            link_to,
-            ..Default::default()
-        }
+        Self { path, name, ext, kind, len, modified, created, accessed, hidden, readonly, link_to, ..Default::default() }
     }
 
     pub fn is_dir_like(&self) -> bool {
@@ -242,29 +227,17 @@ mod tests {
     #[test]
     fn link_targets_are_absolute_and_plain() {
         let link = Path::new(r"C:\a\b\shortcut");
-        assert_eq!(
-            link_target(link, PathBuf::from(r"..\c\file.txt")),
-            PathBuf::from(r"C:\a\c\file.txt")
-        );
-        assert_eq!(
-            link_target(link, PathBuf::from(r"\\?\D:\junction")),
-            PathBuf::from(r"D:\junction")
-        );
+        assert_eq!(link_target(link, PathBuf::from(r"..\c\file.txt")), PathBuf::from(r"C:\a\c\file.txt"));
+        assert_eq!(link_target(link, PathBuf::from(r"\\?\D:\junction")), PathBuf::from(r"D:\junction"));
         // A verbatim UNC target keeps the spelling Windows gave us.
-        assert_eq!(
-            link_target(link, PathBuf::from(r"\\?\UNC\host\share")),
-            PathBuf::from(r"\\?\UNC\host\share")
-        );
+        assert_eq!(link_target(link, PathBuf::from(r"\\?\UNC\host\share")), PathBuf::from(r"\\?\UNC\host\share"));
     }
 
     #[cfg(not(windows))]
     #[test]
     fn link_targets_are_absolute() {
         let link = Path::new("/a/b/shortcut");
-        assert_eq!(
-            link_target(link, PathBuf::from("../c/file.txt")),
-            PathBuf::from("/a/c/file.txt")
-        );
+        assert_eq!(link_target(link, PathBuf::from("../c/file.txt")), PathBuf::from("/a/c/file.txt"));
         assert_eq!(link_target(link, PathBuf::from("/d/other")), PathBuf::from("/d/other"));
     }
 }

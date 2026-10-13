@@ -31,21 +31,16 @@ mod imp {
     use windows::core::HSTRING;
     use windows::Win32::Foundation::SIZE;
     use windows::Win32::Graphics::Gdi::{
-        DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
-        BI_RGB, DIB_RGB_COLORS, HBITMAP,
+        DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HBITMAP,
     };
-    use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_THUMBNAILONLY,
-    };
+    use windows::Win32::UI::Shell::{IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_THUMBNAILONLY};
 
     pub fn thumbnail(path: &Path, box_size: (u32, u32)) -> Result<RgbaImage, String> {
         let name = HSTRING::from(plain(path));
-        let factory: IShellItemImageFactory =
-            unsafe { SHCreateItemFromParsingName(&name, None) }.map_err(|e| e.message())?;
+        let factory: IShellItemImageFactory = unsafe { SHCreateItemFromParsingName(&name, None) }.map_err(|e| e.message())?;
         let size = SIZE { cx: box_size.0.max(32) as i32, cy: box_size.1.max(32) as i32 };
         // THUMBNAILONLY: a file-type icon says nothing the file list doesn't.
-        let bitmap = unsafe { factory.GetImage(size, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK) }
-            .map_err(|e| e.message())?;
+        let bitmap = unsafe { factory.GetImage(size, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK) }.map_err(|e| e.message())?;
         let bitmap = Owned(bitmap);
         read(bitmap.0)
     }
@@ -71,9 +66,7 @@ mod imp {
 
     fn read(bitmap: HBITMAP) -> Result<RgbaImage, String> {
         let mut bm = BITMAP::default();
-        let got = unsafe {
-            GetObjectW(bitmap.into(), size_of::<BITMAP>() as i32, Some((&raw mut bm).cast()))
-        };
+        let got = unsafe { GetObjectW(bitmap.into(), size_of::<BITMAP>() as i32, Some((&raw mut bm).cast())) };
         if got == 0 || bm.bmWidth <= 0 || bm.bmHeight == 0 {
             return Err("the shell returned an empty thumbnail".into());
         }
@@ -140,9 +133,10 @@ mod tests {
     #[test]
     fn reads_a_jpeg_thumbnail() {
         let dir = Path::new(r"C:\Windows\Web\Wallpaper\Windows");
-        let Some(jpg) = std::fs::read_dir(dir).ok().and_then(|mut d| {
-            d.find_map(|e| e.ok().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "jpg")))
-        }) else {
+        let Some(jpg) = std::fs::read_dir(dir)
+            .ok()
+            .and_then(|mut d| d.find_map(|e| e.ok().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "jpg"))))
+        else {
             return;
         };
         init_thread();

@@ -26,13 +26,9 @@ impl Format {
     /// `.tar.gz` is looked at before `.gz` so the double extension wins.
     pub fn from_path(p: &Path) -> Option<Format> {
         let name = p.file_name()?.to_string_lossy().to_ascii_lowercase();
-        for (suffix, f) in [
-            (".tar.gz", Format::TarGz),
-            (".tgz", Format::TarGz),
-            (".zip", Format::Zip),
-            (".tar", Format::Tar),
-            (".7z", Format::SevenZ),
-        ] {
+        for (suffix, f) in
+            [(".tar.gz", Format::TarGz), (".tgz", Format::TarGz), (".zip", Format::Zip), (".tar", Format::Tar), (".7z", Format::SevenZ)]
+        {
             // `.zip` alone is a file called nothing, not an archive.
             if name.len() > suffix.len() && name.ends_with(suffix) {
                 return Some(f);
@@ -213,8 +209,7 @@ fn extract_picked(archive: &Path, dest: &Path, pick: Pick<'_>, on_entry: OnEntry
 }
 
 fn extract_zip(archive: &Path, dest: &Path, pick: Pick<'_>, on_entry: OnEntry<'_>) -> io::Result<()> {
-    let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?))
-        .map_err(|e| io::Error::other(e.to_string()))?;
+    let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?)).map_err(|e| io::Error::other(e.to_string()))?;
     let mut refused = 0usize;
     let mut dirs = Vec::new();
     for i in 0..zip.len() {
@@ -296,10 +291,7 @@ fn set_time(out: BufWriter<File>, when: Option<std::time::SystemTime>) -> io::Re
 /// time from the same archive (#174). Explorer does not: it reads and writes
 /// the DOS field alone (#200, and ARM64 measured the same), so it shows the
 /// two-second step whatever else the entry carries.
-fn zip_entry_time<'a>(
-    extra: impl Iterator<Item = &'a zip::ExtraField>,
-    dos: Option<zip::DateTime>,
-) -> Option<std::time::SystemTime> {
+fn zip_entry_time<'a>(extra: impl Iterator<Item = &'a zip::ExtraField>, dos: Option<zip::DateTime>) -> Option<std::time::SystemTime> {
     let extra: Vec<&zip::ExtraField> = extra.collect();
     let ntfs = extra.iter().find_map(|f| match f {
         zip::ExtraField::Ntfs(n) if n.mtime() != 0 => from_filetime(n.mtime()),
@@ -359,12 +351,7 @@ fn extract_tar<R: Read>(reader: &mut R, dest: &Path, pick: Pick<'_>, on_entry: O
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let when = entry
-            .header()
-            .mtime()
-            .ok()
-            .filter(|&s| s > 0)
-            .map(|s| std::time::UNIX_EPOCH + std::time::Duration::from_secs(s));
+        let when = entry.header().mtime().ok().filter(|&s| s > 0).map(|s| std::time::UNIX_EPOCH + std::time::Duration::from_secs(s));
         let mut out = BufWriter::new(File::create(&path)?);
         io::copy(&mut entry, &mut out)?;
         out.flush()?;
@@ -429,10 +416,7 @@ fn extract_7z(archive: &Path, dest: &Path, pick: Pick<'_>, on_entry: OnEntry<'_>
 fn refused_error(refused: usize) -> io::Result<()> {
     match refused {
         0 => Ok(()),
-        n => Err(io::Error::other(format!(
-            "{n} entr{} refused: the name escapes the destination",
-            if n == 1 { "y" } else { "ies" }
-        ))),
+        n => Err(io::Error::other(format!("{n} entr{} refused: the name escapes the destination", if n == 1 { "y" } else { "ies" }))),
     }
 }
 
@@ -459,8 +443,7 @@ pub fn list(archive: &Path, limit: usize) -> io::Result<(Vec<Listed>, bool)> {
     let mut more = false;
     match format {
         Format::Zip => {
-            let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?))
-                .map_err(|e| io::Error::other(e.to_string()))?;
+            let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?)).map_err(|e| io::Error::other(e.to_string()))?;
             more = zip.len() > limit;
             for i in 0..zip.len().min(limit) {
                 let e = zip.by_index(i).map_err(|e| io::Error::other(e.to_string()))?;
@@ -473,16 +456,12 @@ pub fn list(archive: &Path, limit: usize) -> io::Result<(Vec<Listed>, bool)> {
             list_tar(&mut BufReader::new(gz), limit, &mut out, &mut more)?
         }
         Format::SevenZ => {
-            let reader = sevenz_rust2::ArchiveReader::open(archive, sevenz_rust2::Password::empty())
-                .map_err(|e| io::Error::other(e.to_string()))?;
+            let reader =
+                sevenz_rust2::ArchiveReader::open(archive, sevenz_rust2::Password::empty()).map_err(|e| io::Error::other(e.to_string()))?;
             let files = &reader.archive().files;
             more = files.len() > limit;
             for f in files.iter().take(limit) {
-                out.push(Listed {
-                    name: f.name().to_owned(),
-                    size: f.size(),
-                    dir: f.is_directory(),
-                });
+                out.push(Listed { name: f.name().to_owned(), size: f.size(), dir: f.is_directory() });
             }
         }
     }
@@ -524,18 +503,10 @@ pub fn summarize(archive: &Path, limit: usize) -> io::Result<Summary> {
     let Some(format) = Format::from_path(archive) else {
         return Err(io::Error::other("not an archive this build can read"));
     };
-    let mut s = Summary {
-        format,
-        files: 0,
-        dirs: 0,
-        bytes: 0,
-        encryption: Encryption::No,
-        more: false,
-    };
+    let mut s = Summary { format, files: 0, dirs: 0, bytes: 0, encryption: Encryption::No, more: false };
     match format {
         Format::Zip => {
-            let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?))
-                .map_err(|e| io::Error::other(e.to_string()))?;
+            let mut zip = zip::ZipArchive::new(BufReader::new(File::open(archive)?)).map_err(|e| io::Error::other(e.to_string()))?;
             s.more = zip.len() > limit;
             for i in 0..zip.len().min(limit) {
                 // `by_index` refuses an encrypted entry with `Password required`
@@ -571,9 +542,11 @@ pub fn summarize(archive: &Path, limit: usize) -> io::Result<Summary> {
                 }
                 Err(e) => return Err(io::Error::other(e.to_string())),
             };
-            let aes = a.blocks.iter().flat_map(|b| b.coders.iter()).any(|c| {
-                c.encoder_method_id() == sevenz_rust2::EncoderMethod::ID_AES256_SHA256
-            });
+            let aes = a
+                .blocks
+                .iter()
+                .flat_map(|b| b.coders.iter())
+                .any(|c| c.encoder_method_id() == sevenz_rust2::EncoderMethod::ID_AES256_SHA256);
             if aes {
                 s.encryption = Encryption::Entries;
             }
@@ -609,12 +582,7 @@ fn summarize_tar<R: Read>(reader: &mut R, limit: usize, s: &mut Summary) -> io::
     Ok(())
 }
 
-fn list_tar<R: Read>(
-    reader: &mut R,
-    limit: usize,
-    out: &mut Vec<Listed>,
-    more: &mut bool,
-) -> io::Result<()> {
+fn list_tar<R: Read>(reader: &mut R, limit: usize, out: &mut Vec<Listed>, more: &mut bool) -> io::Result<()> {
     let mut tar = tar::Archive::new(reader);
     for entry in tar.entries()? {
         let entry = entry?;
@@ -633,13 +601,7 @@ fn list_tar<R: Read>(
 
 /// Pack `srcs` into `archive`. Names inside are taken relative to `base`, so
 /// a folder keeps its shape and a file keeps its own name.
-pub fn compress(
-    srcs: &[PathBuf],
-    base: &Path,
-    archive: &Path,
-    format: Format,
-    on_entry: OnEntry<'_>,
-) -> io::Result<()> {
+pub fn compress(srcs: &[PathBuf], base: &Path, archive: &Path, format: Format, on_entry: OnEntry<'_>) -> io::Result<()> {
     if !format.can_write() {
         return Err(io::Error::other(format!("cannot write {}", format.label())));
     }
@@ -745,14 +707,9 @@ fn unix_secs(path: &Path) -> Option<u32> {
     u32::try_from(modified.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs()).ok()
 }
 
-fn write_zip<W: Write + io::Seek>(
-    members: &[Member],
-    out: W,
-    on_entry: OnEntry<'_>,
-) -> io::Result<W> {
+fn write_zip<W: Write + io::Seek>(members: &[Member], out: W, on_entry: OnEntry<'_>) -> io::Result<W> {
     let mut zip = zip::ZipWriter::new(out);
-    let opts = zip::write::FullFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let opts = zip::write::FullFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     for m in members {
         let to_io = |e: zip::result::ZipError| io::Error::other(e.to_string());
         let mut opts = match zip_time(&m.path) {
@@ -788,11 +745,7 @@ fn write_zip<W: Write + io::Seek>(
 /// feature on by default, so it was being built and never called. Reading came
 /// first and writing was left out until the writer had been looked at; it
 /// takes one entry at a time, which is what the progress callback needs.
-fn write_7z<W: Write + io::Seek>(
-    members: &[Member],
-    out: W,
-    on_entry: OnEntry<'_>,
-) -> io::Result<W> {
+fn write_7z<W: Write + io::Seek>(members: &[Member], out: W, on_entry: OnEntry<'_>) -> io::Result<W> {
     let to_io = |e: sevenz_rust2::Error| io::Error::other(e.to_string());
     let mut z = sevenz_rust2::ArchiveWriter::new(out).map_err(to_io)?;
     for m in members {
@@ -932,10 +885,7 @@ mod tests {
             l("empty/", 0, true),
         ];
         let names = |v: Vec<Level>| v.into_iter().map(|r| (r.name, r.dir, r.size)).collect::<Vec<_>>();
-        assert_eq!(
-            names(level(&members, "")),
-            vec![("docs".into(), true, 0), ("empty".into(), true, 0), ("top.txt".into(), false, 3)],
-        );
+        assert_eq!(names(level(&members, "")), vec![("docs".into(), true, 0), ("empty".into(), true, 0), ("top.txt".into(), false, 3)],);
         assert_eq!(names(level(&members, "docs")), vec![("a".into(), true, 0), ("ab".into(), true, 0)]);
         assert_eq!(names(level(&members, "docs/a/")), vec![("b.txt".into(), false, 1), ("readme.md".into(), false, 7)]);
         assert!(level(&members, "empty").is_empty());
@@ -974,7 +924,10 @@ mod tests {
             let folder = dir.join(format!("folder{i}"));
             extract_one(&archive, "docs/a/", &folder, none).unwrap();
             assert!(folder.join("a").join("readme.md").is_file() && folder.join("a").join("b.txt").is_file(), "{format:?}");
-            assert!(!folder.join("ab").exists() && !folder.join("a").join("other.txt").exists(), "{format:?}: `docs/ab` is not under `docs/a`");
+            assert!(
+                !folder.join("ab").exists() && !folder.join("a").join("other.txt").exists(),
+                "{format:?}: `docs/ab` is not under `docs/a`"
+            );
 
             let e = extract_one(&archive, "docs/nothing", &dir.join(format!("none{i}")), none).unwrap_err();
             assert_eq!(e.kind(), io::ErrorKind::NotFound, "{format:?}: {e}");
@@ -994,9 +947,7 @@ mod tests {
         // A name that is nothing but the extension names no archive.
         assert_eq!(Format::from_path(Path::new(".zip")), None);
         // Every format read here can be written as well, since v0.27.0.
-        assert!([Format::Zip, Format::Tar, Format::TarGz, Format::SevenZ]
-            .iter()
-            .all(|f| f.can_write()));
+        assert!([Format::Zip, Format::Tar, Format::TarGz, Format::SevenZ].iter().all(|f| f.can_write()));
     }
 
     /// An archive names its own entries, so the names are an attacker's to
@@ -1042,9 +993,8 @@ mod tests {
     /// the month. An even second and the fraction below it stay as they were.
     #[test]
     fn the_dos_field_rounds_an_odd_second_up() {
-        let at = |y, mo, d, h, mi, s, ms| {
-            chrono::NaiveDate::from_ymd_opt(y, mo, d).and_then(|d| d.and_hms_milli_opt(h, mi, s, ms)).unwrap()
-        };
+        let at =
+            |y, mo, d, h, mi, s, ms| chrono::NaiveDate::from_ymd_opt(y, mo, d).and_then(|d| d.and_hms_milli_opt(h, mi, s, ms)).unwrap();
         let fields = |t: zip::DateTime| (t.year(), t.month(), t.day(), t.hour(), t.minute(), t.second());
         assert_eq!(fields(dos_time(at(2021, 6, 15, 12, 34, 57, 0)).unwrap()), (2021, 6, 15, 12, 34, 58));
         assert_eq!(fields(dos_time(at(2021, 6, 15, 12, 34, 56, 900)).unwrap()), (2021, 6, 15, 12, 34, 56));
@@ -1073,8 +1023,7 @@ mod tests {
             let out = dir.join(format!("out-{name}"));
             extract(&archive, &out, &mut |_, _| true).unwrap();
             for f in ["src/a.txt", "src/sub/b.txt"] {
-                let got: chrono::DateTime<chrono::Local> =
-                    std::fs::metadata(out.join(f)).unwrap().modified().unwrap().into();
+                let got: chrono::DateTime<chrono::Local> = std::fs::metadata(out.join(f)).unwrap().modified().unwrap().into();
                 assert_eq!(got.timestamp(), when.timestamp(), "{name}: {f} keeps 12:34:56, not the time it was unpacked");
             }
         }
@@ -1112,8 +1061,8 @@ mod tests {
         for t in [ticks, ticks, ticks] {
             ntfs.extend_from_slice(&t.to_le_bytes());
         }
-        let mut opts = zip::write::FullFileOptions::default()
-            .last_modified_time(zip::DateTime::from_date_and_time(2019, 3, 1, 0, 0, 0).unwrap());
+        let mut opts =
+            zip::write::FullFileOptions::default().last_modified_time(zip::DateTime::from_date_and_time(2019, 3, 1, 0, 0, 0).unwrap());
         opts.add_extra_data(0x000a, ntfs, false).unwrap();
         let archive = dir.join("7z-made.zip");
         let mut zip = zip::ZipWriter::new(File::create(&archive).unwrap());
@@ -1232,10 +1181,7 @@ mod tests {
             let out = root.join("out");
             extract(&archive, &out, &mut |_, _| true).unwrap();
             assert_eq!(std::fs::read(out.join("src").join("top.txt")).unwrap(), b"top");
-            assert_eq!(
-                std::fs::read(out.join("src").join("sub").join("deep.txt")).unwrap(),
-                b"deep"
-            );
+            assert_eq!(std::fs::read(out.join("src").join("sub").join("deep.txt")).unwrap(), b"deep");
             let _ = std::fs::remove_dir_all(&root);
         }
     }

@@ -375,7 +375,15 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
         let n = Num { key: "font_size", label: k.font_size, note: k.font_size_note, now: &now.font_size, lo: 6.0, hi: 72.0, whole: false };
         number_row(ui, l, drafts, n, k, out, bad);
         sep(ui, l);
-        let n = Num { key: "row_padding", label: k.row_padding, note: k.row_padding_note, now: &now.row_padding, lo: 0.0, hi: 40.0, whole: false };
+        let n = Num {
+            key: "row_padding",
+            label: k.row_padding,
+            note: k.row_padding_note,
+            now: &now.row_padding,
+            lo: 0.0,
+            hi: 40.0,
+            whole: false,
+        };
         number_row(ui, l, drafts, n, k, out, bad);
         sep(ui, l);
         let icons = [("auto", "auto"), ("nerd", "nerd"), ("ascii", "ascii"), ("none", "none")];
@@ -391,10 +399,26 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
             out.push(set("render_markdown", (!now.render_markdown).to_string()));
         }
         sep(ui, l);
-        let n = Num { key: "preview_debounce_ms", label: k.debounce, note: k.debounce_note, now: &now.debounce, lo: 0.0, hi: 5000.0, whole: true };
+        let n = Num {
+            key: "preview_debounce_ms",
+            label: k.debounce,
+            note: k.debounce_note,
+            now: &now.debounce,
+            lo: 0.0,
+            hi: 5000.0,
+            whole: true,
+        };
         number_row(ui, l, drafts, n, k, out, bad);
         sep(ui, l);
-        let n = Num { key: "max_text_bytes", label: k.max_text, note: k.max_text_note, now: &now.max_text, lo: 1024.0, hi: 1073741824.0, whole: true };
+        let n = Num {
+            key: "max_text_bytes",
+            label: k.max_text,
+            note: k.max_text_note,
+            now: &now.max_text,
+            lo: 1024.0,
+            hi: 1073741824.0,
+            whole: true,
+        };
         number_row(ui, l, drafts, n, k, out, bad);
     });
     section(ui, l, k.list, |ui| {

@@ -11,8 +11,8 @@
 //! number (#176, Q50). The README shows these same strings, and a test keeps
 //! the two equal.
 
-pub use ito_common::shellhook::SHELLS;
 use ito_common::shellhook as common;
+pub use ito_common::shellhook::SHELLS;
 
 const APP: &str = "kura";
 const PURPOSE: &str = "for the terminal pane to follow";

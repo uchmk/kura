@@ -11,11 +11,11 @@ mod term;
 use egui::{Align2, Color32, CornerRadius, FontFamily, FontId, Rect, Stroke, Ui, Vec2};
 
 use crate::app::{self, App, Overlay, PreviewState};
-use crate::preview::Payload;
 use crate::config::cmd::{Act, Step};
 use crate::config::theme::{Style, Theme};
 use crate::core::folder::Folder;
 use crate::fs::git;
+use crate::preview::Payload;
 use crate::util;
 
 pub fn font(size: f32) -> FontId {
@@ -60,7 +60,7 @@ fn term_height(full_h: f32, chrome: f32, row_h: f32, share: f32) -> f32 {
 /// pointer from the pane's top rows. The height goes in `app.term_share` and is
 /// not saved; a share rather than pixels, so it follows the window's size.
 fn term_border(app: &mut App, ui: &Ui, body: Rect, term_h: f32, full_h: f32) {
-    use ito_layout::{Dir, Node, ui as lay};
+    use ito_layout::{ui as lay, Dir, Node};
     let span = Rect::from_min_max(body.left_top(), egui::pos2(body.right(), body.bottom() + term_h));
     if span.height() < 1.0 || full_h < 1.0 {
         return;
@@ -175,10 +175,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     let input_h = if matches!(app.overlay, Overlay::Input(_)) { row_h + 14.0 } else { 0.0 };
 
     let header = Rect::from_min_size(full.left_top(), Vec2::new(full.width(), header_h));
-    let status = Rect::from_min_size(
-        egui::pos2(full.left(), full.bottom() - status_h),
-        Vec2::new(full.width(), status_h),
-    );
+    let status = Rect::from_min_size(egui::pos2(full.left(), full.bottom() - status_h), Vec2::new(full.width(), status_h));
     // The terminal takes the bottom third (or what the border above it was
     // dragged to), and never so much that the list it
     // sits under stops being usable -- until `term_max`, where the point is to
@@ -199,10 +196,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
         (false, _) => 0.0,
     };
     let bottom_extra = which_h + input_h + term_h;
-    let body = Rect::from_min_max(
-        egui::pos2(full.left(), header.bottom()),
-        egui::pos2(full.right(), status.top() - bottom_extra),
-    );
+    let body = Rect::from_min_max(egui::pos2(full.left(), header.bottom()), egui::pos2(full.right(), status.top() - bottom_extra));
 
     // Skipped rather than drawn into an inverted rectangle: `body` is built
     // downwards from the header, so at this height its bottom is above its top.
@@ -211,10 +205,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
         draw_body(app, ui, body, &f, row_h, &mut queued);
     }
     if term_h > 0.0 {
-        let r = Rect::from_min_size(
-            egui::pos2(full.left(), status.top() - bottom_extra),
-            Vec2::new(full.width(), term_h),
-        );
+        let r = Rect::from_min_size(egui::pos2(full.left(), status.top() - bottom_extra), Vec2::new(full.width(), term_h));
         term::draw(app, ui, r, &f, row_h);
         if !maxed {
             term_border(app, ui, body, term_h, full.height());
@@ -229,17 +220,11 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     }
 
     if which_h > 0.0 {
-        let r = Rect::from_min_size(
-            egui::pos2(full.left(), status.top() - which_h),
-            Vec2::new(full.width(), which_h),
-        );
+        let r = Rect::from_min_size(egui::pos2(full.left(), status.top() - which_h), Vec2::new(full.width(), which_h));
         overlay::which(app, ui, r, &f, row_h);
     }
     if input_h > 0.0 {
-        let r = Rect::from_min_size(
-            egui::pos2(full.left(), status.top() - input_h),
-            Vec2::new(full.width(), input_h),
-        );
+        let r = Rect::from_min_size(egui::pos2(full.left(), status.top() - input_h), Vec2::new(full.width(), input_h));
         // Above the prompt, since a bulk rename is judged by what it will do
         // rather than by the rule that says it.
         overlay::bulk(app, ui, full, &f, row_h, r.top());
@@ -279,16 +264,11 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
 /// joining that root to the file name — which is what this used to do — spells
 /// out a path that usually does not exist, and reads as though a match three
 /// directories down were sitting in the top one.
-fn breadcrumb(
-    found: Option<&std::path::Path>,
-    dir: &std::path::Path,
-    hovered_name: Option<&str>,
-) -> (String, Option<String>) {
+fn breadcrumb(found: Option<&std::path::Path>, dir: &std::path::Path, hovered_name: Option<&str>) -> (String, Option<String>) {
     match found {
-        Some(p) => (
-            p.parent().map_or_else(String::new, |d| d.display().to_string()),
-            p.file_name().map(|n| n.to_string_lossy().into_owned()),
-        ),
+        Some(p) => {
+            (p.parent().map_or_else(String::new, |d| d.display().to_string()), p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        }
         None => (dir.display().to_string(), hovered_name.map(str::to_owned)),
     }
 }
@@ -297,10 +277,7 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     let theme = &app.cfg.theme;
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, CornerRadius::ZERO, theme.bg_alt);
-    painter.line_segment(
-        [rect.left_bottom(), rect.right_bottom()],
-        Stroke::new(1.0, theme.border),
-    );
+    painter.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, theme.border));
 
     // Tab strip
     let mut x = rect.left() + 8.0;
@@ -315,11 +292,7 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
         if let Some(bg) = st.bg {
             painter.rect_filled(chip, CornerRadius::same(4), bg);
         }
-        painter.galley(
-            egui::pos2(x + 4.0, y + (row_h - g.size().y) / 2.0),
-            g,
-            st.fg.unwrap_or(theme.fg),
-        );
+        painter.galley(egui::pos2(x + 4.0, y + (row_h - g.size().y) / 2.0), g, st.fg.unwrap_or(theme.fg));
         let resp = ui.interact(chip, ui.id().with(("tab", i)), egui::Sense::click());
         if resp.clicked() {
             clicked = Some(i);
@@ -343,13 +316,7 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
         true => "listing…".to_owned(),
         false => summary(total, sel, yank, tab.show_hidden, app.usage.is_some(), usage),
     };
-    painter.text(
-        egui::pos2(rect.right() - 10.0, y + row_h / 2.0),
-        Align2::RIGHT_CENTER,
-        right,
-        f.clone(),
-        app.cfg.theme.fg_dim,
-    );
+    painter.text(egui::pos2(rect.right() - 10.0, y + row_h / 2.0), Align2::RIGHT_CENTER, right, f.clone(), app.cfg.theme.fg_dim);
 
     // Breadcrumb
     let theme = &app.cfg.theme;
@@ -359,10 +326,7 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     // root to the file name — which is what this did — spells out a path that
     // usually does not exist, and reads as if the match were in the top
     // directory when it was three levels down.
-    let found = app
-        .in_search_view()
-        .then(|| app.tab().current.hovered().map(|e| e.path.clone()))
-        .flatten();
+    let found = app.in_search_view().then(|| app.tab().current.hovered().map(|e| e.path.clone())).flatten();
     let (cwd, name) = breadcrumb(
         found.as_deref(),
         if app.in_search_view() { &app.tab().current.path } else { &app.tab().cwd },
@@ -373,31 +337,16 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     job.wrap.overflow_character = Some('…');
-    job.append(
-        &cwd,
-        0.0,
-        egui::TextFormat {
-            font_id: f.clone(),
-            color: theme.cwd.fg.unwrap_or(theme.fg),
-            ..Default::default()
-        },
-    );
+    job.append(&cwd, 0.0, egui::TextFormat { font_id: f.clone(), color: theme.cwd.fg.unwrap_or(theme.fg), ..Default::default() });
     if let Some(name) = &name {
         // The platform's own separator. This was a literal `\` until v0.45.0,
         // which reads as a path on Windows and as an escape everywhere else:
         // the header on Linux said `/home/you\notes.md`. The test for it is in
         // `whole_frame`, which is how it turned up -- nothing had drawn a
         // header off Windows before.
-        let sep = if cwd.is_empty() || cwd.ends_with('\\') || cwd.ends_with('/') {
-            String::new()
-        } else {
-            std::path::MAIN_SEPARATOR.to_string()
-        };
-        job.append(
-            &format!("{sep}{name}"),
-            0.0,
-            egui::TextFormat { font_id: f.clone(), color: theme.fg, ..Default::default() },
-        );
+        let sep =
+            if cwd.is_empty() || cwd.ends_with('\\') || cwd.ends_with('/') { String::new() } else { std::path::MAIN_SEPARATOR.to_string() };
+        job.append(&format!("{sep}{name}"), 0.0, egui::TextFormat { font_id: f.clone(), color: theme.fg, ..Default::default() });
     }
     let g = painter.layout_job(job);
     painter.galley(egui::pos2(rect.left() + 10.0, y2), g, theme.fg);
@@ -410,11 +359,7 @@ fn draw_body(app: &mut App, ui: &mut Ui, body: Rect, f: &FontId, row_h: f32, que
     app.parent_shown.clear();
     let mut ratio = {
         let r = &app.cfg.yazi.mgr.ratio;
-        [
-            r.first().copied().unwrap_or(1),
-            r.get(1).copied().unwrap_or(3),
-            r.get(2).copied().unwrap_or(4),
-        ]
+        [r.first().copied().unwrap_or(1), r.get(1).copied().unwrap_or(3), r.get(2).copied().unwrap_or(4)]
     };
     if app.max_preview {
         ratio[2] = 9999;
@@ -430,11 +375,7 @@ fn draw_body(app: &mut App, ui: &mut Ui, body: Rect, f: &FontId, row_h: f32, que
     let gap = 6.0;
     let total: f32 = ratio.iter().map(|&v| v as f32).sum::<f32>().max(1.0);
     let usable = body.width() - gap * 2.0;
-    let widths = [
-        usable * ratio[0] as f32 / total,
-        usable * ratio[1] as f32 / total,
-        usable * ratio[2] as f32 / total,
-    ];
+    let widths = [usable * ratio[0] as f32 / total, usable * ratio[1] as f32 / total, usable * ratio[2] as f32 / total];
 
     let mut x = body.left();
     let rects: Vec<Rect> = widths
@@ -480,22 +421,12 @@ fn draw_body(app: &mut App, ui: &mut Ui, body: Rect, f: &FontId, row_h: f32, que
 /// The side column and the quick-look panel both come through here, so they
 /// cannot drift apart, and `preview.box_size` — the size images are rendered
 /// at — is set by whichever of them is on screen.
-pub(super) fn draw_preview(
-    app: &mut App,
-    ui: &mut Ui,
-    rect: Rect,
-    f: &FontId,
-    row_h: f32,
-    queued: &mut Vec<Act>,
-) {
+pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32, queued: &mut Vec<Act>) {
     let theme = app.cfg.theme.clone();
     app.preview.rect = Some(rect);
     // A zoomed image asks for a bigger decode, so magnifying shows the picture
     // rather than a blurred copy of the pane-sized one.
-    let pane_px = (
-        (rect.width() * 2.0).max(64.0) as u32,
-        (rect.height() * 2.0).max(64.0) as u32,
-    );
+    let pane_px = ((rect.width() * 2.0).max(64.0) as u32, (rect.height() * 2.0).max(64.0) as u32);
     // `image_input` first: only it knows the pane's size, so it is what leaves
     // the fit scale behind for the decode box to be judged against.
     image_input(app, ui, rect);
@@ -520,11 +451,15 @@ pub(super) fn draw_preview(
             p.offset = app.tabs[app.active].preview_offset.min(dir_max);
             // Nothing is hovered in a preview, so park the cursor off-list.
             p.cursor = usize::MAX;
-            list::draw(ui, rect.shrink(2.0), &p, &st, &|_| list::RowFlags {
-                selected: false,
-                yanked: None,
-                git: git::State::Clean,
-            }, false, None);
+            list::draw(
+                ui,
+                rect.shrink(2.0),
+                &p,
+                &st,
+                &|_| list::RowFlags { selected: false, yanked: None, git: git::State::Clean },
+                false,
+                None,
+            );
             app.preview.max_offset = dir_max;
             if app.tabs[app.active].preview_offset > dir_max {
                 app.tabs[app.active].preview_offset = dir_max;
@@ -581,8 +516,7 @@ pub(super) fn draw_preview(
             if ui.rect_contains_pointer(rect) && !app.overlay.is_modal() {
                 // Ctrl and the wheel is the image zoom, so it must not scroll
                 // the pane with the same turn.
-                let (scroll, ctrl) =
-                    ui.ctx().input(|i| (i.smooth_scroll_delta.y, i.modifiers.command));
+                let (scroll, ctrl) = ui.ctx().input(|i| (i.smooth_scroll_delta.y, i.modifiers.command));
                 if !ctrl {
                     let rows = -scroll / row_h * 1.5;
                     let delta = wheel_whole(&mut app.preview_scroll_rows, rows);
@@ -692,11 +626,8 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
         let mut p = clone_view(parent);
         let rows = ((rect.height() / row_h).floor() as usize).max(1);
         p.clamp_offset(rows, app.cfg.yazi.mgr.scrolloff as usize);
-        let res = list::draw(ui, rect, &p, &st, &|_e| list::RowFlags {
-            selected: false,
-            yanked: None,
-            git: git::State::Clean,
-        }, false, None);
+        let res =
+            list::draw(ui, rect, &p, &st, &|_e| list::RowFlags { selected: false, yanked: None, git: git::State::Clean }, false, None);
         if let Some(row) = res.clicked.or(res.double_clicked) {
             if let Some(e) = p.at(row) {
                 queued.push(parent_click(e));
@@ -711,15 +642,7 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
 /// the keys first, so the gesture still lands on the focused tab. `place` is
 /// which column it is drawn in (0 the left, 1 the middle), for the state that
 /// belongs to the place rather than to the tab shown there.
-fn draw_pane(
-    app: &mut App,
-    ui: &mut Ui,
-    rect: Rect,
-    place: usize,
-    idx: usize,
-    ctx: &PaneCtx,
-    queued: &mut Vec<Act>,
-) {
+fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, ctx: &PaneCtx, queued: &mut Vec<Act>) {
     let PaneCtx { theme, font: f, row_h } = *ctx;
     let focused = idx == app.active;
     let rows = ((rect.height() / row_h).floor() as usize).max(1);
@@ -740,7 +663,11 @@ fn draw_pane(
         active: focused && app.preview.outline.is_none(),
         linemode,
         usage_max: app.usage_max,
-        search_root: app.tabs[idx].finder.as_ref().filter(|f| f.names && f.matcher.as_ref().is_some_and(|m| m.is_fuzzy())).map(|_| app.tabs[idx].cwd.as_path()),
+        search_root: app.tabs[idx]
+            .finder
+            .as_ref()
+            .filter(|f| f.names && f.matcher.as_ref().is_some_and(|m| m.is_fuzzy()))
+            .map(|_| app.tabs[idx].cwd.as_path()),
     };
     // Where this pane is, so a drop let go anywhere can find its target.
     app.pane_rects.push((idx, rect));
@@ -763,12 +690,7 @@ fn draw_pane(
     // Which side has the keys should be clear at a glance.
     if app.split.is_some() {
         let color = if focused { theme.cwd.fg.unwrap_or(theme.fg) } else { theme.border };
-        ui.painter().rect_stroke(
-            rect,
-            CornerRadius::same(4),
-            Stroke::new(1.0, color),
-            egui::StrokeKind::Inside,
-        );
+        ui.painter().rect_stroke(rect, CornerRadius::same(4), Stroke::new(1.0, color), egui::StrokeKind::Inside);
     }
     // A panel over the list owns the wheel; see `Overlay::is_modal`.
     let scrolled = match app.overlay.is_modal() {
@@ -857,12 +779,7 @@ fn draw_drag(app: &App, ui: &mut Ui, f: &FontId) {
 
     let over = app.pane_rects.iter().find(|(i, r)| *i != drag.from && r.contains(pos));
     if let Some((_, r)) = over {
-        painter.rect_stroke(
-            *r,
-            CornerRadius::same(4),
-            Stroke::new(2.0, accent),
-            egui::StrokeKind::Inside,
-        );
+        painter.rect_stroke(*r, CornerRadius::same(4), Stroke::new(2.0, accent), egui::StrokeKind::Inside);
     }
     // Shift means move, so say which one is about to happen.
     let verb = match ui.ctx().input(|i| i.modifiers.shift) {
@@ -921,10 +838,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     let cy = rect.center().y;
     let label = format!(" {mode_label} ");
     let g = painter.layout_no_wrap(label, f.clone(), mode_style.fg.unwrap_or(theme.fg));
-    let chip = Rect::from_min_size(
-        egui::pos2(x, cy - g.size().y / 2.0 - 2.0),
-        Vec2::new(g.size().x, g.size().y + 4.0),
-    );
+    let chip = Rect::from_min_size(egui::pos2(x, cy - g.size().y / 2.0 - 2.0), Vec2::new(g.size().x, g.size().y + 4.0));
     if let Some(bg) = mode_style.bg {
         painter.rect_filled(chip, CornerRadius::same(3), bg);
     }
@@ -957,11 +871,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
             s.push_str(&format!("  {}", util::fmt_duration(eta)));
         }
         // What else is waiting, so a queue is never a surprise.
-        let waiting = app
-            .tasks
-            .iter()
-            .filter(|o| o.id != t.id && o.state.is_live())
-            .count();
+        let waiting = app.tasks.iter().filter(|o| o.id != t.id && o.state.is_live()).count();
         if waiting > 0 {
             s.push_str(&format!("  +{waiting}"));
         }
@@ -991,11 +901,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         }
     }
     if !app.yank.paths.is_empty() {
-        right.push(format!(
-            "{} {}",
-            app.yank.paths.len(),
-            if app.yank.cut { "cut" } else { "copied" },
-        ));
+        right.push(format!("{} {}", app.yank.paths.len(), if app.yank.cut { "cut" } else { "copied" },));
     }
     let pos = if waiting(tab) {
         "…".to_string()
@@ -1019,13 +925,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         hover.on_hover_text(ito_common::Clock::full(&now, &app.lang));
         ui.ctx().request_repaint_after(ito_common::Clock::next_minute(&now));
     }
-    painter.text(
-        egui::pos2(right_edge, cy),
-        Align2::RIGHT_CENTER,
-        right.join("   "),
-        f.clone(),
-        theme.fg_dim,
-    );
+    painter.text(egui::pos2(right_edge, cy), Align2::RIGHT_CENTER, right.join("   "), f.clone(), theme.fg_dim);
 
     // A thin progress strip along the bottom while work is running.
     if let Some(t) = running_task(app) {
@@ -1034,11 +934,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
             crate::app::TaskState::Paused => theme.fg_dim,
             _ => theme.progress_fg,
         };
-        painter.rect_filled(
-            Rect::from_min_size(rect.left_bottom() - Vec2::new(0.0, 2.0), Vec2::new(w, 2.0)),
-            CornerRadius::ZERO,
-            color,
-        );
+        painter.rect_filled(Rect::from_min_size(rect.left_bottom() - Vec2::new(0.0, 2.0), Vec2::new(w, 2.0)), CornerRadius::ZERO, color);
     }
 }
 
@@ -1047,10 +943,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
 /// not begun.
 fn running_task(app: &App) -> Option<&crate::app::Task> {
     use crate::app::TaskState;
-    app.tasks
-        .iter()
-        .find(|t| t.state == TaskState::Running)
-        .or_else(|| app.tasks.iter().find(|t| t.state == TaskState::Paused))
+    app.tasks.iter().find(|t| t.state == TaskState::Running).or_else(|| app.tasks.iter().find(|t| t.state == TaskState::Paused))
 }
 
 // ---------------------------------------------------------------- toasts
@@ -1108,10 +1001,7 @@ fn draw_toasts(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
         // in a one-row box spilled out of both ends of it -- over the header
         // above and the file list below -- because the text is centred in the
         // box and the box was the wrong size.
-        let r = Rect::from_min_size(
-            egui::pos2(full.right() - w - 12.0, y),
-            Vec2::new(w, (g.size().y + 8.0).max(row_h + 8.0)),
-        );
+        let r = Rect::from_min_size(egui::pos2(full.right() - w - 12.0, y), Vec2::new(w, (g.size().y + 8.0).max(row_h + 8.0)));
         painter.rect_filled(r, CornerRadius::same(4), theme.bg_alt);
         painter.rect_stroke(
             r,
@@ -1121,11 +1011,7 @@ fn draw_toasts(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
             Stroke::new(1.0, if t.level == crate::app::Level::Info { theme.border } else { color }),
             egui::StrokeKind::Inside,
         );
-        painter.galley(
-            egui::pos2(r.left() + 10.0, r.center().y - g.size().y / 2.0),
-            g,
-            color,
-        );
+        painter.galley(egui::pos2(r.left() + 10.0, r.center().y - g.size().y / 2.0), g, color);
         y += r.height() + 6.0;
     }
 }
@@ -1139,23 +1025,9 @@ pub fn modal_rect(full: Rect, w_frac: f32, h_frac: f32) -> Rect {
 pub fn modal_frame(ui: &Ui, rect: Rect, theme: &Theme, title: &str, f: &FontId, row_h: f32) -> Rect {
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), theme.bg_alt);
-    painter.rect_stroke(
-        rect,
-        CornerRadius::same(6),
-        Stroke::new(1.0, theme.border),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        rect.left_top() + Vec2::new(14.0, 10.0),
-        Align2::LEFT_TOP,
-        title,
-        f.clone(),
-        theme.cwd.fg.unwrap_or(theme.fg),
-    );
-    Rect::from_min_max(
-        rect.left_top() + Vec2::new(14.0, 12.0 + row_h),
-        rect.right_bottom() - Vec2::new(14.0, 12.0),
-    )
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, theme.border), egui::StrokeKind::Inside);
+    painter.text(rect.left_top() + Vec2::new(14.0, 10.0), Align2::LEFT_TOP, title, f.clone(), theme.cwd.fg.unwrap_or(theme.fg));
+    Rect::from_min_max(rect.left_top() + Vec2::new(14.0, 12.0 + row_h), rect.right_bottom() - Vec2::new(14.0, 12.0))
 }
 
 pub fn dim(ui: &Ui, full: Rect) {
@@ -1259,10 +1131,7 @@ mod breadcrumb_tests {
         let root = p(&["proj"]);
         let a = p(&["proj", "one", "README.md"]);
         let b = p(&["proj", "two", "README.md"]);
-        assert_ne!(
-            breadcrumb(Some(&a), &root, Some("README.md")).0,
-            breadcrumb(Some(&b), &root, Some("README.md")).0,
-        );
+        assert_ne!(breadcrumb(Some(&a), &root, Some("README.md")).0, breadcrumb(Some(&b), &root, Some("README.md")).0,);
     }
 
     /// Outside a search nothing changes: the tab's directory, and whatever the
@@ -1314,12 +1183,8 @@ mod summary_line {
         assert_eq!(summary(19, 0, Some((2, true)), false, false, None), "2 cut · 19 items");
 
         // Both at once is the case the colours cannot show.
-        assert_eq!(
-            summary(19, 1, Some((1, false)), false, false, None),
-            "1 selected · 1 copied · 19 items",
-        );
-        assert_eq!(summary(19, 3, Some((2, true)), true, false, None),
-            "3 selected · 2 cut · 19 items · hidden shown");
+        assert_eq!(summary(19, 1, Some((1, false)), false, false, None), "1 selected · 1 copied · 19 items",);
+        assert_eq!(summary(19, 3, Some((2, true)), true, false, None), "3 selected · 2 cut · 19 items · hidden shown");
         // #114: mid-walk the usage view's rows are only what has been measured.
         assert_eq!(summary(2, 0, None, false, true, None), "2 measured so far");
         // #122: once the walk is done the header keeps the total.
@@ -1348,10 +1213,7 @@ mod parent_column {
         let as_dir = crate::fs::Entry::from_path(dir.join("sub")).unwrap();
         let as_file = crate::fs::Entry::from_path(file.clone()).unwrap();
 
-        assert_eq!(
-            parent_click(&as_dir),
-            Act::Cd { target: dir.join("sub").display().to_string(), interactive: false },
-        );
+        assert_eq!(parent_click(&as_dir), Act::Cd { target: dir.join("sub").display().to_string(), interactive: false },);
         assert_eq!(parent_click(&as_file), Act::Reveal(file.display().to_string()));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1510,10 +1372,7 @@ pub(crate) mod harness {
         /// config *before* the app is made. Nothing here reads the disk: the
         /// warnings come out of the same `Keymap::load` a real `keymap.toml`
         /// goes through, from its text.
-        pub(crate) fn with_config(
-            cfg: crate::config::Config,
-            at: impl Into<std::path::PathBuf>,
-        ) -> Self {
+        pub(crate) fn with_config(cfg: crate::config::Config, at: impl Into<std::path::PathBuf>) -> Self {
             let ctx = egui::Context::default();
             ctx.set_visuals(super::visuals(false));
             let app = App::new(cfg, at.into(), ctx.clone());
@@ -1646,9 +1505,7 @@ pub(crate) mod harness {
             let out = ctx.run_ui(input, |ui| {
                 let ctx = ui.ctx().clone();
                 crate::handle_input(app, &ctx);
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::NONE.fill(app.cfg.theme.bg))
-                    .show(ui, |ui| draw(app, ui));
+                egui::CentralPanel::default().frame(egui::Frame::NONE.fill(app.cfg.theme.bg)).show(ui, |ui| draw(app, ui));
             });
             // epaint panics if a delta is dropped with no renderer having taken
             // it, which is exactly what this is: there is nothing to upload to.
@@ -1678,9 +1535,7 @@ pub(crate) mod harness {
             Shape::Text(t) => {
                 let text = t.galley.text().to_owned();
                 into.texts.push(text.clone());
-                into.glyphs.push(
-                    t.galley.rows.iter().flat_map(|r| r.glyphs.iter()).map(|g| g.chr).collect(),
-                );
+                into.glyphs.push(t.galley.rows.iter().flat_map(|r| r.glyphs.iter()).map(|g| g.chr).collect());
                 into.places.push(t.pos);
                 // `Painter::text` lays the galley out in the colour it is given
                 // and passes the same colour as the fallback, so for a string
@@ -1736,8 +1591,7 @@ mod whole_frame {
         ]);
 
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
 
         let f = s.draw();
         assert!(f.says(&dir.display().to_string()), "the path is in the header: {:?}", f.texts);
@@ -1747,11 +1601,7 @@ mod whole_frame {
         assert!(f.says("one.txt") && f.says("two.txt"), "the rows: {:?}", f.texts);
         // The hovered name is joined to the directory with the platform's own
         // separator, which was a literal `\` until v0.45.0.
-        assert!(
-            f.says(&dir.join("one.txt").display().to_string()),
-            "the header spells a path this platform would accept: {:?}",
-            f.texts,
-        );
+        assert!(f.says(&dir.join("one.txt").display().to_string()), "the header spells a path this platform would accept: {:?}", f.texts,);
     }
 
     /// #191: a toast starts below the breadcrumb, not on it. The breadcrumb
@@ -1773,10 +1623,7 @@ mod whole_frame {
         let toast_y = at("a message for the corner").expect("the toast is drawn").y;
         let hovered = s.app.cfg.theme.hovered_bg;
         let row_h = f.rects.iter().find(|(_, c)| *c == hovered).expect("the cursor row").0.height();
-        assert!(
-            toast_y >= crumb_y + row_h,
-            "the toast's text ({toast_y}) is a row below the breadcrumb's ({crumb_y}, row {row_h})",
-        );
+        assert!(toast_y >= crumb_y + row_h, "the toast's text ({toast_y}) is a row below the breadcrumb's ({crumb_y}, row {row_h})",);
     }
 
     /// #105: a folder still waiting for its first listing gets no count -- not
@@ -1799,12 +1646,10 @@ mod whole_frame {
     fn visual_mode_is_visible() {
         let dir = crate::util::test_dir("frame-visual");
         std::fs::write(dir.join("a.txt"), "a").unwrap();
-        let entries =
-            std::sync::Arc::new(vec![crate::fs::Entry::from_path(dir.join("a.txt")).unwrap()]);
+        let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(dir.join("a.txt")).unwrap()]);
 
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
         assert!(s.draw().says("NORMAL"), "before");
 
         let f = s.typed("v");
@@ -1837,20 +1682,10 @@ mod whole_frame {
 
         let alt = egui::Modifiers { alt: true, ..Default::default() };
         let chord = s.feed(vec![
-            egui::Event::Key {
-                key: egui::Key::M,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: alt,
-            },
+            egui::Event::Key { key: egui::Key::M, physical_key: None, pressed: true, repeat: false, modifiers: alt },
             egui::Event::Text("m".into()),
         ]);
-        assert!(
-            !chord.says("Line mode"),
-            "the chord was handled and the text dropped: {:?}",
-            chord.texts,
-        );
+        assert!(!chord.says("Line mode"), "the chord was handled and the text dropped: {:?}", chord.texts,);
         assert!(s.app.pending.is_empty(), "no half-typed chord is left over");
     }
 
@@ -1888,10 +1723,7 @@ mod whole_frame {
         let mut narrow = screen_showing_a_long_file().sized(1000.0, 800.0);
         let thin = narrow.rect();
         let thin = Rect::from_x_y_ranges(thin.right() - 70.0..=thin.right(), thin.y_range());
-        assert!(
-            narrow.draw().rects_in(thin).len() < 10,
-            "a pane too narrow for the map draws none of it",
-        );
+        assert!(narrow.draw().rects_in(thin).len() < 10, "a pane too narrow for the map draws none of it",);
     }
 
     /// A window with one long file hovered and its preview already delivered.
@@ -1901,16 +1733,12 @@ mod whole_frame {
     fn screen_showing_a_long_file() -> Screen {
         let dir = crate::util::test_dir("frame-minimap");
         std::fs::write(dir.join("long.rs"), "x").unwrap();
-        let entries =
-            std::sync::Arc::new(vec![crate::fs::Entry::from_path(dir.join("long.rs")).unwrap()]);
+        let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(dir.join("long.rs")).unwrap()]);
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
         s.app.preview.state = crate::app::PreviewState::Ready(crate::preview::Payload::Text {
             lines: Vec::new(),
-            map: (0..400)
-                .map(|i| MapRow { indent: (i % 8) as u16, len: 40, color: None })
-                .collect(),
+            map: (0..400).map(|i| MapRow { indent: (i % 8) as u16, len: 40, color: None }).collect(),
             extent: Extent { truncated: false, total: 400, ..Default::default() },
             outline: Vec::new(),
         });
@@ -1944,8 +1772,7 @@ mod yank_frame {
             crate::fs::Entry::from_path(dir.join("dst")).unwrap(),
         ]);
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
         (dir, s)
     }
 
@@ -1972,10 +1799,7 @@ mod yank_frame {
         assert!(f.filled(cut).is_empty(), "a copy is not a cut");
         // 10.8: the status line says the same thing in the same words, which
         // is the point of them sharing the phrasing at all.
-        assert_eq!(
-            saying(&f, "1 copied"), 2,
-            "the header's summary and the status line both say it: {:?}", f.texts,
-        );
+        assert_eq!(saying(&f, "1 copied"), 2, "the header's summary and the status line both say it: {:?}", f.texts,);
     }
 
     /// 10.2: `<Space>` on the file that was just yanked turns the bar yellow.
@@ -1991,15 +1815,9 @@ mod yank_frame {
 
         s.typed("y");
         let f = s.typed(" ");
-        assert!(
-            f.says("1 selected · 1 copied"),
-            "the header spells out both states: {:?}", f.texts,
-        );
+        assert!(f.says("1 selected · 1 copied"), "the header spells out both states: {:?}", f.texts,);
         assert_eq!(f.filled(selected).len(), 1, "the row's bar is the selection's colour");
-        assert!(
-            f.filled(copied).is_empty(),
-            "and the yank has gone invisible under it, which is the whole reason for the words",
-        );
+        assert!(f.filled(copied).is_empty(), "and the yank has gone invisible under it, which is the whole reason for the words",);
     }
 
     /// 10.3: `x` is the same in red, and says `cut`.
@@ -2116,12 +1934,7 @@ mod panes {
     /// The listing `paths` would scan to, built here because the harness runs
     /// no workers: a scan landing mid-test would replace whatever was set up.
     pub(super) fn listing(dir: &std::path::Path, paths: &[&str]) -> Arc<Vec<crate::fs::Entry>> {
-        Arc::new(
-            paths
-                .iter()
-                .map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap())
-                .collect(),
-        )
+        Arc::new(paths.iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect())
     }
 
     /// One directory holding `a.txt`, `b.txt` and `sub/`, with the cursor on
@@ -2155,16 +1968,10 @@ mod panes {
 
         let mut s = Screen::open(left.clone());
         s.app.tabs[0].cwd = left.clone();
-        s.app.tabs[0].current =
-            Folder::from_entries(left.clone(), listing(&left, &["one.txt", "two.txt"]), true);
+        s.app.tabs[0].current = Folder::from_entries(left.clone(), listing(&left, &["one.txt", "two.txt"]), true);
 
         let sort = s.app.tabs[0].sort;
-        let mut tab = crate::core::tab::Tab::new(
-            right.clone(),
-            sort,
-            false,
-            crate::fs::entry::Linemode::None,
-        );
+        let mut tab = crate::core::tab::Tab::new(right.clone(), sort, false, crate::fs::entry::Linemode::None);
         tab.cwd = right.clone();
         tab.current = Folder::from_entries(right.clone(), listing(&right, &["far.txt"]), true);
         s.app.tabs.push(tab);
@@ -2179,9 +1986,7 @@ mod panes {
     /// and would look like the key was not wired up.
     pub(super) fn long_text() -> crate::app::PreviewState {
         crate::app::PreviewState::Ready(Payload::Text {
-            lines: (0..200)
-                .map(|i| vec![Span { text: format!("line {i}"), ..Default::default() }])
-                .collect(),
+            lines: (0..200).map(|i| vec![Span { text: format!("line {i}"), ..Default::default() }]).collect(),
             map: Vec::new(),
             extent: Extent { truncated: false, total: 200, ..Default::default() },
             outline: Vec::new(),
@@ -2254,27 +2059,15 @@ mod split_panes_frame {
         // The first row of a list, and somewhere empty in the other.
         let row = |r: egui::Rect| egui::pos2(r.left() + 60.0, r.top() + row_h * 0.5);
         let drag = |s: &mut super::harness::Screen, from: egui::Pos2, to: egui::Pos2, modifiers: egui::Modifiers| {
-            let button = |pressed| egui::Event::PointerButton {
-                pos: from,
-                button: egui::PointerButton::Primary,
-                pressed,
-                modifiers,
-            };
+            let button = |pressed| egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed, modifiers };
             s.feed(vec![egui::Event::PointerMoved(from), button(true)]);
             for k in 1..=8 {
                 s.feed(vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / 8.0))]);
             }
-            s.feed(vec![egui::Event::PointerButton {
-                pos: to,
-                button: egui::PointerButton::Primary,
-                pressed: false,
-                modifiers,
-            }]);
+            s.feed(vec![egui::Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers }]);
             s.draw();
         };
-        let jobs = |s: &super::harness::Screen| {
-            s.app.tasks.iter().map(|t| (t.kind, t.label.clone())).collect::<Vec<_>>()
-        };
+        let jobs = |s: &super::harness::Screen| s.app.tasks.iter().map(|t| (t.kind, t.label.clone())).collect::<Vec<_>>();
         use crate::fs::ops::OpKind;
         drag(&mut s, row(panes[0]), panes[1].center(), egui::Modifiers::NONE);
         assert_eq!(jobs(&s), [(OpKind::Copy, "Copy 1 item(s)".to_owned())], "left onto right copies");
@@ -2376,11 +2169,7 @@ mod split_panes_frame {
         assert!(split[0].right() < split[1].left(), "side by side, not overlapping");
         // The preview keeps its column: its background is the one `bg_alt`
         // rectangle to the right of both panes.
-        let preview = f
-            .rects
-            .iter()
-            .filter(|(r, c)| *c == s.app.cfg.theme.bg_alt && r.left() > split[1].right())
-            .count();
+        let preview = f.rects.iter().filter(|(r, c)| *c == s.app.cfg.theme.bg_alt && r.left() > split[1].right()).count();
         assert_eq!(preview, 1, "the layout is pane, pane, preview");
 
         // 6.3: one cursor row in each colour, and the dim one is the pane the
@@ -2558,8 +2347,7 @@ mod split_panes_frame {
         let dir = s.app.tab().cwd.clone();
         let sort = s.app.tabs[0].sort;
         for _ in 0..2 {
-            let mut t =
-                crate::core::tab::Tab::new(dir.clone(), sort, false, crate::fs::entry::Linemode::None);
+            let mut t = crate::core::tab::Tab::new(dir.clone(), sort, false, crate::fs::entry::Linemode::None);
             t.cwd = dir.clone();
             s.app.tabs.push(t);
         }
@@ -2629,10 +2417,7 @@ mod quick_look_frame {
         // matches rather than asking `says`.
         assert_eq!(drawn_alone(&f, "a.txt"), 2, "the name is the title as well: {:?}", f.texts);
         // Over the panes, not beside them.
-        assert_eq!(
-            f.filled(egui::Color32::from_black_alpha(140)).len(), 1,
-            "the background is dimmed behind it",
-        );
+        assert_eq!(f.filled(egui::Color32::from_black_alpha(140)).len(), 1, "the background is dimmed behind it",);
 
         let f = s.feed(vec![key(egui::Key::F3, egui::Modifiers::NONE)]);
         assert!(!s.app.quick, "`<F3>` again closed it");
@@ -2679,15 +2464,9 @@ mod quick_look_frame {
         assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 0"), "at the top");
 
         let f = s.feed(vec![key(egui::Key::J, alt())]);
-        assert_eq!(
-            first_preview_line(&f).map(String::as_str), Some("line 5"),
-            "`<A-j>` moved the panel's text down: {:?}", f.texts,
-        );
+        assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 5"), "`<A-j>` moved the panel's text down: {:?}", f.texts,);
         let f = s.feed(vec![key(egui::Key::K, alt())]);
-        assert_eq!(
-            first_preview_line(&f).map(String::as_str), Some("line 0"),
-            "and `<A-k>` brought it back",
-        );
+        assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 0"), "and `<A-k>` brought it back",);
     }
 
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.
@@ -2732,10 +2511,7 @@ mod quick_look_frame {
         let listed = f.texts.len();
         // A letter no command's description holds, so the list has to shrink.
         let f = s.typed("zzzz");
-        assert!(
-            f.texts.len() < listed,
-            "typing filtered the list: {} strings, was {listed}", f.texts.len(),
-        );
+        assert!(f.texts.len() < listed, "typing filtered the list: {} strings, was {listed}", f.texts.len(),);
         assert!(!s.app.quit, "and the letters went into the field, not the keymap");
     }
 
@@ -2751,20 +2527,9 @@ mod quick_look_frame {
         let dir = s.app.tab().cwd.clone();
         std::fs::create_dir_all(dir.join("marked")).unwrap();
         std::fs::create_dir_all(dir.join("seen")).unwrap();
-        s.app.bookmarks.push(crate::app::Bookmark {
-            key: "m".into(),
-            path: dir.join("marked"),
-            name: "marked".into(),
-        });
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-        s.app.history.push(crate::app::Visit {
-            path: dir.join("seen"),
-            hits: 3,
-            at: now - 2 * 60 * 60,
-        });
+        s.app.bookmarks.push(crate::app::Bookmark { key: "m".into(), path: dir.join("marked"), name: "marked".into() });
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
+        s.app.history.push(crate::app::Visit { path: dir.join("seen"), hits: 3, at: now - 2 * 60 * 60 });
 
         // 18.12: named bookmarks first, then the history with its age.
         let f = s.typed("z");
@@ -2813,25 +2578,14 @@ mod max_preview_frame {
         let f = s.typed("T");
         assert!(s.app.max_preview, "`T` maximized the preview");
         let after = pane_rects(&s);
-        assert!(
-            after.iter().all(|r| r.width() < 24.0),
-            "the list column is squeezed to nothing: {after:?}",
-        );
+        assert!(after.iter().all(|r| r.width() < 24.0), "the list column is squeezed to nothing: {after:?}",);
         // The preview took it: its background now spans nearly the whole body.
-        let widest = f
-            .rects
-            .iter()
-            .filter(|(_, c)| *c == s.app.cfg.theme.bg_alt)
-            .map(|(r, _)| r.width())
-            .fold(0.0f32, f32::max);
+        let widest = f.rects.iter().filter(|(_, c)| *c == s.app.cfg.theme.bg_alt).map(|(r, _)| r.width()).fold(0.0f32, f32::max);
         assert!(widest > s.rect().width() * 0.9, "the preview has the body: {widest}");
         // 36.1: unchanged, undimmed, unframed.
         assert!(f.says("3 items") && f.says("1/3"), "the status bar is untouched: {:?}", f.texts);
         assert!(f.says(" 1 "), "and so is the tab bar: {:?}", f.texts);
-        assert!(
-            f.filled(egui::Color32::from_black_alpha(140)).is_empty(),
-            "the background is not dimmed -- that is what `<F3>` does",
-        );
+        assert!(f.filled(egui::Color32::from_black_alpha(140)).is_empty(), "the background is not dimmed -- that is what `<F3>` does",);
         assert!(!f.says("Esc to close"), "no frame across the top: {:?}", f.texts);
         // The row itself, and nothing else: `<F3>` would add the name again as
         // a panel title, which is the contrast the next test measures.
@@ -2870,10 +2624,7 @@ mod max_preview_frame {
         let f = s.draw();
         assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 0"));
         let f = s.feed(vec![key(egui::Key::J, alt())]);
-        assert_eq!(
-            first_preview_line(&f).map(String::as_str), Some("line 5"),
-            "`<A-j>` scrolled the preview: {:?}", f.texts,
-        );
+        assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 5"), "`<A-j>` scrolled the preview: {:?}", f.texts,);
         assert_eq!(s.app.tab().current.cursor, 1, "and left the cursor where it was");
     }
 
@@ -2948,25 +2699,16 @@ mod max_preview_frame {
         };
 
         let f = s.typed("T");
-        assert!(
-            !f.rects.iter().any(|(r, _)| that_size(r)),
-            "a maximized column draws nothing that size",
-        );
+        assert!(!f.rects.iter().any(|(r, _)| that_size(r)), "a maximized column draws nothing that size",);
 
         let f = s.feed(vec![key(egui::Key::F3, egui::Modifiers::NONE)]);
         assert!(
             f.rects.iter().any(|(r, c)| *c == s.app.cfg.theme.bg_alt && that_size(r)),
             "the panel is 86% x 88% of the window, centred: wanted {want:?}",
         );
-        assert_eq!(
-            f.filled(egui::Color32::from_black_alpha(140)).len(), 1,
-            "with the background dimmed behind it",
-        );
+        assert_eq!(f.filled(egui::Color32::from_black_alpha(140)).len(), 1, "with the background dimmed behind it",);
         assert!(f.says("Esc to close"), "{:?}", f.texts);
-        assert_eq!(
-            drawn_alone(&f, "a.txt"), 2,
-            "and the name as its title, above the row: {:?}", f.texts,
-        );
+        assert_eq!(drawn_alone(&f, "a.txt"), 2, "and the name as its title, above the row: {:?}", f.texts,);
 
         // 36.7: the panel closes and the column stays maximized.
         let f = s.feed(vec![esc()]);
@@ -3009,12 +2751,7 @@ mod max_preview_frame {
         let mut s = one("max-nothing");
         // The cursor onto `sub`, with no payload for it.
         s.typed("G");
-        let on_dir = s
-            .app
-            .tab()
-            .current
-            .hovered()
-            .is_some_and(|e| e.kind == crate::fs::entry::Kind::Dir);
+        let on_dir = s.app.tab().current.hovered().is_some_and(|e| e.kind == crate::fs::entry::Kind::Dir);
         assert!(on_dir, "standing on `sub`");
         let f = s.typed("T");
         assert!(s.app.max_preview);
@@ -3111,10 +2848,7 @@ mod max_preview_frame {
     fn a_decision_prompt_is_not_a_way_out_of_the_process() {
         let mut s = one("max-q-confirm");
         s.typed("D");
-        assert!(
-            matches!(s.app.overlay, crate::app::Overlay::Confirm(_)),
-            "a delete asks first",
-        );
+        assert!(matches!(s.app.overlay, crate::app::Overlay::Confirm(_)), "a delete asks first",);
         s.typed("q");
         assert!(!s.app.quit, "`q` in front of a decision must not quit");
 
@@ -3196,10 +2930,7 @@ mod config_warning_frame {
         // The border follows the text, so the box says the same thing as the
         // words inside it.
         assert_eq!(f.stroked(theme.warning).len(), 1, "one box, framed in its own colour");
-        assert!(
-            f.stroked(theme.progress_error).is_empty(),
-            "and nothing in the frame is framed as a failure",
-        );
+        assert!(f.stroked(theme.progress_error).is_empty(), "and nothing in the frame is framed as a failure",);
     }
 
     /// 33.2: with more than one, the toast says how many are waiting in `~`.
@@ -3288,11 +3019,7 @@ mod config_warning_frame {
         assert!(!s.app.cfg.warnings.contains(&stale), "the re-read config has not got it");
 
         let f = s.typed("~");
-        assert!(
-            !f.inked.iter().any(|(t, _)| *t == stale),
-            "and the panel no longer lists it: {:?}",
-            f.texts,
-        );
+        assert!(!f.inked.iter().any(|(t, _)| *t == stale), "and the panel no longer lists it: {:?}", f.texts,);
     }
 
     /// 33.7, 33.8 and 33.10: a parse error is one line in the corner, says
@@ -3345,11 +3072,7 @@ mod config_warning_frame {
         let long: String = (1..=12).map(|i| format!("error line {i}\n")).collect();
         let mut s = saying("cfg-warn-clip", vec![long]);
         let f = s.draw();
-        let drawn = f
-            .texts
-            .iter()
-            .find(|t| t.starts_with("Config: error line 1"))
-            .expect("the toast is on screen");
+        let drawn = f.texts.iter().find(|t| t.starts_with("Config: error line 1")).expect("the toast is on screen");
         assert_eq!(drawn, "Config: error line 1 — the rest in `~`");
     }
 
@@ -3378,16 +3101,8 @@ mod config_warning_frame {
         // Something for the cursor to be on that is not a link, so `follow` has
         // a row to refuse rather than an empty listing to ignore.
         let dir = s.app.tab().cwd.clone();
-        let plain = crate::fs::Entry {
-            path: dir.join("notes.txt"),
-            name: "notes.txt".into(),
-            ..Default::default()
-        };
-        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(
-            dir,
-            std::sync::Arc::new(vec![plain]),
-            true,
-        );
+        let plain = crate::fs::Entry { path: dir.join("notes.txt"), name: "notes.txt".into(), ..Default::default() };
+        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir, std::sync::Arc::new(vec![plain]), true);
         s.app.act(crate::config::cmd::Act::Follow);
 
         let f = s.draw();
@@ -3497,13 +3212,7 @@ mod link_rows {
 
     /// One link row, pointing at `to`.
     fn link(dir: &Path, name: &str, to: PathBuf, to_dir: bool, broken: bool) -> Entry {
-        Entry {
-            path: dir.join(name),
-            name: name.to_owned(),
-            kind: Kind::Link { to_dir, broken },
-            link_to: Some(to),
-            ..Default::default()
-        }
+        Entry { path: dir.join(name), name: name.to_owned(), kind: Kind::Link { to_dir, broken }, link_to: Some(to), ..Default::default() }
     }
 
     /// A window listing exactly `entries`, with the cursor on the first.
@@ -3582,10 +3291,7 @@ mod link_rows {
         s.typed("jgf");
         let sub = dir.join("sub");
         assert_eq!(s.app.tab().cwd, sub, "the tab went to the target's directory");
-        assert_eq!(
-            s.app.tab().memo.get(&sub).map(String::as_str), Some("deep.txt"),
-            "with the file named for the cursor to land on",
-        );
+        assert_eq!(s.app.tab().memo.get(&sub).map(String::as_str), Some("deep.txt"), "with the file named for the cursor to land on",);
     }
 
     /// 13.4: a broken link names itself rather than going anywhere.
@@ -3605,10 +3311,7 @@ mod link_rows {
     fn g_f_on_an_ordinary_file_says_what_the_key_is_for() {
         let (dir, mut s) = four("frame-link-plain");
         let f = s.typed("jjjgf");
-        assert!(
-            f.says("Only a symlink can be followed — a link shows -> after its name"),
-            "{:?}", f.texts,
-        );
+        assert!(f.says("Only a symlink can be followed — a link shows -> after its name"), "{:?}", f.texts,);
         assert_eq!(s.app.tab().cwd, dir, "and nothing moved");
     }
 
@@ -3712,10 +3415,7 @@ mod awkward_names {
         let dir = crate::util::test_dir("frame-names-case");
         let f = showing(&dir, &["UPPER.TXT", "upper.txt"]).draw();
         assert!(f.says("2 items"), "both are counted: {:?}", f.texts);
-        assert_eq!(
-            f.texts.iter().filter(|t| t.eq_ignore_ascii_case("upper.txt")).count(), 2,
-            "and both are drawn: {:?}", f.texts,
-        );
+        assert_eq!(f.texts.iter().filter(|t| t.eq_ignore_ascii_case("upper.txt")).count(), 2, "and both are drawn: {:?}", f.texts,);
         for n in ["UPPER.TXT", "upper.txt"] {
             assert!(f.texts.iter().any(|t| t == n), "{n} keeps its case: {:?}", f.texts);
         }
@@ -3755,12 +3455,7 @@ mod awkward_names {
 
         let rows: Vec<&String> = names[..4]
             .iter()
-            .map(|n| {
-                f.texts
-                    .iter()
-                    .find(|t| cut_from(t, n))
-                    .unwrap_or_else(|| panic!("{n} is drawn cut down: {:?}", f.texts))
-            })
+            .map(|n| f.texts.iter().find(|t| cut_from(t, n)).unwrap_or_else(|| panic!("{n} is drawn cut down: {:?}", f.texts)))
             .collect();
         for r in &rows {
             assert_eq!(f.drawn(r), Some(r.as_str()), "and it fits its column: {r:?}");
@@ -3848,15 +3543,11 @@ mod preview_panes {
     pub(super) fn listed(s: &mut Screen, n: usize) {
         until(s, |s| {
             s.app.tab().current.entries.len() == n
-                && s.app.tab().parent.as_ref().is_some_and(|p| {
-                    p.state != crate::core::folder::LoadState::Loading
-                })
+                && s.app.tab().parent.as_ref().is_some_and(|p| p.state != crate::core::folder::LoadState::Loading)
         });
         assert_eq!(s.app.tab().current.entries.len(), n, "the scanner listed the fixtures");
         assert!(
-            s.app.tab().parent.as_ref().is_some_and(|p| {
-                p.state != crate::core::folder::LoadState::Loading
-            }),
+            s.app.tab().parent.as_ref().is_some_and(|p| { p.state != crate::core::folder::LoadState::Loading }),
             "and the parent column, which draws `…` of its own while it waits",
         );
     }
@@ -3871,11 +3562,9 @@ mod preview_panes {
     /// could reach.
     pub(super) fn table(s: &Screen) -> Vec<String> {
         match &s.app.preview.state {
-            crate::app::PreviewState::Ready(crate::preview::Payload::Markdown { doc, .. }) => doc
-                .lines
-                .iter()
-                .map(|l| l.spans.iter().map(|sp| sp.text.as_str()).collect())
-                .collect(),
+            crate::app::PreviewState::Ready(crate::preview::Payload::Markdown { doc, .. }) => {
+                doc.lines.iter().map(|l| l.spans.iter().map(|sp| sp.text.as_str()).collect()).collect()
+            }
             other => panic!("a table is a Markdown-shaped payload, got {:?}", std::mem::discriminant(other)),
         }
     }
@@ -4001,14 +3690,8 @@ mod outline_end_frame {
         assert_eq!(s.app.preview.outline, Some(0), "`<BackTab>` handed the keys over");
 
         let f = s.typed("G");
-        assert_eq!(
-            s.app.preview.outline, Some(entries.len() - 1),
-            "`G` went to the last entry",
-        );
-        assert_eq!(
-            s.app.tab().preview_offset, max,
-            "and the preview stopped at the end of the file rather than at line {last}",
-        );
+        assert_eq!(s.app.preview.outline, Some(entries.len() - 1), "`G` went to the last entry",);
+        assert_eq!(s.app.tab().preview_offset, max, "and the preview stopped at the end of the file rather than at line {last}",);
         assert!(f.says("one line under it"), "the last line is on screen: {:?}", f.texts);
 
         // 9.2: the same frame, over and over. A held key is a repeat of this,
@@ -4039,10 +3722,7 @@ mod outline_end_frame {
         for k in (0..entries.len() - 1).rev() {
             s.typed("k");
             assert_eq!(s.app.preview.outline, Some(k), "walked up to entry {k}");
-            assert_eq!(
-                s.app.tab().preview_offset, entries[k].min(max),
-                "entry {k} is on line {}, and the pane stops at {max}", entries[k],
-            );
+            assert_eq!(s.app.tab().preview_offset, entries[k].min(max), "entry {k} is on line {}, and the pane stops at {max}", entries[k],);
         }
         // The one that matters: an entry well inside the file is on its own line,
         // not on the clamped one.
@@ -4074,17 +3754,11 @@ mod outline_end_frame {
         look_at(&mut s, "long.md");
         let entries: Vec<usize> = s.app.outline_entries().iter().map(|e| e.line).collect();
         let last = *entries.last().unwrap();
-        assert!(
-            last < s.app.preview.max_offset,
-            "this fixture's last heading has the rest of the file under it",
-        );
+        assert!(last < s.app.preview.max_offset, "this fixture's last heading has the rest of the file under it",);
 
         s.feed(vec![focus()]);
         let f = s.typed("G");
-        assert_eq!(
-            s.app.tab().preview_offset, last,
-            "so the jump lands on the heading's own line, untouched by the clamp",
-        );
+        assert_eq!(s.app.tab().preview_offset, last, "so the jump lands on the heading's own line, untouched by the clamp",);
         assert!(f.says("tail 0"), "and the text under it is what is on screen: {:?}", f.texts);
     }
 
@@ -4149,10 +3823,7 @@ mod preview_arrival_frame {
         forget(&mut s);
         s.app.request_preview(false);
         let f = s.draw();
-        assert!(
-            matches!(s.app.preview.state, crate::app::PreviewState::Loading),
-            "the request is out and nothing has come back",
-        );
+        assert!(matches!(s.app.preview.state, crate::app::PreviewState::Loading), "the request is out and nothing has come back",);
         assert!(waiting(&f), "so the pane is showing the placeholder: {:?}", f.texts);
         assert!(!f.says("quick brown fox"), "and none of the file: {:?}", f.texts);
 
@@ -4209,10 +3880,7 @@ mod preview_arrival_frame {
 
         s.app.preview.box_size = real;
         s.app.request_preview(false);
-        assert!(
-            matches!(s.app.preview.state, crate::app::PreviewState::Ready(_)),
-            "a re-layout keeps the old payload up",
-        );
+        assert!(matches!(s.app.preview.state, crate::app::PreviewState::Ready(_)), "a re-layout keeps the old payload up",);
         assert!(!s.preview_arrived(), "but the one asked for is still on its way");
         s.settle();
         assert!(s.preview_arrived(), "until it lands");
@@ -4235,12 +3903,8 @@ mod preview_arrival_frame {
         // note gives: the parent column draws the same placeholder this test
         // reads, so the tests own the parent.
         let dir = room("arrive-image");
-        image::RgbaImage::from_pixel(32, 24, image::Rgba([1u8, 2, 3, 255]))
-            .save(dir.join("small.png"))
-            .unwrap();
-        image::RgbaImage::from_pixel(1600, 1200, image::Rgba([9u8, 8, 7, 255]))
-            .save(dir.join("big.png"))
-            .unwrap();
+        image::RgbaImage::from_pixel(32, 24, image::Rgba([1u8, 2, 3, 255])).save(dir.join("small.png")).unwrap();
+        image::RgbaImage::from_pixel(1600, 1200, image::Rgba([9u8, 8, 7, 255])).save(dir.join("big.png")).unwrap();
         let mut s = open(dir);
         listed(&mut s, 2);
 
@@ -4256,10 +3920,7 @@ mod preview_arrival_frame {
 
         s.feed(vec![key(egui::Key::I, alt())]);
         let step = s.app.preview.zoom.expect("`<A-i>` set a zoom");
-        assert!(
-            (step - fit * 1.25).abs() < 1e-4,
-            "one step up from *this* picture's fit ({fit}), not from the last one's 100%: {step}",
-        );
+        assert!((step - fit * 1.25).abs() < 1e-4, "one step up from *this* picture's fit ({fit}), not from the last one's 100%: {step}",);
     }
 
     /// 19.6: `Ctrl` and the wheel over a picture zooms it about the pointer,
@@ -4272,9 +3933,7 @@ mod preview_arrival_frame {
     #[test]
     fn ctrl_and_the_wheel_zoom_a_picture() {
         let dir = room("wheel-zoom");
-        image::RgbaImage::from_pixel(1600, 1200, image::Rgba([9u8, 8, 7, 255]))
-            .save(dir.join("big.png"))
-            .unwrap();
+        image::RgbaImage::from_pixel(1600, 1200, image::Rgba([9u8, 8, 7, 255])).save(dir.join("big.png")).unwrap();
         let mut s = open(dir);
         listed(&mut s, 1);
         let f = look_at(&mut s, "big.png");
@@ -4305,11 +3964,8 @@ mod preview_arrival_frame {
     /// after a restart.
     #[test]
     fn ten_files_in_a_row_all_arrive() {
-        let bodies: Vec<(String, String)> = (0..10)
-            .map(|i| (format!("f{i}.txt"), format!("this is file number {i}\n")))
-            .collect();
-        let files: Vec<(&str, &str)> =
-            bodies.iter().map(|(n, b)| (n.as_str(), b.as_str())).collect();
+        let bodies: Vec<(String, String)> = (0..10).map(|i| (format!("f{i}.txt"), format!("this is file number {i}\n"))).collect();
+        let files: Vec<(&str, &str)> = bodies.iter().map(|(n, b)| (n.as_str(), b.as_str())).collect();
         let mut s = on("arrive-ten", &files);
         // Getting the listing up previews whatever the cursor landed on, so the
         // first of the ten would otherwise be a hit and this would be nine.
@@ -4357,8 +4013,7 @@ mod undo_frame {
         let dir = crate::util::test_dir(label);
         std::fs::write(dir.join("one.txt"), "1").unwrap();
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[0].current =
-            Folder::from_entries(dir.clone(), listing(&dir, &["one.txt"]), true);
+        s.app.tabs[0].current = Folder::from_entries(dir.clone(), listing(&dir, &["one.txt"]), true);
         (dir, s)
     }
 
@@ -4483,7 +4138,8 @@ mod undo_frame {
         assert_eq!(s.app.undos.undo.len(), 1, "the step stays, to be tried again");
         assert!(s.app.undos.redo.is_empty(), "nothing went forward");
         assert_eq!(
-            std::fs::read_to_string(dir.join("one.txt")).unwrap(), "in the way",
+            std::fs::read_to_string(dir.join("one.txt")).unwrap(),
+            "in the way",
             "and the file standing in the way was not written over",
         );
         assert!(dir.join("two.txt").exists(), "so the renamed file has not moved");
@@ -4516,8 +4172,7 @@ mod undo_frame {
     fn renaming_another_file_forks_history() {
         let (dir, mut s) = one_file("frame-undo-fork-other");
         std::fs::write(dir.join("other.txt"), "2").unwrap();
-        s.app.tabs[0].current =
-            Folder::from_entries(dir.clone(), listing(&dir, &["one.txt", "other.txt"]), true);
+        s.app.tabs[0].current = Folder::from_entries(dir.clone(), listing(&dir, &["one.txt", "other.txt"]), true);
         rename(&mut s, &dir.join("one.txt"), "two.txt");
         s.typed("u");
         assert!(dir.join("one.txt").exists(), "`u` put the first one back");
@@ -4739,16 +4394,10 @@ mod csv_table_frame {
         let mut s = s.sized(1600.0, 800.0);
         let f = until(&mut s, |s| s.app.preview.cols > cols && table(s) != narrow);
         let wider = table(&s);
-        assert!(
-            s.app.preview.cols > cols,
-            "the draw measured the new width: {} was {cols}", s.app.preview.cols,
-        );
+        assert!(s.app.preview.cols > cols, "the draw measured the new width: {} was {cols}", s.app.preview.cols,);
         assert_ne!(wider, narrow, "and the table was read again at it");
         assert_eq!(wider.len(), 3, "the long cell fits on one row now: {wider:?}");
-        assert!(
-            f.says("an extremely long first column value here"),
-            "in one piece, on screen: {:?}", f.texts,
-        );
+        assert!(f.says("an extremely long first column value here"), "in one piece, on screen: {:?}", f.texts,);
     }
 
     /// 43.6, 43.7, 43.8, 43.10 and 43.13: the files that are awkward rather than
@@ -4760,13 +4409,16 @@ mod csv_table_frame {
     /// that the widths are measured against the pane the frame drew.
     #[test]
     fn quoted_fields_a_bom_ragged_rows_and_cjk_all_lay_out() {
-        let mut s = wide("csv-odd", &[
-            ("quoted.csv", "name,note\nx,\"a, and\nmore\"\n"),
-            ("bom.csv", "\u{feff}id,name\n1,a\n"),
-            ("ragged.csv", "a,b,c\n1\n2,3\n"),
-            ("one.csv", "solo,row\n"),
-            ("cjk.csv", "名前,備考\n山田,あい\n"),
-        ]);
+        let mut s = wide(
+            "csv-odd",
+            &[
+                ("quoted.csv", "name,note\nx,\"a, and\nmore\"\n"),
+                ("bom.csv", "\u{feff}id,name\n1,a\n"),
+                ("ragged.csv", "a,b,c\n1\n2,3\n"),
+                ("one.csv", "solo,row\n"),
+                ("cjk.csv", "名前,備考\n山田,あい\n"),
+            ],
+        );
 
         // 43.6: one cell, on one row -- the newline inside the quotes is a space.
         look_at(&mut s, "quoted.csv");
@@ -4801,13 +4453,7 @@ mod csv_table_frame {
     fn a_csv_that_is_actually_binary_is_still_a_hex_dump() {
         let mut s = on("csv-binary", &[("bin.csv", "x,y\n\u{0}\u{1}\u{2}\u{3}\n")]);
         let f = look_at(&mut s, "bin.csv");
-        assert!(
-            matches!(
-                s.app.preview.state,
-                crate::app::PreviewState::Ready(crate::preview::Payload::Binary { .. }),
-            ),
-            "not a table",
-        );
+        assert!(matches!(s.app.preview.state, crate::app::PreviewState::Ready(crate::preview::Payload::Binary { .. }),), "not a table",);
         assert!(f.says("binary · "), "the footer says so: {:?}", f.texts);
         assert!(f.says("78 2c 79 0a"), "and the bytes are on screen: {:?}", f.texts);
     }
@@ -4824,27 +4470,15 @@ mod csv_table_frame {
     #[test]
     fn the_minimap_arrives_with_the_text_and_not_with_the_table() {
         let mut s = wide("csv-minimap", &[("sales.csv", &SALES.repeat(40))]);
-        let strip = egui::Rect::from_min_max(
-            egui::pos2(s.rect().width() - 120.0, 0.0),
-            egui::pos2(s.rect().width(), s.rect().height()),
-        );
+        let strip = egui::Rect::from_min_max(egui::pos2(s.rect().width() - 120.0, 0.0), egui::pos2(s.rect().width(), s.rect().height()));
         let f = look_at(&mut s, "sales.csv");
         assert!(s.app.cfg.ui.minimap, "the map is not switched off");
-        assert!(
-            s.app.preview.cols >= 56,
-            "and the pane is wide enough for one: {} columns", s.app.preview.cols,
-        );
-        assert!(
-            f.rects_in(strip).is_empty(),
-            "yet no strip is drawn beside the table: {:?}", f.rects_in(strip),
-        );
+        assert!(s.app.preview.cols >= 56, "and the pane is wide enough for one: {} columns", s.app.preview.cols,);
+        assert!(f.rects_in(strip).is_empty(), "yet no strip is drawn beside the table: {:?}", f.rects_in(strip),);
 
         let f = s.typed("M");
         assert!(!f.rects_in(strip).is_empty(), "the source view has a map");
-        assert!(
-            f.says("region,units,price"),
-            "of the file's own lines, which are what it is beside: {:?}", f.texts,
-        );
+        assert!(f.says("region,units,price"), "of the file's own lines, which are what it is beside: {:?}", f.texts,);
     }
 }
 

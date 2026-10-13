@@ -19,7 +19,12 @@ pub enum Msg {
     /// `order` is the whole result, best match first, for the one search that
     /// ranks (`F`); the others leave it empty and keep the order they arrived in.
     /// `binary` counts the files a content search left unread because they are not text.
-    Done { total: usize, truncated: bool, order: Vec<PathBuf>, binary: usize },
+    Done {
+        total: usize,
+        truncated: bool,
+        order: Vec<PathBuf>,
+        binary: usize,
+    },
 }
 
 pub struct Handle {
@@ -52,16 +57,14 @@ const SNIFF_BYTES: usize = 8 * 1024;
 
 /// Extensions that are never text, skipped without opening the file.
 const BINARY_EXTENSIONS: &[&str] = &[
-    "exe", "dll", "so", "dylib", "o", "obj", "a", "lib", "pdb", "class", "jar", "pyc", "wasm", "bin", "dat", "iso", "img", "dmg", "msi", "png",
-    "jpg", "jpeg", "gif", "bmp", "ico", "webp", "tif", "tiff", "psd", "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv", "avi", "mov", "webm",
-    "zip", "7z", "rar", "gz", "bz2", "xz", "zst", "tar", "tgz", "pdf", "doc", "xls", "ppt", "docx", "xlsx", "pptx", "ttf", "otf", "woff",
-    "woff2", "sqlite", "db",
+    "exe", "dll", "so", "dylib", "o", "obj", "a", "lib", "pdb", "class", "jar", "pyc", "wasm", "bin", "dat", "iso", "img", "dmg", "msi",
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "tif", "tiff", "psd", "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv", "avi",
+    "mov", "webm", "zip", "7z", "rar", "gz", "bz2", "xz", "zst", "tar", "tgz", "pdf", "doc", "xls", "ppt", "docx", "xlsx", "pptx", "ttf",
+    "otf", "woff", "woff2", "sqlite", "db",
 ];
 
 fn binary_extension(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| BINARY_EXTENSIONS.iter().any(|b| b.eq_ignore_ascii_case(e)))
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| BINARY_EXTENSIONS.iter().any(|b| b.eq_ignore_ascii_case(e)))
 }
 
 enum Look {
@@ -125,34 +128,35 @@ pub fn spawn(
                     let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
 
                     let mut score = None;
-                    let hit = reach.admits(path, is_dir) && match via {
-                        SearchVia::Name => {
-                            let name = entry.file_name().to_string_lossy();
-                            matcher.is_match(&name)
-                        }
-                        SearchVia::Fuzzy => {
-                            // The path below the root, so a directory name counts
-                            // as it does when the letters are typed from `src/`.
-                            // Always `/`, so a query typed with one matches on Windows.
-                            let rel = path.strip_prefix(root.as_path()).unwrap_or(path).to_string_lossy().replace('\\', "/");
-                            score = matcher.score(&rel);
-                            score.is_some()
-                        }
-                        SearchVia::Content => {
-                            if is_dir {
-                                false
-                            } else {
-                                match look(path, &matcher) {
-                                    Look::Hit => true,
-                                    Look::Miss => false,
-                                    Look::Binary => {
-                                        binary.fetch_add(1, Ordering::Relaxed);
-                                        false
+                    let hit = reach.admits(path, is_dir)
+                        && match via {
+                            SearchVia::Name => {
+                                let name = entry.file_name().to_string_lossy();
+                                matcher.is_match(&name)
+                            }
+                            SearchVia::Fuzzy => {
+                                // The path below the root, so a directory name counts
+                                // as it does when the letters are typed from `src/`.
+                                // Always `/`, so a query typed with one matches on Windows.
+                                let rel = path.strip_prefix(root.as_path()).unwrap_or(path).to_string_lossy().replace('\\', "/");
+                                score = matcher.score(&rel);
+                                score.is_some()
+                            }
+                            SearchVia::Content => {
+                                if is_dir {
+                                    false
+                                } else {
+                                    match look(path, &matcher) {
+                                        Look::Hit => true,
+                                        Look::Miss => false,
+                                        Look::Binary => {
+                                            binary.fetch_add(1, Ordering::Relaxed);
+                                            false
+                                        }
                                     }
                                 }
                             }
-                        }
-                    };
+                        };
                     if hit && path != root.as_path() {
                         found.fetch_add(1, Ordering::Relaxed);
                         if let Some(score) = score {

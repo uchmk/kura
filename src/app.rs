@@ -37,19 +37,31 @@ pub const MAX_TABS: usize = 9;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InputKind {
     Create,
-    Rename { from: PathBuf },
+    Rename {
+        from: PathBuf,
+    },
     /// A rule to rename all of these at once, previewed as it is typed.
-    Bulk { paths: Vec<PathBuf> },
+    Bulk {
+        paths: Vec<PathBuf>,
+    },
     Filter,
-    Find { prev: bool },
+    Find {
+        prev: bool,
+    },
     Cd,
     /// A string to find in the terminal's scrollback.
     TermFind,
     /// The name of the archive to pack the selection into.
     Compress,
-    Shell { block: bool },
-    Search { via: SearchVia },
-    ConflictRename { job: u64 },
+    Shell {
+        block: bool,
+    },
+    Search {
+        via: SearchVia,
+    },
+    ConflictRename {
+        job: u64,
+    },
 }
 
 pub struct InputOverlay {
@@ -65,22 +77,37 @@ pub struct InputOverlay {
 
 #[derive(Clone, Debug)]
 pub enum ConfirmAction {
-    Conflict { reply: Sender<Resolution>, job: u64 },
-    DeleteForever { paths: Vec<PathBuf> },
+    Conflict {
+        reply: Sender<Resolution>,
+        job: u64,
+    },
+    DeleteForever {
+        paths: Vec<PathBuf>,
+    },
     BookmarkDeleteAll,
     /// `<C-S-t>` while a program runs under the shell.
     EndShell,
     /// Several lines pasted into a program that did not ask for bracketed
     /// paste, where each line break is an Enter. Holds the text until answered.
-    PasteToTerm { text: String },
+    PasteToTerm {
+        text: String,
+    },
     /// Folder symlinks Windows refused, offered again as junctions (Q46).
-    Junctions { links: Vec<ops::Link> },
+    Junctions {
+        links: Vec<ops::Link>,
+    },
     /// `<F12>`'s report, shown before anything leaves the machine (Q62).
-    BugReport { url: String },
+    BugReport {
+        url: String,
+    },
     /// A change an AI client asked for through `kura mcp` (#315). `Refuse` is
     /// the first button, so `<Enter>` says no. `expired` is set once the
     /// client stopped waiting; a late Allow then does nothing.
-    Mcp { write: crate::mcp::Write, reply: Sender<crate::mcp::Reply>, expired: std::sync::Arc<std::sync::atomic::AtomicBool> },
+    Mcp {
+        write: crate::mcp::Write,
+        reply: Sender<crate::mcp::Reply>,
+        expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    },
 }
 
 pub struct ConfirmOverlay {
@@ -133,10 +160,18 @@ fn paste_preview(text: &str) -> Vec<String> {
 #[derive(Clone, Debug)]
 pub enum PickAction {
     /// `line` (1-based) is handed to editors that take one.
-    OpenWith { paths: Vec<PathBuf>, runs: Vec<(String, bool, bool)>, line: Option<usize> },
-    Jump { paths: Vec<PathBuf> },
+    OpenWith {
+        paths: Vec<PathBuf>,
+        runs: Vec<(String, bool, bool)>,
+        line: Option<usize>,
+    },
+    Jump {
+        paths: Vec<PathBuf>,
+    },
     /// One keymap binding's command list per item.
-    Command { runs: Vec<Vec<Act>> },
+    Command {
+        runs: Vec<Vec<Act>>,
+    },
 }
 
 pub struct PickOverlay {
@@ -206,9 +241,7 @@ pub fn palette_items(bindings: &[keymap::Binding], openers: &[OpenerRow]) -> Pic
     let (mut items, mut details, mut runs) = (Vec::new(), Vec::new(), Vec::new());
     let mut seen: Vec<&str> = Vec::new();
     for b in bindings {
-        let skip = b.run.is_empty()
-            || b.run.iter().all(|a| *a == Act::Noop)
-            || b.run.iter().any(|a| matches!(a, Act::Unsupported(_)));
+        let skip = b.run.is_empty() || b.run.iter().all(|a| *a == Act::Noop) || b.run.iter().any(|a| matches!(a, Act::Unsupported(_)));
         if skip || b.raw.is_empty() || seen.contains(&b.raw.as_str()) {
             continue;
         }
@@ -255,13 +288,7 @@ pub fn menu_items(bindings: &[keymap::Binding], openers: &[OpenerRow]) -> PickRo
 
 /// An opener is a shell command with the file substituted in, so it runs as
 /// one. `prefix` says what to call it where the file is not already named.
-fn push_openers(
-    items: &mut Vec<String>,
-    details: &mut Vec<String>,
-    runs: &mut Vec<Vec<Act>>,
-    openers: &[OpenerRow],
-    prefix: &str,
-) {
+fn push_openers(items: &mut Vec<String>, details: &mut Vec<String>, runs: &mut Vec<Vec<Act>>, openers: &[OpenerRow], prefix: &str) {
     let mut seen: Vec<&str> = Vec::new();
     for (run, block, orphan, label) in openers {
         if seen.contains(&run.as_str()) {
@@ -270,12 +297,7 @@ fn push_openers(
         seen.push(run);
         items.push(format!("{prefix}{label}"));
         details.push(run.clone());
-        runs.push(vec![Act::Shell {
-            run: run.clone(),
-            block: *block,
-            confirm: false,
-            orphan: *orphan,
-        }]);
+        runs.push(vec![Act::Shell { run: run.clone(), block: *block, confirm: false, orphan: *orphan }]);
     }
 }
 
@@ -435,8 +457,7 @@ impl DiffOverlay {
     /// footer was read (Q23). `gg` is still the top.
     pub fn arrive(&mut self, outcome: diff::Outcome) {
         if let diff::Outcome::Tree { rows, .. } = &outcome {
-            self.cursor =
-                rows.iter().position(|r| !matches!(r.state, diff::TreeState::Same)).unwrap_or(0);
+            self.cursor = rows.iter().position(|r| !matches!(r.state, diff::TreeState::Same)).unwrap_or(0);
         }
         self.outcome = Some(outcome);
     }
@@ -446,9 +467,7 @@ impl DiffOverlay {
     /// comparison, which has lines rather than rows.
     pub fn shown(&self) -> Vec<usize> {
         let Some(diff::Outcome::Tree { rows, .. }) = &self.outcome else { return Vec::new() };
-        (0..rows.len())
-            .filter(|&i| !(self.hide_same && matches!(rows[i].state, diff::TreeState::Same)))
-            .collect()
+        (0..rows.len()).filter(|&i| !(self.hide_same && matches!(rows[i].state, diff::TreeState::Same))).collect()
     }
 
     /// The rows on screen as text for the clipboard (`C`, Q91): one
@@ -579,8 +598,15 @@ fn long_op_notice(t: &Task, behind: bool) -> Option<(String, String)> {
         Some(e) => (format!("{} failed", t.kind.verb()), e.clone()),
         None => (format!("{} finished", t.kind.verb()), String::new()),
     };
-    let body = if tail.is_empty() { t.label.clone() } else { format!("{}
-{tail}", t.label) };
+    let body = if tail.is_empty() {
+        t.label.clone()
+    } else {
+        format!(
+            "{}
+{tail}",
+            t.label
+        )
+    };
     Some((title, body))
 }
 
@@ -596,11 +622,7 @@ impl Task {
     pub fn detail(&self) -> String {
         let mut out = format!("{}/{} files", self.files_done, self.files);
         if self.bytes > 0 {
-            out.push_str(&format!(
-                " · {} / {}",
-                crate::util::human_size(self.bytes_done),
-                crate::util::human_size(self.bytes)
-            ));
+            out.push_str(&format!(" · {} / {}", crate::util::human_size(self.bytes_done), crate::util::human_size(self.bytes)));
         }
         if let Some(s) = self.speed() {
             out.push_str(&format!(" · {}/s", crate::util::human_size(s)));
@@ -1043,13 +1065,7 @@ fn split_after_remove(other: usize, removed: usize) -> Option<usize> {
 /// a directory. A path someone typed gets the same benefit of the doubt a
 /// typed `cd` gets — it may name a file, and the parent is then what was
 /// meant. `hovered` is the entry under the cursor, which came from a listing.
-fn new_tab_target(
-    base: &Path,
-    current: bool,
-    path: Option<&str>,
-    hovered: Option<&Entry>,
-    home: Option<PathBuf>,
-) -> (PathBuf, bool) {
+fn new_tab_target(base: &Path, current: bool, path: Option<&str>, hovered: Option<&Entry>, home: Option<PathBuf>) -> (PathBuf, bool) {
     match path {
         Some(p) if !p.is_empty() => (util::resolve_against(base, p), true),
         _ if current => match hovered {
@@ -1281,7 +1297,11 @@ fn nothing_there(name: &str, shown: &Path, near: Option<&str>) -> String {
 /// toast: `y` said `Made a junction`, and `u` then `U` used to say `link`, the
 /// word for the symlink Windows had refused (#185).
 fn link_word(links: &[ops::Link]) -> &'static str {
-    if links.iter().all(|l| l.junction) { "junction" } else { "link" }
+    if links.iter().all(|l| l.junction) {
+        "junction"
+    } else {
+        "link"
+    }
 }
 
 /// The name a create is known by: the thing asked for, the last of its paths.
@@ -1364,10 +1384,7 @@ fn remake(paths: &[PathBuf], file: bool) -> std::io::Result<()> {
 
 /// Run `f` over each link, splitting them into those it worked on and those
 /// it did not, with the first error.
-fn each_link(
-    links: Vec<ops::Link>,
-    f: fn(&ops::Link) -> std::io::Result<()>,
-) -> (Vec<ops::Link>, Vec<ops::Link>, Option<std::io::Error>) {
+fn each_link(links: Vec<ops::Link>, f: fn(&ops::Link) -> std::io::Result<()>) -> (Vec<ops::Link>, Vec<ops::Link>, Option<std::io::Error>) {
     let (mut done, mut left, mut first) = (Vec::new(), Vec::new(), None);
     for l in links {
         match f(&l) {
@@ -2135,8 +2152,7 @@ impl App {
         if self.tabs[self.active].cwd == home {
             return;
         }
-        self.tabs[self.active].pending_cd =
-            Some(PendingCd { from: home, pushed: false, fallback: true, reveal: None });
+        self.tabs[self.active].pending_cd = Some(PendingCd { from: home, pushed: false, fallback: true, reveal: None });
     }
 
     // ------------------------------------------------------------- accessors
@@ -2200,8 +2216,7 @@ impl App {
             self.toast_log.pop_front();
         }
         self.toast_log.push_back(text.clone());
-        if let Some(t) = self.toasts.iter_mut().rev().find(|t| t.text == text && t.level == level)
-        {
+        if let Some(t) = self.toasts.iter_mut().rev().find(|t| t.text == text && t.level == level) {
             t.count += 1;
             t.at = Instant::now();
             return;
@@ -2217,9 +2232,7 @@ impl App {
         let cwd = self.tabs[self.active].cwd.clone();
         let parent = util::parent_dir(&cwd);
 
-        if self.tabs[self.active].current.scan_id.is_none()
-            && self.tabs[self.active].current.state == LoadState::Loading
-        {
+        if self.tabs[self.active].current.scan_id.is_none() && self.tabs[self.active].current.state == LoadState::Loading {
             let id = self.scanner.scan(cwd.clone(), sort);
             self.inflight.insert(id, cwd.clone());
             self.tabs[self.active].current.scan_id = Some(id);
@@ -2369,7 +2382,11 @@ impl App {
         for (msg, line) in failed {
             // `launched:` in `<State:>` says a PID, which a check reads as
             // "it started"; once the watcher heard it fall over it says so (#276).
-            if let Some(l) = self.last_launch.as_mut().filter(|l| l.strip_prefix("launched: ").and_then(|r| r.split_once(' ')).is_some_and(|(_, rest)| rest == line)) {
+            if let Some(l) = self
+                .last_launch
+                .as_mut()
+                .filter(|l| l.strip_prefix("launched: ").and_then(|r| r.split_once(' ')).is_some_and(|(_, rest)| rest == line))
+            {
                 *l = format!("launch failed: {line}");
             }
             // The failure names the line itself, so the `$ …` toast of the same
@@ -2402,12 +2419,7 @@ impl App {
         if self.dirty.is_empty() {
             return;
         }
-        let ready: Vec<PathBuf> = self
-            .dirty
-            .iter()
-            .filter(|(_, t)| t.elapsed() > Self::RESCAN_QUIET)
-            .map(|(p, _)| p.clone())
-            .collect();
+        let ready: Vec<PathBuf> = self.dirty.iter().filter(|(_, t)| t.elapsed() > Self::RESCAN_QUIET).map(|(p, _)| p.clone()).collect();
         for p in ready {
             self.dirty.remove(&p);
             self.cache.remove(&p);
@@ -2470,10 +2482,7 @@ impl App {
                 }
                 // A jump that was never listed is undone first: the tab goes
                 // back where it was instead of showing an empty error column.
-                let jumped = self
-                    .pane_tabs()
-                    .into_iter()
-                    .find(|&i| self.tabs[i].cwd == path && self.tabs[i].pending_cd.is_some());
+                let jumped = self.pane_tabs().into_iter().find(|&i| self.tabs[i].cwd == path && self.tabs[i].pending_cd.is_some());
                 if let Some(idx) = jumped {
                     self.undo_cd(idx, &path, &error);
                     return;
@@ -2573,9 +2582,7 @@ impl App {
             // the cursor to the rename's rescan about one run in a few
             // hundred).
             let waits = self.land_on.as_ref().is_some_and(|p| {
-                p.parent() == Some(path)
-                    && !entries.iter().any(|e| e.path == *p)
-                    && self.inflight.values().any(|q| q == path)
+                p.parent() == Some(path) && !entries.iter().any(|e| e.path == *p) && self.inflight.values().any(|q| q == path)
             });
             let land = if waits { None } else { self.land_on.take().filter(|p| p.parent() == Some(path)) };
             if let Some(p) = land {
@@ -2585,12 +2592,7 @@ impl App {
             }
         }
 
-        let parent_hit = self
-            .tabs[self.active]
-            .parent
-            .as_ref()
-            .map(|p| p.path == path)
-            .unwrap_or(false);
+        let parent_hit = self.tabs[self.active].parent.as_ref().map(|p| p.path == path).unwrap_or(false);
         if parent_hit {
             let cwd = self.tabs[self.active].cwd.clone();
             if let Some(f) = self.tabs[self.active].parent.as_mut() {
@@ -2775,11 +2777,7 @@ impl App {
 
         // A re-layout of the file already shown keeps it up until the new
         // one arrives, rather than blinking through "loading" on every resize.
-        let relayout = self
-            .preview
-            .key
-            .as_ref()
-            .is_some_and(|k| k.path == key.path && k.len == key.len && k.mtime == key.mtime)
+        let relayout = self.preview.key.as_ref().is_some_and(|k| k.path == key.path && k.len == key.len && k.mtime == key.mtime)
             && matches!(
                 self.preview.state,
                 PreviewState::Ready(
@@ -2835,10 +2833,7 @@ impl App {
         self.preview.in_flight = false;
         self.preview.texture = match &res.payload {
             Payload::Image { width, height, rgba, .. } => {
-                let img = egui::ColorImage::from_rgba_unmultiplied(
-                    [*width as usize, *height as usize],
-                    rgba,
-                );
+                let img = egui::ColorImage::from_rgba_unmultiplied([*width as usize, *height as usize], rgba);
                 Some(ctx.load_texture("preview", img, egui::TextureOptions::LINEAR))
             }
             _ => None,
@@ -2859,10 +2854,7 @@ impl App {
         if !matches!(res.payload, Payload::Error(_)) && self.is_external_preview(&res.key.path) {
             self.preview.n_ok = Some(res.key.n);
         }
-        self.preview.cache.put(
-            res.key,
-            CachedPreview { payload: res.payload.clone(), texture: self.preview.texture.clone() },
-        );
+        self.preview.cache.put(res.key, CachedPreview { payload: res.payload.clone(), texture: self.preview.texture.clone() });
         // Restored: v0.5.0 replaced this line with the block below rather than
         // putting the block after it, and the answer has been going nowhere but
         // the cache ever since. The block reads `state` expecting it to be the
@@ -2894,8 +2886,7 @@ impl App {
     }
 
     pub fn body_matches(&self) -> Vec<usize> {
-        let Some(m) = self.tabs[self.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref())
-        else {
+        let Some(m) = self.tabs[self.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref()) else {
             return Vec::new();
         };
         // Markdown is searched where it is drawn: the rendered text has no
@@ -3030,8 +3021,7 @@ impl App {
 
     fn preview_ready(&self) -> bool {
         let hovered = self.tabs[self.active].current.hovered().map(|e| &e.path);
-        matches!(self.preview.state, PreviewState::Ready(_))
-            && self.preview.key.as_ref().map(|k| &k.path) == hovered
+        matches!(self.preview.state, PreviewState::Ready(_)) && self.preview.key.as_ref().map(|k| &k.path) == hovered
     }
 
     /// Hand the keys to the outline, starting on the entry being read.
@@ -3181,9 +3171,7 @@ impl App {
     fn preview_section(&self, payload: &Payload) -> Option<Section> {
         let mut rows: Vec<(String, String)> = Vec::new();
         let mut row = |k: &str, v: String| rows.push((k.into(), v));
-        let read = |truncated: bool| {
-            truncated.then(|| format!("first {} only", util::human_size(self.cfg.ui.max_text_bytes as u64)))
-        };
+        let read = |truncated: bool| truncated.then(|| format!("first {} only", util::human_size(self.cfg.ui.max_text_bytes as u64)));
         match payload {
             Payload::Text { extent, outline, .. } => {
                 row("Lines", extent.lines());
@@ -3383,8 +3371,7 @@ impl App {
                 // In the list, `enter` on a plain file focuses the preview's
                 // outline -- another panel wanting these same keys. With the
                 // spotter open only a directory is worth moving into.
-                let into_dir =
-                    self.tabs[self.active].current.hovered().is_some_and(|e| e.is_dir_like());
+                let into_dir = self.tabs[self.active].current.hovered().is_some_and(|e| e.is_dir_like());
                 if matches!(a, Act::Enter) && !into_dir {
                     return;
                 }
@@ -3543,7 +3530,8 @@ impl App {
             if let Some(name) = pending.as_ref().and_then(|p| p.reveal.as_deref()) {
                 if !self.tabs[idx].current.entries.iter().any(|e| e.name == name) {
                     // The cursor goes to the nearest name rather than the top.
-                    let near = crate::core::fuzzy::closest(name, self.tabs[idx].current.entries.iter().map(|e| e.name.as_str())).map(str::to_owned);
+                    let near = crate::core::fuzzy::closest(name, self.tabs[idx].current.entries.iter().map(|e| e.name.as_str()))
+                        .map(str::to_owned);
                     self.error(nothing_there(name, &target, near.as_deref()));
                     if let Some(near) = near {
                         self.tabs[idx].current.select_name(&near);
@@ -3846,9 +3834,7 @@ impl App {
             Act::Paste { force, follow } => self.paste(force, follow),
             Act::Link { relative } => self.link(OpKind::Symlink { relative }),
             Act::Hardlink => self.link(OpKind::Hardlink),
-            Act::Remove { permanently, force, hovered } => {
-                self.remove(permanently, force, hovered)
-            }
+            Act::Remove { permanently, force, hovered } => self.remove(permanently, force, hovered),
             Act::Create { dir, force } => {
                 let _ = force;
                 let title = if dir { "Create directory" } else { "Create (end with / for a directory)" };
@@ -3881,11 +3867,15 @@ impl App {
             Act::Filter { smart, insensitive } => self.filter(smart, insensitive),
             Act::Usage => self.start_usage(),
             Act::Search { via, .. } => {
-                self.open_input(InputKind::Search { via }, match via {
-                    SearchVia::Name => "Search by name",
-                    SearchVia::Content => "Search by content",
-                    SearchVia::Fuzzy => "Search fuzzily",
-                }, String::new());
+                self.open_input(
+                    InputKind::Search { via },
+                    match via {
+                        SearchVia::Name => "Search by name",
+                        SearchVia::Content => "Search by content",
+                        SearchVia::Fuzzy => "Search fuzzily",
+                    },
+                    String::new(),
+                );
             }
             Act::Submit => self.submit_input(),
             Act::Complete => self.complete_input(),
@@ -3980,66 +3970,60 @@ impl App {
 
     /// Move the keys to the other pane of a split.
     fn pane_focus(&mut self, side: Option<bool>) {
-            // The first press splits the view; the next moves the keys.
-            self.open_split();
-            if let Some(sp) = self.split {
-                if side.unwrap_or(!sp.right) != sp.right {
-                    self.focus_pane(sp.other);
-                }
+        // The first press splits the view; the next moves the keys.
+        self.open_split();
+        if let Some(sp) = self.split {
+            if side.unwrap_or(!sp.right) != sp.right {
+                self.focus_pane(sp.other);
             }
+        }
     }
 
     /// Narrow the listing to what matches as it is typed.
     fn filter(&mut self, smart: bool, insensitive: bool) {
-            let _ = (smart, insensitive);
-            let current = self
-                .tabs[self.active]
-                .current
-                .filter
-                .as_ref()
-                .map(|f| f.query.clone())
-                .unwrap_or_default();
-            self.open_input(InputKind::Filter, "Filter", current);
+        let _ = (smart, insensitive);
+        let current = self.tabs[self.active].current.filter.as_ref().map(|f| f.query.clone()).unwrap_or_default();
+        self.open_input(InputKind::Filter, "Filter", current);
     }
 
     /// Go to a path and put the cursor on it, rather than merely into its folder.
     pub(crate) fn reveal(&mut self, target: String) {
-            let base = self.tabs[self.active].cwd.clone();
-            let p = util::resolve_against(&base, &target);
-            let name = util::file_name(&p);
-            if let Some(dir) = p.parent() {
-                self.cd(dir.to_path_buf(), true);
-                let cwd = self.tabs[self.active].cwd.clone();
-                self.tabs[self.active].memo.insert(cwd, name.clone());
-                self.tabs[self.active].current.select_name(&name);
-            }
+        let base = self.tabs[self.active].cwd.clone();
+        let p = util::resolve_against(&base, &target);
+        let name = util::file_name(&p);
+        if let Some(dir) = p.parent() {
+            self.cd(dir.to_path_buf(), true);
+            let cwd = self.tabs[self.active].cwd.clone();
+            self.tabs[self.active].memo.insert(cwd, name.clone());
+            self.tabs[self.active].current.select_name(&name);
+        }
     }
 
     /// Search the terminal's scrollback, or step to the next match.
     fn term_search(&mut self, prev: bool, repeat: bool) {
-            let needle = self.term_needle.clone();
-            match repeat && !needle.is_empty() {
-                // `--prev` walks back towards the bottom, because the
-                // search itself runs the other way: what you are looking
-                // for in a terminal has scrolled off the top.
-                true => self.term_find(&needle, !prev),
-                // Nothing to repeat, so ask what to look for.
-                false => self.open_input(InputKind::TermFind, "Find in terminal", needle),
-            }
+        let needle = self.term_needle.clone();
+        match repeat && !needle.is_empty() {
+            // `--prev` walks back towards the bottom, because the
+            // search itself runs the other way: what you are looking
+            // for in a terminal has scrolled off the top.
+            true => self.term_find(&needle, !prev),
+            // Nothing to repeat, so ask what to look for.
+            false => self.open_input(InputKind::TermFind, "Find in terminal", needle),
+        }
     }
 
     /// Show or hide the dotfiles, in every pane at once.
     fn hidden(&mut self, state: crate::config::cmd::Tri) {
-            let tab = &mut self.tabs[self.active];
-            tab.show_hidden = state.unwrap_or(!tab.show_hidden);
-            let show = tab.show_hidden;
-            tab.current.rebuild(show);
-            if let Some(p) = tab.parent.as_mut() {
-                p.rebuild(show);
-            }
-            if let PreviewState::Dir(f) = &mut self.preview.state {
-                f.rebuild(show);
-            }
+        let tab = &mut self.tabs[self.active];
+        tab.show_hidden = state.unwrap_or(!tab.show_hidden);
+        let show = tab.show_hidden;
+        tab.current.rebuild(show);
+        if let Some(p) = tab.parent.as_mut() {
+            p.rebuild(show);
+        }
+        if let PreviewState::Dir(f) = &mut self.preview.state {
+            f.rebuild(show);
+        }
     }
 
     /// `KURA_SCALE` for one run: the scale `<C-=>` and `<C-->` would reach,
@@ -4099,41 +4083,37 @@ impl App {
 
     /// Move the current tab along the bar.
     fn tab_swap(&mut self, n: i64) {
-            let len = self.tabs.len() as i64;
-            let from = self.active;
-            let to = (self.active as i64 + n).rem_euclid(len) as usize;
-            self.tabs.swap(from, to);
-            self.active = to;
-            if let Some(sp) = self.split {
-                self.split =
-                    Some(Split { other: split_after_swap(sp.other, from, to), ..sp });
-            }
-            self.check_split();
+        let len = self.tabs.len() as i64;
+        let from = self.active;
+        let to = (self.active as i64 + n).rem_euclid(len) as usize;
+        self.tabs.swap(from, to);
+        self.active = to;
+        if let Some(sp) = self.split {
+            self.split = Some(Split { other: split_after_swap(sp.other, from, to), ..sp });
+        }
+        self.check_split();
     }
 
     /// Switch Markdown between the rendered view and its source, keeping the
     /// place: the two have different line numbers for the same content.
     fn toggle_render(&mut self) {
-            self.render_markdown = !self.render_markdown;
-            // Stay on the same part of the document across the switch.
-            if let PreviewState::Ready(Payload::Markdown { doc, .. }) = &self.preview.state {
-                let tab = &mut self.tabs[self.active];
-                tab.preview_offset = if self.render_markdown {
-                    doc.line_for_src(tab.preview_offset)
-                } else {
-                    doc.src_for_line(tab.preview_offset)
-                };
+        self.render_markdown = !self.render_markdown;
+        // Stay on the same part of the document across the switch.
+        if let PreviewState::Ready(Payload::Markdown { doc, .. }) = &self.preview.state {
+            let tab = &mut self.tabs[self.active];
+            tab.preview_offset =
+                if self.render_markdown { doc.line_for_src(tab.preview_offset) } else { doc.src_for_line(tab.preview_offset) };
+        }
+        // A body search's `n` / `N` go on from the match last shown, and its
+        // line number is the old view's: put it on the nearest match of this one.
+        let at = self.tabs[self.active].finder.as_ref().and_then(|f| f.at);
+        if let Some(at) = at {
+            let was = if self.render_markdown { self.markdown_src_to_line(at) } else { self.markdown_line_to_src(at) };
+            let near = self.body_matches().into_iter().min_by_key(|&m| m.abs_diff(was));
+            if let Some(f) = self.tabs[self.active].finder.as_mut() {
+                f.at = near;
             }
-            // A body search's `n` / `N` go on from the match last shown, and its
-            // line number is the old view's: put it on the nearest match of this one.
-            let at = self.tabs[self.active].finder.as_ref().and_then(|f| f.at);
-            if let Some(at) = at {
-                let was = if self.render_markdown { self.markdown_src_to_line(at) } else { self.markdown_line_to_src(at) };
-                let near = self.body_matches().into_iter().min_by_key(|&m| m.abs_diff(was));
-                if let Some(f) = self.tabs[self.active].finder.as_mut() {
-                    f.at = near;
-                }
-            }
+        }
     }
 
     fn markdown_line_to_src(&self, line: usize) -> usize {
@@ -4152,39 +4132,35 @@ impl App {
 
     /// Go to a tab by number, or step between them.
     fn tab_switch(&mut self, n: i64, relative: bool) {
-            let len = self.tabs.len() as i64;
-            let idx = if relative {
-                (self.active as i64 + n).rem_euclid(len)
-            } else {
-                n.clamp(0, len - 1)
-            } as usize;
-            if self.other_pane() == Some(idx) {
-                // It is already on screen: move the keys to its pane.
-                self.focus_pane(idx);
-            } else {
-                self.switch_tab(idx);
-            }
+        let len = self.tabs.len() as i64;
+        let idx = if relative { (self.active as i64 + n).rem_euclid(len) } else { n.clamp(0, len - 1) } as usize;
+        if self.other_pane() == Some(idx) {
+            // It is already on screen: move the keys to its pane.
+            self.focus_pane(idx);
+        } else {
+            self.switch_tab(idx);
+        }
     }
 
     /// Walk the terminal's scrollback.
     fn term_scroll(&mut self, step: Step) {
-            if let Some(t) = &self.term {
-                use alacritty_terminal::grid::Scroll;
-                let page = t.size().lines as i64;
-                // Negated, because the two conventions run opposite ways.
-                // `term_scroll -50%` reads like `arrow -50%` and means
-                // half a screen back, while alacritty counts a positive
-                // delta as older. Taking the number as it stood sent
-                // `<S-PageUp>` towards the bottom, where there is nothing
-                // to go to, so the one key most likely to be tried first
-                // did nothing at all.
-                t.scroll(match step {
-                    Step::Top => Scroll::Top,
-                    Step::Bot => Scroll::Bottom,
-                    Step::Rel(n) => Scroll::Delta(-(n as i32)),
-                    Step::Pct(p) => Scroll::Delta(-((page * p / 100) as i32)),
-                });
-            }
+        if let Some(t) = &self.term {
+            use alacritty_terminal::grid::Scroll;
+            let page = t.size().lines as i64;
+            // Negated, because the two conventions run opposite ways.
+            // `term_scroll -50%` reads like `arrow -50%` and means
+            // half a screen back, while alacritty counts a positive
+            // delta as older. Taking the number as it stood sent
+            // `<S-PageUp>` towards the bottom, where there is nothing
+            // to go to, so the one key most likely to be tried first
+            // did nothing at all.
+            t.scroll(match step {
+                Step::Top => Scroll::Top,
+                Step::Bot => Scroll::Bottom,
+                Step::Rel(n) => Scroll::Delta(-(n as i32)),
+                Step::Pct(p) => Scroll::Delta(-((page * p / 100) as i32)),
+            });
+        }
     }
 
     /// Scroll the terminal to the next prompt up or down. Says why when it
@@ -4222,37 +4198,35 @@ impl App {
     /// Scroll the preview, or step to the next picture where a configured
     /// previewer draws one at a time.
     fn seek(&mut self, step: Step) {
-            let page = self.tabs[self.active].page_rows.max(1) as i64;
-            let delta = match step {
-                Step::Rel(n) => n,
-                Step::Pct(p) => page * p / 100,
-                Step::Top => i64::MIN / 2,
-                Step::Bot => i64::MAX / 2,
+        let page = self.tabs[self.active].page_rows.max(1) as i64;
+        let delta = match step {
+            Step::Rel(n) => n,
+            Step::Pct(p) => page * p / 100,
+            Step::Top => i64::MIN / 2,
+            Step::Bot => i64::MAX / 2,
+        };
+        // A configured previewer draws one picture at a time, so
+        // there is nothing to scroll: the keys step to the next
+        // picture instead. Same keys, because it is the same
+        // intention -- further into this file.
+        if let Some(rule) = crate::config::PreviewRule::for_path(&self.cfg.preview, &self.hovered_path()) {
+            let by = match step {
+                Step::Rel(n) => n.signum() * rule.step,
+                Step::Pct(p) => p.signum() * rule.step,
+                Step::Top => return self.go_to_picture(rule.first),
+                Step::Bot => return,
             };
-            // A configured previewer draws one picture at a time, so
-            // there is nothing to scroll: the keys step to the next
-            // picture instead. Same keys, because it is the same
-            // intention -- further into this file.
-            if let Some(rule) =
-                crate::config::PreviewRule::for_path(&self.cfg.preview, &self.hovered_path())
-            {
-                let by = match step {
-                    Step::Rel(n) => n.signum() * rule.step,
-                    Step::Pct(p) => p.signum() * rule.step,
-                    Step::Top => return self.go_to_picture(rule.first),
-                    Step::Bot => return,
-                };
-                let want = self.preview.n + by;
-                return self.go_to_picture(want.max(rule.first));
-            }
-            // Clamped here rather than only after the draw. The draw used
-            // to be handed an offset past the end, paint a frame from
-            // beyond the content, and fix the number afterwards — one bad
-            // frame per keypress at the bottom of a file, which is why it
-            // took a held-down key to see.
-            let cur = self.tabs[self.active].preview_offset as i64;
-            let want = cur.saturating_add(delta).max(0) as usize;
-            self.tabs[self.active].preview_offset = want.min(self.preview.max_offset);
+            let want = self.preview.n + by;
+            return self.go_to_picture(want.max(rule.first));
+        }
+        // Clamped here rather than only after the draw. The draw used
+        // to be handed an offset past the end, paint a frame from
+        // beyond the content, and fix the number afterwards — one bad
+        // frame per keypress at the bottom of a file, which is why it
+        // took a held-down key to see.
+        let cur = self.tabs[self.active].preview_offset as i64;
+        let want = cur.saturating_add(delta).max(0) as usize;
+        self.tabs[self.active].preview_offset = want.min(self.preview.max_offset);
     }
 
     fn escape(&mut self, what: EscapeWhat) {
@@ -4318,19 +4292,10 @@ impl App {
             return;
         }
         let base = self.tabs[self.active].cwd.clone();
-        let (target, fallback) = new_tab_target(
-            &base,
-            current,
-            path.as_deref(),
-            self.tabs[self.active].current.hovered(),
-            dirs::home_dir(),
-        );
-        let tab = Tab::new(
-            target.clone(),
-            self.tabs[self.active].sort,
-            self.tabs[self.active].show_hidden,
-            self.tabs[self.active].linemode,
-        );
+        let (target, fallback) =
+            new_tab_target(&base, current, path.as_deref(), self.tabs[self.active].current.hovered(), dirs::home_dir());
+        let tab =
+            Tab::new(target.clone(), self.tabs[self.active].sort, self.tabs[self.active].show_hidden, self.tabs[self.active].linemode);
         let at = self.active + 1;
         self.tabs.insert(at, tab);
         if let Some(sp) = self.split {
@@ -4380,8 +4345,7 @@ impl App {
         } else {
             let src = &self.tabs[self.active];
             let name = src.current.hovered_name().map(str::to_owned);
-            let mut tab =
-                Tab::new(src.cwd.clone(), src.sort, src.show_hidden, src.linemode);
+            let mut tab = Tab::new(src.cwd.clone(), src.sort, src.show_hidden, src.linemode);
             // The listing is already in hand, so the new pane starts filled.
             if let Some(entries) = self.cache.get(&tab.cwd).cloned() {
                 let show = tab.show_hidden;
@@ -4441,12 +4405,7 @@ impl App {
             }
         }
         if let Some(p) = cwd.parent().map(Path::to_path_buf) {
-            let needs = self
-                .tabs[self.active]
-                .parent
-                .as_ref()
-                .map(|f| f.state == LoadState::Loading)
-                .unwrap_or(true);
+            let needs = self.tabs[self.active].parent.as_ref().map(|f| f.state == LoadState::Loading).unwrap_or(true);
             if needs {
                 if let Some(entries) = self.cache.get(&p).cloned() {
                     let mut f = Folder::from_entries(p, entries, show_hidden);
@@ -4622,8 +4581,7 @@ impl App {
         if paths.is_empty() {
             return;
         }
-        let (archives, rest): (Vec<PathBuf>, Vec<PathBuf>) =
-            paths.into_iter().partition(|p| archive::Format::from_path(p).is_some());
+        let (archives, rest): (Vec<PathBuf>, Vec<PathBuf>) = paths.into_iter().partition(|p| archive::Format::from_path(p).is_some());
         if archives.is_empty() {
             // Name what was actually looked at. "Nothing here" reads as "this
             // directory has none", which is wrong often enough to matter: a
@@ -4641,14 +4599,13 @@ impl App {
                     Some(k) => format!("; to pack it, press {k}"),
                     None => String::new(),
                 };
-                self.error(format!("{name}{} is a folder -- e unpacks an archive (zip, tar, tar.gz, tgz, 7z){pack}", std::path::MAIN_SEPARATOR));
+                self.error(format!(
+                    "{name}{} is a folder -- e unpacks an archive (zip, tar, tar.gz, tgz, 7z){pack}",
+                    std::path::MAIN_SEPARATOR
+                ));
                 return;
             }
-            let what = if n == 0 {
-                "The file under the cursor is not".to_owned()
-            } else {
-                format!("None of the {n} selected item(s) is")
-            };
+            let what = if n == 0 { "The file under the cursor is not".to_owned() } else { format!("None of the {n} selected item(s) is") };
             self.error(format!("{what} an archive kura can read (zip, tar, tar.gz, tgz, 7z)"));
             return;
         }
@@ -4701,10 +4658,7 @@ impl App {
         // guard stays: `can_write` is what the writer asserts on, and a format
         // added for reading alone would otherwise reach it.
         if !format.can_write() {
-            self.error(format!(
-                "{} can be read here but not written — use .zip, .7z, .tar or .tar.gz",
-                format.label(),
-            ));
+            self.error(format!("{} can be read here but not written — use .zip, .7z, .tar or .tar.gz", format.label(),));
             return;
         }
         let paths = self.tabs[self.active].targets();
@@ -4721,26 +4675,13 @@ impl App {
         self.tabs[self.active].clear_selection();
     }
 
-    fn submit_op(
-        &mut self,
-        kind: OpKind,
-        srcs: Vec<PathBuf>,
-        dest_dir: PathBuf,
-        force: bool,
-    ) -> u64 {
+    fn submit_op(&mut self, kind: OpKind, srcs: Vec<PathBuf>, dest_dir: PathBuf, force: bool) -> u64 {
         self.submit_op_to(kind, srcs, dest_dir, None, force)
     }
 
     /// Queue a job and return its id, which [`App::record_job`] uses to hang an
     /// undo step on it.
-    fn submit_op_to(
-        &mut self,
-        kind: OpKind,
-        srcs: Vec<PathBuf>,
-        dest_dir: PathBuf,
-        dest_file: Option<PathBuf>,
-        force: bool,
-    ) -> u64 {
+    fn submit_op_to(&mut self, kind: OpKind, srcs: Vec<PathBuf>, dest_dir: PathBuf, dest_file: Option<PathBuf>, force: bool) -> u64 {
         let id = self.scanner.next_id();
         let label = match &dest_file {
             // An archive says which format its name made: `tar.gz.zip` is a
@@ -4787,9 +4728,7 @@ impl App {
     fn deleted(&mut self, paths: &[PathBuf]) {
         let names: Vec<String> = paths.iter().map(|p| util::file_name(p)).collect();
         let before = self.toasts.len();
-        self.toasts.retain(|t| {
-            t.level != Level::Error || !names.iter().any(|n| t.text.starts_with(&format!("Trash: {n}: ")))
-        });
+        self.toasts.retain(|t| t.level != Level::Error || !names.iter().any(|n| t.text.starts_with(&format!("Trash: {n}: "))));
         if self.toasts.len() == before {
             return;
         }
@@ -4842,10 +4781,7 @@ impl App {
             ops::OpEvent::Conflict { id, src, dest, reply } => {
                 self.overlay = Overlay::Confirm(ConfirmOverlay {
                     title: "File already exists".into(),
-                    body: vec![
-                        format!("src:  {}", src.display()),
-                        format!("dest: {}", dest.display()),
-                    ],
+                    body: vec![format!("src:  {}", src.display()), format!("dest: {}", dest.display())],
                     options: vec![
                         ('o', "Overwrite".into()),
                         ('a', "Overwrite all".into()),
@@ -4930,8 +4866,7 @@ impl App {
                             Land::Redone => Some(step.redone_label()),
                             // `d` looks the same as `D` on screen, so the trash
                             // says what went and how to get it back (#108).
-                            Land::Fresh => matches!(step, UndoStep::Trash { .. })
-                                .then(|| format!("{} — u to undo", step.redone_label())),
+                            Land::Fresh => matches!(step, UndoStep::Trash { .. }).then(|| format!("{} — u to undo", step.redone_label())),
                         };
                         self.undos.land(step, how);
                         if let Some(said) = said {
@@ -4992,11 +4927,7 @@ impl App {
         self.overlay = Overlay::Confirm(ConfirmOverlay {
             title: "Report a bug".into(),
             body,
-            options: vec![
-                ('o', "Open the form in your browser".into()),
-                ('c', "Copy the link".into()),
-                ('n', "Cancel".into()),
-            ],
+            options: vec![('o', "Open the form in your browser".into()), ('c', "Copy the link".into()), ('n', "Cancel".into())],
             action: ConfirmAction::BugReport { url },
             dest: None,
         });
@@ -5011,9 +4942,9 @@ impl App {
         match exec::open_url(&url) {
             Ok(()) => self.toast("Opened a bug report in your browser"),
             Err(e) => match exec::set_clipboard(&url) {
-                Ok(()) => self.error(format!(
-                    "could not open the browser: {e}. The report's link is on the clipboard -- paste it into one"
-                )),
+                Ok(()) => {
+                    self.error(format!("could not open the browser: {e}. The report's link is on the clipboard -- paste it into one"))
+                }
                 Err(_) => self.error(format!("could not open the browser: {e}")),
             },
         }
@@ -5186,8 +5117,7 @@ impl App {
         let line = line.filter(|_| paths.len() == 1 && paths[0] == entry.path);
         let mime = crate::mime::guess(&entry);
         let from = exec::openers_from(&self.cfg.yazi, &entry, mime);
-        let openers: Vec<(String, bool, bool, String)> =
-            from.iter().map(|(o, _)| (o.run.clone(), o.block, o.orphan, o.label())).collect();
+        let openers: Vec<(String, bool, bool, String)> = from.iter().map(|(o, _)| (o.run.clone(), o.block, o.orphan, o.label())).collect();
 
         if interactive {
             if openers.is_empty() {
@@ -5205,13 +5135,11 @@ impl App {
                 .collect();
             // Where a row came from, for a config that layers `prepend_rules`
             // or `append_rules` over its `rules` (Q88).
-            let details: Vec<String> =
-                openers.iter().zip(&from).map(|(o, (_, set))| format!("{}{}", o.0, set.mark())).collect();
+            let details: Vec<String> = openers.iter().zip(&from).map(|(o, (_, set))| format!("{}{}", o.0, set.mark())).collect();
             // The cursor starts on the first opener that is installed (Q86);
             // all missing, or none to skip, leaves it on the first row.
             let first_found = openers.iter().position(|o| !exec::opener_missing(&o.0)).unwrap_or(0);
-            let runs: Vec<(String, bool, bool)> =
-                openers.iter().map(|o| (o.0.clone(), o.1, o.2)).collect();
+            let runs: Vec<(String, bool, bool)> = openers.iter().map(|o| (o.0.clone(), o.1, o.2)).collect();
             let mut pick = PickOverlay {
                 title: "Open with".into(),
                 items,
@@ -5434,11 +5362,7 @@ impl App {
                 let len = tab.current.view.len();
                 let start = tab.current.cursor;
                 for step in 0..len {
-                    let idx = if prev {
-                        (start + len - step) % len
-                    } else {
-                        (start + step) % len
-                    };
+                    let idx = if prev { (start + len - step) % len } else { (start + step) % len };
                     let Some(e) = tab.current.at(idx) else { continue };
                     if matcher.is_match(&e.name) {
                         tab.current.cursor = idx;
@@ -5482,11 +5406,7 @@ impl App {
             InputKind::Search { via } => self.start_search(&text, via),
             InputKind::ConflictRename { .. } => {
                 if let Some(reply) = self.pending_conflict.take() {
-                    let r = if text.is_empty() {
-                        Resolution::Skip
-                    } else {
-                        Resolution::Rename(text)
-                    };
+                    let r = if text.is_empty() { Resolution::Skip } else { Resolution::Rename(text) };
                     let _ = reply.send(r);
                 }
             }
@@ -5518,11 +5438,7 @@ impl App {
             if let Some(parent) = target.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&target)
-                .map(|_| ())
+            std::fs::OpenOptions::new().write(true).create_new(true).open(&target).map(|_| ())
         };
         match res {
             Ok(()) => {
@@ -5588,12 +5504,7 @@ impl App {
                     return Err("split the view, or select exactly two files".into());
                 }
                 let of = |p: &PathBuf| {
-                    let kind = self.tabs[self.active]
-                        .current
-                        .entries
-                        .iter()
-                        .find(|e| &e.path == p)
-                        .map(|e| e.kind);
+                    let kind = self.tabs[self.active].current.entries.iter().find(|e| &e.path == p).map(|e| e.kind);
                     (p.clone(), kind.unwrap_or(Kind::File))
                 };
                 (of(&sel[0]), of(&sel[1]))
@@ -5615,11 +5526,7 @@ impl App {
             Ok(pair) => pair,
             Err(why) => return self.error(format!("Compare: {why}")),
         };
-        self.differ.request(diff::Request {
-            left: left.clone(),
-            right: right.clone(),
-            max_bytes: self.cfg.ui.max_text_bytes,
-        });
+        self.differ.request(diff::Request { left: left.clone(), right: right.clone(), max_bytes: self.cfg.ui.max_text_bytes });
         self.overlay =
             Overlay::Diff(DiffOverlay { left, right, outcome: None, offset: 0, rows: 1, cursor: 0, hide_same: false, back: None });
     }
@@ -5636,9 +5543,7 @@ impl App {
             let len = shown.len();
             let Some(diff::Outcome::Tree { rows, .. }) = &ov.outcome else { return };
             match a {
-                Act::Close | Act::Escape(_) | Act::Quit | Act::Compare => {
-                    self.overlay = Overlay::None
-                }
+                Act::Close | Act::Escape(_) | Act::Quit | Act::Compare => self.overlay = Overlay::None,
                 // The pair under the cursor, compared as files. Only a file on
                 // both sides has a pair; anything else says why there is not.
                 Act::Enter | Act::Open { .. } => {
@@ -5653,11 +5558,7 @@ impl App {
                     }
                     let (left, right) = (ov.left.join(&row.rel), ov.right.join(&row.rel));
                     let Overlay::Diff(tree) = std::mem::replace(&mut self.overlay, Overlay::None) else { return };
-                    self.differ.request(diff::Request {
-                        left: left.clone(),
-                        right: right.clone(),
-                        max_bytes: self.cfg.ui.max_text_bytes,
-                    });
+                    self.differ.request(diff::Request { left: left.clone(), right: right.clone(), max_bytes: self.cfg.ui.max_text_bytes });
                     self.overlay = Overlay::Diff(DiffOverlay {
                         left,
                         right,
@@ -5732,15 +5633,13 @@ impl App {
                 let stop = rows.len().saturating_sub(ov.rows.max(1)) + 1;
                 ov.offset = step.apply(ov.offset, stop, page);
             }
-            Act::FindArrow { prev } if !rows.is_empty() => {
-                match diff::next_change(rows, ov.offset, prev) {
-                    Some(at) => ov.offset = at,
-                    None => {
-                        let word = if prev { "first" } else { "last" };
-                        self.toast_instead(&["At the "], format!("At the {word} difference"));
-                    }
+            Act::FindArrow { prev } if !rows.is_empty() => match diff::next_change(rows, ov.offset, prev) {
+                Some(at) => ov.offset = at,
+                None => {
+                    let word = if prev { "first" } else { "last" };
+                    self.toast_instead(&["At the "], format!("At the {word} difference"));
                 }
-            }
+            },
             _ => {}
         }
     }
@@ -5772,10 +5671,8 @@ impl App {
     pub fn name_hint(&self) -> Option<String> {
         let Overlay::Input(ov) = &self.overlay else { return None };
         let tab = &self.tabs[self.active];
-        let taken = |to: &Path| {
-            to.parent().is_some_and(|d| same_place(d, &tab.cwd))
-                && tab.current.entries.iter().any(|e| same_place(&e.path, to))
-        };
+        let taken =
+            |to: &Path| to.parent().is_some_and(|d| same_place(d, &tab.cwd)) && tab.current.entries.iter().any(|e| same_place(&e.path, to));
         match &ov.kind {
             // As `do_rename` reads it: untrimmed, and the file's own name is
             // no change at all.
@@ -5784,8 +5681,7 @@ impl App {
                     return None;
                 }
                 let to = util::resolve_against(&tab.cwd, &ov.text);
-                (to != *from && taken(&to))
-                    .then(|| format!("{} already exists — Enter is refused", util::file_name(&to)))
+                (to != *from && taken(&to)).then(|| format!("{} already exists — Enter is refused", util::file_name(&to)))
             }
             InputKind::Compress => {
                 let name = ov.text.trim();
@@ -5808,8 +5704,7 @@ impl App {
     /// works from. Both read the directory out of the listing already in
     /// memory, so typing a rule never touches the disk.
     pub fn bulk_preview(&self, paths: &[PathBuf], text: &str) -> Result<Vec<rename::Row>, String> {
-        let taken: BTreeSet<String> =
-            self.tabs[self.active].current.entries.iter().map(|e| e.name.clone()).collect();
+        let taken: BTreeSet<String> = self.tabs[self.active].current.entries.iter().map(|e| e.name.clone()).collect();
         rename::plan(paths, text.trim(), &taken)
     }
 
@@ -5824,11 +5719,8 @@ impl App {
             let why = bad.problem.as_deref().unwrap_or_default();
             return self.error(format!("{}: {why}", util::file_name(&bad.from)));
         }
-        let pairs: Vec<(PathBuf, PathBuf)> = rows
-            .iter()
-            .filter(|r| r.to != util::file_name(&r.from))
-            .map(|r| (r.from.clone(), r.from.with_file_name(&r.to)))
-            .collect();
+        let pairs: Vec<(PathBuf, PathBuf)> =
+            rows.iter().filter(|r| r.to != util::file_name(&r.from)).map(|r| (r.from.clone(), r.from.with_file_name(&r.to))).collect();
         if pairs.is_empty() {
             return self.toast("Bulk rename: nothing to change");
         }
@@ -5848,8 +5740,7 @@ impl App {
     /// moved keeps its new name, which is at least a state the listing shows
     /// honestly.
     fn run_renames(&mut self, pairs: &[(PathBuf, PathBuf)]) -> Result<(), String> {
-        let names: Vec<(String, String)> =
-            pairs.iter().map(|(a, b)| (util::file_name(a), util::file_name(b))).collect();
+        let names: Vec<(String, String)> = pairs.iter().map(|(a, b)| (util::file_name(a), util::file_name(b))).collect();
         // Where each file is right now; parking moves one aside for a moment.
         let mut at: Vec<PathBuf> = pairs.iter().map(|(a, _)| a.clone()).collect();
 
@@ -6076,8 +5967,7 @@ impl App {
                 }
             },
             UndoStep::Move { pairs } => {
-                let back: Vec<(PathBuf, PathBuf)> =
-                    pairs.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
+                let back: Vec<(PathBuf, PathBuf)> = pairs.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
                 match self.run_renames(&back) {
                     Ok(()) => {
                         let step = UndoStep::Move { pairs };
@@ -6091,8 +5981,7 @@ impl App {
                 }
             }
             UndoStep::Bulk { pairs } => {
-                let back: Vec<(PathBuf, PathBuf)> =
-                    pairs.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
+                let back: Vec<(PathBuf, PathBuf)> = pairs.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
                 match self.run_renames(&back) {
                     Ok(()) => {
                         let step = UndoStep::Bulk { pairs };
@@ -6270,9 +6159,7 @@ impl App {
         if !matches!(ov.kind, InputKind::Cd) {
             return;
         }
-        if completion_target(&ov.text, &self.tabs[self.active].cwd)
-            != (p.dir.clone(), p.prefix.clone())
-        {
+        if completion_target(&ov.text, &self.tabs[self.active].cwd) != (p.dir.clone(), p.prefix.clone()) {
             return;
         }
         self.apply_completion(&p.dir, completion_hits(entries, &p.prefix));
@@ -6348,9 +6235,7 @@ impl App {
         let program = shell.as_ref().map(|(p, _)| p.clone());
         let args = shell.as_ref().map(|(_, a)| a.clone()).unwrap_or_default();
         let log = std::env::var_os("KURA_PTY_LOG").map(PathBuf::from);
-        match crate::terminal::Terminal::spawn(&cwd, size, (8, 16), shell, log.as_deref(), move || {
-            ctx.request_repaint()
-        }) {
+        match crate::terminal::Terminal::spawn(&cwd, size, (8, 16), shell, log.as_deref(), move || ctx.request_repaint()) {
             Ok(t) => {
                 self.term = Some(t);
                 self.term_focus = true;
@@ -6424,8 +6309,7 @@ impl App {
         }
         let Some(term) = &self.term else { return };
         let how = term.quoting();
-        let line: Vec<String> =
-            paths.iter().map(|p| crate::terminal::quote(&p.to_string_lossy(), how)).collect();
+        let line: Vec<String> = paths.iter().map(|p| crate::terminal::quote(&p.to_string_lossy(), how)).collect();
         let bytes = format!(" {}", line.join(" ")).into_bytes();
         match !opened && term.has_drawn() {
             true => term.send(bytes),
@@ -6538,9 +6422,8 @@ impl App {
         // on ARM64 (#249), but the x64 machine's pwsh printed its banner and
         // then said nothing for over 300 ms while its profile loaded, so the
         // path went in before the prompt, 3 runs of 3 (#250).
-        let ready = |at: &Instant| {
-            term.prompt_seen() || term.quiet_for(Duration::from_millis(800)) || at.elapsed() > Duration::from_secs(5)
-        };
+        let ready =
+            |at: &Instant| term.prompt_seen() || term.quiet_for(Duration::from_millis(800)) || at.elapsed() > Duration::from_secs(5);
         if self.term_pending.as_ref().is_some_and(|(_, at)| ready(at)) {
             if let Some((bytes, _)) = self.term_pending.take() {
                 term.send(bytes);
@@ -6555,13 +6438,7 @@ impl App {
     pub fn feed_term_key(&mut self, k: Key, bytes: Option<Vec<u8>>) {
         // Only exact single-key bindings are consulted: a chord would have to
         // hold a key back, and the shell wants it now.
-        let hit = self
-            .cfg
-            .keymap
-            .term
-            .iter()
-            .find(|b| b.on.len() == 1 && b.on[0] == k)
-            .map(|b| b.run.clone());
+        let hit = self.cfg.keymap.term.iter().find(|b| b.on.len() == 1 && b.on[0] == k).map(|b| b.run.clone());
         if let Some(acts) = hit {
             // A full-screen program -- `nvim`, `less`, `htop` -- runs on the
             // alternate screen, which has no scrollback at all. Keeping a
@@ -6681,9 +6558,7 @@ impl App {
             body: via != SearchVia::Name,
             ..Default::default()
         };
-        let handle = crate::search::spawn(&root, matcher, typed, via, reach, 5000, move || {
-            ctx.request_repaint()
-        });
+        let handle = crate::search::spawn(&root, matcher, typed, via, reach, 5000, move || ctx.request_repaint());
 
         let tab = &mut self.tabs[self.active];
         tab.remember_cursor();
@@ -6746,7 +6621,9 @@ impl App {
             .into_iter()
             .map(|row| Entry {
                 path: base.join(&row.name),
-                ext: (!row.dir).then(|| util::stem_and_ext(&row.name).1.trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty()),
+                ext: (!row.dir)
+                    .then(|| util::stem_and_ext(&row.name).1.trim_start_matches('.').to_ascii_lowercase())
+                    .filter(|e| !e.is_empty()),
                 hidden: row.name.starts_with('.'),
                 kind: if row.dir { Kind::Dir } else { Kind::File },
                 len: row.size,
@@ -7103,19 +6980,10 @@ impl App {
     fn hovered_openers(&self) -> Vec<OpenerRow> {
         let Some(entry) = self.tabs[self.active].current.hovered() else { return Vec::new() };
         let mime = crate::mime::guess(entry);
-        exec::openers_for(&self.cfg.yazi, entry, mime)
-            .into_iter()
-            .map(|o| (o.run.clone(), o.block, o.orphan, o.label()))
-            .collect()
+        exec::openers_for(&self.cfg.yazi, entry, mime).into_iter().map(|o| (o.run.clone(), o.block, o.orphan, o.label())).collect()
     }
 
-    fn open_pick(
-        &mut self,
-        title: String,
-        items: Vec<String>,
-        details: Vec<String>,
-        runs: Vec<Vec<Act>>,
-    ) {
+    fn open_pick(&mut self, title: String, items: Vec<String>, details: Vec<String>, runs: Vec<Vec<Act>>) {
         let mut pick = PickOverlay {
             title,
             items,
@@ -7354,11 +7222,7 @@ impl App {
                             Some(d) => crate::util::file_name(&ops::unique_name(d)),
                             None => String::new(),
                         };
-                        self.open_input(
-                            InputKind::ConflictRename { job },
-                            "New name",
-                            suggestion,
-                        );
+                        self.open_input(InputKind::ConflictRename { job }, "New name", suggestion);
                         return;
                     }
                     _ => Resolution::Cancel,
@@ -7498,13 +7362,7 @@ impl App {
                 self.which = cands
                     .iter()
                     .filter(|b| b.on.len() > depth)
-                    .map(|b| {
-                        (
-                            crate::config::keys::display_seq(&b.on[depth..]),
-                            b.desc.clone(),
-                            b.raw.clone(),
-                        )
-                    })
+                    .map(|b| (crate::config::keys::display_seq(&b.on[depth..]), b.desc.clone(), b.raw.clone()))
                     .collect();
             }
             keymap::Match::None => {
@@ -7771,17 +7629,12 @@ fn completed_text(dir: &Path, name: &str) -> String {
 }
 
 fn preview_paths(paths: &[PathBuf]) -> Vec<String> {
-    let mut out: Vec<String> = paths
-        .iter()
-        .take(8)
-        .map(|p| util::file_name(p))
-        .collect();
+    let mut out: Vec<String> = paths.iter().take(8).map(|p| util::file_name(p)).collect();
     if paths.len() > 8 {
         out.push(format!("… and {} more", paths.len() - 8));
     }
     out
 }
-
 
 /// The spot panel as text: each section's title on a line of its own, then
 /// one `Label<TAB>value` line per row, and a blank line between sections. A tab
@@ -7792,10 +7645,14 @@ fn spot_text(sections: &[Section]) -> String {
     sections
         .iter()
         .map(|s| {
-            let rows: Vec<String> = s.rows.iter().map(|(k, v)| match k.as_str() {
-                "Came in via" => format!("{k}\t{}", v.replacen("  ", "\t", 1)),
-                _ => format!("{k}\t{v}"),
-            }).collect();
+            let rows: Vec<String> = s
+                .rows
+                .iter()
+                .map(|(k, v)| match k.as_str() {
+                    "Came in via" => format!("{k}\t{}", v.replacen("  ", "\t", 1)),
+                    _ => format!("{k}\t{v}"),
+                })
+                .collect();
             format!("{}\n{}", s.title, rows.join("\n"))
         })
         .collect::<Vec<_>>()
@@ -7853,10 +7710,7 @@ mod tests {
         assert_eq!(config_toast(&[]), None);
         assert_eq!(config_toast(&w(&["unknown key `x`"])).unwrap(), "Config: unknown key `x`");
         let parse = "C:/cfg/yazi.toml: TOML parse error at line 1, column 5\n  |\n1 | [mgr\n  |     ^\ninvalid table header";
-        assert_eq!(
-            config_toast(&w(&[parse])).unwrap(),
-            "Config: C:/cfg/yazi.toml: TOML parse error at line 1, column 5 — the rest in `~`",
-        );
+        assert_eq!(config_toast(&w(&[parse])).unwrap(), "Config: C:/cfg/yazi.toml: TOML parse error at line 1, column 5 — the rest in `~`",);
         assert_eq!(config_toast(&w(&["a", "b", "c"])).unwrap(), "Config: a (+2 more, see `~`)");
         assert_eq!(
             config_toast(&w(&[parse, "b"])).unwrap(),
@@ -7899,12 +7753,7 @@ mod tests {
     /// changing directory.
     fn entry(path: &str, dir: bool) -> Entry {
         let path = PathBuf::from(path);
-        Entry {
-            name: util::file_name(&path),
-            path,
-            kind: if dir { Kind::Dir } else { Kind::File },
-            ..Default::default()
-        }
+        Entry { name: util::file_name(&path), path, kind: if dir { Kind::Dir } else { Kind::File }, ..Default::default() }
     }
 
     fn binding(on: &str, run: &str, desc: &str) -> keymap::Binding {
@@ -8093,22 +7942,14 @@ mod tests {
 
     #[test]
     fn a_typed_share_root_completes_against_its_host() {
-        assert_eq!(
-            share_completion(Path::new(r"\\192.168.0.150\Ba")),
-            Some((PathBuf::from(r"\\192.168.0.150"), "Ba".into()))
-        );
+        assert_eq!(share_completion(Path::new(r"\\192.168.0.150\Ba")), Some((PathBuf::from(r"\\192.168.0.150"), "Ba".into())));
         assert_eq!(share_completion(Path::new(r"\\h\s\sub")), None);
         assert_eq!(share_completion(Path::new("/a/b")), None);
     }
 
     #[test]
     fn a_completion_offers_the_directories_that_carry_on_from_the_prefix() {
-        let entries = vec![
-            entry("/a/src10", true),
-            entry("/a/Src2", true),
-            entry("/a/srcs.txt", false),
-            entry("/a/target", true),
-        ];
+        let entries = vec![entry("/a/src10", true), entry("/a/Src2", true), entry("/a/srcs.txt", false), entry("/a/target", true)];
         // Case is ignored on the way in, and the order is the listing's own.
         assert_eq!(completion_hits(&entries, "sr"), vec!["Src2", "src10"]);
         // An empty prefix offers every directory, files still left out.
@@ -8165,10 +8006,7 @@ mod tests {
             binding("x", "noop", "Nothing"),
         ];
         let (items, details, runs) = palette_items(&bindings, &[]);
-        assert_eq!(
-            items,
-            vec!["Move cursor up  ·  arrow -1".to_string(), "tasks_show".to_string()]
-        );
+        assert_eq!(items, vec!["Move cursor up  ·  arrow -1".to_string(), "tasks_show".to_string()]);
         assert_eq!(details, vec!["k".to_string(), "w".to_string()]);
         assert_eq!(runs, vec![vec![Act::Arrow(Step::Rel(-1))], vec![Act::TasksShow]]);
 
@@ -8178,15 +8016,7 @@ mod tests {
         let (items, details, runs) = palette_items(&bindings, &openers);
         assert_eq!(items.last().unwrap(), "Open with VS Code");
         assert_eq!(details.last().unwrap(), "code %s");
-        assert_eq!(
-            runs.last().unwrap(),
-            &vec![Act::Shell {
-                run: "code %s".into(),
-                block: false,
-                confirm: false,
-                orphan: true
-            }]
-        );
+        assert_eq!(runs.last().unwrap(), &vec![Act::Shell { run: "code %s".into(), block: false, confirm: false, orphan: true }]);
     }
 
     /// The context menu is the config read back: what `yazi.toml` opens this
@@ -8206,11 +8036,7 @@ mod tests {
 
         assert_eq!(
             items,
-            vec![
-                "Notepad".to_string(),
-                "Reveal in Explorer  ·  shell 'explorer %s' --orphan".to_string(),
-                "Delete  ·  remove".to_string(),
-            ],
+            vec!["Notepad".to_string(), "Reveal in Explorer  ·  shell 'explorer %s' --orphan".to_string(), "Delete  ·  remove".to_string(),],
             "moving the cursor is not a thing to do to a file"
         );
         assert_eq!(details[0], "notepad %s", "the opener shows the command it runs");
@@ -8233,18 +8059,9 @@ mod tests {
         // The terminal layer is loaded, and holds only the few keys the pane
         // keeps for itself — everything else has to reach the shell.
         assert!(!km.term.is_empty(), "the [term] section is read");
-        assert!(
-            km.term.iter().all(|b| b.on.len() == 1),
-            "only single keys are consulted there, so only single keys belong"
-        );
-        assert!(
-            km.term.iter().any(|b| b.run == vec![Act::Terminal(Some(false))]),
-            "there is a way to close it"
-        );
-        assert!(
-            km.term.iter().any(|b| matches!(b.run.first(), Some(Act::TermScroll(_)))),
-            "and a way into the scrollback"
-        );
+        assert!(km.term.iter().all(|b| b.on.len() == 1), "only single keys are consulted there, so only single keys belong");
+        assert!(km.term.iter().any(|b| b.run == vec![Act::Terminal(Some(false))]), "there is a way to close it");
+        assert!(km.term.iter().any(|b| matches!(b.run.first(), Some(Act::TermScroll(_)))), "and a way into the scrollback");
 
         assert_eq!(items.len(), details.len());
         assert_eq!(items.len(), runs.len());
@@ -8463,10 +8280,8 @@ mod preview_delivery {
         let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
         std::fs::File::options().write(true).open(dir.join("b.txt")).unwrap().set_modified(hour_ago).unwrap();
         std::fs::create_dir(dir.join("sub")).unwrap();
-        let entries: Vec<crate::fs::Entry> = ["a.txt", "b.txt", "sub"]
-            .iter()
-            .map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap())
-            .collect();
+        let entries: Vec<crate::fs::Entry> =
+            ["a.txt", "b.txt", "sub"].iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect();
 
         let fresh = || {
             let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
@@ -8541,10 +8356,7 @@ mod preview_delivery {
         app.preview.key = Some(key.clone());
         app.preview.state = PreviewState::Loading;
 
-        app.on_preview(
-            preview::Response { key, payload: Payload::Error("x".into()), partial: false },
-            &ctx,
-        );
+        app.on_preview(preview::Response { key, payload: Payload::Error("x".into()), partial: false }, &ctx);
 
         assert!(
             matches!(app.preview.state, PreviewState::Ready(_)),
@@ -8640,15 +8452,9 @@ mod preview_delivery {
         app.preview.key = Some(wanted);
         app.preview.state = PreviewState::Loading;
 
-        app.on_preview(
-            preview::Response { key: old, payload: Payload::Error("x".into()), partial: false },
-            &ctx,
-        );
+        app.on_preview(preview::Response { key: old, payload: Payload::Error("x".into()), partial: false }, &ctx);
 
-        assert!(
-            matches!(app.preview.state, PreviewState::Loading),
-            "a reply for another file must not be shown",
-        );
+        assert!(matches!(app.preview.state, PreviewState::Loading), "a reply for another file must not be shown",);
     }
 }
 
@@ -8740,10 +8546,7 @@ mod preview_scroll {
             a.act(Act::Seek(Step::Rel(5)));
         }
 
-        assert_eq!(
-            a.tabs[a.active].preview_offset, 40,
-            "twenty presses at the bottom must leave the offset on the last line",
-        );
+        assert_eq!(a.tabs[a.active].preview_offset, 40, "twenty presses at the bottom must leave the offset on the last line",);
     }
 
     /// And the other end, which was already right: one press back from the
@@ -8756,10 +8559,7 @@ mod preview_scroll {
 
         a.act(Act::Seek(Step::Rel(-5)));
 
-        assert_eq!(
-            a.tabs[a.active].preview_offset, 35,
-            "leaving the bottom must take one press, not as many as were spent overshooting",
-        );
+        assert_eq!(a.tabs[a.active].preview_offset, 35, "leaving the bottom must take one press, not as many as were spent overshooting",);
     }
 
     #[test]
@@ -8809,11 +8609,7 @@ mod extract_message {
         let last = a.toasts.last().expect("an error was raised");
         assert_eq!(last.level, Level::Error, "it is an error, not a note");
         assert!(last.text.contains('2'), "the count is missing: {}", last.text);
-        assert!(
-            !last.text.contains("Nothing here"),
-            "\"here\" reads as the directory: {}",
-            last.text,
-        );
+        assert!(!last.text.contains("Nothing here"), "\"here\" reads as the directory: {}", last.text,);
     }
 
     /// And when nothing is selected it must not claim a selection.
@@ -9009,7 +8805,10 @@ mod create_and_link_undo {
         let body = c.body.join("\n");
         assert!(body.contains("not a relative one") && body.contains("network"), "{body}");
         assert!(body.contains(&format!("{}  →  {}", offered.at.display(), offered.target.display())), "{body}");
-        assert!(body.contains("`c` copies:") && body.contains(&ops::mklink_line(&offered.at, &offered.target)), "the command is on the screen: {body}");
+        assert!(
+            body.contains("`c` copies:") && body.contains(&ops::mklink_line(&offered.at, &offered.target)),
+            "the command is on the screen: {body}"
+        );
         assert_eq!(c.options[0], ('y', "Make the junction".into()));
         assert_eq!(c.options[1], ('c', "Copy the mklink command".into()));
 
@@ -9371,14 +9170,8 @@ mod spot_keys {
         assert!(warnings.is_empty(), "{warnings:?}");
 
         let named = |b: &crate::config::keymap::Binding| crate::config::keys::render_seq(&b.on);
-        let run = |key: &str| {
-            km.spot
-                .iter()
-                .find(|b| named(b) == key)
-                .unwrap_or_else(|| panic!("`{key}` is not bound in [spot]"))
-                .run
-                .clone()
-        };
+        let run =
+            |key: &str| km.spot.iter().find(|b| named(b) == key).unwrap_or_else(|| panic!("`{key}` is not bound in [spot]")).run.clone();
         for key in ["j", "<Down>"] {
             assert_eq!(run(key), vec![Act::Swipe(1)], "`{key}` goes to the next file");
         }
@@ -9401,10 +9194,7 @@ mod spot_keys {
         // The same split the mgr layer has, which is the point of the change.
         let mgr = |key: &str| km.mgr.iter().find(|b| named(b) == key).map(|b| b.run.clone());
         assert_eq!(mgr("j"), Some(vec![Act::Arrow(Step::Rel(1))]), "`j` moves the list under F3");
-        assert!(
-            matches!(mgr("<A-j>").as_deref(), Some([Act::Seek(_)])),
-            "and <A-j> scrolls what is on show",
-        );
+        assert!(matches!(mgr("<A-j>").as_deref(), Some([Act::Seek(_)])), "and <A-j> scrolls what is on show",);
         // The horizontal pair is the list's, unchanged, in both.
         assert_eq!(mgr("h"), Some(vec![Act::Leave]));
         assert_eq!(mgr("l"), Some(vec![Act::Enter]));
@@ -9430,10 +9220,7 @@ mod panel_layers {
             (PanelLayer::Settings, &km.settings, "settings"),
         ] {
             let got = layer.bindings(km);
-            assert!(
-                std::ptr::eq(got, want.as_slice()),
-                "{layer:?} should read `[{name}]`"
-            );
+            assert!(std::ptr::eq(got, want.as_slice()), "{layer:?} should read `[{name}]`");
             assert!(!got.is_empty(), "`[{name}]` has default bindings, so this is wired up");
         }
     }
@@ -9464,15 +9251,12 @@ mod diff_tree_keys {
         a.overlay = Overlay::Diff(DiffOverlay {
             left: PathBuf::from("l"),
             right: PathBuf::from("r"),
-            outcome: Some(Outcome::Tree {
-                counts: crate::diff::TreeCounts::of(&rows),
-                rows,
-                truncated: false,
-            }),
+            outcome: Some(Outcome::Tree { counts: crate::diff::TreeCounts::of(&rows), rows, truncated: false }),
             offset: 0,
             rows: 10,
             cursor: 0,
-            hide_same: false, back: None,
+            hide_same: false,
+            back: None,
         });
         a
     }
@@ -9559,11 +9343,7 @@ mod diff_tree_keys {
     /// unlike the lines of a file comparison.
     #[test]
     fn the_arrows_move_the_cursor() {
-        let mut a = app_with(vec![
-            row("a", TreeState::Same),
-            row("b", TreeState::Differ),
-            row("c", TreeState::Same),
-        ]);
+        let mut a = app_with(vec![row("a", TreeState::Same), row("b", TreeState::Differ), row("c", TreeState::Same)]);
         a.diff_act(Act::Arrow(crate::config::cmd::Step::Rel(1)));
         assert_eq!(cursor(&a), 1);
         a.diff_act(Act::Arrow(crate::config::cmd::Step::Bot));
@@ -9674,8 +9454,7 @@ fn no_osc7(shell: &str, kura: &str) -> String {
 fn kura_command() -> String {
     let Ok(me) = std::env::current_exe() else { return "kura".into() };
     let name = if cfg!(windows) { "kura.exe" } else { "kura" };
-    let found = std::env::var_os("PATH")
-        .is_some_and(|p| std::env::split_paths(&p).any(|d| same_file(&d.join(name), &me)));
+    let found = std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| same_file(&d.join(name), &me)));
     if found {
         "kura".into()
     } else if cfg!(windows) {
@@ -9750,10 +9529,7 @@ mod spot_pages {
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
         assert_eq!(page_for(&rows, "Came in via").as_deref(), Some("https://github.com/uchmk/kura/pull/71"));
-        assert_eq!(
-            page_for(&rows, "From branch").as_deref(),
-            Some("https://github.com/uchmk/kura/tree/claude/task-09i0cs")
-        );
+        assert_eq!(page_for(&rows, "From branch").as_deref(), Some("https://github.com/uchmk/kura/tree/claude/task-09i0cs"));
         assert_eq!(page_for(&rows, "Subject"), None);
         // No pull request, no repository to build a branch page from.
         assert_eq!(page_for(&rows[1..2], "From branch"), None);
@@ -9784,7 +9560,13 @@ mod archive_view {
     }
 
     fn names(a: &App) -> Vec<String> {
-        a.tabs[a.active].current.view.iter().filter_map(|&i| a.tabs[a.active].current.entries.get(i as usize)).map(|e| e.name.clone()).collect()
+        a.tabs[a.active]
+            .current
+            .view
+            .iter()
+            .filter_map(|&i| a.tabs[a.active].current.entries.get(i as usize))
+            .map(|e| e.name.clone())
+            .collect()
     }
 
     /// The listing arrives from a worker.
@@ -9842,7 +9624,10 @@ mod archive_view {
         wait(&mut a);
         assert!(a.in_archive_view());
         assert_eq!(names(&a), ["docs", "top.txt"]);
-        assert!(a.tabs[a.active].current.hovered().is_some_and(|e| e.path == zip.join("docs")), "hovered: names the member under the archive");
+        assert!(
+            a.tabs[a.active].current.hovered().is_some_and(|e| e.path == zip.join("docs")),
+            "hovered: names the member under the archive"
+        );
         keys(&mut a, &["<Right>"]);
         assert_eq!(names(&a), ["a"]);
         keys(&mut a, &["l"]);
@@ -9919,8 +9704,11 @@ mod archive_view {
         wait(&mut a);
         a.act(Act::Yank { cut: true });
         assert!(a.yank.paths.is_empty(), "nothing cut: it would take it out of the archive");
-        assert!(a.toasts.iter().any(|t| t.text.starts_with("Inside an archive: read only")), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text.starts_with("Inside an archive: read only")),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// `y` on a member, then `p` in a folder: the member comes out under its
@@ -10017,8 +9805,11 @@ mod archive_view {
         a.overlay = Overlay::Pick(pick);
         a.submit_pick();
         assert!(matches!(a.overlay, Overlay::Pick(_)), "still open");
-        assert!(a.toasts.iter().any(|t| t.text == "Nothing matches `zzz` — <Esc> closes"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Nothing matches `zzz` — <Esc> closes"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// A jump elsewhere leaves the view rather than carry it along.
@@ -10220,7 +10011,11 @@ mod usage_view {
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.starts_with("# mine\n[ui]\nfont_size = 16.0 # small\n"), "kept what was there: {text}");
         assert!(text.contains("[term]\nshell = \"bash\"\n"), "{text}");
-        assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Saved config.toml: font_size = 16.0")), "{:?}", a.toasts.last().map(|t| &t.text));
+        assert!(
+            a.toasts.last().is_some_and(|t| t.text.starts_with("Saved config.toml: font_size = 16.0")),
+            "{:?}",
+            a.toasts.last().map(|t| &t.text)
+        );
         // An emptied row takes the key out, and the default comes back.
         a.write_kura_to(file.clone(), vec![cfg.clone()], vec![change("ui", "font_size", None)]);
         kura_written(&mut a);
@@ -10243,7 +10038,10 @@ mod usage_view {
         kura_written(&mut a);
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.starts_with(OWN_FILE_START), "{text}");
-        assert!(text.ends_with("theme.toml.\n# Every key, with what it does, is in the README: \"config.toml\".\n\n[ui]\nmax_history = 50\n"), "{text}");
+        assert!(
+            text.ends_with("theme.toml.\n# Every key, with what it does, is in the README: \"config.toml\".\n\n[ui]\nmax_history = 50\n"),
+            "{text}"
+        );
         std::fs::write(&file, "[ui\nfont_size = 14.0\n").unwrap();
         a.write_kura_to(file.clone(), vec![cfg.clone()], vec![change("ui", "font_size", Some("16.0"))]);
         kura_written(&mut a);
@@ -10343,8 +10141,7 @@ mod usage_view {
         // #114: the total replaces "Measuring…" rather than standing beside it.
         assert!(a.toasts.iter().any(|t| t.text.contains("in total")));
         assert!(!a.toasts.iter().any(|t| t.text.starts_with("Measuring")), "no longer measuring");
-        let names: Vec<&str> =
-            a.tabs[a.active].current.entries.iter().map(|e| e.name.as_str()).collect();
+        let names: Vec<&str> = a.tabs[a.active].current.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["fat", "loose", "thin"], "largest first: {names:?}");
         assert_eq!(a.usage_max, 900, "the bars are drawn against the biggest row");
         let fat = a.tabs[a.active].current.entries.iter().find(|e| e.name == "fat").unwrap();
@@ -10368,9 +10165,7 @@ mod usage_view {
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
         };
-        let names = |a: &App| -> Vec<String> {
-            a.tabs[a.active].current.entries.iter().map(|e| e.name.clone()).collect()
-        };
+        let names = |a: &App| -> Vec<String> { a.tabs[a.active].current.entries.iter().map(|e| e.name.clone()).collect() };
         a.start_usage();
         settle(&mut a);
         assert!(a.tabs[a.active].current.select_name("fat"));
@@ -10424,8 +10219,7 @@ mod usage_view {
         assert_eq!(rows(&a), 4, "the hidden row is still there after a re-sort");
 
         a.act(Act::Sort { by: Some(SortBy::Size), reverse: Some(true), dir_first: Some(false) });
-        let names: Vec<String> =
-            (0..rows(&a)).filter_map(|i| a.tabs[a.active].current.at(i).map(|e| e.name.clone())).collect();
+        let names: Vec<String> = (0..rows(&a)).filter_map(|i| a.tabs[a.active].current.at(i).map(|e| e.name.clone())).collect();
         assert_eq!(names, ["fat", ".hidden", "loose", "thin"], "largest total first: {names:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -10507,10 +10301,7 @@ mod spot_follows_the_cursor {
         std::fs::write(&one, "1").unwrap();
         std::fs::write(&two, "2").unwrap();
 
-        let entries = Arc::new(vec![
-            crate::fs::Entry::from_path(one.clone()).unwrap(),
-            crate::fs::Entry::from_path(two.clone()).unwrap(),
-        ]);
+        let entries = Arc::new(vec![crate::fs::Entry::from_path(one.clone()).unwrap(), crate::fs::Entry::from_path(two.clone()).unwrap()]);
         a.tabs[a.active].current = Folder::from_entries(dir.clone(), entries, true);
         a.overlay = Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 });
 
@@ -10571,7 +10362,8 @@ mod diff_scrolling {
             offset: 0,
             rows: 20,
             cursor: 0,
-            hide_same: false, back: None,
+            hide_same: false,
+            back: None,
         });
         let at = |a: &App| match &a.overlay {
             Overlay::Diff(ov) => ov.offset,
@@ -10597,8 +10389,7 @@ mod diff_scrolling {
     #[test]
     fn a_short_diff_does_not_move() {
         let mut a = app();
-        let rows: Vec<diff::Row> =
-            (0..3).map(|n| diff::Row { left: None, right: None, same: n % 2 == 0 }).collect();
+        let rows: Vec<diff::Row> = (0..3).map(|n| diff::Row { left: None, right: None, same: n % 2 == 0 }).collect();
         a.overlay = Overlay::Diff(DiffOverlay {
             left: PathBuf::from("a"),
             right: PathBuf::from("b"),
@@ -10606,7 +10397,8 @@ mod diff_scrolling {
             offset: 0,
             rows: 20,
             cursor: 0,
-            hide_same: false, back: None,
+            hide_same: false,
+            back: None,
         });
         a.diff_act(Act::Arrow(Step::Bot));
         match &a.overlay {
@@ -10656,10 +10448,7 @@ mod outline_jump {
         // The last one is past the end, and stops at the end instead.
         assert!(a.outline_act(&Act::Arrow(Step::Rel(1))));
         assert_eq!(a.preview.outline, Some(2), "the cursor still reaches it");
-        assert_eq!(
-            a.tabs[a.active].preview_offset, 300,
-            "but the pane is not asked to draw from beyond the content",
-        );
+        assert_eq!(a.tabs[a.active].preview_offset, 300, "but the pane is not asked to draw from beyond the content",);
 
         // Held down at the end: every extra press has to be a no-op.
         for _ in 0..20 {
@@ -10705,10 +10494,7 @@ mod goto_and_history_keys {
         // The pair is the same two directories the help panel and `kura env` list.
         assert_eq!(
             crate::config::config_dirs(),
-            vec![
-                crate::config::config_home("YAZI_CONFIG_HOME").unwrap(),
-                crate::config::config_home("KURA_CONFIG_HOME").unwrap(),
-            ]
+            vec![crate::config::config_home("YAZI_CONFIG_HOME").unwrap(), crate::config::config_home("KURA_CONFIG_HOME").unwrap(),]
         );
 
         // The pair the arrows reach, alongside the `H`/`L` that already did.
@@ -10728,20 +10514,12 @@ mod goto_and_history_keys {
     fn t_maximizes_the_preview_pane() {
         let (km, warnings) = keymap::Keymap::load(&[]);
         assert!(warnings.is_empty(), "{warnings:?}");
-        let binding = km
-            .mgr
-            .iter()
-            .find(|b| crate::config::keys::render_seq(&b.on) == "T")
-            .expect("`T` is not bound");
+        let binding = km.mgr.iter().find(|b| crate::config::keys::render_seq(&b.on) == "T").expect("`T` is not bound");
         assert_eq!(binding.raw, "plugin toggle-pane max-preview");
         assert_eq!(crate::config::cmd::parse(&binding.raw), crate::config::cmd::Act::MaxPreview);
 
         // `t` is the new tab it sits next to; shifting it must not have moved it.
-        let lower = km
-            .mgr
-            .iter()
-            .find(|b| crate::config::keys::render_seq(&b.on) == "t")
-            .expect("`t` is not bound");
+        let lower = km.mgr.iter().find(|b| crate::config::keys::render_seq(&b.on) == "t").expect("`t` is not bound");
         assert_eq!(lower.raw, "tab_create --current");
     }
 }
@@ -10770,11 +10548,8 @@ mod send_pane_and_the_register {
         let ctx = egui::Context::default();
         let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
         a.tabs[a.active].cwd = left.clone();
-        a.tabs[a.active].current = Folder::from_entries(
-            left.clone(),
-            Arc::new(vec![crate::fs::Entry::from_path(sent.clone()).unwrap()]),
-            true,
-        );
+        a.tabs[a.active].current =
+            Folder::from_entries(left.clone(), Arc::new(vec![crate::fs::Entry::from_path(sent.clone()).unwrap()]), true);
         // A second tab, shown in the other pane.
         let sort = a.tabs[a.active].sort;
         let mut other = crate::core::tab::Tab::new(right.clone(), sort, false, crate::fs::entry::Linemode::None);
@@ -10825,11 +10600,7 @@ mod follow_says_what_it_is_for {
         let ctx = egui::Context::default();
         let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
         a.tabs[a.active].cwd = dir.clone();
-        a.tabs[a.active].current = Folder::from_entries(
-            dir.clone(),
-            Arc::new(vec![crate::fs::Entry::from_path(plain).unwrap()]),
-            true,
-        );
+        a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(vec![crate::fs::Entry::from_path(plain).unwrap()]), true);
 
         a.act(Act::Follow);
 
@@ -10908,15 +10679,19 @@ mod window_scale {
             ("help", Overlay::Help),
             ("tasks", Overlay::Tasks(TasksOverlay { cursor: 0 })),
             ("spot", Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 })),
-            ("diff", Overlay::Diff(DiffOverlay {
-                left: std::path::PathBuf::from("a"),
-                right: std::path::PathBuf::from("b"),
-                outcome: None,
-                offset: 0,
-                rows: 10,
-                cursor: 0,
-                hide_same: false, back: None,
-            })),
+            (
+                "diff",
+                Overlay::Diff(DiffOverlay {
+                    left: std::path::PathBuf::from("a"),
+                    right: std::path::PathBuf::from("b"),
+                    outcome: None,
+                    offset: 0,
+                    rows: 10,
+                    cursor: 0,
+                    hide_same: false,
+                    back: None,
+                }),
+            ),
             ("settings", Overlay::Settings(Default::default())),
         ];
         for (name, overlay) in panels {
@@ -10946,15 +10721,19 @@ mod window_scale {
         let panels: Vec<(&str, Overlay)> = vec![
             ("tasks", Overlay::Tasks(TasksOverlay { cursor: 0 })),
             ("spot", Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 })),
-            ("diff", Overlay::Diff(DiffOverlay {
-                left: std::path::PathBuf::from("a"),
-                right: std::path::PathBuf::from("b"),
-                outcome: None,
-                offset: 0,
-                rows: 10,
-                cursor: 0,
-                hide_same: false, back: None,
-            })),
+            (
+                "diff",
+                Overlay::Diff(DiffOverlay {
+                    left: std::path::PathBuf::from("a"),
+                    right: std::path::PathBuf::from("b"),
+                    outcome: None,
+                    offset: 0,
+                    rows: 10,
+                    cursor: 0,
+                    hide_same: false,
+                    back: None,
+                }),
+            ),
         ];
         for (name, overlay) in panels {
             a.overlay = overlay;
@@ -11556,12 +11335,7 @@ mod alt_jk_scrolls_every_pane {
     use super::*;
 
     fn run_of(layer: &[keymap::Binding], key: &str) -> Vec<Act> {
-        layer
-            .iter()
-            .find(|b| crate::config::keys::render_seq(&b.on) == key)
-            .unwrap_or_else(|| panic!("`{key}` is not bound"))
-            .run
-            .clone()
+        layer.iter().find(|b| crate::config::keys::render_seq(&b.on) == key).unwrap_or_else(|| panic!("`{key}` is not bound")).run.clone()
     }
 
     /// The terminal was the one pane where they were not bound, so they went
@@ -11626,8 +11400,11 @@ mod said_out_loud {
         let dir = crate::util::test_dir("said-copy");
         let mut a = app_in(&dir);
         a.act(Act::Copy(CopyWhat::Path));
-        assert!(a.toasts.iter().any(|t| t.text.starts_with("Nothing to copy")), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text.starts_with("Nothing to copy")),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// `d` names what went to the trash and how to get it back; `D` asks first
@@ -11649,8 +11426,11 @@ mod said_out_loud {
             made: Vec::new(),
             trashed: vec![dir.join("a.txt")],
         });
-        assert!(a.toasts.iter().any(|t| t.text == "Trashed a.txt — u to undo"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Trashed a.txt — u to undo"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// 21.22c / #265: packing `to-pack.zip` offers another name, and typing
@@ -11666,8 +11446,11 @@ mod said_out_loud {
         assert_eq!(ov.text, "to-pack-packed.zip");
         a.do_compress("to-pack.zip");
         assert!(a.tasks.is_empty(), "no job for packing a file over itself");
-        assert!(a.toasts.iter().any(|t| t.text.starts_with("Can't pack to-pack.zip into itself")), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text.starts_with("Can't pack to-pack.zip into itself")),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// #222: a second `<Tab>` goes on to the next folder that carried on from
@@ -11787,8 +11570,7 @@ mod said_out_loud {
         finish(&mut a, 1, false);
         assert!(a.toasts.is_empty(), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
         finish(&mut a, 2, true);
-        assert!(a.toasts.iter().any(|t| t.text.starts_with("Copy stopped")), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(a.toasts.iter().any(|t| t.text.starts_with("Copy stopped")), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
     }
 
     /// #238: a cut pasted into the folder it came from moves nothing and
@@ -11803,8 +11585,11 @@ mod said_out_loud {
         a.paste(false, false);
         assert_eq!(a.tasks.len(), before, "nothing was queued");
         assert_eq!(a.yank.paths, vec![src]);
-        assert!(a.toasts.iter().any(|t| t.text == "Already here — the cut is still there"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Already here — the cut is still there"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// Q72: a cut pasted where every clash was declined moved nothing, so
@@ -11834,8 +11619,11 @@ mod said_out_loud {
         a.on_op_event(finished(id, Vec::new()));
         assert_eq!(a.yank.paths, vec![src.clone()]);
         assert!(a.yank.cut);
-        assert!(a.toasts.iter().any(|t| t.text == "Nothing moved — the cut is still there"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Nothing moved — the cut is still there"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
 
         a.paste(false, false);
         let id = a.tasks.last().unwrap().id;
@@ -11861,8 +11649,11 @@ mod said_out_loud {
         let mut a = app_in(&dir);
         a.do_rename(&dir.join("a.txt"), "b.txt");
         assert!(dir.join("b.txt").exists() && !dir.join("a.txt").exists());
-        assert!(a.toasts.iter().any(|t| t.text == "Renamed to b.txt — u to undo"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Renamed to b.txt — u to undo"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// #207: `d` failed and said to use `D`; once `D` has gone through, the
@@ -11927,8 +11718,11 @@ mod said_out_loud {
         a.drag = Some(Drag { from: 0, paths: vec![dir.join("a.txt")], label: "a.txt".into() });
         a.drop_drag(Some(1), false);
         assert!(a.tasks.is_empty(), "no job");
-        assert!(a.toasts.iter().any(|t| t.text == "Both panes are in the same directory"), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text == "Both panes are in the same directory"),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
     }
 
     /// #163: `<C-F5>` with the help panel open re-reads the config, as the
@@ -11940,8 +11734,7 @@ mod said_out_loud {
         a.overlay = Overlay::Help;
         a.feed_overlay_key(Key::parse("<C-F5>").unwrap());
         assert!(matches!(a.overlay, Overlay::Help), "still open");
-        assert!(a.toasts.iter().any(|t| t.text.starts_with("Reloaded")), "{:?}",
-            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(a.toasts.iter().any(|t| t.text.starts_with("Reloaded")), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
     }
 
     /// Q62 / Q64: `<F12>` shows what the report carries before anything is
@@ -12076,13 +11869,18 @@ mod said_out_loud {
         for n in ["alpha.txt", "typo", "zeta.txt"] {
             std::fs::write(dir.join(n), "x").unwrap();
         }
-        let listing = || Arc::new(["alpha.txt", "typo", "zeta.txt"].iter().map(|n| Entry::from_path(dir.join(n)).unwrap()).collect::<Vec<_>>());
+        let listing =
+            || Arc::new(["alpha.txt", "typo", "zeta.txt"].iter().map(|n| Entry::from_path(dir.join(n)).unwrap()).collect::<Vec<_>>());
         let mut a = app_in(&dir.join("elsewhere"));
         a.cd_or_reveal(dir.join("tpyo"));
         a.on_scan(ScanResult::Failed { id: 0, path: dir.join("tpyo"), error: "not found".into() });
         a.apply_listing(&dir, listing());
         assert_eq!(a.tabs[a.active].current.hovered_name(), Some("typo"));
-        assert!(a.toasts.iter().any(|t| t.text.ends_with(" (nearest: typo)")), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+        assert!(
+            a.toasts.iter().any(|t| t.text.ends_with(" (nearest: typo)")),
+            "{:?}",
+            a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
 
         let mut a = app_in(&dir.join("elsewhere"));
         a.cd_or_reveal(dir.join("qqqqqq"));
@@ -12231,7 +12029,11 @@ fn program_label(title: &str) -> &str {
     }
     let name = t.rsplit(['/', '\\']).next().unwrap_or(t);
     let stem = name.strip_suffix(".exe").or_else(|| name.strip_suffix(".EXE")).unwrap_or(name);
-    if stem.is_empty() { t } else { stem }
+    if stem.is_empty() {
+        t
+    } else {
+        stem
+    }
 }
 
 #[cfg(test)]
@@ -12346,9 +12148,7 @@ mod find_marks {
     fn each_search_marks_what_it_searches() {
         let dir = crate::util::test_dir("find-marks-via");
         let mut a = app_in(&dir);
-        for (via, names, body) in
-            [(SearchVia::Name, true, false), (SearchVia::Content, false, true), (SearchVia::Fuzzy, true, true)]
-        {
+        for (via, names, body) in [(SearchVia::Name, true, false), (SearchVia::Content, false, true), (SearchVia::Fuzzy, true, true)] {
             a.start_search("needle", via);
             let f = a.tabs[a.active].finder.clone().unwrap();
             assert_eq!((f.names, f.body), (names, body), "{via:?}");
@@ -12408,12 +12208,7 @@ mod find_marks {
             ..Default::default()
         };
         let source = vec![vec![span("intro", false)], vec![span("blank", false)], vec![span("the **automated**_ids()", false)]];
-        a.preview.state = PreviewState::Ready(Payload::Markdown {
-            doc,
-            source,
-            map: Vec::new(),
-            extent: Default::default(),
-        });
+        a.preview.state = PreviewState::Ready(Payload::Markdown { doc, source, map: Vec::new(), extent: Default::default() });
         a.render_markdown = true;
         assert_eq!(a.body_matches(), [1], "rendered: the second line, split over three spans");
         a.render_markdown = false;
@@ -12434,22 +12229,17 @@ mod find_marks {
         let dir = crate::util::test_dir("find-marks-wrap");
         let mut a = app_in(&dir);
         a.start_search("auto.*ids", SearchVia::Content);
-        let line = |t: &str, wrap: bool| DocLine {
-            spans: vec![Span { text: t.to_owned(), ..Default::default() }],
-            wrap,
+        let line =
+            |t: &str, wrap: bool| DocLine { spans: vec![Span { text: t.to_owned(), ..Default::default() }], wrap, ..Default::default() };
+        let doc = Doc {
+            lines: vec![line("one", false), line("an auto", false), line("matic list of ids", true), line("tail", false)],
             ..Default::default()
         };
-        let doc = Doc { lines: vec![line("one", false), line("an auto", false), line("matic list of ids", true), line("tail", false)], ..Default::default() };
         let m = ito_match::Matcher::new("auto.*ids").unwrap();
         let one = |a: usize, b: usize| std::iter::once(a..b).collect::<Vec<_>>();
         assert_eq!(doc.marks(&m, 1, 3), [one(3, 7), one(0, 17)]);
         assert_eq!(doc.marks(&m, 2, 3), [one(0, 17)], "asked for the second half alone");
-        a.preview.state = PreviewState::Ready(Payload::Markdown {
-            doc,
-            source: Vec::new(),
-            map: Vec::new(),
-            extent: Default::default(),
-        });
+        a.preview.state = PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Default::default() });
         a.render_markdown = true;
         assert_eq!(a.body_matches(), [1, 2]);
         let _ = std::fs::remove_dir_all(&dir);

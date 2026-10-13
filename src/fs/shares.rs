@@ -24,9 +24,8 @@ pub fn list(host: &Path) -> std::io::Result<Vec<Entry>> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::Foundation::{ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS, HANDLE, NO_ERROR};
     use windows::Win32::NetworkManagement::WNet::{
-        NETRESOURCEW, RESOURCE_GLOBALNET, RESOURCETYPE_ANY, RESOURCETYPE_DISK,
-        RESOURCEUSAGE_CONTAINER, WNET_OPEN_ENUM_USAGE, WNetCloseEnum, WNetEnumResourceW,
-        WNetOpenEnumW,
+        WNetCloseEnum, WNetEnumResourceW, WNetOpenEnumW, NETRESOURCEW, RESOURCETYPE_ANY, RESOURCETYPE_DISK, RESOURCEUSAGE_CONTAINER,
+        RESOURCE_GLOBALNET, WNET_OPEN_ENUM_USAGE,
     };
 
     // `RESOURCEDISPLAYTYPE_SERVER`. Spelled out because the `windows` crate
@@ -73,14 +72,7 @@ pub fn list(host: &Path) -> std::io::Result<Vec<Entry>> {
     let result = loop {
         let mut count = u32::MAX; // as many as fit
         let mut bytes = (buf.len() * 8) as u32;
-        let rc = unsafe {
-            WNetEnumResourceW(
-                handle,
-                &mut count,
-                buf.as_mut_ptr() as *mut core::ffi::c_void,
-                &mut bytes,
-            )
-        };
+        let rc = unsafe { WNetEnumResourceW(handle, &mut count, buf.as_mut_ptr() as *mut core::ffi::c_void, &mut bytes) };
         match rc {
             // A success that produced nothing would otherwise be asked again
             // for ever; the documented end is ERROR_NO_MORE_ITEMS, but a
@@ -89,8 +81,7 @@ pub fn list(host: &Path) -> std::io::Result<Vec<Entry>> {
             NO_ERROR => {
                 // SAFETY: on success the call has written `count` entries at
                 // the front of the buffer, and the buffer outlives the slice.
-                let found =
-                    unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const NETRESOURCEW, count as usize) };
+                let found = unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const NETRESOURCEW, count as usize) };
                 for r in found {
                     // SAFETY: the provider's strings live in the same buffer,
                     // and are read before the next call overwrites it.
@@ -121,4 +112,3 @@ pub fn list(host: &Path) -> std::io::Result<Vec<Entry>> {
 pub fn list(_host: &Path) -> std::io::Result<Vec<Entry>> {
     Err(std::io::Error::other("network shares are a Windows notion"))
 }
-

@@ -38,13 +38,16 @@ pub fn base(entry: &Entry) -> Section {
     let mut s = Section::new("File");
     s.row("Name", entry.name.clone());
     s.row("Path", entry.path.display().to_string());
-    s.row("Kind", match entry.kind {
-        Kind::Dir => "Directory",
-        Kind::File => "File",
-        Kind::Link { broken: true, .. } => "Link (broken)",
-        Kind::Link { to_dir: true, .. } => "Link to a directory",
-        Kind::Link { .. } => "Link to a file",
-    });
+    s.row(
+        "Kind",
+        match entry.kind {
+            Kind::Dir => "Directory",
+            Kind::File => "File",
+            Kind::Link { broken: true, .. } => "Link (broken)",
+            Kind::Link { to_dir: true, .. } => "Link to a directory",
+            Kind::Link { .. } => "Link to a file",
+        },
+    );
     s.row("Mime", crate::mime::guess(entry));
     if entry.is_dir_like() {
         if let Some(n) = entry.dir_size {
@@ -56,10 +59,8 @@ pub fn base(entry: &Entry) -> Section {
     s.row("Created", util::fmt_time(entry.created, TIME));
     s.row("Modified", util::fmt_time(entry.modified, TIME));
     s.row("Accessed", util::fmt_time(entry.accessed, TIME));
-    let attrs: Vec<&str> = [(entry.hidden, "hidden"), (entry.readonly, "read-only")]
-        .into_iter()
-        .filter_map(|(on, name)| on.then_some(name))
-        .collect();
+    let attrs: Vec<&str> =
+        [(entry.hidden, "hidden"), (entry.readonly, "read-only")].into_iter().filter_map(|(on, name)| on.then_some(name)).collect();
     s.row("Attributes", if attrs.is_empty() { "normal".into() } else { attrs.join(", ") });
     s
 }
@@ -73,14 +74,7 @@ pub fn inspect(path: &Path) -> Vec<Section> {
         // `Act::Copy` counts rows across every section, so the rows worth
         // copying belong near the top. `text` follows them: it has the most rows
         // and the least identity. The last three keep their old relative order.
-        link,
-        git,
-        archive,
-        document,
-        executable,
-        text,
-        image,
-        font,
+        link, git, archive, document, executable, text, image, font,
         directory,
         // Windows property-system values (media length, bitrate, EXIF, ...)
         // go here as one more provider reading `SHGetPropertyStoreFromParsingName`;
@@ -212,9 +206,8 @@ fn hard_links(path: &Path) -> (u64, Vec<String>) {
     use windows::core::PWSTR;
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, FindClose, FindFirstFileNameW, FindNextFileNameW, GetFileInformationByHandle,
-        BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, OPEN_EXISTING,
+        CreateFileW, FindClose, FindFirstFileNameW, FindNextFileNameW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
 
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
@@ -244,17 +237,12 @@ fn hard_links(path: &Path) -> (u64, Vec<String>) {
 
     // The names come back relative to the volume root (`\dev\kura\x.md`), so the
     // drive the file is on goes back in front of each one.
-    let root: String = path
-        .components()
-        .next()
-        .map(|c| c.as_os_str().to_string_lossy().trim_end_matches(['\\', '/']).to_string())
-        .unwrap_or_default();
+    let root: String =
+        path.components().next().map(|c| c.as_os_str().to_string_lossy().trim_end_matches(['\\', '/']).to_string()).unwrap_or_default();
     let mut names = Vec::new();
     let mut buf = vec![0u16; 32768];
     let mut len = buf.len() as u32;
-    let find = unsafe {
-        FindFirstFileNameW(PWSTR(wide.as_ptr() as *mut u16), 0, &mut len, PWSTR(buf.as_mut_ptr()))
-    };
+    let find = unsafe { FindFirstFileNameW(PWSTR(wide.as_ptr() as *mut u16), 0, &mut len, PWSTR(buf.as_mut_ptr())) };
     let Ok(find) = find else { return (count, Vec::new()) };
     loop {
         let name = String::from_utf16_lossy(&buf[..buf.iter().position(|&c| c == 0).unwrap_or(0)]);
@@ -355,11 +343,14 @@ fn archive(path: &Path) -> Option<Section> {
     let sum = archive::summarize(path, MAX_ARCHIVE_ENTRIES).ok()?;
     let mut s = Section::new("Archive");
     s.row("Format", sum.format.label());
-    s.row("Encrypted", match sum.encryption {
-        Encryption::No => "no",
-        Encryption::Entries => "yes (entries need a password)",
-        Encryption::Header => "yes (the listing itself)",
-    });
+    s.row(
+        "Encrypted",
+        match sum.encryption {
+            Encryption::No => "no",
+            Encryption::Entries => "yes (entries need a password)",
+            Encryption::Header => "yes (the listing itself)",
+        },
+    );
     // Nothing below is known when the table of contents is sealed, and a total
     // taken from a scan that stopped early would read as the whole of it.
     if sum.encryption != Encryption::Header {
@@ -422,12 +413,8 @@ fn text(path: &Path) -> Option<Section> {
     let partial = (bytes.len() as u64) < meta.len();
     let (body, encoding) = match wide {
         Some(big) => {
-            let units: Vec<u16> = bytes[2..]
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) })
-                .collect();
+            let units: Vec<u16> =
+                bytes[2..].as_chunks::<2>().0.iter().map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) }).collect();
             (String::from_utf16_lossy(&units), if big { "UTF-16 BE" } else { "UTF-16 LE" })
         }
         None => {
@@ -447,29 +434,33 @@ fn text(path: &Path) -> Option<Section> {
     let mut s = Section::new("Text");
     s.row("Encoding", encoding);
     s.row("BOM", bom);
-    s.row("Line endings", match (lf, crlf, cr) {
-        (0, 0, 0) => "none".to_string(),
-        (n, 0, 0) => format!("LF ({})", grouped(n)),
-        (0, n, 0) => format!("CRLF ({})", grouped(n)),
-        (0, 0, n) => format!("CR ({})", grouped(n)),
-        (a, b, c) => {
-            let mut parts = Vec::new();
-            if a > 0 { parts.push(format!("LF {}", grouped(a))); }
-            if b > 0 { parts.push(format!("CRLF {}", grouped(b))); }
-            if c > 0 { parts.push(format!("CR {}", grouped(c))); }
-            format!("mixed: {}", parts.join(", "))
-        }
-    });
+    s.row(
+        "Line endings",
+        match (lf, crlf, cr) {
+            (0, 0, 0) => "none".to_string(),
+            (n, 0, 0) => format!("LF ({})", grouped(n)),
+            (0, n, 0) => format!("CRLF ({})", grouped(n)),
+            (0, 0, n) => format!("CR ({})", grouped(n)),
+            (a, b, c) => {
+                let mut parts = Vec::new();
+                if a > 0 {
+                    parts.push(format!("LF {}", grouped(a)));
+                }
+                if b > 0 {
+                    parts.push(format!("CRLF {}", grouped(b)));
+                }
+                if c > 0 {
+                    parts.push(format!("CR {}", grouped(c)));
+                }
+                format!("mixed: {}", parts.join(", "))
+            }
+        },
+    );
     // A claim about the end of the file, so only where the end was read.
     if !partial {
         s.row("Final newline", if body.ends_with('\n') { "yes" } else { "no" });
     }
-    if let Some((n, chars)) = body
-        .lines()
-        .enumerate()
-        .map(|(i, l)| (i + 1, l.chars().count()))
-        .max_by_key(|&(_, chars)| chars)
-    {
+    if let Some((n, chars)) = body.lines().enumerate().map(|(i, l)| (i + 1, l.chars().count())).max_by_key(|&(_, chars)| chars) {
         s.row("Longest line", format!("{} chars (line {})", grouped(chars as u64), grouped(n as u64)));
     }
     let widths: Vec<u16> = body
@@ -480,15 +471,18 @@ fn text(path: &Path) -> Option<Section> {
         })
         .collect();
     let tabs = body.lines().filter(|l| l.starts_with('\t')).count();
-    s.row("Indentation", match (widths.is_empty(), tabs) {
-        (true, 0) => String::new(),
-        (true, _) => "tabs".to_string(),
-        (false, 0) => match indent_step(&widths) {
-            Some(w) => format!("spaces, {w}"),
-            None => "spaces".to_string(),
+    s.row(
+        "Indentation",
+        match (widths.is_empty(), tabs) {
+            (true, 0) => String::new(),
+            (true, _) => "tabs".to_string(),
+            (false, 0) => match indent_step(&widths) {
+                Some(w) => format!("spaces, {w}"),
+                None => "spaces".to_string(),
+            },
+            (false, t) => format!("mixed: spaces {} lines, tabs {}", grouped(widths.len() as u64), grouped(t as u64)),
         },
-        (false, t) => format!("mixed: spaces {} lines, tabs {}", grouped(widths.len() as u64), grouped(t as u64)),
-    });
+    );
     if partial {
         s.row("Scanned", format!("first {} of {}", util::human_size(bytes.len() as u64), util::human_size(meta.len())));
     }
@@ -500,7 +494,11 @@ fn text(path: &Path) -> Option<Section> {
 /// which is the honest answer for ragged indentation.
 fn indent_step(widths: &[u16]) -> Option<u16> {
     fn gcd(a: u16, b: u16) -> u16 {
-        if b == 0 { a } else { gcd(b, a % b) }
+        if b == 0 {
+            a
+        } else {
+            gcd(b, a % b)
+        }
     }
     let step = widths.iter().copied().reduce(gcd)?;
     (2..=8).contains(&step).then_some(step)
@@ -557,25 +555,31 @@ fn executable(path: &Path) -> Option<Section> {
             let machine = le16(&pe, 4)?;
             let characteristics = le16(&pe, 22)?;
             let opt = le16(&pe, 24)?;
-            s.row("Format", match opt {
-                0x10b => "PE32".to_string(),
-                0x20b => "PE32+".to_string(),
-                other => format!("PE (optional header {other:#x})"),
-            });
+            s.row(
+                "Format",
+                match opt {
+                    0x10b => "PE32".to_string(),
+                    0x20b => "PE32+".to_string(),
+                    other => format!("PE (optional header {other:#x})"),
+                },
+            );
             s.row("Architecture", coff_machine(machine));
             s.row("Kind", if characteristics & 0x2000 != 0 { "DLL" } else { "executable" });
             // The subsystem sits at offset 68 of the optional header in both
             // PE32 and PE32+: the two differ only in the image-base field and
             // line up again well before this one.
             if let Some(sub) = le16(&pe, 92) {
-                s.row("Subsystem", match sub {
-                    1 => "native".to_string(),
-                    2 => "Windows GUI".to_string(),
-                    3 => "console".to_string(),
-                    9 => "Windows CE".to_string(),
-                    10 => "EFI application".to_string(),
-                    other => format!("{other} (unknown)"),
-                });
+                s.row(
+                    "Subsystem",
+                    match sub {
+                        1 => "native".to_string(),
+                        2 => "Windows GUI".to_string(),
+                        3 => "console".to_string(),
+                        9 => "Windows CE".to_string(),
+                        10 => "EFI application".to_string(),
+                        other => format!("{other} (unknown)"),
+                    },
+                );
             }
         }
         _ if head.starts_with(b"\x7fELF") => {
@@ -585,20 +589,26 @@ fn executable(path: &Path) -> Option<Section> {
                 let c = head.get(at..at + 2)?.first_chunk::<2>()?;
                 Some(if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) })
             };
-            s.row("Format", match class {
-                1 => "ELF 32-bit".to_string(),
-                2 => "ELF 64-bit".to_string(),
-                other => format!("ELF (class {other})"),
-            });
+            s.row(
+                "Format",
+                match class {
+                    1 => "ELF 32-bit".to_string(),
+                    2 => "ELF 64-bit".to_string(),
+                    other => format!("ELF (class {other})"),
+                },
+            );
             s.row("Architecture", elf_machine(rd(18)?));
             s.row("Byte order", if big { "big" } else { "little" });
-            s.row("Kind", match rd(16)? {
-                1 => "object file".to_string(),
-                2 => "executable".to_string(),
-                3 => "shared object / PIE".to_string(),
-                4 => "core dump".to_string(),
-                other => format!("{other} (unknown)"),
-            });
+            s.row(
+                "Kind",
+                match rd(16)? {
+                    1 => "object file".to_string(),
+                    2 => "executable".to_string(),
+                    3 => "shared object / PIE".to_string(),
+                    4 => "core dump".to_string(),
+                    other => format!("{other} (unknown)"),
+                },
+            );
         }
         // Both byte orders of both widths. The thin header is native-endian, so
         // the reversed magics are the same file seen from the other side.
@@ -611,12 +621,15 @@ fn executable(path: &Path) -> Option<Section> {
             };
             s.row("Format", if wide { "Mach-O 64-bit" } else { "Mach-O 32-bit" });
             s.row("Architecture", mach_cpu(rd(4)?));
-            s.row("Kind", match rd(12)? {
-                2 => "executable".to_string(),
-                6 => "dynamic library".to_string(),
-                8 => "bundle".to_string(),
-                other => format!("{other} (unknown)"),
-            });
+            s.row(
+                "Kind",
+                match rd(12)? {
+                    2 => "executable".to_string(),
+                    6 => "dynamic library".to_string(),
+                    8 => "bundle".to_string(),
+                    other => format!("{other} (unknown)"),
+                },
+            );
         }
         // `CAFEBABE` is also the magic of a Java class file. The word after it
         // is a universal binary's slice count -- small -- where a class file has
@@ -866,8 +879,6 @@ mod tests {
         assert_eq!(reason(&std::io::Error::other("plain")), "plain", "a message of our own is kept");
     }
 
-
-
     fn value<'a>(s: &'a Section, key: &str) -> Option<&'a str> {
         s.rows.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
@@ -935,14 +946,7 @@ mod tests {
         std::fs::write(src.join("a.txt"), b"aaa").unwrap();
         std::fs::write(src.join("b.txt"), b"bbbb").unwrap();
         let zip = dir.join("out.zip");
-        crate::fs::archive::compress(
-            std::slice::from_ref(&src),
-            &dir,
-            &zip,
-            crate::fs::archive::Format::Zip,
-            &mut |_, _| true,
-        )
-        .unwrap();
+        crate::fs::archive::compress(std::slice::from_ref(&src), &dir, &zip, crate::fs::archive::Format::Zip, &mut |_, _| true).unwrap();
         let all = inspect(&zip);
         let s = section(&all, "Archive").expect("an archive gets a section: {all:?}");
         assert_eq!(value(s, "Format"), Some("zip"));

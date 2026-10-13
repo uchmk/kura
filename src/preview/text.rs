@@ -4,9 +4,7 @@
 use std::sync::OnceLock;
 
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{
-    FontStyle, HighlightIterator, HighlightState, Highlighter as ThemeHighlighter, Style, Theme, ThemeSet,
-};
+use syntect::highlighting::{FontStyle, HighlightIterator, HighlightState, Highlighter as ThemeHighlighter, Style, Theme, ThemeSet};
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
 
@@ -95,11 +93,19 @@ pub(crate) const DEEP_MAX_LINES: usize = 100_000;
 const DEEP_COLOR_LINES: usize = if cfg!(test) { 200 } else { 40_000 };
 
 fn max_lines(req: &Request) -> usize {
-    if req.key.deep { DEEP_MAX_LINES } else { MAX_LINES }
+    if req.key.deep {
+        DEEP_MAX_LINES
+    } else {
+        MAX_LINES
+    }
 }
 
 fn color_lines(req: &Request) -> usize {
-    if req.key.deep { DEEP_COLOR_LINES } else { MAX_LINES }
+    if req.key.deep {
+        DEEP_COLOR_LINES
+    } else {
+        MAX_LINES
+    }
 }
 
 /// Lines colored before `Highlighter::early` is handed a first screen: about
@@ -207,9 +213,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
         let mut heading = false;
         if is_markdown {
             if let Some(active) = fence.as_mut() {
-                let closes = fence_marker(line).is_some_and(|(ch, len, info)| {
-                    ch == active.ch && len >= active.len && info.is_empty()
-                });
+                let closes = fence_marker(line).is_some_and(|(ch, len, info)| ch == active.ch && len >= active.len && info.is_empty());
                 if closes {
                     fence = None;
                 } else if let Some(sub) = active.hl.as_mut() {
@@ -268,17 +272,12 @@ pub(super) fn find_token<'a>(syntaxes: &'a SyntaxSet, token: &str) -> Option<&'a
         "cfg" | "conf" | "dosini" => "ini",
         other => other,
     };
-    syntaxes
-        .find_syntax_by_token(alias)
-        .or_else(|| syntaxes.find_syntax_by_token(token))
+    syntaxes.find_syntax_by_token(alias).or_else(|| syntaxes.find_syntax_by_token(token))
 }
 
 /// Syntax for a fence's info string (`rust`, `rust,ignore`, `{.python}`).
 pub(super) fn fence_syntax<'a>(syntaxes: &'a SyntaxSet, info: &str) -> Option<&'a SyntaxReference> {
-    let lang = info
-        .split(|c: char| c.is_whitespace() || c == ',' || c == '{' || c == '}')
-        .find(|s| !s.is_empty())?
-        .trim_start_matches('.');
+    let lang = info.split(|c: char| c.is_whitespace() || c == ',' || c == '{' || c == '}').find(|s| !s.is_empty())?.trim_start_matches('.');
     find_token(syntaxes, lang)
 }
 
@@ -355,10 +354,7 @@ pub fn plain_lines(text: &str) -> Vec<Vec<Span>> {
 }
 
 fn plain_lines_to(text: &str, max: usize) -> Vec<Vec<Span>> {
-    text.lines()
-        .take(max)
-        .map(|l| vec![Span { text: clip(l, MAX_LINE_CHARS), ..Default::default() }])
-        .collect()
+    text.lines().take(max).map(|l| vec![Span { text: clip(l, MAX_LINE_CHARS), ..Default::default() }]).collect()
 }
 
 pub fn plain(text: &str, extent: Extent) -> Payload {
@@ -442,15 +438,7 @@ mod tests {
         };
         Request {
             id: 0,
-            key: Key {
-                path: format!("x.{ext}").into(),
-                len: 0,
-                mtime: None,
-                box_size: (0, 0),
-                cols: 80,
-                n: 0,
-                deep: false,
-            },
+            key: Key { path: format!("x.{ext}").into(), len: 0, mtime: None, box_size: (0, 0), cols: 80, n: 0, deep: false },
             mime,
             ext: Some(ext.into()),
             max_bytes: 1 << 20,
@@ -483,12 +471,11 @@ mod tests {
     #[test]
     fn a_deep_preview_colours_only_its_first_stretch() {
         let src = "fn a() { let x = 1; }
-".repeat(DEEP_COLOR_LINES + 50);
+"
+        .repeat(DEEP_COLOR_LINES + 50);
         let mut req = request("rs");
         req.key.deep = true;
-        let Payload::Text { lines, .. } = render(src.as_bytes(), &req, &mut Highlighter::default()) else {
-            panic!("not text")
-        };
+        let Payload::Text { lines, .. } = render(src.as_bytes(), &req, &mut Highlighter::default()) else { panic!("not text") };
         assert_eq!(lines.len(), DEEP_COLOR_LINES + 50);
         assert!(colors(&lines[10]).len() > 1, "{:?}", lines[10]);
         assert!(colors(&lines[DEEP_COLOR_LINES + 10]).is_empty(), "{:?}", lines[DEEP_COLOR_LINES + 10]);
@@ -498,8 +485,7 @@ mod tests {
     #[test]
     fn source_files_carry_an_outline() {
         let src = "use std::fmt;\n\nstruct A;\n\nimpl A {\n\tfn go(&self) {}\n}\n";
-        let Payload::Text { lines, outline, .. } = render(src.as_bytes(), &request("rs"), &mut Highlighter::default())
-        else {
+        let Payload::Text { lines, outline, .. } = render(src.as_bytes(), &request("rs"), &mut Highlighter::default()) else {
             panic!("not text")
         };
         let got: Vec<_> = outline.iter().map(|e| (e.line, e.label.as_str())).collect();
@@ -507,8 +493,7 @@ mod tests {
         // Parsing once for both did not cost the colors.
         assert!(colors(&lines[5]).len() > 1, "{:?}", lines[5]);
 
-        let Payload::Text { outline, .. } = render(b"plain words\n", &request("txt"), &mut Highlighter::default())
-        else {
+        let Payload::Text { outline, .. } = render(b"plain words\n", &request("txt"), &mut Highlighter::default()) else {
             panic!("not text")
         };
         assert!(outline.is_empty());
@@ -606,9 +591,7 @@ mod tests {
             into.borrow_mut().extend(p);
             true
         }));
-        let Payload::Text { lines: whole, outline, .. } = render(src.as_bytes(), &request("rs"), &mut hl) else {
-            panic!("text expected")
-        };
+        let Payload::Text { lines: whole, outline, .. } = render(src.as_bytes(), &request("rs"), &mut hl) else { panic!("text expected") };
         assert!(!hl.abandoned);
         let sent = sent.borrow();
         assert_eq!(sent.len(), 1, "one first screen, then the whole");

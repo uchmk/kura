@@ -21,11 +21,7 @@ pub fn which(app: &App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
         if y + row_h > rect.bottom() {
             continue;
         }
-        let g = painter.layout_no_wrap(
-            keys.clone(),
-            f.clone(),
-            theme.which_cand.fg.unwrap_or(theme.fg),
-        );
+        let g = painter.layout_no_wrap(keys.clone(), f.clone(), theme.which_cand.fg.unwrap_or(theme.fg));
         let kw = g.size().x;
         painter.galley(egui::pos2(x, y), g, theme.fg);
         let text = if desc.is_empty() { raw.clone() } else { desc.clone() };
@@ -102,11 +98,7 @@ fn one_line(clip: &str) -> String {
 /// click by the time the paste runs, so `at` is the click; `selected` is what
 /// the frame before had selected. A click on the selection pastes over it, as
 /// a browser and a terminal do (30.3, #104); anywhere else, where it fell.
-fn paste_over(
-    at: std::ops::Range<usize>,
-    selected: Option<std::ops::Range<usize>>,
-    chars: usize,
-) -> std::ops::Range<usize> {
+fn paste_over(at: std::ops::Range<usize>, selected: Option<std::ops::Range<usize>>, chars: usize) -> std::ops::Range<usize> {
     match selected {
         Some(s) if s.start < s.end && s.end <= chars && (s.start..=s.end).contains(&at.start) => s,
         _ => at,
@@ -161,8 +153,7 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
     let accent = app.cfg.theme.cwd.fg.unwrap_or(theme_fg);
 
     ui.painter().rect_filled(rect, CornerRadius::ZERO, theme_bg);
-    ui.painter()
-        .line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, theme_border));
+    ui.painter().line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, theme_border));
 
     // Tab hands the listing to the scan pool, so the answer can be a moment
     // behind on a slow share. Say so rather than look like the key did nothing.
@@ -172,18 +163,13 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
         ui.ctx().request_repaint_after(App::SLOW_COMPLETION);
     }
     let said = slow.unwrap_or_else(|| "…".into());
-    let gutter = if waiting {
-        ui.painter().layout_no_wrap(said.clone(), f.clone(), accent).size().x + 12.0
-    } else {
-        0.0
-    };
+    let gutter = if waiting { ui.painter().layout_no_wrap(said.clone(), f.clone(), accent).size().x + 12.0 } else { 0.0 };
 
     let Overlay::Input(ov) = &mut app.overlay else { return };
     let title = format!("{}:", ov.title);
     let g = ui.painter().layout_no_wrap(title, f.clone(), accent);
     let tw = g.size().x;
-    ui.painter()
-        .galley(egui::pos2(rect.left() + 10.0, rect.center().y - g.size().y / 2.0), g, accent);
+    ui.painter().galley(egui::pos2(rect.left() + 10.0, rect.center().y - g.size().y / 2.0), g, accent);
 
     let field = Rect::from_min_max(
         egui::pos2(rect.left() + tw + 18.0, rect.top() + 5.0),
@@ -240,11 +226,7 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
     // invisible on the dark theme, read only at 4x (#220).
     if waiting {
         let g = ui.painter().layout_no_wrap(said, f.clone(), accent);
-        ui.painter().galley(
-            egui::pos2(rect.right() - 10.0 - g.size().x, rect.center().y - g.size().y / 2.0),
-            g,
-            accent,
-        );
+        ui.painter().galley(egui::pos2(rect.right() - 10.0 - g.size().x, rect.center().y - g.size().y / 2.0), g, accent);
     }
     // Said out loud because the right-click looked like it did nothing.
     if let Err(e) = clip {
@@ -277,13 +259,7 @@ pub fn quick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, que
     let rect = modal_rect(full, 0.86, 0.88);
     let inner = modal_frame(ui, rect, &theme, &name, f, row_h);
     // Nothing else on screen changed, so say how to get out.
-    ui.painter().text(
-        rect.right_top() + Vec2::new(-14.0, 10.0),
-        Align2::RIGHT_TOP,
-        "Esc to close",
-        f.clone(),
-        theme.fg_dim,
-    );
+    ui.painter().text(rect.right_top() + Vec2::new(-14.0, 10.0), Align2::RIGHT_TOP, "Esc to close", f.clone(), theme.fg_dim);
     super::draw_preview(app, ui, inner, f, row_h, queued);
 }
 
@@ -317,19 +293,8 @@ pub fn shell_hint(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bo
     );
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), theme.bg_alt);
-    painter.rect_stroke(
-        rect,
-        CornerRadius::same(6),
-        Stroke::new(1.0, theme.border),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        egui::pos2(rect.left() + 12.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        text,
-        f.clone(),
-        theme.fg_dim,
-    );
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, theme.border), egui::StrokeKind::Inside);
+    painter.text(egui::pos2(rect.left() + 12.0, rect.center().y), Align2::LEFT_CENTER, text, f.clone(), theme.fg_dim);
 }
 
 /// The name typed at `r` or `E` is taken (#264): said above the prompt, in the
@@ -345,19 +310,8 @@ pub fn name_hint(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bot
     );
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), theme.bg_alt);
-    painter.rect_stroke(
-        rect,
-        CornerRadius::same(6),
-        Stroke::new(1.0, theme.progress_error),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        egui::pos2(rect.left() + 12.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        text,
-        f.clone(),
-        theme.progress_error,
-    );
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, theme.progress_error), egui::StrokeKind::Inside);
+    painter.text(egui::pos2(rect.left() + 12.0, rect.center().y), Align2::LEFT_CENTER, text, f.clone(), theme.progress_error);
 }
 
 /// The live preview under the bulk-rename prompt: what every selected file is
@@ -391,8 +345,7 @@ pub fn bulk(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bottom: 
     let shown = rows.len().min(MAX_ROWS);
     // +1 for the legend, which is always there: it is a reference, and hiding
     // it once someone starts typing takes it away exactly when it is wanted.
-    let lines =
-        1 + shown + usize::from(rows.len() > shown) + usize::from(trouble.is_some());
+    let lines = 1 + shown + usize::from(rows.len() > shown) + usize::from(trouble.is_some());
     let h = row_h * lines as f32 + 20.0;
     // A long selection would push the top of the panel off a short window.
     let top = (bottom - h - 6.0).max(full.top() + 4.0);
@@ -402,29 +355,13 @@ pub fn bulk(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bottom: 
     );
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), theme.bg_alt);
-    painter.rect_stroke(
-        rect,
-        CornerRadius::same(6),
-        Stroke::new(1.0, theme.border),
-        egui::StrokeKind::Inside,
-    );
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, theme.border), egui::StrokeKind::Inside);
 
     // The arrow column is set by the longest name on show, so the new names
     // line up and a stray change is easy to spot.
-    let widest = rows
-        .iter()
-        .take(shown)
-        .map(|r| crate::util::file_name(&r.from).chars().count())
-        .max()
-        .unwrap_or(0);
+    let widest = rows.iter().take(shown).map(|r| crate::util::file_name(&r.from).chars().count()).max().unwrap_or(0);
     let mut y = rect.top() + 10.0;
-    painter.text(
-        egui::pos2(rect.left() + 12.0, y),
-        Align2::LEFT_TOP,
-        LEGEND,
-        f.clone(),
-        theme.fg_dim,
-    );
+    painter.text(egui::pos2(rect.left() + 12.0, y), Align2::LEFT_TOP, LEGEND, f.clone(), theme.fg_dim);
     y += row_h;
     for r in rows.iter().take(shown) {
         let from = crate::util::file_name(&r.from);
@@ -434,13 +371,7 @@ pub fn bulk(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bottom: 
             None if r.to == from => (r.to.clone(), theme.fg_dim),
             None => (r.to.clone(), theme.cwd.fg.unwrap_or(theme.fg)),
         };
-        painter.text(
-            egui::pos2(rect.left() + 12.0, y),
-            Align2::LEFT_TOP,
-            format!("{from}{pad}  →  {tail}"),
-            f.clone(),
-            color,
-        );
+        painter.text(egui::pos2(rect.left() + 12.0, y), Align2::LEFT_TOP, format!("{from}{pad}  →  {tail}"), f.clone(), color);
         y += row_h;
     }
     if rows.len() > shown {
@@ -454,13 +385,7 @@ pub fn bulk(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, bottom: 
         y += row_h;
     }
     if let Some(note) = trouble {
-        painter.text(
-            egui::pos2(rect.left() + 12.0, y),
-            Align2::LEFT_TOP,
-            note,
-            f.clone(),
-            theme.progress_error,
-        );
+        painter.text(egui::pos2(rect.left() + 12.0, y), Align2::LEFT_TOP, note, f.clone(), theme.progress_error);
     }
 }
 
@@ -472,39 +397,15 @@ pub fn bookmark_hint(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32)
         Some(crate::app::BookmarkOp::Delete) => "Delete bookmark…",
         None => return,
     };
-    let lines: Vec<String> = app
-        .bookmarks
-        .iter()
-        .map(|b| format!("  {}   {}", b.key, b.path.display()))
-        .collect();
+    let lines: Vec<String> = app.bookmarks.iter().map(|b| format!("  {}   {}", b.key, b.path.display())).collect();
     let h = row_h * (lines.len() as f32 + 1.5) + 20.0;
-    let rect = Rect::from_min_size(
-        egui::pos2(full.left() + 20.0, full.bottom() - h - 60.0),
-        Vec2::new((full.width() * 0.5).min(560.0), h),
-    );
+    let rect = Rect::from_min_size(egui::pos2(full.left() + 20.0, full.bottom() - h - 60.0), Vec2::new((full.width() * 0.5).min(560.0), h));
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), theme.bg_alt);
-    painter.rect_stroke(
-        rect,
-        CornerRadius::same(6),
-        Stroke::new(1.0, theme.border),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        rect.left_top() + Vec2::new(12.0, 8.0),
-        Align2::LEFT_TOP,
-        op,
-        f.clone(),
-        theme.cwd.fg.unwrap_or(theme.fg),
-    );
+    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, theme.border), egui::StrokeKind::Inside);
+    painter.text(rect.left_top() + Vec2::new(12.0, 8.0), Align2::LEFT_TOP, op, f.clone(), theme.cwd.fg.unwrap_or(theme.fg));
     for (i, l) in lines.iter().enumerate() {
-        painter.text(
-            rect.left_top() + Vec2::new(12.0, 8.0 + row_h * (i as f32 + 1.2)),
-            Align2::LEFT_TOP,
-            l,
-            f.clone(),
-            theme.fg_dim,
-        );
+        painter.text(rect.left_top() + Vec2::new(12.0, 8.0 + row_h * (i as f32 + 1.2)), Align2::LEFT_TOP, l, f.clone(), theme.fg_dim);
     }
 }
 
@@ -553,18 +454,14 @@ fn key_for(app: &App, act: &Act) -> Option<String> {
 fn config_rows(app: &App, dirs: &[std::path::PathBuf]) -> Vec<HelpRow> {
     let mut out = vec![HelpRow::heading("config")];
     for dir in dirs {
-        let here: Vec<&std::path::PathBuf> =
-            app.cfg.loaded.iter().filter(|p| p.parent() == Some(dir.as_path())).collect();
+        let here: Vec<&std::path::PathBuf> = app.cfg.loaded.iter().filter(|p| p.parent() == Some(dir.as_path())).collect();
         // A file that is on disk now but was not among the ones read. Writing a
         // config with the window already open is the ordinary way to get here,
         // and the panel used to answer it with "nothing here" while the file sat
         // in that very directory -- which reads as "kura cannot see it" rather
         // than "kura has not looked since".
-        let unread: Vec<std::path::PathBuf> = crate::config::FILES
-            .iter()
-            .map(|n| dir.join(n))
-            .filter(|p| p.is_file() && !here.contains(&p))
-            .collect();
+        let unread: Vec<std::path::PathBuf> =
+            crate::config::FILES.iter().map(|n| dir.join(n)).filter(|p| p.is_file() && !here.contains(&p)).collect();
         out.push(HelpRow {
             text: format!("{}{}", dir.display(), std::path::MAIN_SEPARATOR),
             raw: match here.is_empty() && unread.is_empty() {
@@ -606,11 +503,7 @@ fn config_rows(app: &App, dirs: &[std::path::PathBuf]) -> Vec<HelpRow> {
     // A file from somewhere else entirely: `KURA_CONFIG_HOME` moved after it
     // was read, or a path no longer under any searched directory.
     for p in app.cfg.loaded.iter().filter(|p| !p.parent().is_some_and(|d| dirs.iter().any(|x| x == d))) {
-        out.push(HelpRow {
-            text: p.display().to_string(),
-            goes_to: Some(Act::Reveal(p.display().to_string())),
-            ..HelpRow::blank()
-        });
+        out.push(HelpRow { text: p.display().to_string(), goes_to: Some(Act::Reveal(p.display().to_string())), ..HelpRow::blank() });
     }
     // One row per line: a TOML parse error runs to four, and as one row they
     // were drawn on top of each other, three files' worth in one place (#250,
@@ -765,8 +658,7 @@ pub(crate) fn help_text(app: &App) -> (String, usize) {
 pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queued: &mut Vec<Act>) {
     dim(ui, full);
     let rect = modal_rect(full, 0.86, 0.86);
-    let title =
-        "Keys — <Esc> close, j/k scroll, <A-j>/<A-k> half a page, C copies it all, click a config path to go to it";
+    let title = "Keys — <Esc> close, j/k scroll, <A-j>/<A-k> half a page, C copies it all, click a config path to go to it";
     let inner = modal_frame(ui, rect, &app.cfg.theme, title, f, row_h);
     let theme = app.cfg.theme.clone();
     let cell = ui.painter().layout_no_wrap("M".repeat(20), f.clone(), theme.fg).size().x / 20.0;
@@ -800,10 +692,7 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     let painter = ui.painter_at(inner);
     for (i, row) in lines[start..].iter().take(rows).enumerate() {
         let y = inner.top() + i as f32 * row_h;
-        let at = Rect::from_min_size(
-            egui::pos2(inner.left(), y),
-            Vec2::new(inner.width(), row_h),
-        );
+        let at = Rect::from_min_size(egui::pos2(inner.left(), y), Vec2::new(inner.width(), row_h));
         // Only the config paths answer to the pointer; a key list is a key
         // list and a row that lit up under the cursor would only mislead.
         let live = row.goes_to.is_some() && pointer.is_some_and(|p| at.contains(p));
@@ -814,13 +703,7 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
                 went = row.goes_to.clone();
             }
         }
-        painter.text(
-            egui::pos2(inner.left(), y),
-            Align2::LEFT_TOP,
-            &row.keys,
-            f.clone(),
-            theme.which_cand.fg.unwrap_or(theme.fg),
-        );
+        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, &row.keys, f.clone(), theme.which_cand.fg.unwrap_or(theme.fg));
         let color = match (row.warning, row.goes_to.is_some()) {
             (true, _) => theme.warning,
             // A path reads as somewhere to go, in the colour the breadcrumb
@@ -828,21 +711,9 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
             (false, true) => theme.cwd.fg.unwrap_or(theme.fg),
             (false, false) => theme.fg,
         };
-        painter.text(
-            egui::pos2(inner.left() + 130.0, y),
-            Align2::LEFT_TOP,
-            &row.text,
-            f.clone(),
-            color,
-        );
+        painter.text(egui::pos2(inner.left() + 130.0, y), Align2::LEFT_TOP, &row.text, f.clone(), color);
         if !row.raw.is_empty() {
-            painter.text(
-                egui::pos2(inner.right(), y),
-                Align2::RIGHT_TOP,
-                &row.raw,
-                f.clone(),
-                theme.fg_dim,
-            );
+            painter.text(egui::pos2(inner.right(), y), Align2::RIGHT_TOP, &row.raw, f.clone(), theme.fg_dim);
         }
     }
 
@@ -890,21 +761,12 @@ pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
         if i == cursor {
             // The row the keys act on, marked the way the list marks its own.
             painter.rect_filled(
-                Rect::from_min_size(
-                    egui::pos2(inner.left() - 6.0, y - 2.0),
-                    Vec2::new(inner.width() + 12.0, row_h + 4.0),
-                ),
+                Rect::from_min_size(egui::pos2(inner.left() - 6.0, y - 2.0), Vec2::new(inner.width() + 12.0, row_h + 4.0)),
                 CornerRadius::same(3),
                 theme.hovered_bg,
             );
         }
-        painter.text(
-            egui::pos2(inner.left(), y),
-            Align2::LEFT_TOP,
-            t.headline(),
-            f.clone(),
-            color,
-        );
+        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, t.headline(), f.clone(), color);
         y += row_h;
         let bar = Rect::from_min_size(egui::pos2(inner.left(), y + 2.0), Vec2::new(inner.width(), 4.0));
         painter.rect_filled(bar, CornerRadius::same(2), theme.border);
@@ -917,13 +779,7 @@ pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
         painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, t.detail(), f.clone(), theme.fg_dim);
         y += row_h;
         for e in t.errors.iter().take(3) {
-            painter.text(
-                egui::pos2(inner.left() + 12.0, y),
-                Align2::LEFT_TOP,
-                e,
-                f.clone(),
-                theme.progress_error,
-            );
+            painter.text(egui::pos2(inner.left() + 12.0, y), Align2::LEFT_TOP, e, f.clone(), theme.progress_error);
             y += row_h;
         }
         y += 6.0;
@@ -941,13 +797,9 @@ pub fn confirm(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, q
     // one row at this width, and the row used to be laid out without ever
     // comparing against the right edge: the last one — Cancel, the only way out
     // — was sliced in half by the modal's clip and read as `[q] Ca`.
-    let labels: Vec<String> =
-        (0..c.options.len()).map(|i| format!(" {} ", c.button_label(i))).collect();
+    let labels: Vec<String> = (0..c.options.len()).map(|i| format!(" {} ", c.button_label(i))).collect();
     let fg = app.cfg.theme.fg;
-    let widths: Vec<f32> = labels
-        .iter()
-        .map(|t| ui.painter().layout_no_wrap(t.clone(), f.clone(), fg).size().x + 6.0)
-        .collect();
+    let widths: Vec<f32> = labels.iter().map(|t| ui.painter().layout_no_wrap(t.clone(), f.clone(), fg).size().x + 6.0).collect();
 
     let width = (full.width() * 0.6).min(760.0);
     // 14px of padding on each side, from `modal_frame`.
@@ -967,8 +819,7 @@ pub fn confirm(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, q
     // came out `holds the…ull path` on every machine while its path pair lost
     // the arrow and the link's own name -- the one thing that question is
     // there to show (#185).
-    let body: Vec<_> =
-        c.body.iter().map(|l| ui.painter().layout(l.clone(), f.clone(), fg, inner_w)).collect();
+    let body: Vec<_> = c.body.iter().map(|l| ui.painter().layout(l.clone(), f.clone(), fg, inner_w)).collect();
     let body_h: f32 = body.iter().map(|g| g.size().y.max(row_h)).sum();
     // Exactly what is drawn below: the frame's title and padding (12 + row_h
     // above, 12 below, from `modal_frame`), the body, half a row, and the
@@ -1005,10 +856,7 @@ pub fn confirm(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, q
         let r = Rect::from_min_size(egui::pos2(x, y), Vec2::new(w, row_h + 4.0));
         painter.rect_filled(r, CornerRadius::same(4), theme.status_bg);
         painter.galley(egui::pos2(x + 3.0, y + 2.0), g, theme.fg);
-        if ui
-            .interact(r, ui.id().with(("confirm", *key)), egui::Sense::click())
-            .clicked()
-        {
+        if ui.interact(r, ui.id().with(("confirm", *key)), egui::Sense::click()).clicked() {
             hit = Some(*key);
         }
         x += w + 8.0;
@@ -1062,10 +910,7 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
         p.refilter();
     }
 
-    let list = Rect::from_min_max(
-        egui::pos2(inner.left(), field.bottom() + 6.0),
-        inner.right_bottom(),
-    );
+    let list = Rect::from_min_max(egui::pos2(inner.left(), field.bottom() + 6.0), inner.right_bottom());
     let painter = ui.painter_at(list);
     let rows = ((list.height() / row_h).floor() as usize).max(1);
     let start = p.cursor.saturating_sub(rows / 2).min(p.matches.len().saturating_sub(rows));
@@ -1108,10 +953,7 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
                 theme_dim,
             );
         }
-        if ui
-            .interact(row_rect, ui.id().with(("pick", i)), egui::Sense::click())
-            .clicked()
-        {
+        if ui.interact(row_rect, ui.id().with(("pick", i)), egui::Sense::click()).clicked() {
             clicked = Some(start + i);
         }
     }
@@ -1158,11 +1000,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     } else {
         "n / N: next / previous difference · q: close"
     };
-    let title = format!(
-        "{}  ↔  {} — {keys}",
-        crate::util::file_name(&ov.left),
-        crate::util::file_name(&ov.right),
-    );
+    let title = format!("{}  ↔  {} — {keys}", crate::util::file_name(&ov.left), crate::util::file_name(&ov.right),);
     let rect = modal_rect(full, 0.92, 0.86);
     let framed = modal_frame(ui, rect, &theme, &title, f, row_h);
     // Both full paths, under the names: comparing two folders of the same name
@@ -1174,13 +1012,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     let half = room.saturating_sub(5) / 2;
     let side = |p: &std::path::Path| crate::util::ellipsize_middle(&p.display().to_string(), half.max(4));
     let paths = format!("{}  ↔  {}", side(&ov.left), side(&ov.right));
-    ui.painter_at(framed).text(
-        framed.left_top(),
-        Align2::LEFT_TOP,
-        paths,
-        f.clone(),
-        theme.fg_dim,
-    );
+    ui.painter_at(framed).text(framed.left_top(), Align2::LEFT_TOP, paths, f.clone(), theme.fg_dim);
     let inner = Rect::from_min_max(framed.min + Vec2::new(0.0, row_h), framed.max);
     let painter = ui.painter_at(inner);
 
@@ -1191,9 +1023,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
         None => return note("Comparing…", theme.fg_dim),
         Some(Outcome::Error(e)) => return note(e, theme.progress_error),
         Some(Outcome::Identical) => return note("The two files are identical.", theme.fg_dim),
-        Some(Outcome::Binary { .. }) => {
-            return note("Not text on both sides, and the bytes differ.", theme.fg_dim)
-        }
+        Some(Outcome::Binary { .. }) => return note("Not text on both sides, and the bytes differ.", theme.fg_dim),
         Some(Outcome::Tree { .. }) => {
             return diff_tree(ov, &theme, &painter, inner, f, row_h);
         }
@@ -1209,10 +1039,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
 
     // Two equal halves with a hairline between them.
     let mid = inner.center().x;
-    painter.line_segment(
-        [egui::pos2(mid, inner.top()), egui::pos2(mid, inner.bottom())],
-        Stroke::new(1.0, theme.border),
-    );
+    painter.line_segment([egui::pos2(mid, inner.top()), egui::pos2(mid, inner.bottom())], Stroke::new(1.0, theme.border));
     let cell = painter.layout_no_wrap("M".repeat(20), f.clone(), theme.fg).size().x / 20.0;
     let half = (mid - inner.left() - 12.0).max(0.0);
     let cols = ((half - 5.0 * cell) / cell).max(4.0) as usize;
@@ -1221,10 +1048,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     // signs use, so a changed line reads the same way it does in the listing.
     let mut y = inner.top();
     for row in rows.iter().skip(top).take(visible) {
-        let sides = [
-            (&row.left, inner.left(), theme.git_deleted),
-            (&row.right, mid + 8.0, theme.git_added),
-        ];
+        let sides = [(&row.left, inner.left(), theme.git_deleted), (&row.right, mid + 8.0, theme.git_added)];
         for (side, x, mark) in sides {
             // Nothing on this side: the line exists only in the other file.
             let Some(l) = side else { continue };
@@ -1274,13 +1098,7 @@ pub fn diff(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     if truncated {
         foot.push_str("  ·  cut short");
     }
-    painter.text(
-        egui::pos2(inner.left(), inner.bottom() - row_h),
-        Align2::LEFT_TOP,
-        foot,
-        f.clone(),
-        theme.fg_dim,
-    );
+    painter.text(egui::pos2(inner.left(), inner.bottom() - row_h), Align2::LEFT_TOP, foot, f.clone(), theme.fg_dim);
 }
 
 /// Two trees as one list of the paths inside them, each marked with what was
@@ -1356,11 +1174,7 @@ fn diff_tree(
         painter.text(inner.left_top() + Vec2::new(0.0, y - inner.top()), Align2::LEFT_TOP, sign, f.clone(), color);
 
         let size = match row.state {
-            TreeState::Differ if !row.dir => format!(
-                "  {} → {}",
-                crate::util::human_size(row.left),
-                crate::util::human_size(row.right)
-            ),
+            TreeState::Differ if !row.dir => format!("  {} → {}", crate::util::human_size(row.left), crate::util::human_size(row.right)),
             TreeState::LeftOnly if !row.dir => format!("  {}", crate::util::human_size(row.left)),
             TreeState::RightOnly if !row.dir => format!("  {}", crate::util::human_size(row.right)),
             _ => String::new(),
@@ -1391,13 +1205,7 @@ fn diff_tree(
     if ov.hide_same {
         foot.push_str("  ·  matches hidden (z)");
     }
-    painter.text(
-        egui::pos2(inner.left(), inner.bottom() - row_h),
-        Align2::LEFT_TOP,
-        foot,
-        f.clone(),
-        theme.fg_dim,
-    );
+    painter.text(egui::pos2(inner.left(), inner.bottom() - row_h), Align2::LEFT_TOP, foot, f.clone(), theme.fg_dim);
 }
 
 pub fn spot(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
@@ -1520,7 +1328,7 @@ fn spot_key_width(widest_key: f32, panel: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{one_line, paste_over, spot_key_width, spot_thumb, splice};
+    use super::{one_line, paste_over, splice, spot_key_width, spot_thumb};
 
     /// #224: the spot panel's scroll thumb appears only when the lines overflow.
     #[test]
@@ -1617,11 +1425,7 @@ mod help_config_rows {
             text.iter().any(|t| t.starts_with(&mine.display().to_string())),
             "the directory nothing was found in is named anyway: {text:?}",
         );
-        assert_eq!(
-            rows.iter().filter(|r| r.raw == "nothing here").count(),
-            1,
-            "and only that one is marked empty",
-        );
+        assert_eq!(rows.iter().filter(|r| r.raw == "nothing here").count(), 1, "and only that one is marked empty",);
         assert!(text.iter().any(|t| t.trim() == "keymap.toml"), "{text:?}");
 
         // The paths go somewhere; the heading and the warning do not.
@@ -1680,10 +1484,7 @@ mod help_config_rows {
         app.cfg.loaded = vec![dir.join("keymap.toml")];
 
         let rows = config_rows(&app, std::slice::from_ref(&dir));
-        let unread = rows
-            .iter()
-            .find(|r| r.text.trim() == "config.toml")
-            .expect("the file on disk is a row of its own");
+        let unread = rows.iter().find(|r| r.text.trim() == "config.toml").expect("the file on disk is a row of its own");
         assert!(unread.warning, "and it is marked, not listed as read");
         assert!(unread.raw.contains("not read yet"), "{:?}", unread.raw);
         // The key comes from the keymap rather than from this string.
@@ -1691,10 +1492,7 @@ mod help_config_rows {
         assert!(unread.raw.contains(&reload), "{:?}", unread.raw);
         let goes = Some(Act::Reveal(written.display().to_string()));
         assert_eq!(unread.goes_to, goes, "clicking it still goes to the file");
-        assert!(
-            !rows.iter().any(|r| r.raw == "nothing here"),
-            "a directory holding an unread file is not empty",
-        );
+        assert!(!rows.iter().any(|r| r.raw == "nothing here"), "a directory holding an unread file is not empty",);
 
         std::fs::remove_file(&written).ok();
     }
@@ -1805,15 +1603,12 @@ mod diff_frame {
         s.app.overlay = Overlay::Diff(DiffOverlay {
             left: PathBuf::from("l"),
             right: PathBuf::from("r"),
-            outcome: Some(Outcome::Tree {
-                counts: TreeCounts::of(&rows),
-                rows,
-                truncated: false,
-            }),
+            outcome: Some(Outcome::Tree { counts: TreeCounts::of(&rows), rows, truncated: false }),
             offset: 0,
             rows: 10,
             cursor: 0,
-            hide_same: false, back: None,
+            hide_same: false,
+            back: None,
         });
         s
     }
@@ -1851,17 +1646,9 @@ mod diff_frame {
             assert!(f.says(name), "the row for {name} is drawn: {:?}", f.texts);
         }
         for sign in ["<", ">", "~", "=", "?"] {
-            assert!(
-                f.texts.iter().any(|t| t == sign),
-                "the sign {sign} is drawn on its own: {:?}",
-                f.texts,
-            );
+            assert!(f.texts.iter().any(|t| t == sign), "the sign {sign} is drawn on its own: {:?}", f.texts,);
         }
-        assert!(
-            f.says("1 only left") && f.says("1 only right") && f.says("1 differ"),
-            "the footer counts each kind: {:?}",
-            f.texts,
-        );
+        assert!(f.says("1 only left") && f.says("1 only right") && f.says("1 differ"), "the footer counts each kind: {:?}", f.texts,);
         // TESTING.md 45.7: a pair too big to read is its own count, not a match.
         assert!(f.says("1 match"), "and the matches: {:?}", f.texts);
         assert!(f.says("1 too big to read"), "separately from the unread: {:?}", f.texts);
@@ -1885,11 +1672,7 @@ mod diff_frame {
     /// one that only looks static. TESTING.md 45.2.
     #[test]
     fn the_selection_is_drawn_and_moves() {
-        let mut s = showing(vec![
-            row("a.txt", TreeState::Differ),
-            row("b.txt", TreeState::Differ),
-            row("c.txt", TreeState::Differ),
-        ]);
+        let mut s = showing(vec![row("a.txt", TreeState::Differ), row("b.txt", TreeState::Differ), row("c.txt", TreeState::Differ)]);
         let hl = s.app.cfg.theme.hovered_bg;
         let top_of_highlight = |s: &mut Screen| {
             let f = s.draw();
@@ -2010,8 +1793,7 @@ mod help_frame {
             entries.push(crate::fs::Entry::from_path(p).unwrap());
         }
         let mut s = Screen::open(dir.clone());
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir, std::sync::Arc::new(entries), true);
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir, std::sync::Arc::new(entries), true);
         s
     }
 
@@ -2030,11 +1812,7 @@ mod help_frame {
     fn the_panel_measures_itself_against_its_own_height() {
         let mut s = showing_help("frame-help-open");
         let f = s.draw();
-        assert!(
-            f.says("Keys — <Esc> close"),
-            "the panel names its own keys along the top: {:?}",
-            f.texts,
-        );
+        assert!(f.says("Keys — <Esc> close"), "the panel names its own keys along the top: {:?}", f.texts,);
         assert!(s.app.help_rows > 0, "the renderer counted the rows that fit");
         assert!(
             s.app.help_lines > s.app.help_rows,
@@ -2079,12 +1857,7 @@ mod help_frame {
         for (down, up, step, name) in [
             (chord(Key::J, alt()), chord(Key::K, alt()), half, "<A-j>/<A-k>"),
             (chord(Key::D, ctrl()), chord(Key::U, ctrl()), half, "<C-d>/<C-u>"),
-            (
-                chord(Key::PageDown, Modifiers::NONE),
-                chord(Key::PageUp, Modifiers::NONE),
-                rows,
-                "<PageDown>/<PageUp>",
-            ),
+            (chord(Key::PageDown, Modifiers::NONE), chord(Key::PageUp, Modifiers::NONE), rows, "<PageDown>/<PageUp>"),
         ] {
             s.feed(vec![down]);
             assert_eq!(s.app.help_scroll, step, "{name} moved by {step}");
@@ -2120,10 +1893,7 @@ mod help_frame {
             "the panel is {} rows and the list {list_rows}, so the two distances can be told apart",
             s.app.help_rows,
         );
-        assert_ne!(
-            s.app.help_scroll, in_the_list,
-            "a panel that moved {in_the_list} would have paged by the list's height",
-        );
+        assert_ne!(s.app.help_scroll, in_the_list, "a panel that moved {in_the_list} would have paged by the list's height",);
     }
 
     /// 34.5, 34.6 and 34.7: the scroll stops with the last line at the bottom
@@ -2144,15 +1914,8 @@ mod help_frame {
 
         let f = s.typed("G");
         assert_eq!(s.app.help_scroll, stop, "the last line is the bottom one, not the top one");
-        assert!(
-            f.texts.contains(&text_of(&s, last)),
-            "the last line is on screen: {:?}",
-            f.texts.last(),
-        );
-        assert!(
-            f.texts.contains(&text_of(&s, stop)),
-            "and so is the line {rows} above it, which is what makes the panel full",
-        );
+        assert!(f.texts.contains(&text_of(&s, last)), "the last line is on screen: {:?}", f.texts.last(),);
+        assert!(f.texts.contains(&text_of(&s, stop)), "and so is the line {rows} above it, which is what makes the panel full",);
         // Two strings per line at least -- the keys column and the description
         // -- so a panel showing one line could not come near this.
         assert!(
@@ -2165,11 +1928,7 @@ mod help_frame {
         // overshoot that was never drawn.
         let f = s.typed("k");
         assert_eq!(s.app.help_scroll, stop - 1);
-        assert!(
-            f.texts.contains(&text_of(&s, stop - 1)),
-            "the line above has come into view: {:?}",
-            f.texts,
-        );
+        assert!(f.texts.contains(&text_of(&s, stop - 1)), "the line above has come into view: {:?}", f.texts,);
 
         // 34.7: `gg` is the top, and there is nothing above it.
         let f = s.typed("gg");
@@ -2193,10 +1952,7 @@ mod help_frame {
         let at = over_the_list(&s);
 
         wheel(&mut s, at);
-        assert!(
-            s.app.tab().current.offset > 0,
-            "the control: with nothing over it, the list answers the wheel",
-        );
+        assert!(s.app.tab().current.offset > 0, "the control: with nothing over it, the list answers the wheel",);
 
         s.typed("~");
         s.draw();
@@ -2205,7 +1961,8 @@ mod help_frame {
         wheel(&mut s, middle);
         assert!(s.app.help_scroll > 0, "the panel took the turn");
         assert_eq!(
-            (s.app.tab().current.offset, s.app.tab().current.cursor), before,
+            (s.app.tab().current.offset, s.app.tab().current.cursor),
+            before,
             "and the list did not move under it -- which only shows once the panel closes",
         );
     }
@@ -2218,20 +1975,16 @@ mod help_frame {
     /// open, so taking the wheel away there would be the fix overshooting.
     #[test]
     fn a_panel_owns_the_wheel_and_a_prompt_leaves_it() {
-        for (label, overlay) in [
-            ("tasks", Overlay::Tasks(TasksOverlay { cursor: 0 })),
-            ("spot", Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 })),
-        ] {
+        for (label, overlay) in
+            [("tasks", Overlay::Tasks(TasksOverlay { cursor: 0 })), ("spot", Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 }))]
+        {
             let mut s = listing(&format!("frame-help-modal-{label}"), 200);
             s.app.overlay = overlay;
             s.draw();
             let before = (s.app.tab().current.offset, s.app.tab().current.cursor);
             let at = over_the_list(&s);
             wheel(&mut s, at);
-            assert_eq!(
-                (s.app.tab().current.offset, s.app.tab().current.cursor), before,
-                "nothing moves under the {label} panel",
-            );
+            assert_eq!((s.app.tab().current.offset, s.app.tab().current.cursor), before, "nothing moves under the {label} panel",);
         }
 
         let mut s = listing("frame-help-prompt", 200);
@@ -2247,10 +2000,7 @@ mod help_frame {
         s.draw();
         let at = over_the_list(&s);
         wheel(&mut s, at);
-        assert!(
-            s.app.tab().current.offset > 0,
-            "a filter prompt is one row; the list above it still scrolls",
-        );
+        assert!(s.app.tab().current.offset > 0, "a filter prompt is one row; the list above it still scrolls",);
     }
 
     /// 34.12: each of the four keys closes the panel, through the same event
@@ -2318,21 +2068,10 @@ mod help_frame {
         // `set_zoom_factor` lands at the start of the next frame, so the panel
         // is only taller one frame later -- which is the frame this asserts on.
         let f = s.draw();
-        assert!(
-            s.app.help_rows > rows,
-            "a smaller font fits more lines: {rows} then {}",
-            s.app.help_rows,
-        );
+        assert!(s.app.help_rows > rows, "a smaller font fits more lines: {rows} then {}", s.app.help_rows,);
         assert_eq!(s.app.help_lines, lines, "the list itself is the same length");
-        assert_eq!(
-            s.app.help_scroll, lines - s.app.help_rows,
-            "still parked at the bottom, at the stop the new height put there",
-        );
-        assert!(
-            f.texts.contains(&text_of(&s, lines - 1)),
-            "and the last line is still on screen: {:?}",
-            f.texts.last(),
-        );
+        assert_eq!(s.app.help_scroll, lines - s.app.help_rows, "still parked at the bottom, at the stop the new height put there",);
+        assert!(f.texts.contains(&text_of(&s, lines - 1)), "and the last line is still on screen: {:?}", f.texts.last(),);
     }
 }
 
@@ -2359,11 +2098,9 @@ mod spot_link_section {
 
     /// The spot panel open on `names[0]`, with the worker's findings already in.
     fn showing(dir: &Path, names: &[&str]) -> Screen {
-        let entries: Vec<crate::fs::Entry> =
-            names.iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect();
+        let entries: Vec<crate::fs::Entry> = names.iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect();
         let mut s = Screen::open(dir.to_path_buf());
-        s.app.tabs[0].current =
-            crate::core::folder::Folder::from_entries(dir.to_path_buf(), Arc::new(entries), true);
+        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir.to_path_buf(), Arc::new(entries), true);
         s.app.overlay = Overlay::Spot(SpotOverlay { cursor: 0, scroll: 0 });
         let on = dir.join(names[0]);
         s.app.spotted = Some((on.clone(), crate::spot::inspect(&on)));
@@ -2407,10 +2144,7 @@ mod spot_link_section {
 
         let f = showing(&dir, &["abs", "t.txt"]).draw();
         assert!(has_link_section(&f), "the section is drawn: {:?}", f.texts);
-        assert_eq!(
-            row(&f, "Kind").as_deref(), Some("Symlink"),
-            "Kind says which sort of link: {:?}", f.texts,
-        );
+        assert_eq!(row(&f, "Kind").as_deref(), Some("Symlink"), "Kind says which sort of link: {:?}", f.texts,);
         let target = row(&f, "Target").expect("a Target row");
         let resolves = row(&f, "Resolves").expect("a Resolves row");
         // Written absolute, so the stored path already is where it lands: the
@@ -2432,10 +2166,7 @@ mod spot_link_section {
         std::os::unix::fs::symlink("t.txt", dir.join("rel")).unwrap();
 
         let f = showing(&dir, &["rel", "t.txt"]).draw();
-        assert_eq!(
-            row(&f, "Kind").as_deref(), Some("Symlink (relative)"),
-            "Kind says relative, not just Symlink: {:?}", f.texts,
-        );
+        assert_eq!(row(&f, "Kind").as_deref(), Some("Symlink (relative)"), "Kind says relative, not just Symlink: {:?}", f.texts,);
         let target = row(&f, "Target").expect("a Target row");
         let resolves = row(&f, "Resolves").expect("a Resolves row");
         assert_eq!(target, "t.txt", "Target is the path as stored: {:?}", f.texts);
@@ -2484,10 +2215,7 @@ mod spot_link_section {
         let f = showing(&dir, &["lone.txt"]).draw();
         assert!(f.says("Spot:"), "the panel is open: {:?}", f.texts);
         assert!(!has_link_section(&f), "and says nothing about links: {:?}", f.texts);
-        assert!(
-            !f.texts.iter().any(|t| t == "Links"),
-            "no count either, which would be noise on every file: {:?}", f.texts,
-        );
+        assert!(!f.texts.iter().any(|t| t == "Links"), "no count either, which would be noise on every file: {:?}", f.texts,);
     }
 }
 
@@ -2581,7 +2309,8 @@ mod compare_frame {
             // number of rows that fit, which is what these tests are here for.
             rows: 1,
             cursor: 0,
-            hide_same: false, back: None,
+            hide_same: false,
+            back: None,
         });
         s
     }
@@ -2625,22 +2354,14 @@ mod compare_frame {
     /// as if nothing had been inserted at all.
     #[test]
     fn each_side_is_numbered_from_its_own_file() {
-        let mut s = comparing(
-            "frame-compare-numbers",
-            "alpha\nbeta\ngamma\ndelta\nepsilon\n",
-            "alpha\nbeta\nGAMMA\nextra\ndelta\nepsilon\n",
-        );
+        let mut s =
+            comparing("frame-compare-numbers", "alpha\nbeta\ngamma\ndelta\nepsilon\n", "alpha\nbeta\nGAMMA\nextra\ndelta\nepsilon\n");
         let f = s.draw();
 
         // The head is the same line on both sides, so it is drawn twice with the
         // same number -- once per column. That is 5.1's "line numbers on each
         // side" put as something a frame can answer.
-        assert_eq!(
-            saying(&f, "1 alpha").len(),
-            2,
-            "the first line is numbered in both gutters: {:?}",
-            f.texts,
-        );
+        assert_eq!(saying(&f, "1 alpha").len(), 2, "the first line is numbered in both gutters: {:?}", f.texts,);
         assert!(f.says("   3 gamma") && f.says("   3 GAMMA"), "the edit: {:?}", f.texts);
         // 5.4: past the insertion the two sides differ by one.
         assert!(f.says("   4 delta"), "the left is still counting 4: {:?}", f.texts);
@@ -2661,11 +2382,7 @@ mod compare_frame {
     /// removal and an addition a screen apart.
     #[test]
     fn a_replacement_is_tinted_on_both_sides_of_one_row() {
-        let mut s = comparing(
-            "frame-compare-tint",
-            "alpha\nbeta\ngamma\ndelta\n",
-            "alpha\nbeta\nGAMMA\ndelta\n",
-        );
+        let mut s = comparing("frame-compare-tint", "alpha\nbeta\ngamma\ndelta\n", "alpha\nbeta\nGAMMA\ndelta\n");
         let theme = s.app.cfg.theme.clone();
         let mid = s.rect().center().x;
         let f = s.draw();
@@ -2679,11 +2396,7 @@ mod compare_frame {
         assert_eq!(added.len(), 1, "and one line replaced it: {added:?}");
         assert!(removed[0].center().x < mid, "the removal is in the left column");
         assert!(added[0].center().x > mid, "the addition is in the right one");
-        assert_eq!(
-            removed[0].top(),
-            added[0].top(),
-            "and both are the same row, which is the whole point of the view",
-        );
+        assert_eq!(removed[0].top(), added[0].top(), "and both are the same row, which is the whole point of the view",);
     }
 
     /// 5.6: the scrolling keys move the view and the footer keeps up.
@@ -2694,8 +2407,7 @@ mod compare_frame {
     #[test]
     fn the_footer_counts_along_with_the_scrolling_keys() {
         let text = numbered(400);
-        let mut s =
-            comparing("frame-compare-scroll", &text, &text.replace("line 199", "LINE 199"));
+        let mut s = comparing("frame-compare-scroll", &text, &text.replace("line 199", "LINE 199"));
         let f = s.draw();
         assert_eq!(top(&f), 1, "it opens at the top: {}", footer(&f));
         assert_eq!(total(&f), 400, "and counts every row: {}", footer(&f));
@@ -2722,8 +2434,7 @@ mod compare_frame {
     #[test]
     fn the_bottom_is_where_the_last_row_is() {
         let text = numbered(400);
-        let mut s =
-            comparing("frame-compare-bottom", &text, &text.replace("line 199", "LINE 199"));
+        let mut s = comparing("frame-compare-bottom", &text, &text.replace("line 199", "LINE 199"));
 
         let bot = top(&s.typed("G"));
         assert!(bot > 1, "`G` moved at all: {bot}");
@@ -2756,19 +2467,11 @@ mod compare_frame {
             *line = line.to_uppercase();
         }
         right[150] = right[150].to_uppercase();
-        let mut s = comparing(
-            "frame-compare-find",
-            &format!("{}\n", left.join("\n")),
-            &format!("{}\n", right.join("\n")),
-        );
+        let mut s = comparing("frame-compare-find", &format!("{}\n", left.join("\n")), &format!("{}\n", right.join("\n")));
         assert_eq!(top(&s.draw()), 1, "it starts at the top");
 
         assert_eq!(top(&s.typed("n")), 51, "`n` parks on the first difference");
-        assert_eq!(
-            top(&s.typed("n")),
-            151,
-            "and the next skips the rest of that five-line block",
-        );
+        assert_eq!(top(&s.typed("n")), 151, "and the next skips the rest of that five-line block",);
         let f = s.typed("n");
         assert_eq!(top(&f), 151, "there is no third, so nothing moves");
         assert!(f.says("At the last difference"), "and it says so: {:?}", f.texts);
@@ -2790,11 +2493,7 @@ mod compare_frame {
             *line = line.to_uppercase();
         }
         right[150] = right[150].to_uppercase();
-        let mut s = comparing(
-            "frame-compare-count",
-            &format!("{}\n", left.join("\n")),
-            &format!("{}\n", right.join("\n")),
-        );
+        let mut s = comparing("frame-compare-count", &format!("{}\n", left.join("\n")), &format!("{}\n", right.join("\n")));
         let f = s.draw();
         assert!(footer_says(&f, "  ·  2 differences"), "two blocks, not six lines: {:?}", f.texts);
 
@@ -2844,13 +2543,7 @@ mod compare_frame {
     /// A folder row ends in the platform's separator, the one its children use.
     #[test]
     fn a_folder_row_uses_the_native_separator() {
-        let row = |rel: &str, dir| crate::diff::TreeRow {
-            rel: rel.into(),
-            state: crate::diff::TreeState::Same,
-            dir,
-            left: 0,
-            right: 0,
-        };
+        let row = |rel: &str, dir| crate::diff::TreeRow { rel: rel.into(), state: crate::diff::TreeState::Same, dir, left: 0, right: 0 };
         let sep = std::path::MAIN_SEPARATOR;
         assert_eq!(super::tree_name(&row("thing", true)), format!("thing{sep}"));
         assert_eq!(super::tree_name(&row("a.txt", false)), "a.txt");
@@ -2861,11 +2554,7 @@ mod compare_frame {
     fn q_closes_it_and_the_title_said_it_would() {
         let mut s = comparing("frame-compare-close", "a\n", "b\n");
         let f = s.draw();
-        assert!(
-            f.says("compare-left.txt  ↔  compare-right.txt"),
-            "the title names both files: {:?}",
-            f.texts,
-        );
+        assert!(f.says("compare-left.txt  ↔  compare-right.txt"), "the title names both files: {:?}", f.texts,);
         assert!(f.says("q: close"), "and the key that closes it: {:?}", f.texts);
         // #98: `n/N differences` read as a count; the keys say what they do.
         assert!(f.says("n / N: next / previous difference"), "{:?}", f.texts);
@@ -2908,10 +2597,7 @@ mod bulk_frame {
             s.app.tabs[0].selected.insert(dir.join(n));
         }
         s.typed("R");
-        assert!(
-            matches!(&s.app.overlay, Overlay::Input(ov) if matches!(ov.kind, InputKind::Bulk { .. })),
-            "`R` opened the bulk prompt",
-        );
+        assert!(matches!(&s.app.overlay, Overlay::Input(ov) if matches!(ov.kind, InputKind::Bulk { .. })), "`R` opened the bulk prompt",);
     }
 
     /// Replace the rule in the field with `rule`, the way a person does it:
@@ -2940,10 +2626,8 @@ mod bulk_frame {
     /// What is on disk now, sorted, so a rename can be checked without a rescan
     /// -- the listing is the scan worker's to refresh and no worker runs here.
     fn on_disk(dir: &Path) -> Vec<String> {
-        let mut names: Vec<String> = std::fs::read_dir(dir)
-            .unwrap()
-            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-            .collect();
+        let mut names: Vec<String> =
+            std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         names.sort();
         names
     }
@@ -2962,11 +2646,7 @@ mod bulk_frame {
 
         assert!(f.says("Bulk rename:"), "the prompt is titled: {:?}", f.texts);
         assert!(f.texts.contains(&"{name}{ext}".to_owned()), "on the identity rule");
-        assert!(
-            f.says("{name} {ext} {n} {n:3} zero-padded"),
-            "with the legend above it: {:?}",
-            f.texts,
-        );
+        assert!(f.says("{name} {ext} {n} {n:3} zero-padded"), "with the legend above it: {:?}", f.texts,);
         let drawn = rows(&f);
         assert_eq!(drawn.len(), 12, "one row per selected file: {drawn:?}");
         assert_eq!(drawn[0], "IMG_0001.jpg  →  IMG_0001.jpg", "and nothing changes yet");
@@ -3015,10 +2695,7 @@ mod bulk_frame {
 
         let f = s.typed("U");
         assert!(f.says("Renamed 12 file(s)"), "`U` does it again: {:?}", f.texts);
-        assert!(
-            on_disk(&dir).contains(&"holiday-07.jpg".to_owned()),
-            "and the new names are back",
-        );
+        assert!(on_disk(&dir).contains(&"holiday-07.jpg".to_owned()), "and the new names are back",);
     }
 
     /// 11.6: two files headed for one name is said on the rows and refused at
@@ -3037,28 +2714,16 @@ mod bulk_frame {
 
         let drawn = rows(&f);
         assert_eq!(drawn.len(), 12, "every row is still shown: {drawn:?}");
-        assert!(
-            drawn[0].contains("(already in this directory)"),
-            "the first row wants a name that is taken: {}",
-            drawn[0],
-        );
+        assert!(drawn[0].contains("(already in this directory)"), "the first row wants a name that is taken: {}", drawn[0],);
         assert!(
             drawn[1..].iter().all(|r| r.contains("(two files would get this name)")),
             "and every row after it collides with the first: {drawn:?}",
         );
-        assert!(
-            f.says("12 name(s) cannot be used — Enter is refused"),
-            "the panel counts them and says Enter will not go: {:?}",
-            f.texts,
-        );
+        assert!(f.says("12 name(s) cannot be used — Enter is refused"), "the panel counts them and says Enter will not go: {:?}", f.texts,);
 
         let before = on_disk(&dir);
         let f = s.feed(vec![enter()]);
-        assert!(
-            f.says("IMG_0001.jpg: already in this directory"),
-            "Enter names the row it stopped on: {:?}",
-            f.texts,
-        );
+        assert!(f.says("IMG_0001.jpg: already in this directory"), "Enter names the row it stopped on: {:?}", f.texts,);
         assert_eq!(on_disk(&dir), before, "and renamed nothing at all");
     }
 
@@ -3103,16 +2768,8 @@ mod bulk_frame {
 
         let f = s.feed(vec![enter()]);
         assert!(f.says("Renamed 2 file(s)"), "both went: {:?}", f.texts);
-        assert_eq!(
-            std::fs::read_to_string(dir.join("ab.txt")).unwrap(),
-            "B",
-            "`ab.txt` now holds what `ba.txt` did",
-        );
-        assert_eq!(
-            std::fs::read_to_string(dir.join("ba.txt")).unwrap(),
-            "A",
-            "and the other way about",
-        );
+        assert_eq!(std::fs::read_to_string(dir.join("ab.txt")).unwrap(), "B", "`ab.txt` now holds what `ba.txt` did",);
+        assert_eq!(std::fs::read_to_string(dir.join("ba.txt")).unwrap(), "A", "and the other way about",);
 
         s.typed("u");
         assert_eq!(std::fs::read_to_string(dir.join("ab.txt")).unwrap(), "A", "`u` swaps back");
@@ -3174,11 +2831,7 @@ mod bulk_frame {
         selecting(&mut s, &dir, &photos);
         let f = rule(&mut s, "{nope}");
 
-        assert!(
-            f.says("unknown `{nope}`; use name, ext or n"),
-            "the note names the placeholder and the ones that exist: {:?}",
-            f.texts,
-        );
+        assert!(f.says("unknown `{nope}`; use name, ext or n"), "the note names the placeholder and the ones that exist: {:?}", f.texts,);
         assert!(rows(&f).is_empty(), "and no row is offered: {:?}", f.texts);
 
         let before = on_disk(&dir);
@@ -3335,7 +2988,11 @@ mod confirm_frame {
     /// and the link's own name.
     #[test]
     fn a_long_body_line_wraps_rather_than_losing_its_middle() {
-        let long = format!("{}  →  {}", "C:/Users/someone/AppData/Local/Temp/kura-scratch/w/a1/zdst/the-link", "C:/Users/someone/AppData/Local/Temp/kura-scratch/w/a1/real");
+        let long = format!(
+            "{}  →  {}",
+            "C:/Users/someone/AppData/Local/Temp/kura-scratch/w/a1/zdst/the-link",
+            "C:/Users/someone/AppData/Local/Temp/kura-scratch/w/a1/real"
+        );
         let sentence = "A junction needs neither. Unlike the symlink it holds the full path, not a relative one,";
         let mut s = Screen::open(crate::util::test_dir("confirm-wrap")).sized(1000.0, 700.0);
         // 1000 px wide puts the box at 600: both lines are longer than that.
@@ -3369,11 +3026,7 @@ mod confirm_frame {
             s.app.overlay = Overlay::Confirm(ConfirmOverlay {
                 title: "Report a bug".into(),
                 body: vec!["kura 0.0.0".into(), String::new(), "The form opens with these filled in.".into()],
-                options: vec![
-                    ('o', "Open the form in your browser".into()),
-                    ('c', "Copy the link".into()),
-                    ('n', "Cancel".into()),
-                ],
+                options: vec![('o', "Open the form in your browser".into()), ('c', "Copy the link".into()), ('n', "Cancel".into())],
                 action: ConfirmAction::BugReport { url: String::new() },
                 dest: None,
             });
@@ -3404,13 +3057,7 @@ mod prompt_focus {
     use crate::ui::harness::Screen;
 
     fn tab() -> egui::Event {
-        egui::Event::Key {
-            key: egui::Key::Tab,
-            physical_key: None,
-            pressed: true,
-            repeat: false,
-            modifiers: egui::Modifiers::NONE,
-        }
+        egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE }
     }
 
     fn text(s: &Screen) -> String {
@@ -3498,4 +3145,3 @@ mod prompt_focus {
         }
     }
 }
-

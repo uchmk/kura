@@ -150,7 +150,10 @@ mod tests {
 
     #[test]
     fn a_wrapped_error_stays_whole() {
-        assert_eq!(crate::util::one_line("'x' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"), "'x' is not recognized as an internal or external command, operable program or batch file.");
+        assert_eq!(
+            crate::util::one_line("'x' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"),
+            "'x' is not recognized as an internal or external command, operable program or batch file."
+        );
         assert_eq!(crate::util::one_line(" \n"), "");
         assert_eq!(crate::util::one_line("外部コマンド、\r\n操作可能な。\r\nバッチ"), "外部コマンド、操作可能な。バッチ");
     }
@@ -167,13 +170,7 @@ mod tests {
     // TESTING.md instead, since  needs a different line entirely.
     #[cfg(not(windows))]
     fn rule(run: &str) -> PreviewRule {
-        PreviewRule {
-            pattern: "*".into(),
-            run: run.into(),
-            first: 1,
-            step: 1,
-            unit: "page".into(),
-        }
+        PreviewRule { pattern: "*".into(), run: run.into(), first: 1, step: 1, unit: "page".into() }
     }
 
     /// The placeholders carry a path with a space in it.
@@ -183,12 +180,7 @@ mod tests {
     /// name, and on Windows that is most of them.
     #[test]
     fn a_path_with_a_space_survives_substitution() {
-        let line = fill(
-            "tool -f {n} -l {n} {path} {out}",
-            Path::new("/my docs/a b.pdf"),
-            Path::new("/tmp/x/page"),
-            7,
-        );
+        let line = fill("tool -f {n} -l {n} {path} {out}", Path::new("/my docs/a b.pdf"), Path::new("/tmp/x/page"), 7);
         assert_eq!(line, r#"tool -f 7 -l 7 "/my docs/a b.pdf" "/tmp/x/page""#);
     }
 

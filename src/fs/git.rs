@@ -109,9 +109,7 @@ impl Git {
                     while let Ok(newer) = req_rx.try_recv() {
                         dir = newer;
                     }
-                    let fresh_no = not_repo
-                        .get(&dir)
-                        .is_some_and(|at| at.elapsed() < NOT_REPO_TTL);
+                    let fresh_no = not_repo.get(&dir).is_some_and(|at| at.elapsed() < NOT_REPO_TTL);
                     let status = match fresh_no {
                         true => Status::default(),
                         false => match status(&dir) {
@@ -162,10 +160,7 @@ fn status(dir: &Path) -> Option<Status> {
     // delete and the add it is on screen.
     // `-unormal` collapses an untracked directory into one entry rather than
     // walking all of it, which is both faster and what the row wants.
-    let out = run(
-        dir,
-        &["status", "--porcelain=v1", "-z", "--no-renames", "-unormal", "--", "."],
-    )?;
+    let out = run(dir, &["status", "--porcelain=v1", "-z", "--no-renames", "-unormal", "--", "."])?;
     let mut st = parse(&out, &prefix);
     st.branch = branch;
     Some(st)
@@ -402,18 +397,11 @@ fn merge_subject(subject: &str) -> (Option<u32>, Option<String>) {
         let (num, rest) = rest.split_once(' ').unwrap_or((rest, ""));
         // `from owner/branch`. The owner is noise next to the branch, but a
         // branch may hold slashes of its own, so only the first one is cut.
-        let branch = rest
-            .strip_prefix("from ")
-            .and_then(|o| o.split_once('/'))
-            .map(|(_, b)| b.to_string())
-            .filter(|b| !b.is_empty());
+        let branch = rest.strip_prefix("from ").and_then(|o| o.split_once('/')).map(|(_, b)| b.to_string()).filter(|b| !b.is_empty());
         return (num.parse().ok(), branch);
     }
-    let branch = subject
-        .strip_prefix("Merge branch '")
-        .and_then(|r| r.split_once('\''))
-        .map(|(b, _)| b.to_string())
-        .filter(|b| !b.is_empty());
+    let branch =
+        subject.strip_prefix("Merge branch '").and_then(|r| r.split_once('\'')).map(|(b, _)| b.to_string()).filter(|b| !b.is_empty());
     (None, branch)
 }
 
@@ -622,9 +610,7 @@ mod tests {
         let root = crate::util::test_dir("git-status");
         std::fs::create_dir_all(root.join("sub")).unwrap();
 
-        let git = |args: &[&str]| {
-            Command::new("git").arg("-C").arg(&root).args(args).output()
-        };
+        let git = |args: &[&str]| Command::new("git").arg("-C").arg(&root).args(args).output();
         let Ok(out) = git(&["init", "-q"]) else {
             eprintln!("git is not installed; skipping");
             return;
@@ -778,11 +764,7 @@ mod tests {
         // GitHub, which is where the number comes from.
         let (pr, branch) = merge_subject("Merge pull request #61 from uchmk/claude/task-09i0cs");
         assert_eq!(pr, Some(61));
-        assert_eq!(
-            branch.as_deref(),
-            Some("claude/task-09i0cs"),
-            "the owner is cut, the branch's own slashes are kept"
-        );
+        assert_eq!(branch.as_deref(), Some("claude/task-09i0cs"), "the owner is cut, the branch's own slashes are kept");
 
         // The number is all that is there when a fork is not named.
         let (pr, branch) = merge_subject("Merge pull request #7");
@@ -889,10 +871,7 @@ mod tests {
         for name in ["mainline.txt", "base.txt"] {
             let p = root.join(name);
             let m = last_commit(&p).expect("committed");
-            assert!(
-                origin(&p, &m.hash).is_none(),
-                "{name} went straight onto main; #7 did not bring it in"
-            );
+            assert!(origin(&p, &m.hash).is_none(), "{name} went straight onto main; #7 did not bring it in");
         }
 
         let _ = std::fs::remove_dir_all(&root);

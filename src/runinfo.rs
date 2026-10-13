@@ -240,9 +240,7 @@ mod tests {
 
     #[test]
     fn the_window_line_gives_pixels_points_and_the_scale_between_them() {
-        let at = |w: f32, h: f32, ppp: f32| {
-            RunInfo { window_pt: [w, h], ppp, ..Default::default() }.window_line()
-        };
+        let at = |w: f32, h: f32, ppp: f32| RunInfo { window_pt: [w, h], ppp, ..Default::default() }.window_line();
         assert_eq!(at(1360.0, 860.0, 1.5).as_deref(), Some("2040 x 1290 px (1360 x 860 pt @ 1.5)"));
         assert_eq!(at(1360.0, 860.0, 1.0).as_deref(), Some("1360 x 860 px (1360 x 860 pt @ 1)"));
         // A scale that is not a round number still reads as one value, not as

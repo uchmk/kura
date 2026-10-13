@@ -35,11 +35,7 @@ pub fn natural_cmp(a: &str, b: &str, case_sensitive: bool) -> Ordering {
                 } else {
                     ai.next();
                     bi.next();
-                    let (x, y) = if case_sensitive {
-                        (ac, bc)
-                    } else {
-                        (lower(ac), lower(bc))
-                    };
+                    let (x, y) = if case_sensitive { (ac, bc) } else { (lower(ac), lower(bc)) };
                     match x.cmp(&y) {
                         Ordering::Equal => {}
                         o => return o,
@@ -147,9 +143,7 @@ pub fn locate(exe: &str) -> Option<std::path::PathBuf> {
         return raw.is_file().then(|| raw.to_path_buf());
     }
     let exts: Vec<String> = match std::env::var("PATHEXT") {
-        Ok(v) => std::iter::once(String::new())
-            .chain(v.split(';').map(|e| e.to_ascii_lowercase()))
-            .collect(),
+        Ok(v) => std::iter::once(String::new()).chain(v.split(';').map(|e| e.to_ascii_lowercase())).collect(),
         Err(_) => vec![String::new()],
     };
     for dir in std::env::split_paths(&std::env::var_os("PATH")?) {
@@ -317,9 +311,7 @@ pub fn expand(input: &str) -> PathBuf {
             // and a path written with one still has to lead somewhere: they
             // stand for the directory kura would search. Every other unset
             // variable keeps expanding to nothing, as the shells do.
-            _ => crate::config::config_dir_default(name)
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            _ => crate::config::config_dir_default(name).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default(),
         };
         s.replace_range(start..=end, &val);
     }
@@ -519,7 +511,7 @@ pub fn decode_stderr(bytes: &[u8]) -> String {
 
 #[cfg(windows)]
 fn oem_to_string(bytes: &[u8]) -> Option<String> {
-    use windows::Win32::Globalization::{CP_OEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS, MultiByteToWideChar};
+    use windows::Win32::Globalization::{MultiByteToWideChar, CP_OEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS};
     // SAFETY: both buffers are ours and the lengths passed are theirs.
     unsafe {
         let n = MultiByteToWideChar(CP_OEMCP, MULTI_BYTE_TO_WIDE_CHAR_FLAGS(0), bytes, None);
@@ -561,13 +553,9 @@ pub fn test_dir(what: &str) -> std::path::PathBuf {
         }
         unsafe { atexit(remove_own_test_dirs) };
     });
-    let who = std::thread::current()
-        .name()
-        .unwrap_or("main")
-        .replace("::", "-")
-        .replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_");
-    let dir = std::env::temp_dir()
-        .join(format!("{TEST_DIR_PREFIX}{what}-{who}-{}", std::process::id()));
+    let who =
+        std::thread::current().name().unwrap_or("main").replace("::", "-").replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_");
+    let dir = std::env::temp_dir().join(format!("{TEST_DIR_PREFIX}{what}-{who}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a temp directory for the test");
     dir
@@ -930,16 +918,10 @@ mod tests {
 
         // A host with no share yet must not collapse to `\host`.
         assert_eq!(normalize(Path::new(r"\\192.0.2.10")), PathBuf::from(r"\\192.0.2.10"));
-        assert_eq!(
-            resolve_against(Path::new(r"C:\work"), r"\\192.0.2.10"),
-            PathBuf::from(r"\\192.0.2.10")
-        );
+        assert_eq!(resolve_against(Path::new(r"C:\work"), r"\\192.0.2.10"), PathBuf::from(r"\\192.0.2.10"));
 
         // Typing a share into the prompt is absolute, not relative to the tab.
-        assert_eq!(
-            resolve_against(Path::new(r"C:\work"), r"\\nas\media\photos"),
-            PathBuf::from(r"\\nas\media\photos")
-        );
+        assert_eq!(resolve_against(Path::new(r"C:\work"), r"\\nas\media\photos"), PathBuf::from(r"\\nas\media\photos"));
         // ...and a plain rooted path still picks up the base's drive.
         assert_eq!(resolve_against(Path::new(r"D:\work"), r"\tmp"), PathBuf::from(r"D:\tmp"));
     }

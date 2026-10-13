@@ -106,13 +106,7 @@ fn numeric(records: &[(Vec<String>, usize)], col: usize, skip_head: bool) -> boo
 }
 
 /// The table, plus the raw text it was read from.
-pub fn render(
-    bytes: &[u8],
-    delim: char,
-    cols: u16,
-    dim: Option<[u8; 3]>,
-    max_bytes: usize,
-) -> Payload {
+pub fn render(bytes: &[u8], delim: char, cols: u16, dim: Option<[u8; 3]>, max_bytes: usize) -> Payload {
     let text = String::from_utf8_lossy(bytes);
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
     let (records, capped) = records(text, delim);
@@ -131,13 +125,7 @@ pub fn render(
     // a row, and drawing a rule under it says something untrue about the file.
     let head = records.len() > 1;
     let aligns: Vec<pulldown_cmark::Alignment> = (0..ncols)
-        .map(|j| {
-            if numeric(&records, j, head) {
-                pulldown_cmark::Alignment::Right
-            } else {
-                pulldown_cmark::Alignment::None
-            }
-        })
+        .map(|j| if numeric(&records, j, head) { pulldown_cmark::Alignment::Right } else { pulldown_cmark::Alignment::None })
         .collect();
 
     let rows: Vec<Row> = records
@@ -150,8 +138,7 @@ pub fn render(
                 .map(|v| {
                     // A newline inside a quoted field would break the row into
                     // two; the cell is one cell, so it is shown as one line.
-                    let text: String =
-                        v.replace(['\n', '\r'], " ").chars().take(MAX_CELL_CHARS).collect();
+                    let text: String = v.replace(['\n', '\r'], " ").chars().take(MAX_CELL_CHARS).collect();
                     vec![(Span { text, ..Default::default() }, *src)]
                 })
                 .collect(),
@@ -182,11 +169,9 @@ mod tests {
 
     fn table(text: &str, delim: char, cols: u16) -> Vec<String> {
         match render(text.as_bytes(), delim, cols, None, usize::MAX) {
-            Payload::Markdown { doc, .. } => doc
-                .lines
-                .iter()
-                .map(|l| l.spans.iter().map(|s| s.text.as_str()).collect::<String>())
-                .collect(),
+            Payload::Markdown { doc, .. } => {
+                doc.lines.iter().map(|l| l.spans.iter().map(|s| s.text.as_str()).collect::<String>()).collect()
+            }
             other => panic!("a table is a Markdown-shaped payload, got {other:?}"),
         }
     }

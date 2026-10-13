@@ -149,11 +149,7 @@ fn tokenize(s: &str) -> Vec<String> {
 }
 
 fn build(raw: &RawBinding, from: &Arc<str>, warnings: &mut Vec<String>) -> Option<Binding> {
-    let tokens: Vec<String> = if raw.on.0.len() == 1 {
-        tokenize(&raw.on.0[0])
-    } else {
-        raw.on.0.clone()
-    };
+    let tokens: Vec<String> = if raw.on.0.len() == 1 { tokenize(&raw.on.0[0]) } else { raw.on.0.clone() };
     let mut on = Vec::with_capacity(tokens.len());
     for t in &tokens {
         match Key::parse(t) {
@@ -165,7 +161,8 @@ fn build(raw: &RawBinding, from: &Arc<str>, warnings: &mut Vec<String>) -> Optio
                     crate::config::keys::Code::Char(c) if c.is_ascii_alphabetic() => format!("write `{}`", c.to_ascii_uppercase()),
                     _ => "write the character Shift types".into(),
                 };
-                warnings.push(format!("`{t}` can never be pressed: Shift with a printable key arrives as the character it types -- {hint}"));
+                warnings
+                    .push(format!("`{t}` can never be pressed: Shift with a printable key arrives as the character it types -- {hint}"));
                 on.push(k);
             }
             Some(k) => on.push(k),
@@ -245,10 +242,8 @@ impl Keymap {
 
     pub fn load_named(user_tomls: &[(&str, &str)]) -> (Self, Vec<String>) {
         let mut warnings = Vec::new();
-        let mut files = vec![(
-            Arc::<str>::from(BUILT_IN),
-            toml::from_str::<KeymapFile>(DEFAULT_KEYMAP).expect("built-in keymap must parse"),
-        )];
+        let mut files =
+            vec![(Arc::<str>::from(BUILT_IN), toml::from_str::<KeymapFile>(DEFAULT_KEYMAP).expect("built-in keymap must parse"))];
         for (path, text) in user_tomls {
             match toml::from_str::<KeymapFile>(text) {
                 Ok(k) => files.push((Arc::from(*path), k)),
@@ -536,10 +531,7 @@ run = "plugin bookmarks save"
 
         // `b` alone must stay a prefix: bound to a command of its own it would
         // shadow every chord above, which is how it used to behave.
-        assert!(
-            matches!(resolve(&km.mgr, &[Key::parse("b").unwrap()]), Match::Pending(_)),
-            "`b` must lead somewhere, not do something",
-        );
+        assert!(matches!(resolve(&km.mgr, &[Key::parse("b").unwrap()]), Match::Pending(_)), "`b` must lead somewhere, not do something",);
 
         // The keys these grew out of still work.
         assert_eq!(bound(&km.mgr, "B"), vec![Act::BookmarkSave]);

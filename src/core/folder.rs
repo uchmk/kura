@@ -136,9 +136,7 @@ impl Folder {
     }
 
     pub fn index_of(&self, name: &str) -> Option<usize> {
-        self.view
-            .iter()
-            .position(|&i| self.entries.get(i as usize).is_some_and(|e| e.name == name))
+        self.view.iter().position(|&i| self.entries.get(i as usize).is_some_and(|e| e.name == name))
     }
 
     pub fn select_name(&mut self, name: &str) -> bool {

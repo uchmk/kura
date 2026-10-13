@@ -106,7 +106,9 @@ pub enum Outcome {
     Identical,
     /// At least one side is not text. Lining up bytes is nobody's idea of a
     /// diff, so this says only whether they match.
-    Binary { same: bool },
+    Binary {
+        same: bool,
+    },
     Rows {
         rows: Vec<Row>,
         /// The view stops here: there were more rows than [`MAX_ROWS`].
@@ -189,12 +191,7 @@ fn as_text(bytes: &[u8], max_bytes: usize) -> Option<Vec<String>> {
 /// roughly, unmatched, for being too large to line up.
 pub fn compare(a: &[String], b: &[String], max_cells: usize) -> (Vec<Row>, bool) {
     let head = a.iter().zip(b).take_while(|(x, y)| x == y).count();
-    let tail = a[head..]
-        .iter()
-        .rev()
-        .zip(b[head..].iter().rev())
-        .take_while(|(x, y)| x == y)
-        .count();
+    let tail = a[head..].iter().rev().zip(b[head..].iter().rev()).take_while(|(x, y)| x == y).count();
 
     let mut rows: Vec<Row> = Vec::new();
     for i in 0..head {
@@ -208,11 +205,7 @@ pub fn compare(a: &[String], b: &[String], max_cells: usize) -> (Vec<Row>, bool)
         // Nothing is claimed about which line answers which: they are simply
         // laid alongside each other so the shape of the difference shows.
         for i in 0..am.len().max(bm.len()) {
-            rows.push(Row {
-                left: am.get(i).map(|t| line(head + i, t)),
-                right: bm.get(i).map(|t| line(head + i, t)),
-                same: false,
-            });
+            rows.push(Row { left: am.get(i).map(|t| line(head + i, t)), right: bm.get(i).map(|t| line(head + i, t)), same: false });
         }
     } else {
         rows.extend(align(am, bm, head));
@@ -244,11 +237,8 @@ fn align(a: &[String], b: &[String], off: usize) -> Vec<Row> {
     let mut lcs = vec![0u32; (n + 1) * stride];
     for i in (0..n).rev() {
         for j in (0..m).rev() {
-            lcs[i * stride + j] = if a[i] == b[j] {
-                lcs[(i + 1) * stride + j + 1] + 1
-            } else {
-                lcs[(i + 1) * stride + j].max(lcs[i * stride + j + 1])
-            };
+            lcs[i * stride + j] =
+                if a[i] == b[j] { lcs[(i + 1) * stride + j + 1] + 1 } else { lcs[(i + 1) * stride + j].max(lcs[i * stride + j + 1]) };
         }
     }
 
@@ -276,14 +266,7 @@ fn align(a: &[String], b: &[String], off: usize) -> Vec<Row> {
 /// Turn a run of removals and a run of additions into rows. Pairing them up
 /// puts an edited line opposite the line it was edited from, which is the whole
 /// reason for looking at this side by side.
-fn flush(
-    rows: &mut Vec<Row>,
-    dels: &mut Vec<usize>,
-    ins: &mut Vec<usize>,
-    a: &[String],
-    b: &[String],
-    off: usize,
-) {
+fn flush(rows: &mut Vec<Row>, dels: &mut Vec<usize>, ins: &mut Vec<usize>, a: &[String], b: &[String], off: usize) {
     for k in 0..dels.len().max(ins.len()) {
         let mut left = dels.get(k).map(|&i| line(off + i, &a[i]));
         let mut right = ins.get(k).map(|&j| line(off + j, &b[j]));
@@ -303,7 +286,15 @@ const MAX_WORDS: usize = 400;
 /// Split a line into words: a run of letters, digits and `_`, a run of
 /// whitespace, or any other single character. As char ranges.
 fn words(s: &str) -> Vec<std::ops::Range<usize>> {
-    let class = |c: char| if c.is_alphanumeric() || c == '_' { 0 } else if c.is_whitespace() { 1 } else { 2 };
+    let class = |c: char| {
+        if c.is_alphanumeric() || c == '_' {
+            0
+        } else if c.is_whitespace() {
+            1
+        } else {
+            2
+        }
+    };
     let chars: Vec<char> = s.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
@@ -338,11 +329,8 @@ pub fn changed_words(a: &str, b: &str) -> (Vec<std::ops::Range<usize>>, Vec<std:
     let mut lcs = vec![0u32; (n + 1) * stride];
     for i in (0..n).rev() {
         for j in (0..m).rev() {
-            lcs[i * stride + j] = if ta[i] == tb[j] {
-                lcs[(i + 1) * stride + j + 1] + 1
-            } else {
-                lcs[(i + 1) * stride + j].max(lcs[i * stride + j + 1])
-            };
+            lcs[i * stride + j] =
+                if ta[i] == tb[j] { lcs[(i + 1) * stride + j + 1] + 1 } else { lcs[(i + 1) * stride + j].max(lcs[i * stride + j + 1]) };
         }
     }
     // Whitespace alone in common is not a resemblance worth showing.
@@ -385,8 +373,7 @@ pub fn changed_words(a: &str, b: &str) -> (Vec<std::ops::Range<usize>>, Vec<std:
 pub fn next_change(rows: &[Row], from: usize, back: bool) -> Option<usize> {
     // Only the first row of a block counts, so holding `n` walks from one
     // difference to the next rather than down the lines of one of them.
-    let starts_a_block =
-        |i: usize| !rows[i].same && (i == 0 || rows[i - 1].same);
+    let starts_a_block = |i: usize| !rows[i].same && (i == 0 || rows[i - 1].same);
     match back {
         true => (0..from.min(rows.len())).rev().find(|&i| starts_a_block(i)),
         false => (from + 1..rows.len()).find(|&i| starts_a_block(i)),
@@ -636,8 +623,7 @@ impl Differ {
                     } else {
                         compare_files(&req.left, &req.right, req.max_bytes)
                     };
-                    if res_tx.send(Response { left: req.left, right: req.right, outcome }).is_err()
-                    {
+                    if res_tx.send(Response { left: req.left, right: req.right, outcome }).is_err() {
                         return;
                     }
                     wake();
@@ -890,10 +876,7 @@ mod tree_tests {
     }
 
     fn named(rows: &[TreeRow], rel: &str) -> TreeState {
-        rows.iter()
-            .find(|r| r.rel == Path::new(rel))
-            .unwrap_or_else(|| panic!("no row for {rel}: {rows:?}"))
-            .state
+        rows.iter().find(|r| r.rel == Path::new(rel)).unwrap_or_else(|| panic!("no row for {rel}: {rows:?}")).state
     }
 
     /// Each side has its own half of the limit, and a side that ran out cannot
@@ -905,9 +888,7 @@ mod tree_tests {
             std::fs::write(l.join(format!("f{i:02}")), b"x").unwrap();
             std::fs::write(r.join(format!("f{i:02}")), b"x").unwrap();
         }
-        let Outcome::Tree { rows, truncated, .. } = compare_trees_within(&l, &r, 10) else {
-            panic!("two folders compare as a tree")
-        };
+        let Outcome::Tree { rows, truncated, .. } = compare_trees_within(&l, &r, 10) else { panic!("two folders compare as a tree") };
         assert!(truncated, "ten paths is not enough for 21 a side");
         assert!(
             rows.iter().all(|r| matches!(r.state, TreeState::Same)),
@@ -988,12 +969,8 @@ mod tree_tests {
     fn junctions_compare_by_where_they_point() {
         let (l, r) = dirs();
         let junction = |at: &Path, to: &Path| {
-            let ok = std::process::Command::new("cmd")
-                .args(["/c", "mklink", "/J"])
-                .arg(at)
-                .arg(to)
-                .output()
-                .is_ok_and(|o| o.status.success());
+            let ok =
+                std::process::Command::new("cmd").args(["/c", "mklink", "/J"]).arg(at).arg(to).output().is_ok_and(|o| o.status.success());
             assert!(ok, "mklink /J {} {}", at.display(), to.display());
         };
         std::fs::create_dir_all(l.join("a")).unwrap();
@@ -1039,9 +1016,7 @@ mod tree_tests {
         std::fs::write(r.join("same"), b"ab").unwrap();
         std::fs::write(l.join("differ"), b"ab").unwrap();
         std::fs::write(r.join("differ"), b"cd").unwrap();
-        let Outcome::Tree { rows, counts, .. } = compare_trees(&l, &r) else {
-            panic!("two folders compare as a tree")
-        };
+        let Outcome::Tree { rows, counts, .. } = compare_trees(&l, &r) else { panic!("two folders compare as a tree") };
         assert_eq!(counts, TreeCounts::of(&rows), "the carried counts are the rows' own");
         assert_eq!(counts.left_only, 1);
         assert_eq!(counts.right_only, 1);

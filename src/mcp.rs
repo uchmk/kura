@@ -25,10 +25,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crossbeam_channel::{bounded, Receiver, Sender};
-use serde::{Deserialize, Serialize};
 use ito_ipc::{frame, Address, Listener};
 use ito_mcp::serde_json::{json, Value};
 use ito_mcp::{arg_str, Server, Tool};
+use serde::{Deserialize, Serialize};
 
 /// Bumped when [`Request`] or [`Reply`] change shape, so a window and a
 /// `kura mcp` from different versions say so instead of misreading.
@@ -236,9 +236,8 @@ fn answer(request: Request, tx: &Sender<Ask>, ctx: &egui::Context) -> Reply {
 /// Asks the running window, for `kura mcp`.
 fn ask(request: Request) -> Reply {
     let at = address();
-    let conn = ito_ipc::connect(&at).map_err(|_| {
-        "kura is not running (or its [mcp] enable is false in kura's config.toml); start kura and ask again".to_owned()
-    })?;
+    let conn = ito_ipc::connect(&at)
+        .map_err(|_| "kura is not running (or its [mcp] enable is false in kura's config.toml); start kura and ask again".to_owned())?;
     let (mut r, mut w) = conn.split().map_err(|e| e.to_string())?;
     frame::write(&mut w, &(PROTO, request)).map_err(|e| format!("could not reach the kura window: {e}"))?;
     frame::read::<_, Reply>(&mut r).map_err(|e| format!("the kura window did not answer: {e}"))?
@@ -367,12 +366,8 @@ pub fn state_json(app: &crate::app::App, overlay: &str, view: &str) -> String {
     const MAX_SELECTED: usize = 500;
     let tab = app.tab();
     let selected: Vec<String> = tab.selected.iter().take(MAX_SELECTED).map(|p| p.display().to_string()).collect();
-    let tabs: Vec<Value> = app
-        .tabs
-        .iter()
-        .enumerate()
-        .map(|(i, t)| json!({ "cwd": t.cwd.display().to_string(), "active": i == app.active }))
-        .collect();
+    let tabs: Vec<Value> =
+        app.tabs.iter().enumerate().map(|(i, t)| json!({ "cwd": t.cwd.display().to_string(), "active": i == app.active })).collect();
     let v = json!({
         "cwd": tab.cwd.display().to_string(),
         "hovered": tab.current.hovered().map(|e| e.path.display().to_string()),

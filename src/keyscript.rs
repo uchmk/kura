@@ -19,10 +19,8 @@ pub use ito_keyscript::*;
 pub const SHOT_PREVIEW: &str = "@preview";
 
 /// What kura adds to the common script words.
-pub const DIALECT: Dialect<'static> = Dialect {
-    reads: &[("PaneText", "pane text"), ("PreviewText", "preview text")],
-    shot_suffixes: &[SHOT_PREVIEW],
-};
+pub const DIALECT: Dialect<'static> =
+    Dialect { reads: &[("PaneText", "pane text"), ("PreviewText", "preview text")], shot_suffixes: &[SHOT_PREVIEW] };
 
 /// [`ito_keyscript::parse_with`] with kura's [`DIALECT`].
 pub fn parse(script: &str) -> Result<Vec<Step>, String> {
@@ -106,5 +104,4 @@ mod tests {
         assert!(parse("<PaneText:>").unwrap_err().contains("not a pane text"));
         assert!(parse("<PaneText:../x>").is_err());
     }
-
 }

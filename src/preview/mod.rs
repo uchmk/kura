@@ -11,21 +11,21 @@ use std::time::SystemTime;
 
 use crossbeam_channel::{Receiver, Sender};
 
+mod csv;
+mod external;
 mod font_preview;
 mod image_preview;
-mod csv;
 mod markdown;
-mod external;
 mod office;
 mod shell_thumb;
 mod svg_preview;
 mod symbols;
 mod text;
 
-/// COM for a worker thread that talks to the Windows shell.
-pub use shell_thumb::init_thread as init_com_thread;
 /// OOXML document properties, for the spot panel.
 pub use office::properties as office_properties;
+/// COM for a worker thread that talks to the Windows shell.
+pub use shell_thumb::init_thread as init_com_thread;
 
 /// How much of a file a deep preview reads. A content search stops at a
 /// megabyte; the file it found is read further, since a match past that is
@@ -339,7 +339,12 @@ pub enum Payload {
     /// Markdown carries both views so switching between them needs no reload.
     /// `map` describes `source`, which is why the minimap is only shown for the
     /// source view: a rendered line and a source line are not the same line.
-    Markdown { doc: Doc, source: Vec<Vec<Span>>, map: Vec<MapRow>, extent: Extent },
+    Markdown {
+        doc: Doc,
+        source: Vec<Vec<Span>>,
+        map: Vec<MapRow>,
+        extent: Extent,
+    },
     /// Raw RGBA plus its dimensions; the UI turns this into a texture. The
     /// caption goes under it (the source size, a font's name, ...).
     ///
@@ -365,8 +370,13 @@ pub enum Payload {
         rgba: Arc<Vec<u8>>,
         caption: String,
     },
-    Binary { lines: Vec<String>, total: u64 },
-    Meta { rows: Vec<(String, String)> },
+    Binary {
+        lines: Vec<String>,
+        total: u64,
+    },
+    Meta {
+        rows: Vec<(String, String)>,
+    },
     Error(String),
 }
 
@@ -555,12 +565,8 @@ pub(crate) fn utf16_text(bytes: &[u8]) -> Option<String> {
         [0xfe, 0xff] => true,
         _ => return None,
     };
-    let units: Vec<u16> = bytes[2..]
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) })
-        .collect();
+    let units: Vec<u16> =
+        bytes[2..].as_chunks::<2>().0.iter().map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) }).collect();
     Some(String::from_utf16_lossy(&units))
 }
 
@@ -573,10 +579,7 @@ pub(crate) fn looks_binary(bytes: &[u8]) -> bool {
         return true;
     }
     // Rough control-character ratio; UTF-8 text stays well under this.
-    let weird = probe
-        .iter()
-        .filter(|&&b| b < 0x09 || (0x0e..0x20).contains(&b))
-        .count();
+    let weird = probe.iter().filter(|&&b| b < 0x09 || (0x0e..0x20).contains(&b)).count();
     weird * 100 / probe.len() > 2
 }
 
@@ -609,11 +612,7 @@ fn binary(path: &std::path::Path, head: &[u8]) -> Payload {
 /// Through the same path as a plain text file, so that everything the text
 /// preview can do -- scrolling, the minimap, the outline in the side column --
 /// works here without knowing what it is looking at.
-fn office_text(
-    doc: office::Read1,
-    req: &Request,
-    syntax: &mut text::Highlighter,
-) -> Payload {
+fn office_text(doc: office::Read1, req: &Request, syntax: &mut text::Highlighter) -> Payload {
     let _ = (req, syntax);
     let total = doc.lines.len();
     // Plain, not highlighted: there is no grammar for "the text that was in a
@@ -622,9 +621,7 @@ fn office_text(
     match text::plain(&doc.lines.join("\n"), office_extent(total, doc.truncated)) {
         // The extent `plain` worked out is the one to keep -- it counted the
         // lines it was actually handed.
-        Payload::Text { lines, map, extent, .. } => {
-            Payload::Text { lines, map, extent, outline: doc.outline }
-        }
+        Payload::Text { lines, map, extent, .. } => Payload::Text { lines, map, extent, outline: doc.outline },
         other => other,
     }
 }
@@ -654,15 +651,9 @@ fn external_picture(rule: &crate::config::PreviewRule, req: &Request) -> Payload
         Err(e) => return Payload::Error(format!("{}: {e}", caption(rule, n))),
     };
     match image_preview::render(&drawn.png, req.key.box_size) {
-        Ok(Payload::Image { width, height, source, own, vector, rgba, .. }) => Payload::Image {
-            width,
-            height,
-            source,
-            own,
-            vector,
-            rgba,
-            caption: caption(rule, n),
-        },
+        Ok(Payload::Image { width, height, source, own, vector, rgba, .. }) => {
+            Payload::Image { width, height, source, own, vector, rgba, caption: caption(rule, n) }
+        }
         Ok(other) => other,
         Err(e) => Payload::Error(e),
     }
@@ -694,12 +685,11 @@ fn archive_listing(path: &std::path::Path) -> Payload {
         Ok(v) => v,
         // A password-protected or damaged archive still has a name and a size
         // worth showing, so it falls back to the card rather than an error.
-        Err(e) => return Payload::Meta {
-            rows: vec![
-                ("Name".into(), crate::util::file_name(path)),
-                ("Note".into(), format!("Cannot list: {e}")),
-            ],
-        },
+        Err(e) => {
+            return Payload::Meta {
+                rows: vec![("Name".into(), crate::util::file_name(path)), ("Note".into(), format!("Cannot list: {e}"))],
+            }
+        }
     };
     let total = entries.len();
     let dim = Some([0x79, 0x80, 0x90]);
@@ -710,10 +700,7 @@ fn archive_listing(path: &std::path::Path) -> Payload {
                 true => format!("{:>9}  ", "—"),
                 false => format!("{:>9}  ", crate::util::human_size(e.size)),
             };
-            vec![
-                Span { text: size, color: dim, ..Default::default() },
-                Span { text: e.name, color: None, ..Default::default() },
-            ]
+            vec![Span { text: size, color: dim, ..Default::default() }, Span { text: e.name, color: None, ..Default::default() }]
         })
         .collect();
     let map = minimap(&lines);
@@ -806,13 +793,8 @@ mod tests {
 
     #[test]
     fn the_caption_puts_the_number_where_it_belongs() {
-        let rule = |unit: &str| crate::config::PreviewRule {
-            pattern: "*".into(),
-            run: String::new(),
-            first: 1,
-            step: 1,
-            unit: unit.into(),
-        };
+        let rule =
+            |unit: &str| crate::config::PreviewRule { pattern: "*".into(), run: String::new(), first: 1, step: 1, unit: unit.into() };
         assert_eq!(caption(&rule("page {n}"), 3), "page 3");
         assert_eq!(caption(&rule("{n}s"), 50), "50s");
         // No `{n}`: in front, which is what the older rules meant.
@@ -829,11 +811,7 @@ mod tests {
 
     #[test]
     fn a_minimap_row_records_the_indent_and_the_width() {
-        let rows = minimap(&[
-            vec![span("    let x = 1;", None)],
-            vec![span("", None)],
-            vec![span("fn main() {", None)],
-        ]);
+        let rows = minimap(&[vec![span("    let x = 1;", None)], vec![span("", None)], vec![span("fn main() {", None)]]);
 
         assert_eq!(rows[0], MapRow { indent: 4, len: 10, color: None });
         assert_eq!(rows[1], MapRow::default(), "a blank line leaves a gap");
@@ -847,10 +825,7 @@ mod tests {
         const CODE: [u8; 3] = [0x80, 0xc0, 0xff];
         const NOTE: [u8; 3] = [0x60, 0x60, 0x60];
 
-        let long_code = minimap(&[vec![
-            span("let answer = compute();", Some(CODE)),
-            span(" // why", Some(NOTE)),
-        ]]);
+        let long_code = minimap(&[vec![span("let answer = compute();", Some(CODE)), span(" // why", Some(NOTE))]]);
         assert_eq!(long_code[0].color, Some(CODE));
 
         let all_comment = minimap(&[vec![span("x;", Some(CODE)), span(" // a long explanation", Some(NOTE))]]);
@@ -882,15 +857,7 @@ pub(crate) mod for_tests {
         let entry = crate::fs::Entry::from_path(path.to_path_buf()).unwrap();
         let req = super::Request {
             id: 0,
-            key: super::Key {
-                path: entry.path.clone(),
-                len: entry.len,
-                mtime: None,
-                box_size: (800, 600),
-                cols: 80,
-                n: 0,
-                deep: false,
-            },
+            key: super::Key { path: entry.path.clone(), len: entry.len, mtime: None, box_size: (800, 600), cols: 80, n: 0, deep: false },
             mime: crate::mime::guess(&entry),
             ext: entry.ext.clone(),
             max_bytes: 1 << 20,

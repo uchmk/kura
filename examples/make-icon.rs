@@ -52,11 +52,7 @@ fn render(tree: &usvg::Tree, px: u32) -> Option<Vec<u8>> {
     let dx = (px as f32 - size.width() * scale) / 2.0;
     let dy = (px as f32 - size.height() * scale) / 2.0;
     let mut pixmap = tiny_skia::Pixmap::new(px, px)?;
-    resvg::render(
-        tree,
-        tiny_skia::Transform::from_scale(scale, scale).post_translate(dx, dy),
-        &mut pixmap.as_mut(),
-    );
+    resvg::render(tree, tiny_skia::Transform::from_scale(scale, scale).post_translate(dx, dy), &mut pixmap.as_mut());
     Some(
         pixmap
             .pixels()

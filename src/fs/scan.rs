@@ -123,20 +123,15 @@ pub(crate) fn scan_error_text(path: &std::path::Path, e: &std::io::Error) -> Str
 
 fn run(task: Task) -> Option<ScanResult> {
     match task {
-        Task::Scan { id, path, sort } => {
-            match list_dir(&path, sort) {
-                Ok(entries) => Some(ScanResult::Listed { id, path, entries }),
-                Err(e) => {
-                    let error = scan_error_text(&path, &e);
-                    Some(ScanResult::Failed { id, path, error })
-                }
+        Task::Scan { id, path, sort } => match list_dir(&path, sort) {
+            Ok(entries) => Some(ScanResult::Listed { id, path, entries }),
+            Err(e) => {
+                let error = scan_error_text(&path, &e);
+                Some(ScanResult::Failed { id, path, error })
             }
-        }
+        },
         Task::Count { paths } => {
-            let counts = paths
-                .into_iter()
-                .filter_map(|p| count_children(&p).map(|n| (p, n)))
-                .collect();
+            let counts = paths.into_iter().filter_map(|p| count_children(&p).map(|n| (p, n))).collect();
             Some(ScanResult::Counted { counts })
         }
     }

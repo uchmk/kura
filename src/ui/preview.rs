@@ -1,13 +1,11 @@
 use egui::text::{LayoutJob, TextFormat};
-use egui::{
-    pos2, vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Painter, Rect, Sense, Stroke, StrokeKind, Ui, Vec2,
-};
+use egui::{pos2, vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Painter, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 
 use crate::app::PreviewState;
 use crate::config::theme::Theme;
 use crate::preview::{cells, outline_cols, Doc, Extent, LineKind, MapRow, Payload, Span, TocEntry};
-use std::ops::Range;
 use ito_match::Matcher;
+use std::ops::Range;
 
 pub struct PreviewStyle<'a> {
     pub theme: &'a Theme,
@@ -76,13 +74,7 @@ pub fn draw(
     let lines = match state {
         PreviewState::Empty => 0,
         PreviewState::Loading => {
-            painter.text(
-                rect.left_top() + Vec2::new(PAD, 8.0),
-                Align2::LEFT_TOP,
-                "…",
-                st.font.clone(),
-                st.theme.fg_dim,
-            );
+            painter.text(rect.left_top() + Vec2::new(PAD, 8.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
             0
         }
         PreviewState::Dir(_) => 0, // drawn by the caller as a list
@@ -153,13 +145,7 @@ pub fn draw(
                 let wrap = (rect.right() - PAD - (rect.left() + 110.0)).max(40.0);
                 let mut y = rect.top() + 8.0;
                 for (k, v) in kv {
-                    painter.text(
-                        pos2(rect.left() + PAD, y),
-                        Align2::LEFT_TOP,
-                        k,
-                        st.font.clone(),
-                        st.theme.fg_dim,
-                    );
+                    painter.text(pos2(rect.left() + PAD, y), Align2::LEFT_TOP, k, st.font.clone(), st.theme.fg_dim);
                     let g = painter.layout(v.clone(), st.font.clone(), st.theme.fg, wrap);
                     let h = g.size().y.max(st.row_h);
                     painter.galley(pos2(rect.left() + 110.0, y), g, st.theme.fg);
@@ -180,10 +166,7 @@ pub fn draw(
                     // Centred and clipped rather than UV-sliced: zooming out
                     // letterboxes on its own, and panning needs no bookkeeping
                     // about which corner of the texture is showing.
-                    let shown = on_pixels(
-                        Rect::from_center_size(avail.center() + st.pan, size),
-                        painter.ctx().pixels_per_point(),
-                    );
+                    let shown = on_pixels(Rect::from_center_size(avail.center() + st.pan, size), painter.ctx().pixels_per_point());
                     painter.with_clip_rect(avail).image(
                         tex.id(),
                         shown,
@@ -242,10 +225,7 @@ fn split_minimap(rect: Rect, map: &[MapRow], st: &PreviewStyle<'_>) -> (Rect, Op
         return (rect, None);
     }
     let split = rect.right() - MINIMAP_COLS as f32 * st.cell - 6.0;
-    (
-        Rect::from_x_y_ranges(rect.left()..=split, rect.y_range()),
-        Some(Rect::from_x_y_ranges(split + 6.0..=rect.right(), rect.y_range())),
-    )
+    (Rect::from_x_y_ranges(rect.left()..=split, rect.y_range()), Some(Rect::from_x_y_ranges(split + 6.0..=rect.right(), rect.y_range())))
 }
 
 /// What the state file says about this frame's minimap: that one was drawn
@@ -317,14 +297,7 @@ const HOVER_MAX_CHARS: usize = 200;
 /// knows about the file, and holding it in `PreviewSlot` would mean invalidating
 /// it on a file change, a payload swap, a resize and a minimap toggle -- four
 /// ways to leave a stale card on the screen.
-fn minimap_hover(
-    ui: &Ui,
-    painter: &Painter,
-    strip: Rect,
-    body: Rect,
-    lines: &[Vec<Span>],
-    st: &PreviewStyle<'_>,
-) {
+fn minimap_hover(ui: &Ui, painter: &Painter, strip: Rect, body: Rect, lines: &[Vec<Span>], st: &PreviewStyle<'_>) {
     let id = ui.id().with("minimap-hover");
     let over = ui.rect_contains_pointer(strip);
     let dragging = ui.ctx().dragged_id() == Some(ui.id().with("minimap"));
@@ -470,12 +443,7 @@ fn minimap(
     // --- where the pane is looking ---
     let view = Rect::from_x_y_ranges(rect.x_range(), at(offset)..=at(offset + on_screen));
     painter.rect_filled(view, CornerRadius::same(2), theme.hovered_bg.gamma_multiply(0.4));
-    painter.rect_stroke(
-        view,
-        CornerRadius::same(2),
-        Stroke::new(1.0, theme.border),
-        StrokeKind::Inside,
-    );
+    painter.rect_stroke(view, CornerRadius::same(2), Stroke::new(1.0, theme.border), StrokeKind::Inside);
 
     // No cursor of its own. A resize cursor here promised something the
     // minimap does not do — it jumps to a line, it does not drag an edge — and
@@ -583,15 +551,7 @@ fn split_marked(line: &[Span], marks: &[Range<usize>]) -> Vec<(usize, Range<usiz
 }
 
 /// Highlighted source, one file line per row.
-fn text(
-    ui: &Ui,
-    painter: &Painter,
-    rect: Rect,
-    lines: &[Vec<Span>],
-    extent: Extent,
-    offset: usize,
-    st: &PreviewStyle<'_>,
-) -> usize {
+fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> usize {
     let start = offset.min(lines.len().saturating_sub(1));
     let end = (start + rows(rect, st)).min(lines.len());
     let bold_dx = overstrike(ui, st);
@@ -640,15 +600,7 @@ fn text(
 }
 
 /// Markdown laid out for reading, with the outline in a column on the right.
-fn markdown(
-    ui: &Ui,
-    painter: &Painter,
-    rect: Rect,
-    doc: &Doc,
-    extent: Extent,
-    offset: usize,
-    st: &PreviewStyle<'_>,
-) -> Drawn {
+fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> Drawn {
     let theme = st.theme;
     let rows = rows(rect, st);
     let left = rect.left() + PAD;
@@ -777,9 +729,7 @@ fn outline(
         None => entries.iter().rposition(|e| e.line <= top_line),
     };
     let slots = rows(rect, st).saturating_sub(1).max(1);
-    let first = current
-        .map_or(0, |c| c.saturating_sub(slots / 2))
-        .min(entries.len().saturating_sub(slots));
+    let first = current.map_or(0, |c| c.saturating_sub(slots / 2)).min(entries.len().saturating_sub(slots));
     let clip = painter.with_clip_rect(Rect::from_x_y_ranges(sep + 1.0..=rect.right(), rect.y_range()));
     let hover = mix(theme.border, theme.fg_dim, 0.4);
 
@@ -845,9 +795,7 @@ fn format(span: &Span, color: Color32, st: &PreviewStyle<'_>) -> TextFormat {
 }
 
 fn span_color(span: &Span, st: &PreviewStyle<'_>) -> Color32 {
-    span.color
-        .map(|[r, g, b]| readable(Color32::from_rgb(r, g, b), st.theme.bg, st.theme.fg))
-        .unwrap_or(st.theme.fg)
+    span.color.map(|[r, g, b]| readable(Color32::from_rgb(r, g, b), st.theme.bg, st.theme.fg)).unwrap_or(st.theme.fg)
 }
 
 /// How far to shift the second pass of a faked bold: about a pixel at
@@ -984,10 +932,7 @@ mod tests {
 
         let (rect, st) = pane(cols, &theme, true);
         let (body, _) = split_minimap(rect, &rows_of(500), &st);
-        assert!(
-            pane_cols(body, &st) < SOURCE_OUTLINE_MIN_COLS,
-            "and does not once the map has taken its strip"
-        );
+        assert!(pane_cols(body, &st) < SOURCE_OUTLINE_MIN_COLS, "and does not once the map has taken its strip");
     }
 }
 
@@ -1032,10 +977,7 @@ mod minimap_scale {
             for l in [0, 1, n / 3, n / 2, n - 1] {
                 let y = r.top() + at_line(l, n) * r.height();
                 let back = line_at_y(y, r, n);
-                assert!(
-                    back.abs_diff(l) <= 1,
-                    "{n} lines: line {l} drawn at {y} reads back as {back}"
-                );
+                assert!(back.abs_diff(l) <= 1, "{n} lines: line {l} drawn at {y} reads back as {back}");
             }
         }
     }
@@ -1071,10 +1013,7 @@ mod minimap_scale {
                 let chunks = lines.div_ceil(per);
                 let last_top = at_line((chunks - 1) * per, lines);
                 let bottom = last_top + at_line(per, lines);
-                assert!(
-                    bottom >= 1.0 - f32::EPSILON,
-                    "lines {lines} bands {bands}: strip ends at {bottom}, not 1.0",
-                );
+                assert!(bottom >= 1.0 - f32::EPSILON, "lines {lines} bands {bands}: strip ends at {bottom}, not 1.0",);
             }
         }
     }
@@ -1125,17 +1064,8 @@ mod chrome {
         std::fs::write(&file, "x").unwrap();
         let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(file.clone()).unwrap()]);
         let mut s = Screen::open(dir.clone()).sized(WIDE, 1080.0);
-        s.app.tabs[s.app.active].current =
-            crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
-        s.app.preview.key = Some(crate::preview::Key {
-            path: file,
-            len: 1,
-            mtime: None,
-            box_size: (0, 0),
-            cols: 0,
-            n: 0,
-            deep: false,
-        });
+        s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.app.preview.key = Some(crate::preview::Key { path: file, len: 1, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false });
         s.app.preview.state = state;
         s
     }
@@ -1151,11 +1081,7 @@ mod chrome {
     }
 
     /// A text payload of `lines`, mapped and with `outline` as its contents.
-    pub(super) fn source(
-        lines: Vec<Vec<Span>>,
-        outline: Vec<TocEntry>,
-        total: usize,
-    ) -> crate::app::PreviewState {
+    pub(super) fn source(lines: Vec<Vec<Span>>, outline: Vec<TocEntry>, total: usize) -> crate::app::PreviewState {
         let n = lines.len();
         crate::app::PreviewState::Ready(Payload::Text {
             map: rows(n),
@@ -1189,12 +1115,7 @@ mod chrome {
     }
 
     pub(super) fn button(at: egui::Pos2, pressed: bool) -> egui::Event {
-        egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        }
+        egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE }
     }
 
     /// Where the minimap's strip was drawn.
@@ -1271,8 +1192,7 @@ mod focus_rule_frame {
         s.feed(vec![back_tab()]);
         assert!(s.app.preview.outline.is_some(), "`<BackTab>` handed it the keys");
         let f = s.draw();
-        let lit: Vec<egui::Rect> =
-            f.stroked(accent).into_iter().filter(|r| r.width() < 1.0).collect();
+        let lit: Vec<egui::Rect> = f.stroked(accent).into_iter().filter(|r| r.width() < 1.0).collect();
         assert_eq!(lit.len(), 1, "now exactly one rule is accent: {lit:?}");
         assert!(lit[0].height() > 500.0, "and it is the outline's, down the pane: {:?}", lit[0]);
 
@@ -1282,11 +1202,7 @@ mod focus_rule_frame {
         let theme = s.app.cfg.theme.clone();
         let f = s.draw();
         assert_eq!(crate::ui::focus_rule(&theme, true), theme.fg);
-        let lit: Vec<egui::Rect> = f
-            .stroked(theme.fg)
-            .into_iter()
-            .filter(|r| r.width() < 1.0 && r.height() > 500.0)
-            .collect();
+        let lit: Vec<egui::Rect> = f.stroked(theme.fg).into_iter().filter(|r| r.width() < 1.0 && r.height() > 500.0).collect();
         assert_eq!(lit.len(), 1, "still lit, in the foreground colour: {lit:?}");
     }
 
@@ -1340,11 +1256,7 @@ mod focus_rule_frame {
         assert!(top(&f, accent).is_empty(), "38.2: nothing is accent now");
         assert_eq!(at_pane(&f, border).len(), 1, "the same rule, in the border colour");
         assert_eq!(cell(&f), 0, "and the cell cursor is hollow");
-        let hollow: Vec<egui::Rect> = f
-            .stroked(theme.fg_dim)
-            .into_iter()
-            .filter(|r| r.width() < 20.0 && r.height() < 30.0)
-            .collect();
+        let hollow: Vec<egui::Rect> = f.stroked(theme.fg_dim).into_iter().filter(|r| r.width() < 20.0 && r.height() < 30.0).collect();
         assert_eq!(hollow.len(), 1, "38.9: outlined rather than gone: {hollow:?}");
 
         // 38.6: a click inside the pane does what the key does. Well below the
@@ -1378,10 +1290,7 @@ mod focus_rule_frame {
             f.stroked(c).into_iter().filter(|r| r.width() < 1.0 && r.height() > 500.0).collect()
         };
         let across = |f: &crate::ui::harness::Painted, c| -> Vec<egui::Rect> {
-            f.stroked(c)
-                .into_iter()
-                .filter(|r| r.height() < 1.0 && r.width() > full.width() - 1.0)
-                .collect()
+            f.stroked(c).into_iter().filter(|r| r.height() < 1.0 && r.width() > full.width() - 1.0).collect()
         };
 
         s.feed(vec![back_tab()]);
@@ -1517,10 +1426,7 @@ mod minimap_hover_frame {
         use crate::ui::preview::Span;
         let lines: Vec<Vec<Span>> = (0..400)
             .map(|i| {
-                vec![
-                    Span { text: "        ".into(), ..Default::default() },
-                    Span { text: format!("\t  deep {i}"), ..Default::default() },
-                ]
+                vec![Span { text: "        ".into(), ..Default::default() }, Span { text: format!("\t  deep {i}"), ..Default::default() }]
             })
             .collect();
         let mut s = screen("hover-indent", source(lines, Vec::new(), 400));
@@ -1654,10 +1560,7 @@ mod minimap_hover_frame {
         assert_eq!(card_text(&f, 100, 400).map(String::as_str), Some("100 line 99"), "{:?}", f.texts);
         let wide = f.filled(fill)[0].width();
         let per_char = (wide - 12.0) / 11.0;
-        assert!(
-            ((narrow - 12.0) - 4.0 * per_char).abs() < 1.0,
-            "the blank card fits its number: {narrow} against {wide}"
-        );
+        assert!(((narrow - 12.0) - 4.0 * per_char).abs() < 1.0, "the blank card fits its number: {narrow} against {wide}");
 
         // A fresh hover, so the delay is measured from arriving here.
         s.feed(vec![moved(egui::pos2(10.0, 10.0))]);
@@ -1721,10 +1624,7 @@ mod minimap_hover_frame {
         let doc = Doc {
             lines: (0..n)
                 .map(|i| DocLine {
-                    spans: vec![crate::preview::Span {
-                        text: format!("rendered {i}"),
-                        ..Default::default()
-                    }],
+                    spans: vec![crate::preview::Span { text: format!("rendered {i}"), ..Default::default() }],
                     kind: LineKind::Text,
                     indent: 0,
                     src: i,
@@ -1841,8 +1741,7 @@ mod archive_frame {
     fn hovering(dir: &Path, zip: &Path) -> Screen {
         let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(zip.to_owned()).unwrap()]);
         let mut s = Screen::open(dir.to_owned());
-        s.app.tabs[0].current =
-            crate::core::folder::Folder::from_entries(dir.to_owned(), entries, true);
+        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir.to_owned(), entries, true);
         s.app.preview.state = PreviewState::Ready(crate::preview::for_tests::render(zip));
         s
     }
@@ -1898,7 +1797,10 @@ mod archive_frame {
         let entries = std::sync::Arc::new(vec![entry]);
         s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
         let f = s.typed("e");
-        let said = format!("inner{} is a folder -- e unpacks an archive (zip, tar, tar.gz, tgz, 7z); to pack it, press E", std::path::MAIN_SEPARATOR);
+        let said = format!(
+            "inner{} is a folder -- e unpacks an archive (zip, tar, tar.gz, tgz, 7z); to pack it, press E",
+            std::path::MAIN_SEPARATOR
+        );
         assert!(f.says(&said), "{:?}", f.texts);
         assert!(s.app.tasks.is_empty(), "and no job was queued");
     }
@@ -1913,11 +1815,7 @@ mod archive_frame {
         let (dir, mut s) = showing("frame-archive-rar", &["to-pack"]);
         let f = s.typed("E");
         assert!(f.says("Compress to:"), "the prompt opens: {:?}", f.texts);
-        assert!(
-            f.texts.contains(&"to-pack.zip".to_owned()),
-            "named after what is selected, defaulting to zip: {:?}",
-            f.texts,
-        );
+        assert!(f.texts.contains(&"to-pack.zip".to_owned()), "named after what is selected, defaulting to zip: {:?}", f.texts,);
 
         s.feed(vec![chord(egui::Key::A, ctrl())]);
         s.typed("out.rar");
@@ -1954,11 +1852,7 @@ mod archive_frame {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(dir.join("out.zip").exists(), "the archive was written");
-        assert!(
-            landed,
-            "the cursor went to the archive, not {:?}",
-            s.app.tabs[0].current.hovered_name(),
-        );
+        assert!(landed, "the cursor went to the archive, not {:?}", s.app.tabs[0].current.hovered_name(),);
         let said = |s: &crate::ui::harness::Screen, text: &str| s.app.toasts.iter().any(|t| t.text == text);
         // #205: the end of a pack says what it made.
         assert!(said(&s, "Packed into out.zip"), "{:?}", s.app.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
@@ -2016,10 +1910,7 @@ mod split_marks {
     #[test]
     fn a_mark_inside_a_span_cuts_it_in_three() {
         let line = [span("let needle = 1;")];
-        assert_eq!(
-            pieces(&line, &[4..10]),
-            [(0, "let ".into(), false), (0, "needle".into(), true), (0, " = 1;".into(), false)]
-        );
+        assert_eq!(pieces(&line, &[4..10]), [(0, "let ".into(), false), (0, "needle".into(), true), (0, " = 1;".into(), false)]);
     }
 
     #[test]
@@ -2071,4 +1962,3 @@ mod minimap_bands {
         }
     }
 }
-

@@ -99,10 +99,13 @@ fn config(cfg: &crate::config::Config) -> Vec<(String, String)> {
     if warnings.iter().any(|w| w.contains("[ui] backend")) {
         crate::name_the_fallback(&mut warnings, &crate::predicted_fallback());
     }
-    rows.push(("Warnings".into(), match warnings.len() {
-        0 => "none".into(),
-        _ => warnings.join("\n"),
-    }));
+    rows.push((
+        "Warnings".into(),
+        match warnings.len() {
+            0 => "none".into(),
+            _ => warnings.join("\n"),
+        },
+    ));
     // Not warnings: a default key a file of yours rebinds, listed so what it
     // displaced can be looked up (Q60).
     if !cfg.keymap.overrides.is_empty() {
@@ -260,8 +263,8 @@ fn found_with_version(exe: &str, what: &str) -> String {
 #[cfg(windows)]
 fn file_version(path: &std::path::Path) -> Option<String> {
     use std::os::windows::ffi::OsStrExt;
-    use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO};
     use windows::core::{w, PCWSTR};
+    use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO};
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     // SAFETY: `wide` is NUL-terminated and outlives the calls; `buf` is sized by
     // the call that reports the size, and the pointer `VerQueryValueW` hands back
@@ -275,7 +278,10 @@ fn file_version(path: &std::path::Path) -> Option<String> {
         GetFileVersionInfoW(PCWSTR(wide.as_ptr()), None, size, buf.as_mut_ptr().cast()).ok()?;
         let mut info: *mut std::ffi::c_void = std::ptr::null_mut();
         let mut len = 0u32;
-        if !VerQueryValueW(buf.as_ptr().cast(), w!("\\"), &mut info, &mut len).as_bool() || info.is_null() || (len as usize) < std::mem::size_of::<VS_FIXEDFILEINFO>() {
+        if !VerQueryValueW(buf.as_ptr().cast(), w!("\\"), &mut info, &mut len).as_bool()
+            || info.is_null()
+            || (len as usize) < std::mem::size_of::<VS_FIXEDFILEINFO>()
+        {
             return None;
         }
         // The string table first: under the compatibility layer that makes an app
@@ -285,7 +291,13 @@ fn file_version(path: &std::path::Path) -> Option<String> {
             return Some(v);
         }
         let f = &*(info as *const VS_FIXEDFILEINFO);
-        Some(format!("{}.{}.{}.{}", f.dwFileVersionMS >> 16, f.dwFileVersionMS & 0xffff, f.dwFileVersionLS >> 16, f.dwFileVersionLS & 0xffff))
+        Some(format!(
+            "{}.{}.{}.{}",
+            f.dwFileVersionMS >> 16,
+            f.dwFileVersionMS & 0xffff,
+            f.dwFileVersionLS >> 16,
+            f.dwFileVersionLS & 0xffff
+        ))
     }
 }
 
@@ -296,8 +308,8 @@ fn file_version(path: &std::path::Path) -> Option<String> {
 /// `buf` must be a block filled by `GetFileVersionInfoW`.
 #[cfg(windows)]
 unsafe fn string_file_version(buf: &[u8]) -> Option<String> {
-    use windows::Win32::Storage::FileSystem::VerQueryValueW;
     use windows::core::{w, PCWSTR};
+    use windows::Win32::Storage::FileSystem::VerQueryValueW;
     let mut p: *mut std::ffi::c_void = std::ptr::null_mut();
     let mut len = 0u32;
     if !VerQueryValueW(buf.as_ptr().cast(), w!("\\VarFileInfo\\Translation"), &mut p, &mut len).as_bool() || p.is_null() || len < 4 {
@@ -331,13 +343,9 @@ const SHELL_NAME: &str = "sh";
 fn shell_builtin(exe: &str) -> bool {
     #[cfg(windows)]
     // `cmd` is case-insensitive about its own names, so `START` is `start`.
-    let (name, known) = (
-        exe.to_ascii_lowercase(),
-        ["start", "call", "echo", "type", "cd", "set", "copy", "del", "dir", "move", "rem"],
-    );
+    let (name, known) = (exe.to_ascii_lowercase(), ["start", "call", "echo", "type", "cd", "set", "copy", "del", "dir", "move", "rem"]);
     #[cfg(not(windows))]
-    let (name, known) =
-        (exe.to_string(), ["echo", "cd", "export", "eval", "exec", "set", "test", "printf"]);
+    let (name, known) = (exe.to_string(), ["echo", "cd", "export", "eval", "exec", "set", "test", "printf"]);
 
     known.contains(&name.as_str())
 }
@@ -366,11 +374,7 @@ pub(crate) fn program(run: &str) -> Option<String> {
 /// needs. The whole thing is run with a clean stdin so nothing can sit waiting
 /// for input.
 fn probe(exe: &str, flag: &str) -> Option<String> {
-    let out = Command::new(exe)
-        .arg(flag)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .ok()?;
+    let out = Command::new(exe).arg(flag).stdin(std::process::Stdio::null()).output().ok()?;
     let text = match out.stdout.is_empty() {
         true => String::from_utf8_lossy(&out.stderr).into_owned(),
         false => String::from_utf8_lossy(&out.stdout).into_owned(),
@@ -384,7 +388,6 @@ fn probe(exe: &str, flag: &str) -> Option<String> {
         false => Some(line.to_owned()),
     }
 }
-
 
 /// The `Terminal pane` row: what the last run's pane did.
 fn pane_row(info: &crate::runinfo::RunInfo) -> String {
@@ -406,37 +409,38 @@ fn pane_row(info: &crate::runinfo::RunInfo) -> String {
 /// font — and both are invisible to every other kind of investigation.
 fn last_run() -> Vec<(String, String)> {
     let Some(info) = crate::runinfo::load() else {
-        return vec![(
-            "Rendering".into(),
-            "not recorded — kura has not opened a window on this machine yet".into(),
-        )];
+        return vec![("Rendering".into(), "not recorded — kura has not opened a window on this machine yet".into())];
     };
     let list = |paths: &[std::path::PathBuf], none: &str| match paths.is_empty() {
         true => none.to_string(),
         false => paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join("\n"),
     };
     let mut rows = vec![
-        ("Adapter".into(), match info.adapter.is_empty() {
-            true => "not recorded".into(),
-            false if info.backend_setting.is_empty() => format!("{}   ({}, {})", info.adapter, info.backend, info.device),
-            false => format!("{}   ({}, {}; set by {})", info.adapter, info.backend, info.device, info.backend_setting),
-        }),
+        (
+            "Adapter".into(),
+            match info.adapter.is_empty() {
+                true => "not recorded".into(),
+                false if info.backend_setting.is_empty() => format!("{}   ({}, {})", info.adapter, info.backend, info.device),
+                false => format!("{}   ({}, {}; set by {})", info.adapter, info.backend, info.device, info.backend_setting),
+            },
+        ),
         // Which start this record is: with the same version, one from days
         // ago read as the run just made (#244).
         ("Started".into(), info.started_line(std::time::SystemTime::now()).unwrap_or_else(|| "not recorded".into())),
         // Above the fonts because it is the one row that settles an argument:
         // what kura thinks its own window is, as against what a capture or a
         // script measured from outside.
-        ("Window".into(), info.window_line().unwrap_or_else(|| {
-            "not recorded — no frame was drawn before the record was written".into()
-        })),
+        ("Window".into(), info.window_line().unwrap_or_else(|| "not recorded — no frame was drawn before the record was written".into())),
         ("Terminal pane".into(), pane_row(&info)),
         // What was launched, as the command lines kura built (Q40): an opener
         // that ran the wrong thing is visible here after the toast has gone.
-        ("Launched".into(), match info.launched.is_empty() {
-            true => "nothing in that run".into(),
-            false => info.launched.join("\n"),
-        }),
+        (
+            "Launched".into(),
+            match info.launched.is_empty() {
+                true => "nothing in that run".into(),
+                false => info.launched.join("\n"),
+            },
+        ),
         ("Fonts".into(), list(&info.fonts, "none loaded — this is why icons are boxes")),
         ("Bold".into(), list(&info.bold, "none found; bold is faked by overstriking")),
     ];
@@ -450,7 +454,18 @@ fn last_run() -> Vec<(String, String)> {
 
 fn variables() -> Vec<(String, String)> {
     env_rows(
-        &["EDITOR", "VISUAL", "SHELL", "TERM", "YAZI_CONFIG_HOME", "KURA_CONFIG_HOME", "KURA_STATE_HOME", "KURA_TERM_SHELL", "KURA_TERM_ARGS", "KURA_SCALE"],
+        &[
+            "EDITOR",
+            "VISUAL",
+            "SHELL",
+            "TERM",
+            "YAZI_CONFIG_HOME",
+            "KURA_CONFIG_HOME",
+            "KURA_STATE_HOME",
+            "KURA_TERM_SHELL",
+            "KURA_TERM_ARGS",
+            "KURA_SCALE",
+        ],
         "unset",
     )
 }
@@ -568,10 +583,7 @@ mod tests {
     #[test]
     fn a_long_answer_stays_in_its_column() {
         let mut out = String::new();
-        section(&mut out, "Bits", &[
-            ("short".into(), "yes".into()),
-            ("a longer key".into(), "one\ntwo\nthree".into()),
-        ]);
+        section(&mut out, "Bits", &[("short".into(), "yes".into()), ("a longer key".into(), "one\ntwo\nthree".into())]);
         assert_eq!(
             out,
             "Bits\n\
@@ -590,10 +602,7 @@ mod tests {
     #[test]
     fn the_copyright_is_not_part_of_the_version() {
         let cut = |s: &str| s.split(" Copyright").next().unwrap_or(s).trim().to_string();
-        assert_eq!(
-            cut("ffmpeg version 8.1.2-full_build Copyright (c) 2000-2026 the FFmpeg developers"),
-            "ffmpeg version 8.1.2-full_build",
-        );
+        assert_eq!(cut("ffmpeg version 8.1.2-full_build Copyright (c) 2000-2026 the FFmpeg developers"), "ffmpeg version 8.1.2-full_build",);
         // Lines without one are left exactly as they are.
         assert_eq!(cut("git version 2.52.0.windows.1"), "git version 2.52.0.windows.1");
         assert_eq!(cut("PowerShell 7.6.6"), "PowerShell 7.6.6");

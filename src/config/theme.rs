@@ -377,7 +377,11 @@ const LIGHT_WARNING: Color32 = Color32::from_rgb(0x7a, 0x56, 0x00);
 pub(crate) fn is_light(bg: Color32) -> bool {
     let lin = |c: u8| {
         let c = c as f32 / 255.0;
-        if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
     };
     0.2126 * lin(bg.r()) + 0.7152 * lin(bg.g()) + 0.0722 * lin(bg.b()) > 0.179
 }
@@ -420,12 +424,7 @@ impl Theme {
             preview_hovered: Style { underline: true, ..Default::default() },
             // White on the yellow reads at 3:1, so the text or the ground,
             // whichever reads better on it.
-            find_keyword: Style {
-                fg: Some(text_on(c, c.wait)),
-                bg: Some(c.wait),
-                bold: true,
-                ..Default::default()
-            },
+            find_keyword: Style { fg: Some(text_on(c, c.wait)), bg: Some(c.wait), bold: true, ..Default::default() },
             find_position: Style::fg(c.magenta),
             marker_copied: c.done,
             marker_cut: c.err,
@@ -657,12 +656,7 @@ impl Theme {
             .filetype
             .rules
             .iter()
-            .map(|r| FileRule {
-                name: r.name.clone(),
-                mime: r.mime.clone(),
-                is: r.is.clone(),
-                style: Style::from_raw(&r.style),
-            })
+            .map(|r| FileRule { name: r.name.clone(), mime: r.mime.clone(), is: r.is.clone(), style: Style::from_raw(&r.style) })
             .collect();
         rules.append(&mut self.filetypes);
         self.filetypes = rules;
@@ -729,33 +723,20 @@ impl Theme {
 }
 
 fn prepend_icons(dest: &mut Vec<(String, Icon)>, src: &[IconRule]) {
-    let mut v: Vec<(String, Icon)> = src
-        .iter()
-        .map(|r| {
-            (r.name.clone(), Icon { text: r.text.clone(), fg: r.fg.as_deref().and_then(parse_color) })
-        })
-        .collect();
+    let mut v: Vec<(String, Icon)> =
+        src.iter().map(|r| (r.name.clone(), Icon { text: r.text.clone(), fg: r.fg.as_deref().and_then(parse_color) })).collect();
     v.append(dest);
     *dest = v;
 }
 
-fn rule_matches(
-    name: Option<&str>,
-    mime: Option<&str>,
-    is: Option<&str>,
-    entry: &Entry,
-    entry_mime: &str,
-) -> bool {
+fn rule_matches(name: Option<&str>, mime: Option<&str>, is: Option<&str>, entry: &Entry, entry_mime: &str) -> bool {
     if let Some(is) = is {
         let ok = match is {
             "dir" => entry.is_dir_like(),
             "hidden" => entry.hidden,
             "link" => entry.kind.is_link(),
             "orphan" => matches!(entry.kind, crate::fs::Kind::Link { broken: true, .. }),
-            "exec" => entry
-                .ext
-                .as_deref()
-                .is_some_and(|e| matches!(e, "exe" | "bat" | "cmd" | "com" | "ps1" | "msi")),
+            "exec" => entry.ext.as_deref().is_some_and(|e| matches!(e, "exe" | "bat" | "cmd" | "com" | "ps1" | "msi")),
             _ => false,
         };
         if !ok {

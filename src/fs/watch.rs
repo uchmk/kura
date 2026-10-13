@@ -25,10 +25,7 @@ impl Watcher {
     pub fn new(wake: impl Fn() + Send + 'static) -> Self {
         let (ev_tx, ev_rx) = crossbeam_channel::unbounded::<PathBuf>();
         let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded::<HashSet<PathBuf>>();
-        let spawned = std::thread::Builder::new()
-            .name("watch".into())
-            .spawn(move || run(ev_tx, cmd_rx, wake))
-            .is_ok();
+        let spawned = std::thread::Builder::new().name("watch".into()).spawn(move || run(ev_tx, cmd_rx, wake)).is_ok();
         Self { tx: spawned.then_some(cmd_tx), sent: HashSet::new(), rx: ev_rx }
     }
 

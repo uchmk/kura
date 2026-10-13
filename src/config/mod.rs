@@ -198,7 +198,14 @@ impl TermCfg {
         };
         let dropped_args = std::mem::take(&mut self.args);
         let args = args.and_then(|v| v.into_string().ok()).map(|v| split_words(&v)).unwrap_or_default();
-        *self = Self { shell: shell.trim().to_owned(), args_from_env: !args.is_empty(), args_unused: false, args, from_env: true, dropped_args };
+        *self = Self {
+            shell: shell.trim().to_owned(),
+            args_from_env: !args.is_empty(),
+            args_unused: false,
+            args,
+            from_env: true,
+            dropped_args,
+        };
     }
 }
 
@@ -491,10 +498,7 @@ impl Config {
                             if crate::exec::template_is_valid(&template) {
                                 line_args.insert(crate::exec::editor_key(&name), template);
                             } else {
-                                warnings.push(format!(
-                                    "{}: [line_args] {name}: needs exactly one {{path}}",
-                                    at(dir, OWN_FILE)
-                                ));
+                                warnings.push(format!("{}: [line_args] {name}: needs exactly one {{path}}", at(dir, OWN_FILE)));
                             }
                         }
                     }
@@ -572,7 +576,11 @@ fn xdg_base(var: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf> {
 /// name, so it cannot be appended unconditionally.
 fn yazi_config_dir(base: &Path) -> PathBuf {
     let dir = base.join("yazi");
-    if cfg!(windows) { dir.join("config") } else { dir }
+    if cfg!(windows) {
+        dir.join("config")
+    } else {
+        dir
+    }
 }
 
 /// The two variables that name a config directory, in search order.
@@ -707,7 +715,11 @@ fn distinct(dirs: Vec<PathBuf>) -> Vec<PathBuf> {
 /// folders apart.
 fn comparable(dir: &Path) -> PathBuf {
     let p = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.components().collect());
-    if cfg!(windows) { PathBuf::from(p.to_string_lossy().to_lowercase()) } else { p }
+    if cfg!(windows) {
+        PathBuf::from(p.to_string_lossy().to_lowercase())
+    } else {
+        p
+    }
 }
 
 /// The directories [`Config::load`] actually opens files in.
@@ -930,8 +942,7 @@ mod dirs_tests {
     /// set rather than making the suite depend on how it was launched.
     #[test]
     fn the_kura_layer_is_one_level_down_everywhere() {
-        let overridden = std::env::var_os("YAZI_CONFIG_HOME").is_some()
-            || std::env::var_os("KURA_CONFIG_HOME").is_some();
+        let overridden = std::env::var_os("YAZI_CONFIG_HOME").is_some() || std::env::var_os("KURA_CONFIG_HOME").is_some();
         if overridden || base_config_dir().is_none() {
             return;
         }
@@ -1025,13 +1036,11 @@ mod line_mode_from_the_config {
     #[test]
     fn a_known_name_parses_and_a_typo_does_not() {
         use crate::fs::entry::Linemode as L;
-        let ok: yazi::YaziToml =
-            toml::from_str("[mgr]\nlinemode = \"permissions\"\n").expect("a known name");
+        let ok: yazi::YaziToml = toml::from_str("[mgr]\nlinemode = \"permissions\"\n").expect("a known name");
         assert_eq!(ok.mgr.linemode, L::Permissions);
 
         // yazi's alias, which `SortBy` keeps for the same reason.
-        let alias: yazi::YaziToml =
-            toml::from_str("[mgr]\nlinemode = \"modified\"\n").expect("an alias");
+        let alias: yazi::YaziToml = toml::from_str("[mgr]\nlinemode = \"modified\"\n").expect("an alias");
         assert_eq!(alias.mgr.linemode, L::Mtime);
 
         let bad = toml::from_str::<yazi::YaziToml>("[mgr]\nlinemode = \"mtiem\"\n");
@@ -1060,11 +1069,7 @@ mod shared_theme {
 
         // And the tables are large enough for the difference to matter -- this
         // is the default, before anyone's own `theme.toml` adds to them.
-        let entries = one.filetypes.len()
-            + one.icon_dirs.len()
-            + one.icon_exts.len()
-            + one.icon_files.len()
-            + one.icon_globs.len();
+        let entries = one.filetypes.len() + one.icon_dirs.len() + one.icon_exts.len() + one.icon_files.len() + one.icon_globs.len();
         assert!(entries > 50, "the default theme carries {entries} entries, each with a String");
     }
 }
@@ -1133,8 +1138,7 @@ mod files {
         assert_eq!(named.term.shell, "pwsh");
         assert!(named.term.args.is_empty(), "args are optional");
 
-        let with_args: KuraToml =
-            toml::from_str("[term]\nshell = \"pwsh\"\nargs = [\"-NoLogo\"]\n").unwrap();
+        let with_args: KuraToml = toml::from_str("[term]\nshell = \"pwsh\"\nargs = [\"-NoLogo\"]\n").unwrap();
         assert_eq!(with_args.term.args, vec!["-NoLogo".to_string()]);
     }
 
@@ -1162,9 +1166,7 @@ mod files {
         assert_eq!(cfg.preview[1].first, 0);
         assert_eq!(cfg.preview[1].unit, "", "a unit is optional");
 
-        let m = |p: &str| {
-            PreviewRule::for_path(&cfg.preview, std::path::Path::new(p)).map(|r| r.pattern.as_str())
-        };
+        let m = |p: &str| PreviewRule::for_path(&cfg.preview, std::path::Path::new(p)).map(|r| r.pattern.as_str());
         assert_eq!(m("/a/report.pdf"), Some("*.pdf"));
         // Case does not decide it: `.PDF` is how a download arrives.
         assert_eq!(m("/a/REPORT.PDF"), Some("*.pdf"));
