@@ -1,33 +1,23 @@
-//! yazi-compatible keymap loading and chord resolution.
+//! yazi-compatible keymap loading and chord resolution, by `ito-keymap`
+//! (where this file's loader went in ito 0.32.0, for every app to share).
 //!
 //! Layering follows yazi: `prepend_keymap` entries come first, then either the
 //! user's `keymap` (a full replacement) or the built-in defaults, then
 //! `append_keymap`. The first exact match wins, which is what makes a
-//! prepended single-key binding shadow a default prefix.
-
-use std::sync::Arc;
-
-use serde::Deserialize;
+//! prepended single-key binding shadow a default prefix. A key bound twice
+//! names each side's file (Q57, #193, #194); a user's key over a default one
+//! is an override, not a warning (Q60).
 
 use super::cmd::{self, Act};
+#[cfg(test)]
 use super::keys::Key;
 
-#[derive(Clone, Debug)]
-pub struct Binding {
-    pub on: Vec<Key>,
-    pub run: Vec<Act>,
-    pub desc: String,
-    /// The command text, shown in the help panel.
-    pub raw: String,
-    /// Where it was written: a keymap file's path, or [`BUILT_IN`]. A key
-    /// bound twice is warned about by naming both, so the warning says which
-    /// file to open (Q57).
-    pub from: Arc<str>,
-}
+pub use ito_keymap::resolve;
+#[cfg(test)]
+pub use ito_keymap::BUILT_IN;
 
-/// What [`Binding::from`] says for a binding from the built-in defaults --
-/// one of the two sides of a duplicate as often as not (#193).
-pub const BUILT_IN: &str = "the built-in defaults";
+pub type Binding = ito_keymap::Binding<Act>;
+pub type Match<'a> = ito_keymap::Match<'a, Act>;
 
 #[derive(Default, Debug)]
 pub struct Keymap {
@@ -53,174 +43,27 @@ pub struct Keymap {
     pub overrides: Vec<String>,
 }
 
-pub enum Match<'a> {
-    /// Run this binding.
-    Exact(&'a Binding),
-    /// More keys needed; these are the candidates to show in the which panel.
-    Pending(Vec<&'a Binding>),
-    None,
-}
-
-pub fn resolve<'a>(bindings: &'a [Binding], pending: &[Key]) -> Match<'a> {
-    let mut candidates: Vec<&Binding> = Vec::new();
-    for b in bindings {
-        if b.on.len() >= pending.len() && b.on[..pending.len()] == *pending {
-            candidates.push(b);
-        }
-    }
-    match candidates.first() {
-        None => Match::None,
-        Some(first) if first.on.len() == pending.len() => Match::Exact(first),
-        Some(_) => Match::Pending(candidates),
-    }
-}
-
-// ---------------------------------------------------------------- TOML schema
-
-#[derive(Deserialize, Debug, Default)]
-struct KeymapFile {
-    #[serde(default, alias = "manager")]
-    mgr: Section,
-    #[serde(default)]
-    input: Section,
-    #[serde(default)]
-    confirm: Section,
-    #[serde(default, alias = "select")]
-    pick: Section,
-    #[serde(default)]
-    help: Section,
-    #[serde(default)]
-    tasks: Section,
-    #[serde(default)]
-    spot: Section,
-    #[serde(default)]
-    diff: Section,
-    #[serde(default)]
-    settings: Section,
-    #[serde(default)]
-    term: Section,
-    #[serde(default)]
-    cmp: Section,
-}
-
-#[derive(Deserialize, Debug, Default)]
-struct Section {
-    #[serde(default)]
-    keymap: Option<Vec<RawBinding>>,
-    #[serde(default)]
-    prepend_keymap: Vec<RawBinding>,
-    #[serde(default)]
-    append_keymap: Vec<RawBinding>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct RawBinding {
-    on: StrOrVec,
-    #[serde(default)]
-    run: StrOrVec,
-    #[serde(default)]
-    desc: String,
-}
-
-use super::StrOrVec;
-
-/// Split a key string into tokens: `"gg"` and `"g g"` both become `[g, g]`,
-/// while `"<C-a>"` stays a single key.
-fn tokenize(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut it = s.chars().peekable();
-    while let Some(c) = it.next() {
-        if c == '<' {
-            let mut tok = String::from('<');
-            for c in it.by_ref() {
-                tok.push(c);
-                if c == '>' {
-                    break;
-                }
-            }
-            out.push(tok);
-        } else if c.is_whitespace() {
-            continue;
-        } else {
-            out.push(c.to_string());
-        }
-    }
-    out
-}
-
-fn build(raw: &RawBinding, from: &Arc<str>, warnings: &mut Vec<String>) -> Option<Binding> {
-    let tokens: Vec<String> = if raw.on.0.len() == 1 { tokenize(&raw.on.0[0]) } else { raw.on.0.clone() };
-    let mut on = Vec::with_capacity(tokens.len());
-    for t in &tokens {
-        match Key::parse(t) {
-            // Shift with a printable key and nothing else arrives as the
-            // character it types, so this binding can never be pressed: `<S-t>`
-            // parses, and then nothing ever matches it (#165). Kept, but said.
-            Some(k) if k.shift && !k.ctrl && !k.alt && !k.sup && matches!(k.code, crate::config::keys::Code::Char(c) if c != ' ') => {
-                let hint = match k.code {
-                    crate::config::keys::Code::Char(c) if c.is_ascii_alphabetic() => format!("write `{}`", c.to_ascii_uppercase()),
-                    _ => "write the character Shift types".into(),
-                };
-                warnings
-                    .push(format!("`{t}` can never be pressed: Shift with a printable key arrives as the character it types -- {hint}"));
-                on.push(k);
-            }
-            Some(k) => on.push(k),
-            None => {
-                warnings.push(format!("unknown key `{t}`"));
-                return None;
-            }
-        }
-    }
-    if on.is_empty() {
-        return None;
-    }
-    let raw_text = raw.run.0.join("; ");
-    let run: Vec<Act> = raw.run.0.iter().map(|s| cmd::parse(s)).collect();
-    for (a, s) in run.iter().zip(&raw.run.0) {
-        if let Act::Unsupported(_) = a {
-            warnings.push(format!("unsupported command `{s}`"));
-        }
-    }
-    Some(Binding { on, run, desc: raw.desc.clone(), raw: raw_text, from: from.clone() })
-}
-
-/// Apply one file's layers on top of what previous files produced.
-///
-/// `name` is the layer as it is written (`mgr`, `input`, ...), for the warning
-/// when a short `keymap` replaces it.
-fn fold(name: &str, base: Vec<Binding>, s: &Section, from: &Arc<str>, warnings: &mut Vec<String>) -> Vec<Binding> {
-    let mut out = Vec::new();
-    for r in &s.prepend_keymap {
-        out.extend(build(r, from, warnings));
-    }
-    match &s.keymap {
-        Some(list) => {
-            // `keymap` replaces every key before it, as in yazi. A copy of
-            // yazi's whole keymap does that on purpose; one or two entries
-            // almost never do -- one `[[mgr.keymap]]` line left a window no key
-            // could even close (#164, #258). Under a quarter of what it
-            // replaces is the line between the two.
-            if list.len() * 4 < base.len() {
-                warnings.push(format!(
-                    "{from}: `[[{name}.keymap]]` replaces all {} keys of [{name}] with {} -- did you mean `[[{name}.prepend_keymap]]`?",
-                    base.len(),
-                    list.len()
-                ));
-            }
-            for r in list {
-                out.extend(build(r, from, warnings));
-            }
-        }
-        None => out.extend(base),
-    }
-    for r in &s.append_keymap {
-        out.extend(build(r, from, warnings));
-    }
-    out
-}
-
 pub const DEFAULT_KEYMAP: &str = include_str!("defaults/keymap.toml");
+
+/// kura's layers, with yazi's older names for two of them. yazi's `[cmp]`
+/// (and its older `[completion]`) is read and left alone: completion is
+/// native here.
+const SPEC: ito_keymap::Spec = ito_keymap::Spec {
+    layers: &[
+        ito_keymap::Layer { name: "mgr", aliases: &["manager"] },
+        ito_keymap::Layer::new("input"),
+        ito_keymap::Layer::new("confirm"),
+        ito_keymap::Layer { name: "pick", aliases: &["select"] },
+        ito_keymap::Layer::new("help"),
+        ito_keymap::Layer::new("tasks"),
+        ito_keymap::Layer::new("spot"),
+        ito_keymap::Layer::new("diff"),
+        ito_keymap::Layer::new("settings"),
+        ito_keymap::Layer::new("term"),
+    ],
+    ignored: &["cmp", "completion"],
+    defaults: DEFAULT_KEYMAP,
+};
 
 impl Keymap {
     /// Fold the built-in defaults and each user keymap file in turn, for a
@@ -231,152 +74,42 @@ impl Keymap {
         Self::load_named(&named)
     }
 
-    /// The same, with each file's path to name in a parse error: there are two
-    /// config directories, and `keymap.toml: TOML parse error` did not say which
-    /// one's (#131), where the other three files' errors always did.
     /// Whether `text` reads as a keymap file at all. A file that does not is
     /// skipped by [`Keymap::load_named`], with a warning first among its own.
     pub fn parses(text: &str) -> bool {
-        toml::from_str::<KeymapFile>(text).is_ok()
+        ito_keymap::parses(text)
     }
 
+    /// The same, with each file's path to name in a parse error: there are two
+    /// config directories, and `keymap.toml: TOML parse error` did not say which
+    /// one's (#131), where the other three files' errors always did.
     pub fn load_named(user_tomls: &[(&str, &str)]) -> (Self, Vec<String>) {
-        let mut warnings = Vec::new();
-        let mut files =
-            vec![(Arc::<str>::from(BUILT_IN), toml::from_str::<KeymapFile>(DEFAULT_KEYMAP).expect("built-in keymap must parse"))];
-        for (path, text) in user_tomls {
-            match toml::from_str::<KeymapFile>(text) {
-                Ok(k) => files.push((Arc::from(*path), k)),
-                // Trimmed: the parser's message ends in a newline, which left
-                // a blank line at the end of `kura env`'s Warnings.
-                Err(e) => warnings.push(format!("{path}: {}", super::parse_error(text, &e))),
+        let mut command = |s: &str, warnings: &mut Vec<String>| {
+            let a = cmd::parse(s);
+            if let Act::Unsupported(_) = a {
+                warnings.push(format!("unsupported command `{s}`"));
             }
-        }
-
-        let mut km = Keymap::default();
-        for (from, f) in &files {
-            km.mgr = fold("mgr", std::mem::take(&mut km.mgr), &f.mgr, from, &mut warnings);
-            km.input = fold("input", std::mem::take(&mut km.input), &f.input, from, &mut warnings);
-            km.confirm = fold("confirm", std::mem::take(&mut km.confirm), &f.confirm, from, &mut warnings);
-            km.pick = fold("pick", std::mem::take(&mut km.pick), &f.pick, from, &mut warnings);
-            km.help = fold("help", std::mem::take(&mut km.help), &f.help, from, &mut warnings);
-            km.tasks = fold("tasks", std::mem::take(&mut km.tasks), &f.tasks, from, &mut warnings);
-            km.spot = fold("spot", std::mem::take(&mut km.spot), &f.spot, from, &mut warnings);
-            km.diff = fold("diff", std::mem::take(&mut km.diff), &f.diff, from, &mut warnings);
-            km.settings = fold("settings", std::mem::take(&mut km.settings), &f.settings, from, &mut warnings);
-            km.term = fold("term", std::mem::take(&mut km.term), &f.term, from, &mut warnings);
-            let _ = &f.cmp; // parsed for compatibility; completion is native here
-        }
-        let mut overrides = Vec::new();
-        for (name, bindings) in km.layers() {
-            let (warned, replaced) = unreachable(name, bindings);
-            warnings.extend(warned);
-            overrides.extend(replaced);
-        }
-        km.overrides = overrides;
-        km.unsupported = warnings.clone();
-        (km, warnings)
+            Some(a)
+        };
+        let mut loaded = ito_keymap::load(&SPEC, user_tomls, &mut command);
+        let mut take = |name| loaded.take(name);
+        let mut km = Keymap {
+            mgr: take("mgr"),
+            input: take("input"),
+            confirm: take("confirm"),
+            pick: take("pick"),
+            help: take("help"),
+            tasks: take("tasks"),
+            spot: take("spot"),
+            diff: take("diff"),
+            settings: take("settings"),
+            term: take("term"),
+            unsupported: Vec::new(),
+            overrides: loaded.overrides,
+        };
+        km.unsupported = loaded.warnings.clone();
+        (km, loaded.warnings)
     }
-
-    /// Every layer with the name it is written under, for the checks and tests
-    /// that have to treat them alike.
-    fn layers(&self) -> [(&'static str, &[Binding]); 10] {
-        [
-            ("mgr", &self.mgr),
-            ("input", &self.input),
-            ("confirm", &self.confirm),
-            ("pick", &self.pick),
-            ("help", &self.help),
-            ("tasks", &self.tasks),
-            ("spot", &self.spot),
-            ("term", &self.term),
-            ("diff", &self.diff),
-            ("settings", &self.settings),
-        ]
-    }
-}
-
-/// Bindings in `bindings` that no key press can ever reach.
-///
-/// [`resolve`] takes the first binding that matches, so order decides: a key
-/// bound on its own, before a chord that starts with it, ends the sequence
-/// where it stands and the chord never runs. A user file's `prepend_keymap`
-/// goes in front of everything, which is exactly how one line can silently
-/// retire a whole prefix — binding `m` to a command, as the bookmarks plugins
-/// for yazi do, takes `m`+`s`, `m`+`t` and the rest of the line-mode keys with
-/// it, and nothing about pressing `m` suggests that is what happened.
-///
-/// One warning per key that shadows, not per binding shadowed: a prefix with
-/// five chords under it is one mistake, and five lines would push everything
-/// else out of the panel that shows them.
-///
-/// A key bound twice is split by where the bindings came from (Q60). The same
-/// command on both sides loses nothing and is not mentioned. A user's file
-/// taking a key from the built-in defaults is what `prepend_keymap` is for, so
-/// it goes in the second list, the overrides, not among the warnings: it was
-/// the only warning a config with one rebound key had, standing beside the
-/// ones that mattered (#210, #215, #217). Two of the user's own bindings, or
-/// one of theirs that a default shuts out, stay warnings.
-fn unreachable(layer: &str, bindings: &[Binding]) -> (Vec<String>, Vec<String>) {
-    let mut out = Vec::new();
-    let mut replaced = Vec::new();
-    let mut lost = vec![false; bindings.len()];
-    for i in 0..bindings.len() {
-        // Something earlier already swallows this one, and said so.
-        if lost[i] {
-            continue;
-        }
-        let on = &bindings[i].on;
-        let mut hidden: Vec<String> = Vec::new();
-        let mut losers: Vec<&Binding> = Vec::new();
-        for j in i + 1..bindings.len() {
-            let other = &bindings[j].on;
-            if other == on {
-                losers.push(&bindings[j]);
-            } else if other.len() > on.len() && other[..on.len()] == on[..] {
-                hidden.push(super::keys::render_seq(other));
-            } else {
-                continue;
-            }
-            lost[j] = true;
-        }
-        let key = super::keys::render_seq(on);
-        let run = &bindings[i].raw;
-        let winner = &bindings[i];
-        losers.retain(|b| b.raw != winner.raw);
-        if &*winner.from != BUILT_IN {
-            for b in losers.iter().filter(|b| &*b.from == BUILT_IN) {
-                replaced.push(format!("[{layer}] `{key}`: `{run}` ({}) instead of the default `{}`", winner.from, b.raw));
-            }
-            losers.retain(|b| &*b.from != BUILT_IN);
-        }
-        if !losers.is_empty() {
-            // Each side with the file it came from, the winner first: the
-            // line alone says which file to open and what to take out of it
-            // (Q57). The run that loses is named too, since a duplicate is
-            // usually noticed as a key that stopped doing what it did (#194).
-            let n = losers.len();
-            let not: Vec<String> = losers.iter().take(3).map(|b| format!("`{}` ({})", b.raw, b.from)).collect();
-            let more = if n > 3 { format!(", and {} more", n - 3) } else { String::new() };
-            out.push(format!(
-                "[{layer}] `{key}` is bound more than once; only `{run}` ({}) runs, not {}{more}",
-                bindings[i].from,
-                not.join(", "),
-            ));
-        }
-        if !hidden.is_empty() {
-            let n = hidden.len();
-            // Three is as many as the line can carry and still be read.
-            hidden.truncate(3);
-            let shown = hidden.join("`, `");
-            let more = if n > 3 { format!(", and {} more", n - 3) } else { String::new() };
-            out.push(format!(
-                "[{layer}] `{key}` runs `{run}` on its own, so the {n} key(s) starting with it \
-                 never run: `{shown}`{more}",
-            ));
-        }
-    }
-    (out, replaced)
 }
 
 #[cfg(test)]

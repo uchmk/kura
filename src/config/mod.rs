@@ -941,19 +941,7 @@ impl Misplaced {
 /// Windows, and the parser's own message -- "too few unicode value digits" or
 /// "missing escaped value" -- names the escape rules, not the fix.
 pub(crate) fn parse_error(text: &str, e: &toml::de::Error) -> String {
-    let mut said = e.to_string().trim_end().to_string();
-    // The span lands on the backslash, just after it, or -- for `\U` with too
-    // few hex digits -- up to nine characters on, still inside the escape.
-    let at_escape = e.span().is_some_and(|s| {
-        let Some(before) = text.get(..s.start) else { return false };
-        let escape = before.rfind('\\').map(|i| &before[i + 1..]);
-        escape.is_some_and(|tail| tail.len() <= 9 && tail.chars().all(|c| c.is_ascii_alphanumeric()))
-            || text.get(s.start..).is_some_and(|a| a.starts_with('\\'))
-    });
-    if at_escape {
-        said += "\n(a backslash in \"double quotes\" starts an escape: write a Windows path in 'single quotes')";
-    }
-    said
+    ito_keymap::parse_error(text, e)
 }
 
 fn read(dir: &Path, name: &str, loaded: &mut Vec<PathBuf>) -> Option<String> {
