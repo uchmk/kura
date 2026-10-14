@@ -33,6 +33,10 @@ pub struct KuraWords {
     pub scale_note: &'static str,
     pub advanced: &'static str,
     pub advanced_lead: &'static str,
+    pub keys: &'static str,
+    pub keys_lead: &'static str,
+    /// Each keymap layer's name on the Keys page: the layer, its words.
+    pub layers: [(&'static str, &'static str); 10],
     pub folders: &'static str,
     pub kura_note: &'static str,
     pub yazi_note: &'static str,
@@ -113,6 +117,20 @@ pub const EN: KuraWords = KuraWords {
     scale_note: "The size of everything on screen (the same as Ctrl+= and Ctrl+-)",
     advanced: "Advanced",
     advanced_lead: "Where kura reads its settings, and what it found wrong in them.",
+    keys: "Keys",
+    keys_lead: "Every key, an operation to a row. Find one by its words, or with ⌨ Find by key and then the key; click a key to change it, + to add one. Only what differs from the defaults is written, to kura's own keymap.toml.",
+    layers: [
+        ("mgr", "list"),
+        ("input", "prompt"),
+        ("confirm", "question"),
+        ("pick", "picker"),
+        ("help", "help"),
+        ("tasks", "tasks"),
+        ("spot", "spot"),
+        ("diff", "compare"),
+        ("settings", "settings"),
+        ("term", "terminal"),
+    ],
     folders: "CONFIG FOLDERS",
     kura_note: "config.toml, and kura's own keymap.toml and theme.toml",
     yazi_note: "yazi's yazi.toml, keymap.toml and theme.toml, read as they are",
@@ -183,6 +201,20 @@ pub const JA: KuraWords = KuraWords {
     scale_note: "画面のすべての大きさ（Ctrl+= と Ctrl+- と同じ）",
     advanced: "詳細",
     advanced_lead: "kura が設定を読む場所と、読んだときに見つかった問題。",
+    keys: "キー",
+    keys_lead: "1 行に 1 つの操作とそのキー。言葉か「⌨ キーで探す」のあとに押したキーで探し、チップを押して変え、＋で足す。既定と違うところだけを kura の keymap.toml に書く。",
+    layers: [
+        ("mgr", "一覧"),
+        ("input", "入力"),
+        ("confirm", "確認"),
+        ("pick", "選ぶ"),
+        ("help", "ヘルプ"),
+        ("tasks", "タスク"),
+        ("spot", "詳しい情報"),
+        ("diff", "比べる"),
+        ("settings", "設定"),
+        ("term", "ターミナル"),
+    ],
     folders: "設定のフォルダ",
     kura_note: "config.toml と、kura だけの keymap.toml・theme.toml",
     yazi_note: "yazi の yazi.toml・keymap.toml・theme.toml をそのまま読む",
@@ -284,8 +316,9 @@ pub fn colors(t: &Theme) -> Colors {
 const GENERAL: usize = 0;
 const THEME: usize = 1;
 const KURA: usize = 2;
-const NOTIFY: usize = 3;
-const ADVANCED: usize = 4;
+const KEYS: usize = 3;
+const NOTIFY: usize = 4;
+const ADVANCED: usize = 5;
 
 /// The page's name for `<State:>`'s `settings page:` line (#336): a script
 /// read which page was open off a picture before.
@@ -294,6 +327,7 @@ pub fn page_name(page: usize) -> &'static str {
         GENERAL => "general",
         THEME => "theme",
         KURA => "kura",
+        KEYS => "keys",
         NOTIFY => "notify",
         ADVANCED => "advanced",
         _ => "?",
@@ -574,8 +608,13 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let (theme, dark, light) = app.common.theme_choice(None);
     let look = app.cfg.theme.clone();
     let notify = app.cfg.notify.clone();
+    let lang = app.lang.clone();
+    let own_keymap = app.own_keymap_named().unwrap_or_default();
+    let keymap = &app.cfg.keymap;
     let Overlay::Settings(ov) = &mut app.overlay else { return };
-    let keys = std::mem::take(&mut ov.keys);
+    // While the Keys page takes keys, Esc and Ctrl+Tab are its own.
+    let keys = if ov.keys_edit.busy() { ito_prefs::Keys::default() } else { std::mem::take(&mut ov.keys) };
+    let keys_edit = &mut ov.keys_edit;
     let mut state = std::mem::take(&mut ov.state);
     let mut drafts = std::mem::take(&mut ov.drafts);
 
@@ -583,6 +622,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (k.general, k.general_lead),
         (k.theme, k.theme_lead),
         ("config.toml", k.kura_lead),
+        (k.keys, k.keys_lead),
         (w.notify, k.notify_lead),
         (k.advanced, k.advanced_lead),
     ];
@@ -641,6 +681,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (ADVANCED, k.reload),
         (ADVANCED, k.reload_note),
     ];
+    let kw = ito_prefs::KeyWords::of(&lang);
+    index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
+    index.extend(k.layers.iter().map(|(_, n)| (KEYS, *n)));
     index.extend(ito_prefs::notify_index(w).into_iter().map(|t| (NOTIFY, t)));
     index.extend([(NOTIFY, k.notify_done), (NOTIFY, k.notify_failed), (NOTIFY, k.notify_done_sound), (NOTIFY, k.notify_failed_sound)]);
     for f in &folders {
@@ -653,6 +696,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
     let mut test: Option<ito_prefs::Notify> = None;
+    let mut key_edits = Vec::new();
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
     child.set_clip_rect(full);
     child.style_mut().visuals = c.visuals();
@@ -671,6 +715,21 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             changes.extend(ito_prefs::theme_page(ui, l, w, &themes, choice, k.theme_note, |ui| sample(ui, &look)));
         }
         KURA => kura_page(ui, l, k, &now, &mut drafts, &mut kura, &mut bad),
+        KEYS => {
+            let now = keymap.layers();
+            let layer_name = |n: &str| k.layers.iter().find(|(id, _)| *id == n).map_or_else(|| n.to_owned(), |(_, w)| (*w).to_owned());
+            let tr = |d: &str| crate::ui::keydesc_ja::tr(&lang, d);
+            let table = ito_prefs::KeyTable {
+                now: &now,
+                built_in: crate::config::Keymap::built_in_layers(),
+                noop: "noop",
+                own: &own_keymap,
+                layer_name: &layer_name,
+                tr: &tr,
+                extra: &|_, _| Vec::new(),
+            };
+            key_edits.extend(ito_prefs::keys_page(ui, l, kw, &table, keys_edit).unwrap_or_default());
+        }
         NOTIFY => {
             let mut n = notify.page();
             let ends = [
@@ -730,6 +789,12 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         }
     });
     if let Overlay::Settings(ov) = &mut app.overlay {
+        // Keys taken on the Keys page stop with it: left to another page
+        // by a click, they would keep Esc and Ctrl+Tab from the screen.
+        if state.page != KEYS {
+            ov.keys_edit.capture = None;
+            ov.keys_edit.listening = false;
+        }
         ov.state = state;
         ov.drafts = drafts;
     }
@@ -750,6 +815,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     }
     app.write_common(changes);
     app.write_kura(kura);
+    app.write_keymap(key_edits);
     if let Some(e) = bad {
         // The field reports its Enter on two frames in a row; one Enter is one toast.
         let id = egui::Id::new("kura-bad-said");
@@ -897,6 +963,77 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         assert!(text.contains("[notify]") && text.contains("sound = [\"failed\"]"), "{text}");
+    }
+
+    /// The Keys page lists kura's operations with their layer, takes the
+    /// keys pressed while a key is being set (Esc and Enter included, which
+    /// would close the screen), and writes only the key set to kura's own
+    /// keymap.toml once Enter sets it.
+    #[test]
+    fn the_keys_page_takes_a_key_and_writes_it_on_enter() {
+        let dir = crate::util::test_dir("settings-keys");
+        let mut s = crate::ui::harness::Screen::open(dir.clone());
+        crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = Some(dir.join("keymap.toml")));
+        s.app.overlay = Overlay::Settings(Default::default());
+        if let Overlay::Settings(ov) = &mut s.app.overlay {
+            ov.state.page = KEYS;
+        }
+        assert_eq!(page_name(KEYS), "keys");
+        let f = s.draw();
+        assert!(f.says("Quit the process") && f.says("list"), "kura's operations and their layer are listed");
+        let key = |key, modifiers, pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
+        let press = |s: &mut crate::ui::harness::Screen, k, m| {
+            s.feed(vec![key(k, m, true)]);
+            s.feed(vec![key(k, m, false)]);
+        };
+        let start = |s: &mut crate::ui::harness::Screen| {
+            if let Overlay::Settings(ov) = &mut s.app.overlay {
+                ov.keys_edit.capture =
+                    Some(ito_prefs::Capture { layer: "mgr".into(), run: "paste".into(), keys: Vec::new(), replace: None });
+            }
+        };
+        let file = dir.join("keymap.toml");
+        // Esc gives up the key, and leaves the screen open.
+        start(&mut s);
+        press(&mut s, egui::Key::Escape, egui::Modifiers::NONE);
+        s.draw();
+        let Overlay::Settings(ov) = &s.app.overlay else { panic!("Esc while a key is set keeps the screen") };
+        assert!(ov.keys_edit.capture.is_none(), "Esc gave the key up");
+        // Ctrl+Shift+Enter is a key; nothing is written before Enter.
+        start(&mut s);
+        let cs = egui::Modifiers { ctrl: true, shift: true, command: true, ..Default::default() };
+        press(&mut s, egui::Key::Enter, cs);
+        s.draw();
+        assert!(!file.exists(), "a key pressed is not written yet");
+        let Overlay::Settings(ov) = &s.app.overlay else { panic!("the screen stays open") };
+        assert_eq!(ov.keys_edit.capture.as_ref().map(|c| c.keys.len()), Some(1), "{:?}", ov.keys_edit.capture);
+        press(&mut s, egui::Key::Enter, egui::Modifiers::NONE);
+        s.draw();
+        let mut text = String::new();
+        for _ in 0..500 {
+            text = std::fs::read_to_string(&file).unwrap_or_default();
+            if text.contains("paste") {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(text.contains("<C-S-Enter>") && text.contains("run = \"paste\"") && text.contains("prepend_keymap"), "{text}");
+        assert!(!text.contains("yank") && !text.contains("noop"), "only the key set is written: {text}");
+        assert!(matches!(s.app.overlay, Overlay::Settings(_)), "Enter set the key, and the screen stays open");
+        // Taking keys, then gone to another page (a click on it): the keys
+        // stop being taken, and Esc closes the screen again.
+        start(&mut s);
+        if let Overlay::Settings(ov) = &mut s.app.overlay {
+            ov.keys_edit.listening = true;
+            ov.state.page = NOTIFY;
+        }
+        s.draw();
+        let Overlay::Settings(ov) = &s.app.overlay else { panic!("the screen stays open") };
+        assert!(!ov.keys_edit.busy(), "another page takes no keys for the Keys page");
+        press(&mut s, egui::Key::Escape, egui::Modifiers::NONE);
+        s.draw();
+        assert!(!matches!(s.app.overlay, Overlay::Settings(_)), "Esc closes the screen");
+        crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = None);
     }
 
     /// What was typed and the range it takes are said, in either language.

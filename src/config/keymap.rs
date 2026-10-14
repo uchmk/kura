@@ -48,7 +48,7 @@ pub const DEFAULT_KEYMAP: &str = include_str!("defaults/keymap.toml");
 /// kura's layers, with yazi's older names for two of them. yazi's `[cmp]`
 /// (and its older `[completion]`) is read and left alone: completion is
 /// native here.
-const SPEC: ito_keymap::Spec = ito_keymap::Spec {
+pub(crate) const SPEC: ito_keymap::Spec = ito_keymap::Spec {
     layers: &[
         ito_keymap::Layer { name: "mgr", aliases: &["manager"] },
         ito_keymap::Layer::new("input"),
@@ -109,6 +109,30 @@ impl Keymap {
         };
         km.unsupported = loaded.warnings.clone();
         (km, loaded.warnings)
+    }
+
+    /// Every layer's bindings, by name in [`SPEC`]'s order: what the
+    /// settings screen's Keys page lists.
+    pub fn layers(&self) -> Vec<(String, Vec<Binding>)> {
+        let all = [
+            &self.mgr,
+            &self.input,
+            &self.confirm,
+            &self.pick,
+            &self.help,
+            &self.tasks,
+            &self.spot,
+            &self.diff,
+            &self.settings,
+            &self.term,
+        ];
+        SPEC.layers.iter().zip(all).map(|(l, b)| (l.name.to_owned(), b.clone())).collect()
+    }
+
+    /// The built-in defaults alone, layer by layer, read once.
+    pub fn built_in_layers() -> &'static [(String, Vec<Binding>)] {
+        static BUILT_IN_LAYERS: std::sync::OnceLock<Vec<(String, Vec<Binding>)>> = std::sync::OnceLock::new();
+        BUILT_IN_LAYERS.get_or_init(|| Self::load_named(&[]).0.layers())
     }
 }
 

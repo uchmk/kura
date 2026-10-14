@@ -374,6 +374,10 @@ pub struct SettingsOverlay {
     /// What the `[settings]` layer asked of the screen since it was last
     /// drawn: the next page, the search. Taken by the draw.
     pub keys: ito_prefs::Keys,
+    /// The Keys page: its search and filters, and keys being pressed for an
+    /// operation. While it takes keys ([`ito_prefs::KeysEdit::busy`]) no
+    /// key is the screen's.
+    pub keys_edit: ito_prefs::KeysEdit,
 }
 
 /// Which keymap layer a panel reads, and which dispatcher runs what it names.
@@ -785,6 +789,8 @@ struct KuraJob {
     path: PathBuf,
     dirs: Vec<PathBuf>,
     changes: Vec<KuraChange>,
+    /// For a keymap.toml (the Keys page), the edits to make to it instead.
+    keys: Vec<ito_keymap::Edit>,
 }
 
 /// What a write of config.toml came to: the rows written, as a toast says
@@ -792,6 +798,9 @@ struct KuraJob {
 pub(crate) struct KuraWritten {
     said: String,
     read: Result<crate::config::Fresh, String>,
+    /// Whether the file changed: an edit that leaves it as it was starts no
+    /// watcher event to keep quiet, and says so instead of "Saved".
+    wrote: bool,
 }
 
 /// The writer's thread: each job, and every job queued behind it, as one
@@ -805,13 +814,15 @@ fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Option<Sender<K
                 match jobs.last_mut() {
                     Some(m) if m.path == j.path => {
                         m.changes.extend(j.changes);
+                        m.keys.extend(j.keys);
                         m.dirs = j.dirs;
                     }
                     _ => jobs.push(j),
                 }
             }
             for j in jobs {
-                if done.send(write_kura_toml(j)).is_err() {
+                let written = if j.keys.is_empty() { write_kura_toml(j) } else { write_keymap_toml(j) };
+                if done.send(written).is_err() {
                     return;
                 }
                 ctx.request_repaint();
@@ -863,7 +874,50 @@ fn write_kura_toml(job: KuraJob) -> KuraWritten {
         ito_common::write_atomic(&job.path, new)?;
         Ok(Config::read_fresh(&job.dirs))
     })();
-    KuraWritten { said, read }
+    KuraWritten { said, read, wrote: true }
+}
+
+// The keymap.toml a test's Keys page writes: none unless the test names one,
+// so no test can reach the real config folder.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_KEYMAP: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Make the Keys page's edits to a keymap.toml, keeping the rest of it as it
+/// was, and read the config back. Only what differs from the defaults is
+/// written: with nothing left to write, no file is started.
+fn write_keymap_toml(job: KuraJob) -> KuraWritten {
+    let said = job
+        .keys
+        .iter()
+        .map(|e| match e {
+            ito_keymap::Edit::Add { on, run, .. } => format!("{} runs {run}", crate::config::keys::display_seq(on)),
+            ito_keymap::Edit::Remove { on, run, .. } => format!("{} no longer runs {run}", crate::config::keys::display_seq(on)),
+            ito_keymap::Edit::Reset { run, .. } => format!("{run} back to its defaults"),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let at = |e: String| format!("{}: {e}", job.path.display());
+    let mut wrote = false;
+    let read = (|| {
+        let text = match std::fs::read_to_string(&job.path) {
+            Ok(t) => t,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(at(e.to_string())),
+        };
+        let new = ito_keymap::edit(&text, &crate::config::keymap::SPEC, &job.keys, "noop").map_err(at)?;
+        if new != text {
+            if let Some(dir) = job.path.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| at(e.to_string()))?;
+            }
+            ito_common::write_atomic(&job.path, new)?;
+            wrote = true;
+        }
+        Ok(Config::read_fresh(&job.dirs))
+    })();
+    let said = if wrote { format!("Saved keymap.toml: {said}") } else { format!("keymap.toml already says so: {said}") };
+    KuraWritten { said, read, wrote }
 }
 
 pub struct Toast {
@@ -2077,10 +2131,68 @@ impl App {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
-        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes }).is_ok());
+        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes, keys: Vec::new() }).is_ok());
         if !sent {
             self.kura_jobs = None;
             self.error("config.toml: could not start writing it");
+        }
+    }
+
+    /// The keymap.toml the Keys page writes: the one in kura's own folder,
+    /// never yazi's. Keymaps stack, and kura's folder is read last, so its
+    /// lines win wherever a config.toml happens to be.
+    #[cfg(not(test))]
+    pub fn own_keymap() -> Option<PathBuf> {
+        Some(Self::kura_config_dir()?.join("keymap.toml"))
+    }
+
+    /// Tests name their own keymap.toml, never the real config folder's.
+    #[cfg(test)]
+    pub fn own_keymap() -> Option<PathBuf> {
+        TEST_KEYMAP.with(|t| t.borrow().clone())
+    }
+
+    /// [`App::own_keymap`] spelled as the bindings read from it name it:
+    /// with `YAZI_CONFIG_HOME` naming the same folder, the config reads it
+    /// by yazi's spelling. Compared by letters only, as this runs every frame.
+    pub fn own_keymap_named(&self) -> Option<String> {
+        let own = Self::own_keymap()?;
+        let key = |p: &Path| {
+            let p: PathBuf = p.components().collect();
+            if cfg!(windows) {
+                p.to_string_lossy().to_lowercase()
+            } else {
+                p.to_string_lossy().into_owned()
+            }
+        };
+        let read = self.cfg.loaded.iter().find(|p| key(p) == key(&own));
+        Some(read.unwrap_or(&own).display().to_string())
+    }
+
+    /// Write what the settings screen's Keys page changed into kura's own
+    /// keymap.toml, off the UI thread and keeping the file's comments, then
+    /// read the config back so the new keys work at once.
+    pub fn write_keymap(&mut self, edits: Vec<ito_keymap::Edit>) {
+        if edits.is_empty() {
+            return;
+        }
+        let Some(path) = Self::own_keymap() else {
+            self.error("keymap.toml: there is no config folder to keep it in");
+            return;
+        };
+        self.write_keymap_to(path, crate::config::dirs_to_read(), edits);
+    }
+
+    /// [`App::write_keymap`] to a file named here, reading the config back
+    /// from `dirs`.
+    pub(crate) fn write_keymap_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, keys: Vec<ito_keymap::Edit>) {
+        if self.kura_jobs.is_none() {
+            self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
+        }
+        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes: Vec::new(), keys }).is_ok());
+        if !sent {
+            self.kura_jobs = None;
+            self.error("keymap.toml: could not start writing it");
         }
     }
 
@@ -2092,7 +2204,9 @@ impl App {
                 let mut cfg = Config::settle(&mut self.cfg, fresh);
                 cfg.take_term_env();
                 self.take_config_saying(cfg, Some(w.said));
-                self.kura_wrote = Some(Instant::now());
+                if w.wrote {
+                    self.kura_wrote = Some(Instant::now());
+                }
             }
             Err(e) => self.error(e),
         }
@@ -7334,6 +7448,13 @@ impl App {
 
     // ------------------------------------------------------------ key input
 
+    /// Whether `k`, pressed now, reaches a binding (all of one, or its start).
+    pub fn binds(&self, k: &Key) -> bool {
+        let mut seq = self.pending.clone();
+        seq.push(*k);
+        !matches!(keymap::resolve(&self.cfg.keymap.mgr, &seq), keymap::Match::None)
+    }
+
     pub fn feed_key(&mut self, k: Key) {
         self.note_key(&k);
         if let Some(_op) = self.pending_bookmark {
@@ -9995,6 +10116,88 @@ mod usage_view {
         KuraChange { table, key, value: value.map(str::to_owned) }
     }
 
+    /// What a press of `on` in the list runs now.
+    fn runs(a: &App, on: &str) -> String {
+        let keys: Vec<ito_keys::Key> = on.split(' ').map(|k| ito_keys::Key::parse(k).unwrap()).collect();
+        match ito_keymap::resolve(&a.cfg.keymap.mgr, &keys) {
+            ito_keymap::Match::Exact(b) => b.raw.clone(),
+            _ => String::new(),
+        }
+    }
+
+    /// The Keys page writes only what it changed, into kura's own
+    /// keymap.toml, keeping the comments; the new keys work at once, a
+    /// default key taken away is a `noop`, and a reset leaves nothing behind.
+    #[test]
+    fn the_keys_page_writes_only_what_changed() {
+        let dir = util::test_dir("settings-keys");
+        let cfg = dir.join("cfg");
+        std::fs::create_dir_all(&cfg).unwrap();
+        let file = cfg.join("keymap.toml");
+        std::fs::write(
+            &file,
+            "# my keys
+",
+        )
+        .unwrap();
+        let mut a = app_in(&dir);
+        let seq = |s: &str| -> Vec<ito_keys::Key> { s.split(' ').map(|k| ito_keys::Key::parse(k).unwrap()).collect() };
+        let add = |on: &str, run: &str| ito_keymap::Edit::Add { layer: "mgr".into(), on: seq(on), run: run.into(), desc: String::new() };
+        let edits = vec![
+            add("<C-S-v>", "paste"),
+            add("g h", "paste"),
+            ito_keymap::Edit::Remove { layer: "mgr".into(), on: seq("p"), run: "paste".into() },
+        ];
+        a.write_keymap_to(file.clone(), vec![cfg.clone()], edits);
+        kura_written(&mut a);
+        assert_eq!(runs(&a, "<C-S-v>"), "paste", "applied without a restart");
+        assert_eq!(runs(&a, "g h"), "paste");
+        assert_eq!(runs(&a, "p"), "noop", "the default key taken away");
+        assert_eq!(runs(&a, "y"), "yank", "the rest stays as it was");
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(
+            text.starts_with(
+                "# my keys
+"
+            ),
+            "{text}"
+        );
+        assert!(text.contains("<C-S-v>") && text.contains("noop"), "{text}");
+        assert!(!text.contains("yank"), "no default is copied in: {text}");
+        assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Saved keymap.toml:")), "{:?}", a.toasts.last().map(|t| &t.text));
+
+        // Back to the defaults: nothing of the page's is left in the file.
+        a.write_keymap_to(file.clone(), vec![cfg.clone()], vec![ito_keymap::Edit::Reset { layer: "mgr".into(), run: "paste".into() }]);
+        kura_written(&mut a);
+        assert_eq!(runs(&a, "p"), "paste");
+        assert_eq!(runs(&a, "<C-S-v>"), "");
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(!text.contains("prepend_keymap") && !text.contains("paste"), "{text}");
+        assert!(
+            text.starts_with(
+                "# my keys
+"
+            ),
+            "{text}"
+        );
+    }
+
+    /// With nothing that differs from the defaults to write, no keymap.toml
+    /// is started.
+    #[test]
+    fn the_keys_page_starts_no_file_for_nothing() {
+        let dir = util::test_dir("settings-keys-none");
+        let cfg = dir.join("cfg");
+        let file = cfg.join("keymap.toml");
+        let mut a = app_in(&dir);
+        a.write_keymap_to(file.clone(), vec![cfg.clone()], vec![ito_keymap::Edit::Reset { layer: "mgr".into(), run: "paste".into() }]);
+        kura_written(&mut a);
+        assert!(!file.exists());
+        assert_eq!(runs(&a, "p"), "paste");
+        assert!(a.kura_wrote.is_none(), "no watcher event to keep quiet");
+        assert!(!a.toasts.iter().any(|t| t.text.starts_with("Saved")), "nothing was saved");
+    }
+
     /// The config.toml page writes its rows into the file in force, keeping the
     /// comments around them, and the config read back is applied at once.
     #[test]
@@ -10066,6 +10269,27 @@ mod usage_view {
         // Nothing changed is nothing written.
         a.write_kura(Vec::new());
         assert!(a.kura_rx.recv_timeout(Duration::from_millis(300)).is_err());
+    }
+
+    #[test]
+    fn the_keys_page_names_its_keymap_as_the_config_read_it() {
+        let dir = util::test_dir("settings-keys-own");
+        let mut a = app_in(&dir);
+        // yazi's config.toml is the one in force, but its keymap.toml is
+        // yazi's to read too: the Keys page keeps to kura's folder.
+        a.cfg.loaded = vec![dir.join("yazi").join("config.toml"), dir.join("yazi").join("keymap.toml")];
+        assert_eq!(App::own_keymap(), None, "a test writes no keymap.toml it did not name");
+        let own = dir.join("kura").join("keymap.toml");
+        TEST_KEYMAP.with(|t| *t.borrow_mut() = Some(own.clone()));
+        assert_eq!(App::own_keymap(), Some(own.clone()));
+        assert_eq!(a.own_keymap_named(), Some(own.display().to_string()));
+        // Read by another spelling of the same file, it is named as read.
+        if cfg!(windows) {
+            let other = PathBuf::from(own.display().to_string().to_uppercase());
+            a.cfg.loaded.push(other.clone());
+            assert_eq!(a.own_keymap_named(), Some(other.display().to_string()));
+        }
+        TEST_KEYMAP.with(|t| *t.borrow_mut() = None);
     }
 
     /// `<C-,>` opens the screen and closes it; Esc closes it; the page and

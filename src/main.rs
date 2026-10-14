@@ -1767,7 +1767,8 @@ pub(crate) fn handle_input(app: &mut App, ctx: &egui::Context) {
     // how a German keyboard types `@` and a French one `€`; there the
     // character is the whole point and there is no chord to have consumed it.
     let mut swallow_text = false;
-    for ev in events {
+    let chords: Vec<_> = (0..events.len()).map(|n| ito_keys::from_clipboard(&events, n, &held)).collect();
+    for (ev, chord) in events.into_iter().zip(chords) {
         match ev {
             egui::Event::Key { key, pressed: true, modifiers, .. } => {
                 swallow_text = modifiers.alt && !modifiers.ctrl;
@@ -1796,8 +1797,11 @@ pub(crate) fn handle_input(app: &mut App, ctx: &egui::Context) {
             // The terminal takes a paste as text for the shell; everywhere
             // else it is the yank register's `p`.
             egui::Event::Paste(text) if app.term_focus => app.paste_to_term(&text),
+            // Ctrl+Shift+V or Shift+Insert runs its own binding when it has
+            // one (the Keys page can give it one); else it is `<C-v>`.
             egui::Event::Paste(_) if matches!(app.overlay, Overlay::None) => {
-                app.feed_key(Key::ctrl('v'));
+                let k = chord.filter(|k| app.binds(k)).unwrap_or(Key::ctrl('v'));
+                app.feed_key(k);
             }
             egui::Event::Text(text) => match &app.overlay {
                 // Typing into the terminal is the text itself, not a keymap
@@ -1904,7 +1908,12 @@ fn on_key_event(app: &mut App, key: egui::Key, modifiers: &egui::Modifiers) {
         // While one of its controls has the keys (a field being typed in), a
         // key without Ctrl or Alt is the control's: Esc leaves the field, and
         // only the next one closes the screen. Chords stay the screen's.
+        // While the Keys page takes keys (pressed for an operation, or to
+        // find rows by), every key is the page's, Esc and chords too.
         Overlay::Settings(ov) => {
+            if ov.keys_edit.busy() {
+                return;
+            }
             if ov.state.held && !(modifiers.ctrl || modifiers.command || modifiers.alt) {
                 return;
             }

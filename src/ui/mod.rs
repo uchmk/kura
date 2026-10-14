@@ -2,6 +2,7 @@
 //! interaction turns into an [`Act`] that runs after drawing, so the borrow
 //! checker never gets in the way of the layout code.
 
+pub(crate) mod keydesc_ja;
 mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;
@@ -4526,6 +4527,26 @@ mod terminal_chords {
         assert!(!s.app.term_focus, "the list has the keys");
         s.feed(vec![egui::Event::Copy]);
         assert!(s.app.quit, "`<C-c>` is `close`, and this is the last tab");
+    }
+
+    /// egui hands Ctrl+Shift+V over as a `Paste` like Ctrl+V, so a key the
+    /// Keys page wrote for it never ran: the list took every paste as `<C-v>`.
+    #[test]
+    fn a_bound_ctrl_shift_v_runs_its_own_binding() {
+        let mut s = Screen::open(crate::util::test_dir("term-chord-paste"));
+        let user = "[[mgr.prepend_keymap]]\non = \"<C-S-v>\"\nrun = \"close\"\n";
+        s.app.cfg.keymap = crate::config::keymap::Keymap::load_named(&[("/cfg/kura/keymap.toml", user)]).0;
+        let paste = || egui::Event::Paste("t".into());
+
+        // No modifiers left at the end of the frame, nor a release: `<C-v>`.
+        s.feed(vec![paste()]);
+        assert!(!s.app.quit, "a plain paste is still `<C-v>`");
+
+        // Let go of within the frame: the release says Ctrl+Shift.
+        let mods = egui::Modifiers::CTRL | egui::Modifiers::SHIFT;
+        let up = egui::Event::Key { key: egui::Key::V, physical_key: None, pressed: false, repeat: false, modifiers: mods };
+        s.feed(vec![paste(), up]);
+        assert!(s.app.quit, "`<C-S-v>` is `close` here, and this is the last tab");
     }
 }
 
