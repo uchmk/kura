@@ -7,6 +7,12 @@
 1.0.0 未満なので、MINOR に破壊的変更が入ることがある。既定キーや設定の互換性に関わるものは
 **変更**の節に明記する。
 
+## [0.109.18] - 2026-10-14
+
+### 変更
+
+- README の画像 3 つ（`docs/screenshot-main.png`・`screenshot-preview.png`・`screenshot-keys.gif`）を今の版で撮り直した。GIF は押したキーを隅に字幕で出し（spot パネル → `j` で下へ → `g` の which-key → `gg` → `l` / `h`）、4.1 MB から 2.4 MB に縮んだ。前の GIF は旧名の Filer と私的なフォルダの名前が写っていた。紹介画像（`docs/banner.html` → `docs/social-preview.png`）を uchmk のほかのアプリと同じ形（左に 蔵 と名前と一文、右に実画面 `docs/banner-shot.png`）にした。`docs/SCREENSHOTS.md` を今の撮り方に合わせた。GitHub の Social preview への登録は持ち主が手で行う。ドキュメントだけの変更で、動作は変わらない。
+
 ## [0.109.16] - 2026-10-14
 
 ### 変更

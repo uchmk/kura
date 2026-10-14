@@ -13,12 +13,12 @@ cargo run --release -- C:\some\path
 
 ## What it looks like
 
-![Three columns — the parent, the listing with a file under the cursor, and its preview — with the file's outline down the right](docs/screenshot-main.png)
+![Three columns — the parent, the listing with a source file under the cursor, and its preview with syntax colours — with a minimap of the file down the right](docs/screenshot-main.png)
 
 Everything is a keystroke. `j` and `k` walk the list, `l` goes in, `h` comes back, and a
 chord left half-typed brings up the panel that says what the other half could be:
 
-![Moving through a directory from the keyboard: the preview follows the cursor, and a half-typed chord raises the which-key panel](docs/screenshot-keys.gif)
+![Moving through src from the keyboard, each key captioned as it is pressed: the spot panel, the preview following the cursor, a half-typed g raising the which-key panel, then into a directory and back out](docs/screenshot-keys.gif)
 
 `<Tab>` asks about whatever is under the cursor. The answer is assembled from whichever of
 the panel's providers has something to say about that file — its own details, what the

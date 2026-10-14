@@ -10,10 +10,12 @@ change, a layout change, a feature worth showing -- wants the same answers.
 API for the setting, so it is uploaded by hand at **Settings > General > Social
 preview**, and that upload is the only step left.
 
-Edit the HTML rather than the PNG; the file's own header comment has the one
-command that re-renders it, and says which details in it are load-bearing (the
-colours are kura's own, the window chrome is Windows, the listing is the real
-contents of `src/`).
+Edit the HTML rather than the PNG; the file's own header comment has the
+command that re-renders it. Since v0.109.18 it has the same shape as the other
+uchmk apps' banners: 蔵, the name and the tagline on the left, and on the right
+a **real screenshot**, `banner-shot.png` -- a release build with the window at
+1400x1010, in `src/` with `rename.rs` under the cursor. Retake that file when
+the window changes, and the banner follows.
 
 ## The three README screenshots
 
@@ -36,17 +38,21 @@ question the prose cannot.
 faster, and a still frame cannot make it: it shows a layout, not a way of
 working.
 
-Five to eight seconds, looping, no mouse cursor, window narrowed to about
-1200px -- a full-width window makes a GIF nobody waits for. Roughly:
+About fifteen seconds, looping, no mouse cursor, scaled to 1200px wide -- a
+full-width GIF is one nobody waits for. **Each key is captioned** in the corner
+as it is pressed (`Tab  spot panel`, `g  which-key: what can follow`, ...);
+without that the reader sees things change and cannot tell which key did it.
+The v0.109.18 take, in `src/`:
 
-1. `j` `j` `j` down the list, the preview keeping up with each row
-2. `l` into a directory, `h` back out
+1. `<Tab>` for the spot panel, then `<Esc>`
+2. `j` `j` `j` down the list, the preview keeping up with each row
 3. a chord half-typed -- `g` on its own -- so the **which-key panel** appears
 4. finish it (`gg`) so the panel resolves into the jump
-5. `<Tab>` for the spot panel, then `<Esc>`
+5. `l` into a directory, `h` back out
 
-Pause about half a second after each action. Recorded faster than that, nobody
-can tell what happened. End where it started so the loop does not jump.
+Pause a second or more after each action. Recorded faster than that, nobody
+can tell what happened. It was recorded with ffmpeg's `gdigrab` at 15 fps and
+turned into a GIF at 10 fps with a 128-colour palette.
 
 **Keep it under 4 MB.** A GIF that takes a moment to load is one nobody watches
 to the end.
@@ -57,6 +63,10 @@ The spot panel (`<Tab>`) over a source file: its details, the preview's line and
 outline counts, the commit that last touched it, its encoding and line endings.
 One frame, one idea -- if two features are on screen the reader will not know
 which they were meant to notice.
+
+Pick a file whose **last commit author** is not a machine or account name: the
+panel prints the author as git has it, and on the owner's machine that can be
+`MACHINE\user`. The v0.109.18 shot is `src/glob.rs` for that reason.
 
 ---
 
