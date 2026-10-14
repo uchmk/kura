@@ -727,6 +727,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                 layer_name: &layer_name,
                 tr: &tr,
                 extra: &|_, _| Vec::new(),
+                unbound: &[],
+                sup: false,
             };
             key_edits.extend(ito_prefs::keys_page(ui, l, kw, &table, keys_edit).unwrap_or_default());
         }
