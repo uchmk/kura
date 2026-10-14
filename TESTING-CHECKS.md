@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 639 件（TESTING.md の全 832 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 640 件（TESTING.md の全 833 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 55 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 56 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -551,6 +551,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **29.19** Settings (Ctrl+,), a number field (e.g. Font size): type `abc` or `9999` and `<Enter>` (v0.108.2) → The toast says it is not a number in range, nothing is written, and the caret is still in the field on what you typed, so you can correct it and `<Enter>` again 〔未訳〕
 - [ ] **29.20** Settings (Ctrl+,), the Notifications page: press "Send a test", then turn "Sound" on for Failed, set Failed's sound to `low`, and put `http://127.0.0.1:8765/hook` (a listener of your own) in the webhook's Address (v0.110.0) → The test shows a Windows toast "kura: test notification", plays the Finished sound and posts to the listener; each change is written into config.toml's `[notify]` at once (a toast says `Saved config.toml: ...`), keeping its comments. "Reset to defaults" puts the defaults back but keeps the webhook's address and format. The search finds "focus mode" and "Address" on this page 〔未訳〕
 - [ ] **29.21** Do 29.15 again with the defaults, and once with `[notify] sound = ["done", "failed"]` (v0.110.0) → The toast shows kura's icon at its left and beside the name "kura", not a blank square; with the sound on, the chime plays as it shows (nothing in focus mode or under a full-screen program while `focus_mode = true`) 〔未訳〕
+- [ ] **29.22** Start kura and look at its title bar, its taskbar button and Alt+Tab; then at `kura.exe` in Explorer (large icons), and at a toast (29.20's "Send a test") (v0.110.2) → Each shows the new icon: a cyan roof over a gold folder with a short blue line in it, on a dark rounded tile, like tsumugi's, yagura's and minato's. The purple fox is gone everywhere; at the taskbar's 16-24 px the roof and the folder can still be told apart 〔未訳〕
 
 ## 30. プロンプトでの右クリック貼り付け
 
