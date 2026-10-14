@@ -74,6 +74,19 @@ backend = "auto"
 # when Claude Code is used. `false` keeps the door shut. Read at start.
 enable = true
 
+[notify]
+# How a file job of 10 seconds or more that ends while kura's window is behind
+# another is told. The settings' Notifications page writes these for you.
+# Each list names the endings it tells of: "done" and "failed".
+system = ["done", "failed"]          # the system's own notification
+sound = []                           # a sound of the system's
+webhook_states = ["done", "failed"]  # posted to `webhook`, when it has one
+sound_done = "chime"                 # chime | low | alert | default
+sound_failed = "alert"
+focus_mode = true                    # Windows: no sound in focus mode or a full-screen program
+webhook = ""                         # an http(s) address; empty: nowhere
+webhook_format = "ntfy"              # ntfy | slack | json
+
 # Files kura cannot draw itself, drawn by something that can. Each rule is
 # tried in order and the first whose `match` fits wins.
 #

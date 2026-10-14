@@ -357,6 +357,16 @@ check_updates = true       # ask GitHub once at start whether a newer kura is ou
 
 [mcp]
 enable = true              # false: `kura mcp` cannot reach this window; read at start
+
+[notify]                   # how a long job's end is told while the window is behind (v0.110.0)
+system = ["done", "failed"]          # the system's own notification, with kura's icon
+sound = []                           # a sound; e.g. ["failed"]
+webhook_states = ["done", "failed"]  # posted to `webhook` when it has an address
+sound_done = "chime"                 # chime | low | alert | default
+sound_failed = "alert"
+focus_mode = true                    # Windows: no sound in focus mode or under a full-screen program
+webhook = ""                         # an http(s) address; empty: nowhere
+webhook_format = "ntfy"              # ntfy | slack | json
 ```
 
 `backend` picks what draws the window (v0.74.0). `auto` is GL on Windows when the machine has it,
@@ -569,6 +579,7 @@ are the `[settings]` keymap section.
 | General | The language and the clock, written into [common.toml](#commontoml-the-clock) as soon as they are changed, off the UI thread and keeping the file's comments; every other open uchmk app follows within 2 seconds. The language sets the words of this screen and the clock's weekday; the rest of kura is in English for now |
 | Theme | The common theme: dark, light or the OS's (with a theme for each), and the themes to pick from, the built-in ones and those in `<uchmk>/themes/*.toml`. A pick is written into common.toml as `theme` (`dark_theme` / `light_theme` when following the OS) and recolours kura at once, the other uchmk apps within 2 seconds. A sample of kura's list beside the themes shows the colours in force, `theme.toml` included, since what `theme.toml` sets keeps its colour |
 | config.toml | The main rows of [config.toml](#configtoml-gui-only-settings) — font size, row padding, icons, the minimap, Markdown rendering, the preview's debounce and text limit, the history length, the window size, the backend, the MCP server and the terminal pane's shell — written into the config.toml in force (the last one read; kura's own folder when there is none) as soon as they are changed, keeping its comments, and read back as `<C-F5>` does. A number is written on `<Enter>` or on leaving the field, and one out of range is not written but said in a toast. An emptied shell takes the line out. The window, backend, MCP and Markdown rows are read at start |
+| Notifications | config.toml's `[notify]`, as every uchmk app shows it: for a job that finished and one that failed, whether the system's notification, a sound and the webhook tell of it, the two sounds (each with a play button), focus mode, the webhook's address and format. **Send a test** sends a finished job's notice through all three (the webhook when it has an address); **Reset to defaults** puts them back. Written as the config.toml page writes (v0.110.0) |
 | Advanced | Where the config is read from — kura's folder, yazi's and the `uchmk` one — each with **Copy** (the path) and **Open** (the list goes there), what was wrong when the config was last read, and **Reload** (`<C-F5>`) |
 
 The screen is drawn in the common theme's colours, or in `theme.toml`'s when its `[app] overall` sets the window's.
@@ -713,7 +724,9 @@ Copy  42%  18.4 M/s  1m12s  +2
 the percentage, the speed, how long the rest should take, and how many other jobs are waiting.
 A job that ran 10 seconds or more and ends while kura's window is behind another one is
 announced by the system's own notification (a toast, a macOS notification, `notify-send`), with the
-first error if it failed; one stopped from the list is not (v0.106.0).
+first error if it failed; one stopped from the list is not (v0.106.0). The notification carries kura's
+icon, and `[notify]` (or the settings' Notifications page) can add a sound and a webhook, or turn the
+notification off, for a job that finished and for one that failed (v0.110.0).
 The speed is measured over a window rather than between reports, and smoothed, so it stays
 readable instead of flickering; the time left is only shown when the size is known, since a file
 count says nothing about how big the files are.

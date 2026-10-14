@@ -149,6 +149,84 @@ fn yes() -> bool {
     true
 }
 
+/// `[notify]`: how the end of a long job reaches you while the window is
+/// behind another (uchmk's common spec, Notifications). The events are
+/// [`NOTIFY_EVENTS`]; `system`, `sound` and `webhook_states` list the ones
+/// each way tells of. What is not known is warned of and set back
+/// ([`NotifyCfg::check`]).
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default)]
+pub struct NotifyCfg {
+    /// The system's own notification.
+    pub system: Vec<String>,
+    /// A sound of the system's.
+    pub sound: Vec<String>,
+    /// The webhook's, when it has an address.
+    pub webhook_states: Vec<String>,
+    /// The sound for a job that finished, one of `ito_notify::SOUNDS`.
+    pub sound_done: String,
+    /// The sound for a job that failed.
+    pub sound_failed: String,
+    /// Windows: no sound in focus mode or under a full-screen program.
+    pub focus_mode: bool,
+    /// Where to send it too; empty: nowhere. Kept when it is not http(s),
+    /// for the settings to show in red, but not sent to.
+    pub webhook: String,
+    /// One of `ito_notify::FORMATS`.
+    pub webhook_format: String,
+}
+
+/// What a long job can end as, for `[notify]`: it finished, or it failed.
+pub const NOTIFY_EVENTS: [&str; 2] = ["done", "failed"];
+
+impl Default for NotifyCfg {
+    fn default() -> Self {
+        let both = || NOTIFY_EVENTS.map(str::to_owned).to_vec();
+        Self {
+            system: both(),
+            sound: Vec::new(),
+            webhook_states: both(),
+            sound_done: "chime".into(),
+            sound_failed: "alert".into(),
+            focus_mode: true,
+            webhook: String::new(),
+            webhook_format: "ntfy".into(),
+        }
+    }
+}
+
+impl NotifyCfg {
+    /// Warn of an event, a sound or a format kura does not know, and set it
+    /// back to the default; and of a webhook that is not http(s).
+    fn check(&mut self, path: &str, warnings: &mut Vec<String>) {
+        let d = Self::default();
+        for (key, list) in [("system", &mut self.system), ("sound", &mut self.sound), ("webhook_states", &mut self.webhook_states)] {
+            list.retain(|e| {
+                let known = NOTIFY_EVENTS.contains(&e.as_str());
+                if !known {
+                    warnings.push(format!("{path}: [notify] `{key}`: `{e}` is not {}", NOTIFY_EVENTS.join(" or ")));
+                }
+                known
+            });
+        }
+        for (key, now, was) in
+            [("sound_done", &mut self.sound_done, d.sound_done), ("sound_failed", &mut self.sound_failed, d.sound_failed)]
+        {
+            if !ito_notify::SOUNDS.contains(&now.as_str()) {
+                warnings.push(format!("{path}: [notify] `{key}` `{now}` is not {}", ito_notify::SOUNDS.join(", ")));
+                *now = was;
+            }
+        }
+        if !ito_notify::FORMATS.contains(&self.webhook_format.as_str()) {
+            warnings.push(format!("{path}: [notify] `webhook_format` `{}` is not {}", self.webhook_format, ito_notify::FORMATS.join(", ")));
+            self.webhook_format = d.webhook_format;
+        }
+        if !self.webhook.is_empty() && !ito_notify::is_http(&self.webhook) {
+            warnings.push(format!("{path}: [notify] `webhook` `{}` is not an http(s) address", self.webhook));
+        }
+    }
+}
+
 /// `[term]`: what the terminal pane runs.
 ///
 /// Empty means the pane crate's own default, which is whatever `kura env`
@@ -294,6 +372,8 @@ struct KuraToml {
     preview: Vec<PreviewRule>,
     #[serde(default)]
     mcp: McpCfg,
+    #[serde(default)]
+    notify: NotifyCfg,
     /// `[line_args]`: editor name (`mikan`, `notepad++`) to the arguments that
     /// open a file at a line, e.g. `"-l {line} {path}"`.
     #[serde(default)]
@@ -309,6 +389,8 @@ pub struct Config {
     pub preview: Vec<PreviewRule>,
     /// `[mcp]`: whether the window answers `kura mcp`.
     pub mcp: McpCfg,
+    /// `[notify]`: how the end of a long job is told.
+    pub notify: NotifyCfg,
     /// Behind an `Arc` because every draw function starts by taking a copy to
     /// get out of the borrow checker's way, and the theme carries the icon and
     /// filetype tables -- a hundred-odd `String`s by default, more from a real
@@ -416,6 +498,7 @@ impl Config {
             cfg.term = take(&mut prev.term);
             cfg.preview = take(&mut prev.preview);
             cfg.mcp = take(&mut prev.mcp);
+            cfg.notify = take(&mut prev.notify);
             cfg.line_args = take(&mut prev.line_args);
         }
         for &i in &broken.said {
@@ -437,6 +520,7 @@ impl Config {
         let mut term = TermCfg::default();
         let mut preview: Vec<PreviewRule> = Vec::new();
         let mut mcp = McpCfg::default();
+        let mut notify = NotifyCfg::default();
         let mut line_args: HashMap<String, String> = HashMap::new();
 
         for dir in dirs {
@@ -494,6 +578,8 @@ impl Config {
                         term = v.term;
                         preview = v.preview;
                         mcp = v.mcp;
+                        notify = v.notify;
+                        notify.check(&at(dir, OWN_FILE), &mut warnings);
                         for (name, template) in v.line_args {
                             if crate::exec::template_is_valid(&template) {
                                 line_args.insert(crate::exec::editor_key(&name), template);
@@ -528,7 +614,7 @@ impl Config {
         // Over the default common theme; the window lays them over the one
         // common.toml chooses ([`Theme::with_common`]).
         let theme = std::sync::Arc::new(Theme::layered(&theme::default_colors(), themes));
-        (Self { yazi: yazi_cfg, keymap, theme, ui, term, preview, mcp, line_args, loaded, unread, warnings }, broken)
+        (Self { yazi: yazi_cfg, keymap, theme, ui, term, preview, mcp, notify, line_args, loaded, unread, warnings }, broken)
     }
 
     /// `KURA_STATE_HOME`, else uchmk's state folder (`%LOCALAPPDATA%\uchmk\kura`
@@ -813,7 +899,7 @@ impl Misplaced {
         let Ok(table) = text.parse::<toml::Table>() else { return Self::default() };
 
         let foreign: &[&str] = match file {
-            ConfigFile::Yazi => &["ui", "term", "mcp", "line_args"],
+            ConfigFile::Yazi => &["ui", "term", "mcp", "notify", "line_args"],
             ConfigFile::Kura => &["mgr", "manager", "opener", "open", "tasks"],
         };
         let mut out = Self::default();
@@ -1476,5 +1562,28 @@ mod reload_tests {
         assert!(cfg.warnings.is_empty(), "{:?}", cfg.warnings);
         assert_eq!(mgr_run(&cfg, "q").as_deref(), Some("quit"));
         assert_eq!(mgr_run(&cfg, "<F9>").as_deref(), Some("config_reload"));
+    }
+}
+
+#[cfg(test)]
+mod notify_from_the_config {
+    use super::*;
+
+    /// `[notify]` reads as the README writes it, and what kura does not know
+    /// is warned of and set back; a webhook that is not http(s) is kept for
+    /// the settings to show, with a warning.
+    #[test]
+    fn what_is_not_known_is_warned_of_and_set_back() {
+        let text = "system = [\"done\", \"finished\"]\nsound = [\"failed\"]\nsound_done = \"bell\"\nwebhook = \"ntfy.sh/x\"\nwebhook_format = \"xml\"\n";
+        let mut n: NotifyCfg = toml::from_str(text).unwrap();
+        let mut warnings = Vec::new();
+        n.check("config.toml", &mut warnings);
+        assert_eq!(n.system, ["done"]);
+        assert_eq!(n.sound, ["failed"]);
+        assert_eq!(n.webhook_states, ["done", "failed"], "the default when not written");
+        assert_eq!((n.sound_done.as_str(), n.webhook_format.as_str()), ("chime", "ntfy"));
+        assert_eq!(n.webhook, "ntfy.sh/x");
+        assert_eq!(warnings.len(), 4, "{warnings:?}");
+        assert!(warnings.iter().all(|w| w.starts_with("config.toml: [notify]")), "{warnings:?}");
     }
 }

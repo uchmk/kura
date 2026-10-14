@@ -4835,13 +4835,14 @@ impl App {
                     t.errors = errors.clone();
                     t.finished = Some(Instant::now());
                 }
-                // A long job nobody is watching: the system's own toast says
-                // it is over (#345). `focused` is `None` until the window has
-                // said; then nothing is claimed.
+                // A long job nobody is watching: the ways `[notify]` turns on
+                // say it is over (#345). `focused` is `None` until the window
+                // has said; then nothing is claimed.
                 let behind = self.ctx.input(|i| i.viewport().focused) == Some(false);
                 if let Some(t) = self.tasks.iter().find(|t| t.id == id) {
                     if let Some((title, body)) = long_op_notice(t, behind) {
-                        ito_notify::toast::show(ito_notify::toast::App { id: "uchmk.kura", name: "kura" }, &title, &body);
+                        let event = if t.state == TaskState::Failed { "failed" } else { "done" };
+                        crate::notify::tell(&self.cfg.notify, event, &title, &body);
                     }
                 }
                 if !errors.is_empty() {

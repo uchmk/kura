@@ -8,6 +8,8 @@
 //! colours drawn over it. config.toml shows
 //! the main rows of kura's own file and writes a change through
 //! `App::write_kura`, off the UI thread and keeping the file's comments.
+//! Notifications is config.toml's `[notify]` as every uchmk app shows it
+//! (`ito_prefs::notify_page`), written the same way.
 //! Advanced says where the config is read from and what was wrong with it.
 
 use std::path::PathBuf;
@@ -81,6 +83,13 @@ pub struct KuraWords {
     pub shell_note: &'static str,
     pub shell_env_note: &'static str,
     pub shell_hint: &'static str,
+    pub notify_lead: &'static str,
+    pub notify_done: &'static str,
+    pub notify_failed: &'static str,
+    pub notify_done_sound: &'static str,
+    pub notify_failed_sound: &'static str,
+    pub notify_test_title: &'static str,
+    pub notify_test_body: &'static str,
     /// What a number field says of words that are not a number it takes:
     /// the row, the words, the lowest and the highest.
     pub not_a_number: fn(&str, &str, f64, f64) -> String,
@@ -154,6 +163,13 @@ pub const EN: KuraWords = KuraWords {
     shell_note: "What Ctrl+T starts; empty for the system's default. A pane already open keeps its own",
     shell_env_note: "KURA_TERM_SHELL names the shell for this run",
     shell_hint: "default",
+    notify_lead: "How a file job of 10 seconds or more (copy, move, delete, extract...) that ends while kura's window is behind another is told. Written to config.toml's [notify].",
+    notify_done: "Finished",
+    notify_failed: "Failed",
+    notify_done_sound: "Sound when finished",
+    notify_failed_sound: "Sound when failed",
+    notify_test_title: "kura: test notification",
+    notify_test_body: "A long job's end is told like this.",
     not_a_number: not_a_number_en,
 };
 
@@ -217,6 +233,13 @@ pub const JA: KuraWords = KuraWords {
     shell_note: "Ctrl+T で起動するもの。空なら OS の既定。開いているペインはそのまま",
     shell_env_note: "KURA_TERM_SHELL がこの回のシェルを決めている",
     shell_hint: "既定",
+    notify_lead: "10 秒以上かかったファイルの作業（コピー・移動・削除・展開など）が、kura の窓が後ろにある間に終わったときの知らせ方。config.toml の [notify] に書く。",
+    notify_done: "終わった",
+    notify_failed: "失敗した",
+    notify_done_sound: "終わったときの音",
+    notify_failed_sound: "失敗したときの音",
+    notify_test_title: "kura: 試しの通知",
+    notify_test_body: "長い作業が終わるとこのように知らせる。",
     not_a_number: not_a_number_ja,
 };
 
@@ -261,7 +284,8 @@ pub fn colors(t: &Theme) -> Colors {
 const GENERAL: usize = 0;
 const THEME: usize = 1;
 const KURA: usize = 2;
-const ADVANCED: usize = 3;
+const NOTIFY: usize = 3;
+const ADVANCED: usize = 4;
 
 /// The page's name for `<State:>`'s `settings page:` line (#336): a script
 /// read which page was open off a picture before.
@@ -270,6 +294,7 @@ pub fn page_name(page: usize) -> &'static str {
         GENERAL => "general",
         THEME => "theme",
         KURA => "kura",
+        NOTIFY => "notify",
         ADVANCED => "advanced",
         _ => "?",
     }
@@ -548,12 +573,19 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let themes = app.themes.clone();
     let (theme, dark, light) = app.common.theme_choice(None);
     let look = app.cfg.theme.clone();
+    let notify = app.cfg.notify.clone();
     let Overlay::Settings(ov) = &mut app.overlay else { return };
     let keys = std::mem::take(&mut ov.keys);
     let mut state = std::mem::take(&mut ov.state);
     let mut drafts = std::mem::take(&mut ov.drafts);
 
-    let pages = [(k.general, k.general_lead), (k.theme, k.theme_lead), ("config.toml", k.kura_lead), (k.advanced, k.advanced_lead)];
+    let pages = [
+        (k.general, k.general_lead),
+        (k.theme, k.theme_lead),
+        ("config.toml", k.kura_lead),
+        (w.notify, k.notify_lead),
+        (k.advanced, k.advanced_lead),
+    ];
     let mut index = vec![
         (GENERAL, w.language),
         (GENERAL, k.language_note),
@@ -609,6 +641,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (ADVANCED, k.reload),
         (ADVANCED, k.reload_note),
     ];
+    index.extend(ito_prefs::notify_index(w).into_iter().map(|t| (NOTIFY, t)));
+    index.extend([(NOTIFY, k.notify_done), (NOTIFY, k.notify_failed), (NOTIFY, k.notify_done_sound), (NOTIFY, k.notify_failed_sound)]);
     for f in &folders {
         index.extend([(ADVANCED, f.name), (ADVANCED, f.note)]);
     }
@@ -618,6 +652,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut kura = Vec::new();
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
+    let mut test: Option<ito_prefs::Notify> = None;
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
     child.set_clip_rect(full);
     child.style_mut().visuals = c.visuals();
@@ -636,6 +671,18 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             changes.extend(ito_prefs::theme_page(ui, l, w, &themes, choice, k.theme_note, |ui| sample(ui, &look)));
         }
         KURA => kura_page(ui, l, k, &now, &mut drafts, &mut kura, &mut bad),
+        NOTIFY => {
+            let mut n = notify.page();
+            let ends = [
+                ito_prefs::End { name: k.notify_done, color: l.c.done, sound: k.notify_done_sound },
+                ito_prefs::End { name: k.notify_failed, color: l.c.err, sound: k.notify_failed_sound },
+            ];
+            let defaults = crate::config::NotifyCfg::default().page();
+            if ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
+                test = Some(n.clone());
+            }
+            kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }));
+        }
         _ => {
             section(ui, l, k.folders, |ui| {
                 for (i, f) in folders.iter().enumerate() {
@@ -697,6 +744,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             Ok(()) => app.toast(format!("{}: {path}", k.copied)),
             Err(e) => app.error(format!("Copy failed: {e}")),
         }
+    }
+    if let Some(n) = test {
+        crate::notify::test(&n, k.notify_test_title, k.notify_test_body);
     }
     app.write_common(changes);
     app.write_kura(kura);
@@ -814,6 +864,39 @@ mod tests {
         let run = ito_theme::colors().run;
         assert!(p.strokes.iter().any(|(r, c)| *c == run && r.width() > 100.0), "{:?}", p.strokes);
         assert!(matches!(s.app.overlay, Overlay::Settings(_)), "the screen stays open");
+    }
+
+    /// The Notifications page shows `[notify]` as every uchmk app does, a
+    /// search finds its rows, and a switch turned writes config.toml.
+    #[test]
+    fn the_notify_page_shows_and_writes_notify() {
+        let dir = crate::util::test_dir("settings-notify");
+        let mut s = crate::ui::harness::Screen::open(dir.clone());
+        s.app.overlay = Overlay::Settings(Default::default());
+        if let Overlay::Settings(ov) = &mut s.app.overlay {
+            ov.state.page = NOTIFY;
+        }
+        let w = Words::of("en");
+        let f = s.draw();
+        assert_eq!(page_name(NOTIFY), "notify");
+        for text in [w.notify_test, w.notify_system, w.focus, w.webhook_url, EN.notify_done, EN.notify_failed] {
+            assert!(f.says(text), "{text} is on the page");
+        }
+        let file = dir.join("config.toml");
+        let mut n = s.app.cfg.notify.page();
+        n.sound[1] = true;
+        let edits = s.app.cfg.notify.edits(&n);
+        let changes = edits.into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }).collect();
+        s.app.write_kura_to(file.clone(), vec![dir.clone()], changes);
+        let mut text = String::new();
+        for _ in 0..500 {
+            text = std::fs::read_to_string(&file).unwrap_or_default();
+            if text.contains("[notify]") {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(text.contains("[notify]") && text.contains("sound = [\"failed\"]"), "{text}");
     }
 
     /// What was typed and the range it takes are said, in either language.

@@ -12,6 +12,7 @@ mod glob;
 mod keyscript;
 mod mcp;
 mod mime;
+mod notify;
 mod preview;
 mod rename;
 mod runinfo;
