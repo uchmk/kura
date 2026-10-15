@@ -10,11 +10,14 @@
 # of commands that only looked at the last one's exit code pushed v0.78.13
 # with a test build that did not compile (CLAUDE.md, 自動実行モード).
 #
-# Besides the host's own clippy, the other CI target (Linux or Windows) gets
-# one. It is a type check only -- it never runs that code, so read Windows
-# path strings by eye as CLAUDE.md asks. Before 2026-10-15 the second clippy was always
+# Clippy covers every OS kura ships for -- Linux, Windows and macOS --
+# whatever the host: the host first, then the others. Those are type checks
+# only -- they never run that code, so read Windows path strings by eye as
+# CLAUDE.md asks. No dependency compiles C for those targets, so plain clippy
+# works from any host. Before 2026-10-15 the second clippy was always
 # Windows, so a run on the Windows PC never compiled Linux and still said
-# ALL OK (yagura's v0.62.0 went red on Linux that way).
+# ALL OK (yagura's v0.62.0 went red on Linux that way); before 2026-10-16
+# macOS was left to CI.
 # `cargo fmt --all --check` runs first (since v0.109.15); fix a failure with
 # `cargo fmt --all`.
 
@@ -23,7 +26,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 host=$(rustc -vV | sed -n 's/^host: //p')
 others=
-for t in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc; do
+for t in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc aarch64-apple-darwin; do
     [ "$t" = "$host" ] && continue
     others="$others $t"
     rustup target list --installed 2>/dev/null | grep -qx "$t" || rustup target add "$t" >/dev/null 2>&1
