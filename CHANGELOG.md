@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.112.11] - 2026-10-16
+
+### 変更
+
+- `scripts/verify.sh` が、どの機械から回しても Linux・`x86_64-pc-windows-msvc`・`aarch64-apple-darwin` の 3 つの clippy を回すようになった（版を付けずに入れた a7c7dc4 と c1eb6a2。それまで Windows の PC からは Linux を、どこからも macOS を見ていなかった）。kura は C を要る依存が無いので、ふつうの clippy で足りる。CLAUDE.md と docs/claude/build.md の説明もこれに合わせた。ドキュメントだけの変更で、動作は変わらない。
+
 ## [0.112.10] - 2026-10-16
 
 ### 変更

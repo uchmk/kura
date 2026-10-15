@@ -47,7 +47,7 @@ rustup target add x86_64-pc-windows-msvc
 cargo check --release --target x86_64-pc-windows-msvc --all-targets
 ```
 
-**push の前は `scripts/verify.sh` を 1 回回せば足りる**（v0.78.35）。テスト、clippy（Linux と Windows の 2 ターゲット、`-D warnings`）、
+**push の前は `scripts/verify.sh` を 1 回回せば足りる**（v0.78.35）。テスト、clippy（Linux・Windows・macOS の 3 ターゲット、`-D warnings`）、
 ビルド、チェック表 3 つの `--check` を順に回し、1 つでも落ちたらその出力を出して止まる。最後の行が `ALL OK: test result: ok. …` なら push してよい。
 `main` へ push するときは `scripts/push-main.sh`（v0.78.38）がこれを回してから push するので、別に回さなくてよい（「自動実行モード」）。
 
