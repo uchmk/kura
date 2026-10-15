@@ -707,6 +707,10 @@ pub fn open_default(path: &Path) -> std::io::Result<()> {
 /// Whether Windows knows an app for the file's extension. Always true off
 /// Windows, where the question has no one answer. An extension-less name is
 /// left to the system, which asks which app to use.
+///
+/// Newer Windows 11 builds answer `OpenWith.exe` (the "How do you want to
+/// open this file?" picker) for an extension nothing is associated with,
+/// where older ones fail; that answer is no app either (#358).
 pub fn has_default_app(path: &Path) -> bool {
     #[cfg(windows)]
     {
@@ -728,13 +732,22 @@ pub fn has_default_app(path: &Path) -> bool {
                 &mut len,
             )
         };
-        r.is_ok()
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        r.is_ok() && !is_the_picker(&String::from_utf16_lossy(&buf[..end]))
     }
     #[cfg(not(windows))]
     {
         let _ = path;
         true
     }
+}
+
+/// Whether the program Windows names for a file type is only the picker
+/// that asks which app to use (`C:\WINDOWS\system32\OpenWith.exe`).
+#[cfg(any(windows, test))]
+fn is_the_picker(exe: &str) -> bool {
+    let name = exe.trim().trim_matches('"').rsplit(['\\', '/']).next().unwrap_or("");
+    name.eq_ignore_ascii_case("OpenWith.exe")
 }
 
 /// What `<Enter>` says after handing a file to the system.
@@ -1003,6 +1016,28 @@ mod tests {
         assert!(!starts_default(r#"start "" msedge %*"#));
         assert!(!starts_default("code %*"));
         assert!(!starts_default(r#"start """#));
+    }
+
+    /// Windows 11 build 28000 names the picker for a type no app is
+    /// associated with; that is no app (#358).
+    #[test]
+    fn the_open_with_picker_is_no_app() {
+        assert!(is_the_picker(r"C:\WINDOWS\system32\OpenWith.exe"));
+        assert!(is_the_picker(r"c:\windows\SYSTEM32\openwith.EXE"));
+        assert!(is_the_picker(r#""C:\Windows\System32\OpenWith.exe""#));
+        assert!(is_the_picker("OpenWith.exe"));
+        assert!(!is_the_picker(r"C:\Windows\System32\notepad.exe"));
+        assert!(!is_the_picker(r"C:\Tools\NotOpenWith.exe"));
+        assert!(!is_the_picker(""));
+    }
+
+    /// A type nothing is associated with has no app, whether Windows fails
+    /// the question or names the picker (#358).
+    #[cfg(windows)]
+    #[test]
+    fn a_type_nothing_is_associated_with_has_no_app() {
+        assert!(!has_default_app(Path::new("a.kura-no-such-type")));
+        assert!(has_default_app(Path::new("no-extension")));
     }
 
     #[test]
