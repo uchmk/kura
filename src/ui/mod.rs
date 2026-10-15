@@ -2505,6 +2505,36 @@ line"
         assert!(!s.app.quit, "Ctrl+C copied the selection and did not close the tab");
     }
 
+    /// A double click takes the word and a triple click the line, and the
+    /// highlight is translucent: the text under it stays readable.
+    #[test]
+    fn double_and_triple_clicks_pick_a_word_and_a_line() {
+        let mut s = one("quick-clicks");
+        s.app.preview.state = long_text();
+        s.feed(vec![key(egui::Key::F3, egui::Modifiers::NONE)]);
+        let f = s.draw();
+        let at = f.places[f.texts.iter().position(|x| x == "line 3").unwrap()] + egui::vec2(4.0, 4.0);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.feed(vec![egui::Event::PointerMoved(at)]);
+        for _ in 0..2 {
+            s.feed(vec![press(true)]);
+            s.feed(vec![press(false)]);
+        }
+        let f = s.draw();
+        assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line"));
+        let fill = s.app.cfg.theme.find_keyword.bg.expect("a keyword ground").gamma_multiply(0.4);
+        assert!(f.rects.iter().any(|(_, c)| *c == fill), "the highlight is translucent: {:?}", f.rects);
+        s.feed(vec![press(true)]);
+        s.feed(vec![press(false)]);
+        s.draw();
+        assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line 3"));
+    }
+
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.
     ///
     /// The rows come from the listing's own facts, so they are on screen

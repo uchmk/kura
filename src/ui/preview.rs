@@ -126,11 +126,18 @@ pub fn draw(
     }
     let drawn = draw_pane(ui, rect, state, texture, offset, st);
     if let Ok(mut s) = sel.lock() {
-        s.drive(&resp, rect);
-        if resp.hovered() || s.get().is_some() {
+        if let Some(url) = s.drive(&resp, rect) {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+        }
+        let over_url = ui.input(|i| i.modifiers.command) && resp.hover_pos().is_some_and(|p| s.url_at(p, rect).is_some());
+        if over_url {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        } else if resp.hovered() || s.get().is_some() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
         }
-        s.paint(&ui.painter_at(rect), st.theme.find_keyword.bg.unwrap_or(Color32::from_rgba_unmultiplied(80, 140, 255, 90)));
+        // Translucent: the texts are under it.
+        let fill = st.theme.find_keyword.bg.map_or(Color32::from_rgba_unmultiplied(80, 140, 255, 90), |c| c.gamma_multiply(0.4));
+        s.paint(&ui.painter_at(rect), fill);
         let text = s.text();
         ui.ctx().data_mut(|d| match text {
             Some(t) => {
