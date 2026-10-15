@@ -84,10 +84,13 @@ fn note_inline(ui: &Ui, pos: Pos2, galley: &std::sync::Arc<egui::Galley>) {
 }
 
 /// Ctrl+C: copy the text picked up in the preview. False when there is none.
+///
+/// Through kura's own clipboard, as every other copy is: CRLF on Windows, and
+/// the state file's `clipboard set:` line.
 pub fn copy_selection(ctx: &egui::Context) -> bool {
     match ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::new(SELECTED))) {
         Some(t) if !t.is_empty() => {
-            ctx.copy_text(t);
+            let _ = crate::exec::set_clipboard(&t);
             true
         }
         _ => false,
@@ -124,6 +127,8 @@ pub fn draw(
         };
         s.begin(&owner);
     }
+    // Where the selection goes: under the texts, as in tsumugi's pane.
+    let under = ui.painter().add(egui::Shape::Noop);
     let drawn = draw_pane(ui, rect, state, texture, offset, st);
     if let Ok(mut s) = sel.lock() {
         if let Some(url) = s.drive(&resp, rect) {
@@ -135,10 +140,30 @@ pub fn draw(
         } else if resp.hovered() || s.get().is_some() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
         }
-        // Translucent: the texts are under it.
-        let fill = st.theme.find_keyword.bg.map_or(Color32::from_rgba_unmultiplied(80, 140, 255, 90), |c| c.gamma_multiply(0.4));
-        s.paint(&ui.painter_at(rect), fill);
+        // tsumugi's selection colour, solid behind the texts so they keep
+        // theirs. ito-select paints over what is there, so its shapes are
+        // moved down into the slot put there before the texts.
+        let layer = ui.layer_id();
+        let from = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+        s.paint(&ui.painter_at(rect), st.theme.common.selection());
+        let shapes: Vec<egui::Shape> = ui.ctx().graphics_mut(|g| {
+            let list = g.entry(layer);
+            (from..list.next_idx().0)
+                .map(|k| {
+                    let mut shape = egui::Shape::Noop;
+                    list.mutate_shape(egui::layers::ShapeIdx(k), |c| shape = std::mem::replace(&mut c.shape, egui::Shape::Noop));
+                    shape
+                })
+                .collect()
+        });
+        ui.painter_at(rect).set(under, egui::Shape::Vec(shapes));
         let text = s.text();
+        // Letting go of a selection copies it, as the terminal pane and
+        // tsumugi do: a drag, a double click (the word), a triple click (the line).
+        let done = resp.drag_stopped_by(egui::PointerButton::Primary) || resp.double_clicked() || resp.triple_clicked();
+        if let Some(t) = text.as_deref().filter(|_| done) {
+            let _ = crate::exec::set_clipboard(t);
+        }
         ui.ctx().data_mut(|d| match text {
             Some(t) => {
                 d.insert_temp(egui::Id::new(SELECTED), t);

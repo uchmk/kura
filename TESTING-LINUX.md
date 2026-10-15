@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 648 件（TESTING.md の全 841 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 649 件（TESTING.md の全 842 件のうち、`cargo test` が見ている 193 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 64 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 65 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -330,6 +330,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **18.7b** Open a text file, a Markdown file, a binary and an unreadable one in the preview; drag the mouse over their text, then `Ctrl+C` and paste elsewhere (v0.112.0) → The dragged part is highlighted and pasted as it reads (lines kept, Markdown spans on one line, info rows as `key value`); a click, scrolling or another file drops the highlight; with nothing selected `Ctrl+C` is still `<C-c>`; clicking the minimap and the outline still jumps 〔未訳〕
 - [ ] **18.7c** In the preview of a text file: double-click a word, triple-click a line; hold `Ctrl` over a URL, then `Ctrl`+click it (v0.112.1) → The word / line is highlighted and the text stays readable under the highlight; the pointer turns into a hand over a URL with `Ctrl` held, and the click opens it in the browser; `Ctrl+C` copies the word / line 〔未訳〕
 - [ ] **18.7d** In the terminal pane, triple-click a line of output (v0.112.3) → The whole line (a wrapped one with all its rows) is selected and copied on release; double-click still takes a word 〔未訳〕
+- [ ] **18.7e** In the preview, drag over some text, then double-click a word and triple-click a line, pasting elsewhere after each (no `Ctrl+C`), with tsumugi open beside it (v0.112.5) → Each one is on the clipboard as soon as the mouse lets go, as in the terminal pane; the highlight is the same colour as tsumugi's selection, with the text drawn over it in its own colours 〔未訳〕
 - [ ] **18.11** `B` で保存しておいた場所へ、`'` に続けて文字を押す → そこへ飛ぶ。**`b` はブックマークの*管理*の前置キー**（`bb` 一覧、`bs` 保存、`bd` 削除）なので、`b` + 文字では何にも届かない — *`'` then a letter, having saved one with `B` → Jumps there. **`b` is the prefix bookmark *management* hangs off** (`bb` lists, `bs` saves, `bd` deletes), so `b` and a letter reaches nothing*
 - [ ] **18.12** `z` → ジャンプ一覧が出る。ブックマークが先、そのあと最近のディレクトリが「2h ago」付きで並ぶ — *`z` → The jump list: bookmarks first, then recent directories with "2h ago" beside them*
 - [ ] **18.13** 長いテキスト（`long.rs` か 3000 行のファイル）で `<A-G>`、次に `<A-g>`（v0.76.2、Q76）→ `<A-G>` でプレビューの最後の行が出て（`preview top: N of N`）、`<A-g>` で最初に戻る（`preview top: 0 of N`）。一覧のカーソルは動かない。長いブック（16.11）では `<A-G>` で末尾の注記がすぐ見える — *On a long text file (`long.rs`, or a 3000-line one), `<A-G>` then `<A-g>` (v0.76.2, Q76) → `<A-G>` puts the preview's last line on screen (`preview top: N of N`), `<A-g>` its first (`preview top: 0 of N`). The list's cursor does not move. On a long workbook (16.11) `<A-G>` shows the note under the last line at once*

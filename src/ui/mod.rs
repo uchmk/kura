@@ -2470,8 +2470,9 @@ mod quick_look_frame {
         assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 0"), "and `<A-k>` brought it back",);
     }
 
-    /// Dragging over the panel's text picks it up, and Ctrl+C copies that
-    /// instead of running the keymap's `<C-c>`.
+    /// Dragging over the panel's text picks it up and copies it when the
+    /// button lets go, and Ctrl+C copies it again instead of running the
+    /// keymap's `<C-c>`.
     #[test]
     fn dragging_over_the_panel_picks_up_text() {
         let mut s = one("quick-pick");
@@ -2501,12 +2502,15 @@ line"
             ),
             "{got:?}"
         );
+        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some(got.as_str()), "letting go copied the selection");
+        crate::exec::fake_clipboard("something else");
         s.feed(vec![egui::Event::Copy]);
         assert!(!s.app.quit, "Ctrl+C copied the selection and did not close the tab");
+        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some(got.as_str()), "and Ctrl+C copied it again");
     }
 
-    /// A double click takes the word and a triple click the line, and the
-    /// highlight is translucent: the text under it stays readable.
+    /// A double click takes the word and a triple click the line, each copied
+    /// at once, and the highlight is tsumugi's selection colour.
     #[test]
     fn double_and_triple_clicks_pick_a_word_and_a_line() {
         let mut s = one("quick-clicks");
@@ -2527,12 +2531,14 @@ line"
         }
         let f = s.draw();
         assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line"));
-        let fill = s.app.cfg.theme.find_keyword.bg.expect("a keyword ground").gamma_multiply(0.4);
-        assert!(f.rects.iter().any(|(_, c)| *c == fill), "the highlight is translucent: {:?}", f.rects);
+        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("line"), "the word was copied");
+        let fill = s.app.cfg.theme.common.selection();
+        assert!(f.rects.iter().any(|(_, c)| *c == fill), "the highlight is tsumugi's: {:?}", f.rects);
         s.feed(vec![press(true)]);
         s.feed(vec![press(false)]);
         s.draw();
         assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line 3"));
+        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("line 3"), "the line was copied");
     }
 
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.
