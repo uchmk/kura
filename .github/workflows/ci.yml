@@ -187,9 +187,12 @@ jobs:
   #
   # On Linux, where clippy is a tenth of the price and the lints are the same
   # ones -- this catches the code both platforms compile, which is nearly all of
-  # it. What it cannot see is `#[cfg(windows)]` code, so the Windows target is
-  # checked too; that one does not link, which is fine, because clippy never
-  # needed to.
+  # it. What it cannot see is `#[cfg(windows)]` and `#[cfg(target_os =
+  # "macos")]` code, so the Windows and macOS targets are checked too; neither
+  # links, which is fine, because clippy never needed to. No dependency builds
+  # C, so neither needs a C compiler for its target either -- and macOS is
+  # checked from here, not on a macOS runner (ten times the price; see
+  # test-linux above). Since v0.113.3, the same three verify.sh runs.
   #
   # `-D warnings` means a Rust release that adds a lint can turn this red on a
   # day nothing changed here. That is the accepted cost of the rule being real:
@@ -202,12 +205,14 @@ jobs:
         with:
           key: clippy
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Add the Windows target
-        run: rustup target add x86_64-pc-windows-msvc
+      - name: Add the Windows and macOS targets
+        run: rustup target add x86_64-pc-windows-msvc aarch64-apple-darwin
       - name: Clippy (Linux)
         run: cargo clippy --locked --all-targets -- -D warnings
       - name: Clippy (Windows-only code)
         run: cargo clippy --locked --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+      - name: Clippy (macOS-only code)
+        run: cargo clippy --locked --all-targets --target aarch64-apple-darwin -- -D warnings
       # The generated checklists' `--check` steps are in checklists.yml only
       # (since v0.101.1), which also runs on a change to the code: a test that
       # names a TESTING.md id moves that row off the human's list.

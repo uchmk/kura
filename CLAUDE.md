@@ -47,8 +47,8 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 - **`cargo fmt --all` で整形する**（v0.109.15 から。設定は `rustfmt.toml`＝`max_width = 140`、`use_small_heuristics = "Max"`。ito・yagura・minato・tsumugi と同じ）。
   CI の `fmt` ジョブと `scripts/verify.sh` が `cargo fmt --all --check` で見る。整形だけのコミットは `.git-blame-ignore-revs` に載せてある。
 - clippy は `--all-targets -- -D warnings` で警告ゼロ（CI が強制）。検証は CI と同じ stable で回す。
-- 1 つの OS ではほかの OS の `#[cfg(...)]` のコードがコンパイルされないので、`verify.sh` が Linux・`x86_64-pc-windows-msvc`・
-  `aarch64-apple-darwin` の 3 つの clippy を回す（C を要る依存が無いので、どの機械からでも回る）。
+- 1 つの OS ではほかの OS の `#[cfg(...)]` のコードがコンパイルされないので、`verify.sh` と CI の `clippy` が Linux・`x86_64-pc-windows-msvc`・
+  `aarch64-apple-darwin` の 3 つの clippy を回す（C を要る依存が無いので、どの機械からでも回る。CI の macOS は v0.113.3 から）。
 - `cargo test` は Linux でも全件緑。Windows 固有の入力を assert するテストは `#[cfg(windows)]` を付ける。
 - テストは機械の設定ファイルに左右されてはいけない。一時ディレクトリは `util::test_dir("ラベル")` を使う。
 - **レーンの共通のスクリプト（ito の `scripts/lanes/FILES` に並ぶもの）の正は ito。**kura の `scripts/` の写しは直さない。
