@@ -319,9 +319,10 @@ fn main() -> eframe::Result<()> {
         .with_title("Kura");
     // Where the window was when it last closed (`window.toml` in the state
     // folder), unless a script is driving it: its screenshots want the size
-    // they ask for. What no screen could show is not put back.
+    // they ask for. A place on none of the screens there are now (one that
+    // was unplugged) is not put back.
     let place = if cli.keys.is_empty() {
-        ito_common::window::read(&Config::state_dir()).filter(|w| w.reachable(PRIMARY_GUESS, 100.0))
+        ito_common::window::read(&Config::state_dir()).filter(|w| w.reachable_now(PRIMARY_GUESS, 100.0))
     } else {
         None
     };
@@ -676,9 +677,9 @@ fn bold_siblings(path: &std::path::Path) -> Vec<PathBuf> {
     out
 }
 
-/// A screen to judge a saved window by, before any is known: the biggest ones
-/// in common use. Other monitors can put a window outside it, so this only
-/// refuses what none could show.
+/// A screen to judge a saved window by where the OS is not asked for its
+/// screens (macOS, Linux): the biggest ones in common use. Other monitors can
+/// put a window outside it, so this only refuses what none could show.
 const PRIMARY_GUESS: (f32, f32) = (1920.0, 1080.0);
 
 struct Kura {
