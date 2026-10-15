@@ -85,7 +85,7 @@ sound_done = "chime"                 # chime | low | alert | default
 sound_failed = "alert"
 focus_mode = true                    # Windows: no sound in focus mode or a full-screen program
 webhook = ""                         # an http(s) address; empty: nowhere
-webhook_format = "ntfy"              # ntfy | slack | json
+webhook_format = "ntfy"              # ntfy | slack | discord | json
 
 # Files kura cannot draw itself, drawn by something that can. Each rule is
 # tried in order and the first whose `match` fits wins.

@@ -1573,5 +1573,10 @@ mod notify_from_the_config {
         assert_eq!(n.webhook, "ntfy.sh/x");
         assert_eq!(warnings.len(), 4, "{warnings:?}");
         assert!(warnings.iter().all(|w| w.starts_with("config.toml: [notify]")), "{warnings:?}");
+
+        let mut n: NotifyCfg = toml::from_str("webhook_format = \"discord\"\n").unwrap();
+        let mut warnings = Vec::new();
+        n.check("config.toml", &mut warnings);
+        assert_eq!((n.webhook_format.as_str(), warnings.len()), ("discord", 0), "{warnings:?}");
     }
 }

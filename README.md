@@ -366,8 +366,12 @@ sound_done = "chime"                 # chime | low | alert | default
 sound_failed = "alert"
 focus_mode = true                    # Windows: no sound in focus mode or under a full-screen program
 webhook = ""                         # an http(s) address; empty: nowhere
-webhook_format = "ntfy"              # ntfy | slack | json
+webhook_format = "ntfy"              # ntfy | slack | discord | json
 ```
+
+The webhook goes through the system's `curl`, once a job. An address that does not answer, or answers
+with an HTTP error, is tried once more after 30 seconds (v0.113.0). `discord` puts the title in bold
+over the message and lets no `@everyone` in it ping anyone.
 
 `backend` picks what draws the window (v0.74.0). `auto` is GL on Windows when the machine has it,
 and wgpu's own pick otherwise (v0.75.0): on some AMD GPUs a driver thread keeps an idle window's core
