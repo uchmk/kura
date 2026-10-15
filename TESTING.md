@@ -135,11 +135,11 @@ drawing has been seen. `<C-t>` opens it.
 | 1.9h | `<C-S-f>` for something that is not there | A red toast saying so — not silence |
 | 1.9i | `<C-S-n>` past the oldest match (v0.57.4) | It starts again from the newest, and a `Wrapped` toast says so. Until v0.57.4 the jump from `433` to `442 lines back` came without a word |
 | 1.10 | `<S-End>`, then type a character | Back at the bottom, and typing alone would have done it |
-| 1.11 | Drag across some output (v0.20.4) | **It highlights as you drag**, and is on the clipboard when you let go. Before v0.20.4 the copy worked and nothing was drawn. To measure: the pane copies the selection itself when the drag ends (`Get-Clipboard`), and selected cells are painted `theme.hovered_bg`, the list cursor's colour |
+| 1.11 | Drag across some output (v0.20.4) | **It highlights as you drag**, and is on the clipboard when you let go. Before v0.20.4 the copy worked and nothing was drawn. To measure: the pane copies the selection itself when the drag ends (`Get-Clipboard`), and selected cells are painted tsumugi's selection colour (`theme.common.selection()`, from ito-select), the same as a selection in tsumugi's pane (v0.112.7; before, the list cursor's `theme.hovered_bg`) |
 | 1.11a | Drag **right to left** over the same run of text (v0.26.4) | The same text, character for character. Until v0.26.4 a backwards drag lost one at **each** end |
 | 1.11b | Start the drag **on** the first character, not to its left (v0.26.4) | It is included. It used to be dropped unless the drag began in the gap before it |
 | 1.11c | Drag from the right half of a character | That character is left out — correct, and the same rule that makes 1.11a work |
-| 1.12 | Double-click a word | The word is selected, and visibly so. Measured as 1.11: the word is on the clipboard, and its cells are `theme.hovered_bg` |
+| 1.12 | Double-click a word | The word is selected, and visibly so. Measured as 1.11: the word is on the clipboard, and its cells are in that colour |
 | 1.13 | `<C-S-f>`, type a word from the scrollback, Enter, then `<C-S-n>` | Matches are found and stepped through; it wraps at the end |
 | 1.14 | `<F1>` inside the terminal | The key list opens **over** the terminal. `<Esc>` closes it and typing goes back to the shell |
 | 1.15 | `<C-S-p>` inside the terminal | The command palette opens, and running something from it works |
@@ -633,6 +633,7 @@ QA-REPORT.md.
 | 18.7c | In the preview of a text file: double-click a word, triple-click a line; hold `Ctrl` over a URL, then `Ctrl`+click it (v0.112.1) | The word / line is highlighted and the text stays readable under the highlight; the pointer turns into a hand over a URL with `Ctrl` held, and the click opens it in the browser; `Ctrl+C` copies the word / line |
 | 18.7d | In the terminal pane, triple-click a line of output (v0.112.3) | The whole line (a wrapped one with all its rows) is selected and copied on release; double-click still takes a word |
 | 18.7e | In the preview, drag over some text, then double-click a word and triple-click a line, pasting elsewhere after each (no `Ctrl+C`), with tsumugi open beside it (v0.112.5) | Each one is on the clipboard as soon as the mouse lets go, as in the terminal pane; the highlight is the same colour as tsumugi's selection, with the text drawn over it in its own colours |
+| 18.7f | In a rendered Markdown file, drag over a fenced code block and over a line with `inline code`; double-click inside a URL in any preview and paste (v0.112.7) | The highlight shows over the code block's band and the inline code's chip, with the letters on top (until v0.112.7 it hid under the band); the double click takes the whole address, not the part between its dots or slashes, and is on the clipboard at once |
 | 18.8 | `<Tab>` on a file | The spot panel, with the file's details |
 | 18.9 | `<S-F10>` or right-click | The context menu, with the openers from your config |
 | 18.10 | `<C-S-p>` | The palette, listing every binding; typing filters it |

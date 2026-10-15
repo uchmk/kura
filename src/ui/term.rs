@@ -9,13 +9,14 @@ use crate::app::App;
 use crate::config::theme::Theme;
 
 /// The pane's colours out of the theme: the pane sits on `bg_alt`, a selection
-/// takes the list's cursor-row background, and the cursor the `cwd` colour.
+/// takes tsumugi's selection colour (ito-select's, as the preview's does), and
+/// the cursor the `cwd` colour.
 fn palette(theme: &Theme) -> ito_pane::Palette {
     ito_pane::Palette {
         bg: theme.bg_alt,
         fg: theme.fg,
         fg_dim: theme.fg_dim,
-        selection: theme.hovered_bg,
+        selection: theme.common.selection(),
         cursor: theme.cwd.fg.unwrap_or(theme.fg),
         on_cursor: theme.bg,
         ansi: None,
