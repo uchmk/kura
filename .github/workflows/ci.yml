@@ -115,7 +115,10 @@ jobs:
   # stop a merge: a test that only passes on Windows, or only on Linux, went
   # unnoticed until someone happened to run it on the other. Linux is the cheap
   # runner. macOS is not tested: a weekly macOS run was tried in v0.75.22 and
-  # dropped in v0.75.25, since its minutes cost ten times a Linux one.
+  # dropped in v0.75.25 by the owner's call, which cited macOS minutes costing
+  # ten times Linux's. That is a private repository's rate: standard runners
+  # bill a public one nothing (GitHub's billing docs, checked 2026-10-16), so
+  # whether to bring it back is the owner's to decide.
   test-linux:
     runs-on: ubuntu-latest
     steps:
@@ -185,14 +188,14 @@ jobs:
   # the same shape of mistake that kept CI red from v0.20.0 to v0.32.0: a rule
   # written down, and no machine reading it.
   #
-  # On Linux, where clippy is a tenth of the price and the lints are the same
-  # ones -- this catches the code both platforms compile, which is nearly all of
-  # it. What it cannot see is `#[cfg(windows)]` and `#[cfg(target_os =
-  # "macos")]` code, so the Windows and macOS targets are checked too; neither
-  # links, which is fine, because clippy never needed to. No dependency builds
-  # C, so neither needs a C compiler for its target either -- and macOS is
-  # checked from here, not on a macOS runner (ten times the price; see
-  # test-linux above). Since v0.113.3, the same three verify.sh runs.
+  # On Linux, where the lints are the same ones -- this catches the code both
+  # platforms compile, which is nearly all of it. What it cannot see is
+  # `#[cfg(windows)]` and `#[cfg(target_os = "macos")]` code, so the Windows
+  # and macOS targets are checked too; neither links, which is fine, because
+  # clippy never needed to. No dependency builds C, so neither needs a C
+  # compiler for its target either -- and macOS is checked from here, since
+  # type-checking needs no macOS runner (kura uses none; see test-linux
+  # above). Since v0.113.3, the same three verify.sh runs.
   #
   # `-D warnings` means a Rust release that adds a lint can turn this red on a
   # day nothing changed here. That is the accepted cost of the rule being real:

@@ -30,7 +30,8 @@ cargo build --release --manifest-path C:\dev\kura\Cargo.toml
     版は人が手で決めるラベルなので、打ち間違いで検証が黙って無効になる。
     切るなら**変わったファイル**で切る（`ci.yml` の `paths-ignore`）。
 - CI は `.github/workflows/ci.yml`（Windows と Linux でテスト、Linux の機械で Linux・Windows・macOS の clippy。Linux のテストは v0.75.22、Q74。macOS の clippy は v0.113.3）、
-  **macOS のテストは回さない**（2026-10-04、持ち主の指示。課金が Linux の 10 倍。v0.75.22 に足した週 1 回の `test-macos.yml` は v0.75.25 で消した）、
+  **macOS のテストは回さない**（2026-10-04、持ち主の指示。理由は課金が Linux の 10 倍。v0.75.22 に足した週 1 回の `test-macos.yml` は v0.75.25 で消した。
+  10 倍は private のリポジトリの値で、public の今は通常の機械は無料（2026-10-16 に GitHub の課金の説明で確認）。戻すかは持ち主が決める）、
   `arm64.yml`（v0.101.2。`windows-11-arm` と `ubuntu-24.04-arm` で `cargo test` と起動の確認。main への push と手動で ci.yml から、
   リリースでは release.yml から呼ばれ、緑でないとリリースしない。PR では回さない）、
   `audit.yml`（`cargo audit`、push と週 1 回）、`build.yml` が 6 ターゲットの

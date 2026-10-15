@@ -10,9 +10,10 @@ name: Claude
 # the report itself the trigger.
 #
 # Runs on Ubuntu rather than Windows even though this is a Windows-first
-# project: a Linux runner costs a tenth of what the same minutes cost on
-# Windows, and CLAUDE.md already documents how to type-check the Windows-only
-# code from Linux (`cargo check --target x86_64-pc-windows-msvc`). Anything that
+# project: Linux is the cheapest runner should the repository ever be private
+# again (a public one is billed nothing), and CLAUDE.md already documents how
+# to type-check the Windows-only code from Linux
+# (`cargo check --target x86_64-pc-windows-msvc`). Anything that
 # has to actually run on Windows is what ci.yml is for, and it will run on the
 # push.
 on:
