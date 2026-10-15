@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Every check a push to main must pass, in the order CI would fail them, from
-# a Linux machine (a cloud session). The first failure stops with its output.
+# a Linux machine (a cloud session) or the owner's Windows PC. The first
+# failure stops with its output.
 #
 #   scripts/verify.sh
 #
@@ -9,15 +10,24 @@
 # of commands that only looked at the last one's exit code pushed v0.78.13
 # with a test build that did not compile (CLAUDE.md, 自動実行モード).
 #
-# The Windows clippy is a type check only -- it never runs Windows code, so
-# read path strings by eye as CLAUDE.md asks. `cargo fmt --all --check` runs
-# first (since v0.109.15); fix a failure with `cargo fmt --all`.
+# Besides the host's own clippy, the other CI target (Linux or Windows) gets
+# one. It is a type check only -- it never runs that code, so read Windows
+# path strings by eye as CLAUDE.md asks. Before 2026-10-15 the second clippy was always
+# Windows, so a run on the Windows PC never compiled Linux and still said
+# ALL OK (yagura's v0.62.0 went red on Linux that way).
+# `cargo fmt --all --check` runs first (since v0.109.15); fix a failure with
+# `cargo fmt --all`.
 
 set -o pipefail
 cd "$(dirname "$0")/.." || exit 1
 
-rustup target list --installed 2>/dev/null | grep -qx x86_64-pc-windows-msvc \
-    || rustup target add x86_64-pc-windows-msvc >/dev/null 2>&1
+host=$(rustc -vV | sed -n 's/^host: //p')
+others=
+for t in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc; do
+    [ "$t" = "$host" ] && continue
+    others="$others $t"
+    rustup target list --installed 2>/dev/null | grep -qx "$t" || rustup target add "$t" >/dev/null 2>&1
+done
 
 run() {
     local out rc
@@ -42,7 +52,9 @@ run cargo build -q --locked
 run cargo test -q
 tests=$(echo "$last" | grep -m1 'test result')
 run cargo +stable clippy -q --all-targets -- -D warnings
-run cargo +stable clippy -q --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+for t in $others; do
+    run cargo +stable clippy -q --all-targets --target "$t" -- -D warnings
+done
 run cargo run -q --example make-testcheck -- --check
 run cargo run -q --example make-testcheck -- --lane linux --check
 run cargo run -q --example make-keycheck -- --check
