@@ -1788,6 +1788,9 @@ pub(crate) fn handle_input(app: &mut App, ctx: &egui::Context) {
             // arm turns the chord into the control code the shell is waiting
             // for, which `control_code` could already produce and nothing was
             // reaching.
+            // Text picked up with the mouse in the preview is what Ctrl+C
+            // copies, ahead of the key's own meaning (the yank).
+            egui::Event::Copy if matches!(app.overlay, Overlay::None) && ui::preview::copy_selection(ctx) => {}
             egui::Event::Copy if matches!(app.overlay, Overlay::None) => {
                 on_key_event(app, egui::Key::C, &chord_ctrl());
             }

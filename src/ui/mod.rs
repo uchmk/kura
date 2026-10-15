@@ -1353,7 +1353,7 @@ pub(crate) mod harness {
     /// keys.
     pub(crate) struct Screen {
         pub app: App,
-        ctx: egui::Context,
+        pub(crate) ctx: egui::Context,
         size: Vec2,
         /// The clock the frames are drawn on, in seconds. egui takes it from
         /// the raw input, and the UI measures its own delays against it.
@@ -2468,6 +2468,41 @@ mod quick_look_frame {
         assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 5"), "`<A-j>` moved the panel's text down: {:?}", f.texts,);
         let f = s.feed(vec![key(egui::Key::K, alt())]);
         assert_eq!(first_preview_line(&f).map(String::as_str), Some("line 0"), "and `<A-k>` brought it back",);
+    }
+
+    /// Dragging over the panel's text picks it up, and Ctrl+C copies that
+    /// instead of running the keymap's `<C-c>`.
+    #[test]
+    fn dragging_over_the_panel_picks_up_text() {
+        let mut s = one("quick-pick");
+        s.app.preview.state = long_text();
+        s.feed(vec![key(egui::Key::F3, egui::Modifiers::NONE)]);
+        let f = s.draw();
+        let at = |t: &str| f.places[f.texts.iter().position(|x| x == t).expect(t)];
+        let (from, to) = (at("line 3") + egui::vec2(1.0, 4.0), at("line 5") + egui::vec2(30.0, 4.0));
+        let press = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.feed(vec![egui::Event::PointerMoved(from), press(from, true)]);
+        for k in 1..=6 {
+            s.feed(vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / 6.0))]);
+        }
+        s.feed(vec![press(to, false)]);
+        s.draw();
+        let got = crate::ui::preview::selected_text(&s.ctx).expect("a selection");
+        assert!(
+            got.starts_with(
+                "line 3
+line 4
+line"
+            ),
+            "{got:?}"
+        );
+        s.feed(vec![egui::Event::Copy]);
+        assert!(!s.app.quit, "Ctrl+C copied the selection and did not close the tab");
     }
 
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.

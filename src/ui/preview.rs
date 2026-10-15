@@ -1,5 +1,5 @@
 use egui::text::{LayoutJob, TextFormat};
-use egui::{pos2, vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Painter, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use egui::{pos2, vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Painter, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 
 use crate::app::PreviewState;
 use crate::config::theme::Theme;
@@ -57,7 +57,94 @@ pub const MINIMAP_NOTE: &str = "kura-minimap-note";
 /// file and coarse enough that a thousand lines fit in a pane.
 const BAND_H: f32 = 2.0;
 
+/// Where the text picked up with the mouse waits for the next Ctrl+C.
+const SELECTED: &str = "kura-preview-selected";
+
+/// The selection of the preview's painted text, kept across frames.
+type Picked = std::sync::Arc<std::sync::Mutex<ito_select::Select>>;
+
+fn picked(ctx: &egui::Context) -> Picked {
+    let id = egui::Id::new("kura-preview-select");
+    ctx.data_mut(|d| d.get_temp_mut_or_insert_with(id, Picked::default).clone())
+}
+
+/// Note a painted text for the selection (in reading order). Blank lines are
+/// noted too, so a copy keeps them.
+fn note(ui: &Ui, pos: Pos2, galley: &std::sync::Arc<egui::Galley>) {
+    if let Ok(mut s) = picked(ui.ctx()).lock() {
+        s.note(pos, galley);
+    }
+}
+
+/// The same, for a text that carries on the line of the one before it.
+fn note_inline(ui: &Ui, pos: Pos2, galley: &std::sync::Arc<egui::Galley>) {
+    if let Ok(mut s) = picked(ui.ctx()).lock() {
+        s.note_inline(pos, galley);
+    }
+}
+
+/// Ctrl+C: copy the text picked up in the preview. False when there is none.
+pub fn copy_selection(ctx: &egui::Context) -> bool {
+    match ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::new(SELECTED))) {
+        Some(t) if !t.is_empty() => {
+            ctx.copy_text(t);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// The text picked up so far (what Ctrl+C would copy), for the tests.
+#[cfg(test)]
+pub fn selected_text(ctx: &egui::Context) -> Option<String> {
+    ctx.data(|d| d.get_temp::<String>(egui::Id::new(SELECTED)))
+}
+
+/// The preview pane: what it shows, and the mouse picking up its text. A
+/// selection goes when the pane scrolls or shows something else.
 pub fn draw(
+    ui: &mut Ui,
+    rect: Rect,
+    state: &PreviewState,
+    texture: Option<&egui::TextureHandle>,
+    offset: usize,
+    st: &PreviewStyle<'_>,
+) -> Drawn {
+    // A picture has no text, and its own pan and zoom need the pointer.
+    if matches!(state, PreviewState::Ready(Payload::Image { .. })) {
+        return draw_pane(ui, rect, state, texture, offset, st);
+    }
+    let sel = picked(ui.ctx());
+    // Registered before what the pane draws, so the minimap and the outline, which sit over it, keep their own clicks.
+    let resp = ui.interact(rect, egui::Id::new("kura-preview-pick"), egui::Sense::click_and_drag());
+    if let Ok(mut s) = sel.lock() {
+        let owner = match state {
+            PreviewState::Ready(payload) => format!("{:p}@{offset}", payload),
+            _ => String::new(),
+        };
+        s.begin(&owner);
+    }
+    let drawn = draw_pane(ui, rect, state, texture, offset, st);
+    if let Ok(mut s) = sel.lock() {
+        s.drive(&resp, rect);
+        if resp.hovered() || s.get().is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+        }
+        s.paint(&ui.painter_at(rect), st.theme.find_keyword.bg.unwrap_or(Color32::from_rgba_unmultiplied(80, 140, 255, 90)));
+        let text = s.text();
+        ui.ctx().data_mut(|d| match text {
+            Some(t) => {
+                d.insert_temp(egui::Id::new(SELECTED), t);
+            }
+            None => {
+                d.remove_temp::<String>(egui::Id::new(SELECTED));
+            }
+        });
+    }
+    drawn
+}
+
+fn draw_pane(
     ui: &mut Ui,
     rect: Rect,
     state: &PreviewState,
@@ -85,6 +172,7 @@ pub fn draw(
             Payload::Error(e) => {
                 let width = (rect.width() - 2.0 * PAD).max(40.0);
                 let g = painter.layout(e.clone(), st.font.clone(), st.theme.progress_error, width);
+                note(ui, rect.left_top() + Vec2::new(PAD, 8.0), &g);
                 painter.galley(rect.left_top() + Vec2::new(PAD, 8.0), g, st.theme.progress_error);
                 0
             }
@@ -121,13 +209,10 @@ pub fn draw(
                 let start = offset.min(lines.len().saturating_sub(1));
                 let end = (start + pane_rows.saturating_sub(1)).min(lines.len());
                 for (i, line) in lines[start..end].iter().enumerate() {
-                    painter.text(
-                        pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h),
-                        Align2::LEFT_TOP,
-                        line,
-                        st.font.clone(),
-                        st.theme.fg_dim,
-                    );
+                    let at = pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h);
+                    let g = painter.layout_no_wrap(line.to_string(), st.font.clone(), st.theme.fg_dim);
+                    note(ui, at, &g);
+                    painter.galley(at, g, st.theme.fg_dim);
                 }
                 painter.text(
                     pos2(rect.left() + PAD, rect.bottom() - st.row_h),
@@ -145,9 +230,12 @@ pub fn draw(
                 let wrap = (rect.right() - PAD - (rect.left() + 110.0)).max(40.0);
                 let mut y = rect.top() + 8.0;
                 for (k, v) in kv {
-                    painter.text(pos2(rect.left() + PAD, y), Align2::LEFT_TOP, k, st.font.clone(), st.theme.fg_dim);
+                    let key = painter.layout_no_wrap(k.to_string(), st.font.clone(), st.theme.fg_dim);
+                    note(ui, pos2(rect.left() + PAD, y), &key);
+                    painter.galley(pos2(rect.left() + PAD, y), key, st.theme.fg_dim);
                     let g = painter.layout(v.clone(), st.font.clone(), st.theme.fg, wrap);
                     let h = g.size().y.max(st.row_h);
+                    note_inline(ui, pos2(rect.left() + 110.0, y), &g);
                     painter.galley(pos2(rect.left() + 110.0, y), g, st.theme.fg);
                     y += h;
                 }
@@ -558,6 +646,8 @@ fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Ext
     let (mark_fg, mark_bg) = (st.theme.find_keyword.fg, st.theme.find_keyword.bg);
     for (i, line) in lines[start..end].iter().enumerate() {
         if line.is_empty() {
+            let blank = painter.layout_no_wrap(String::new(), st.font.clone(), st.theme.fg);
+            note(ui, pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h), &blank);
             continue;
         }
         let marks = match st.find {
@@ -586,7 +676,9 @@ fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Ext
             job
         };
         let pos = pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h);
-        painter.galley(pos, painter.layout_job(job_for(false)), st.theme.fg);
+        let galley = painter.layout_job(job_for(false));
+        note(ui, pos, &galley);
+        painter.galley(pos, galley, st.theme.fg);
         // Without a bold face, bold spans are overstruck a pixel over; the
         // identical layout keeps both passes aligned.
         if st.bold.is_none() && line.iter().any(|s| s.bold) {
@@ -642,6 +734,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         let parts = split_marked(&line.spans, &found[i]);
         let mut col = 0;
         let mut prev_end = left;
+        let mut first = true;
         for (k, span) in line.spans.iter().enumerate() {
             let w = cells(&span.text);
             if span.text.trim().is_empty() {
@@ -669,9 +762,20 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             if span.bold && st.bold.is_none() {
                 body.galley(pos + vec2(bold_dx, 0.0), galley.clone(), color);
             }
+            // The spans of a line are one line to copy; a line's first span starts it.
+            if first {
+                note(ui, pos, &galley);
+                first = false;
+            } else {
+                note_inline(ui, pos, &galley);
+            }
             body.galley(pos, galley, color);
             prev_end = x + size.x;
             col += w;
+        }
+        if first {
+            // A blank line, kept for the copy.
+            note(ui, pos2(left, y + lift), &painter.layout_no_wrap(String::new(), st.font.clone(), theme.fg));
         }
     }
     if extent.truncated && end >= doc.lines.len() {
