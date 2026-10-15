@@ -485,10 +485,18 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 pan: app.preview.pan,
                 find: app.tabs[app.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref()),
             };
+            // What the selection belongs to: the read (path, size, time,
+            // width), or for an archive member's card, which has none, the
+            // hovered entry.
+            let shown = match &app.preview.key {
+                Some(k) => format!("{k:?}"),
+                None => app.tab().current.hovered().map(|e| e.path.display().to_string()).unwrap_or_default(),
+            };
             let drawn = preview::draw(
                 ui,
                 rect.shrink(PREVIEW_INSET),
                 other,
+                &shown,
                 app.preview.texture.as_ref(),
                 app.tabs[app.active].preview_offset,
                 &st,
@@ -2539,6 +2547,47 @@ line"
         s.draw();
         assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line 3"));
         assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("line 3"), "the line was copied");
+    }
+
+    /// A selection belongs to the file it was made on. The next file's
+    /// preview can come in the same frame (from the cache) and land in the
+    /// same place, and it starts with nothing picked: no highlight, and
+    /// Ctrl+C copies nothing.
+    #[test]
+    fn a_selection_stays_with_the_file_it_was_made_on() {
+        let mut s = one("quick-stale");
+        let dir = s.app.tab().cwd.clone();
+        let read = |name: &str| {
+            Some(crate::preview::Key { path: dir.join(name), len: 1, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false })
+        };
+        s.app.preview.key = read("a.txt");
+        s.app.preview.state = long_text();
+        s.feed(vec![key(egui::Key::F3, egui::Modifiers::NONE)]);
+        let f = s.draw();
+        let at = f.places[f.texts.iter().position(|x| x == "line 3").unwrap()] + egui::vec2(4.0, 4.0);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.feed(vec![egui::Event::PointerMoved(at)]);
+        for _ in 0..2 {
+            s.feed(vec![press(true)]);
+            s.feed(vec![press(false)]);
+        }
+        s.draw();
+        assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line"));
+
+        s.app.preview.key = read("b.txt");
+        s.app.preview.state = long_text();
+        let f = s.draw();
+        assert_eq!(crate::ui::preview::selected_text(&s.ctx), None, "the selection did not move to b.txt");
+        let fill = s.app.cfg.theme.common.selection();
+        assert!(!f.rects.iter().any(|(_, c)| *c == fill), "and nothing is highlighted: {:?}", f.rects);
+        crate::exec::fake_clipboard("kept");
+        s.feed(vec![egui::Event::Copy]);
+        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("kept"), "Ctrl+C copied nothing");
     }
 
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.

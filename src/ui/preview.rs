@@ -107,10 +107,15 @@ pub fn selected_text(ctx: &egui::Context) -> Option<String> {
 
 /// The preview pane: what it shows, and the mouse picking up its text. A
 /// selection goes when the pane scrolls or shows something else.
+///
+/// `shown` names what the payload was read from. The payload itself cannot
+/// say: it sits in the same place whichever file it came from, so a selection
+/// keyed on it stayed up over the next file and Ctrl+C copied that file's text.
 pub fn draw(
     ui: &mut Ui,
     rect: Rect,
     state: &PreviewState,
+    shown: &str,
     texture: Option<&egui::TextureHandle>,
     offset: usize,
     st: &PreviewStyle<'_>,
@@ -124,7 +129,7 @@ pub fn draw(
     let resp = ui.interact(rect, egui::Id::new("kura-preview-pick"), egui::Sense::click_and_drag());
     if let Ok(mut s) = sel.lock() {
         let owner = match state {
-            PreviewState::Ready(payload) => format!("{:p}@{offset}", payload),
+            PreviewState::Ready(_) => format!("{shown}@{offset}"),
             _ => String::new(),
         };
         s.begin(&owner);
