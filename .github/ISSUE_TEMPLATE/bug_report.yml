@@ -8,47 +8,30 @@ body:
         English or Japanese, whichever you write more easily. `<F12>` in kura opens this form
         with the version, the OS and what kura knew already filled in.
 
-        最初の往復で必要になるものを先に聞きます。空欄でも出せますが、
-        埋まっているほど調べ始めるのが早くなります。
-
-        Claude に調べさせたいときは、**本文のどこかに `@claude` と書いてください**
-        （書かなければ何も自動では起きません）。後から `@claude` とコメントしても同じです。
+        最初の往復で必要になるものを先に聞きます。空欄でも出せますが、埋まっているほど調べ始めるのが早くなります。
 
   - type: textarea
     id: what
     attributes:
       label: What happened / 何が起きたか
       description: 期待した挙動と、実際の挙動。
-      placeholder: |
-        d を押したらファイルはごみ箱に入ったが、そのあと kura のウィンドウが消えた。
-        期待: 一覧に戻り、カーソルが次のファイルに移る。
     validations:
       required: true
 
   - type: textarea
     id: keys
     attributes:
-      label: Keys that reproduce it / 再現するキー操作
-      description: >
-        キーボードで動かすプログラムなので、押したキーの並びがそのまま再現手順になります。
-        どのフォルダで始めたか、どの行にカーソルがあったかも書いてください。
-      placeholder: |
-        1. C:\dev\kura で起動
-        2. j を 3 回押して README.md にカーソルを合わせる
-        3. d を押す
-        4. y で確定 → ここで落ちる
+      label: Steps that reproduce it / 再現する操作
+      description: 押したキーの並び、始めた場所、状態。
     validations:
       required: true
 
   - type: input
     id: version
     attributes:
-      label: kura version / kura の版
-      description: >
-        `kura --version` の出力。v0.9.0 より前には `--version` が無いので、
-        その場合はダウンロードしたファイル名（`kura-v0.8.0-windows-x64.exe` など）か、
-        ビルドした commit を書いてください。
-      placeholder: kura 0.9.0
+      label: "kura version / kura の版"
+      description: "`kura --version` の出力。"
+      placeholder: "kura 0.1.0 (x86_64)"
     validations:
       required: true
 
@@ -56,33 +39,8 @@ body:
     id: os
     attributes:
       label: OS and architecture / OS とアーキテクチャ
-      description: |
-        **kura が起動するなら `<F12>` を押すのが早いです** —— この欄も版の欄も
-        埋まった状態でこのフォームが開きます。以下は、kura が起動しないときや、
-        手で報告を書くときのためのものです。
-
-        PowerShell でこれを実行すると、クリップボードに入るので貼ってください。
-
-        ```powershell
-        $os = Get-CimInstance Win32_OperatingSystem
-        $cv = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-        $ri = [System.Runtime.InteropServices.RuntimeInformation]
-        @"
-        OS:        $($os.Caption) $($cv.DisplayVersion) (build $($os.BuildNumber).$($cv.UBR))
-        OS arch:   $($ri::OSArchitecture)
-        Shell arch: $($ri::ProcessArchitecture)
-        "@ | Set-Clipboard
-        ```
-
-        アーキテクチャを 2 つ出しているのは、ARM64 機で x64 版の PowerShell を
-        使っていると、環境変数 `PROCESSOR_ARCHITECTURE` が `AMD64` を返して
-        ARM64 機だと分からなくなるため。`OSArchitecture` は機械そのものを答える。
-        2 つが食い違っていたら、それ自体が手がかりになる。
+      description: "**kura が起動するなら `<F12>` を押すのが早いです**。この欄も版の欄も埋まった状態で開きます。"
       render: text
-      placeholder: |
-        OS:         Microsoft Windows 11 Pro 24H2 (build 26100.2033)
-        OS arch:    X64
-        Shell arch: X64
     validations:
       required: true
 
@@ -91,28 +49,8 @@ body:
     attributes:
       label: What kura knew / kura が知っていたこと
       description: |
-        Filled in by `<F12>`: the last error kura raised, how it was drawing (adapter and backend), the display
-        scale, and the config files it read -- by name, never by path.
+        Filled in by `<F12>`: the last error, how it was drawing, the display scale, and the config files it read -- by name, never by path.
         `<F12>` が埋めます: 最後に出たエラー、描画のアダプタとバックエンド、画面の倍率、読んだ設定ファイルの名前（パスは入れない）。
-      render: text
-    validations:
-      required: false
-
-  - type: textarea
-    id: backtrace
-    attributes:
-      label: Backtrace, if it crashes / バックトレース（落ちる場合）
-      description: |
-        落ちる不具合では、これがあるかないかで原因究明の速さがまったく変わります。
-        PowerShell で環境変数を立ててから起動してください。
-
-        ```powershell
-        $env:RUST_BACKTRACE = 1
-        & "C:\path\to\kura.exe"
-        ```
-
-        `&` は必須です。引用符で囲んだパスをそのまま書くと、PowerShell はそれを
-        文字列として表示するだけで、プログラムは起動しません。
       render: text
     validations:
       required: false
@@ -120,22 +58,24 @@ body:
   - type: textarea
     id: files
     attributes:
-      label: Files or folders involved / 対象のファイルやフォルダ
-      description: >
-        中身そのものではなく、性質を書いてください。長さ・件数・名前の癖で
-        通る経路が変わります。4000 行のソース、500 件のフォルダ、名前に空白や
-        絵文字を含むもの、UNC パス、OneDrive 配下、など。
-      placeholder: 500 件ほどのフォルダ。落ちたのは名前に空白を含む .md ファイル。
+      label: "Files or folders involved / 対象のファイルやフォルダ"
+      description: "中身そのものではなく、性質を書いてください。長さ・件数・名前の癖で通る経路が変わります。4000 行のソース、500 件のフォルダ、名前に空白や絵文字を含むもの、UNC パス、OneDrive 配下、など。"
     validations:
       required: false
 
   - type: textarea
     id: config
     attributes:
-      label: Config / 設定
-      description: >
-        yazi の設定（`yazi.toml` / `keymap.toml` / `theme.toml`）や `config.toml`（kura の） を
-        使っている場合、関係しそうな部分を貼ってください。既定のままなら「既定」と。
-      render: toml
+      label: "Config / 設定"
+      description: "yazi の設定（`yazi.toml` / `keymap.toml` / `theme.toml`）や kura の `config.toml` を使っている場合、関係しそうな部分を貼ってください。既定のままなら「既定」と。"
+    validations:
+      required: false
+
+  - type: textarea
+    id: backtrace
+    attributes:
+      label: Backtrace, if it crashes / バックトレース（落ちる場合）
+      description: "`RUST_BACKTRACE=1` を立てて起動したときの出力。"
+      render: text
     validations:
       required: false

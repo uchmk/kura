@@ -16,6 +16,7 @@ mod notify;
 mod preview;
 mod rename;
 mod runinfo;
+use runinfo::KuraRun as _;
 mod search;
 mod shellhook;
 mod spot;
@@ -844,7 +845,7 @@ impl Kura {
         used.ppp = rounded.1;
         // A pane closed later in the run keeps the size it last had.
         if pane != [0, 0] {
-            used.pane = pane;
+            used.set_pane(pane);
         }
         crate::runinfo::save(&used);
     }

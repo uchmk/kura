@@ -10,6 +10,7 @@
 //! It prints rather than opens a browser, unlike `<F12>`, because this is text
 //! to paste into a report that already exists.
 
+use crate::runinfo::KuraRun as _;
 use ito_common::report::{finish, section, variables as env_rows};
 use std::process::Command;
 
@@ -391,8 +392,8 @@ fn probe(exe: &str, flag: &str) -> Option<String> {
 
 /// The `Terminal pane` row: what the last run's pane did.
 fn pane_row(info: &crate::runinfo::RunInfo) -> String {
-    match (info.pane, info.pane_shell.as_str()) {
-        ([0, _] | [_, 0], "") if !info.pane_failed.is_empty() => format!("did not start: {}", info.pane_failed),
+    match (info.pane(), info.pane_shell()) {
+        ([0, _] | [_, 0], "") if !info.pane_failed().is_empty() => format!("did not start: {}", info.pane_failed()),
         ([0, _] | [_, 0], "") => "not opened in that run".into(),
         ([0, _] | [_, 0], shell) => format!("{shell}, not drawn"),
         ([lines, cols], "") => format!("{lines} x {cols} (lines x columns)"),
@@ -436,9 +437,9 @@ fn last_run() -> Vec<(String, String)> {
         // that ran the wrong thing is visible here after the toast has gone.
         (
             "Launched".into(),
-            match info.launched.is_empty() {
+            match info.launched().is_empty() {
                 true => "nothing in that run".into(),
-                false => info.launched.join("\n"),
+                false => info.launched().join("\n"),
             },
         ),
         ("Fonts".into(), list(&info.fonts, "none loaded — this is why icons are boxes")),
@@ -537,10 +538,10 @@ mod tests {
     fn a_pane_that_failed_to_start_says_so() {
         let mut info = crate::runinfo::RunInfo::default();
         assert_eq!(pane_row(&info), "not opened in that run");
-        info.pane_failed = "`nosuch` was not found on PATH".into();
+        info.set_pane_failed("`nosuch` was not found on PATH");
         assert_eq!(pane_row(&info), "did not start: `nosuch` was not found on PATH");
-        info.pane_shell = "pwsh".into();
-        info.pane = [12, 159];
+        info.set_pane_shell("pwsh");
+        info.set_pane([12, 159]);
         assert_eq!(pane_row(&info), "pwsh, 12 x 159 (lines x columns)");
     }
 
