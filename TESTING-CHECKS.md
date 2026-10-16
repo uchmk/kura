@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 654 件（TESTING.md の全 848 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 655 件（TESTING.md の全 849 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -869,6 +869,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **49.10** `claude` が信頼済みのフォルダ（でないと信頼ダイアログがキーを取る）のペインで `claude` → `one`、`<S-Enter>`、`two` と打つ (v0.86.0, tsumugi 2.55) → Claude Code の入力欄に `one` と `two` が 2 行で入り、何も送られない。`<Enter>` で両方が送られる — *In a folder `claude` already trusts (otherwise its trust dialog takes the keys), `claude` in the pane, type `one`, `<S-Enter>`, `two` (v0.86.0, tsumugi 2.55) → Claude Code's box shows `one` and `two` on two lines and sends nothing; `<Enter>` then sends both*
 - [x] **49.10a** ペインで `cmd`（か `bash`）→ `echo one`、`<S-Enter>` (v0.86.0, tsumugi 2.55) → `<Enter>` と同じく行が実行される: kitty のキーボードプロトコルを求めないシェルでは変わらない（pwsh は検証にならない: PSReadLine が `<S-Enter>` を `AddLine` に結ぶので、行は実行されず続きになる） — *`cmd` (or `bash`) in the pane, type `echo one`, `<S-Enter>` (v0.86.0, tsumugi 2.55) → The line runs as with `<Enter>`: a shell that does not ask for the kitty keyboard protocol sees no change. (pwsh is not a test of this: PSReadLine binds `<S-Enter>` to `AddLine`, so the line is continued, not run)*
 - [x] **49.11** `wezterm imgcat some.png` in the pane (v0.86.0, tsumugi 2.48) → The picture is drawn; `imgcat` no longer stops on a division by zero (the pane answers `CSI 16 t`, the cell size) 〔未訳〕
+- [ ] **49.12** 上の prompt で `dir` → 窓を狭めてから広げ、ペインの幅を変える（縁をドラッグ、または `SetWindowPos`）→ `<C-S-l>` と `<C-S-Up>`（v0.116.2、tsumugi #16）→ トーストは `Copied the last command's output (N lines)` で、クリップボードは 49.3 と同じく `dir` の一覧だけ。`<C-S-Up>` は今もプロンプトを一番上の行に出し、緑の帯も `dir` の出力の横に残る。ito v0.46.1 より前は、Windows で幅を変えると ConPTY が画面を描き直すときにプロンプトの印が消え、`<C-S-l>` は終わったコマンドが無いと言うか、プロンプトとコマンドの行まで写していた — *With the prompt above, run `dir`, then make the window narrower and wide again so the pane's width changes (drag its edge, or `SetWindowPos`), then `<C-S-l>` and `<C-S-Up>` (v0.116.2, tsumugi #16) → The toast reads `Copied the last command's output (N lines)` and the clipboard holds `dir`'s listing alone, as in 49.3; `<C-S-Up>` still puts a prompt on the top row, and the green bar is still beside `dir`'s output. Before ito v0.46.1 a width change on Windows lost the prompt marks when ConPTY drew the screen again, so `<C-S-l>` found no finished command or copied the prompt and the command line too*
 
 ## 50. Claude Code が窓を読む（v0.85.0）
 

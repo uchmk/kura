@@ -1592,6 +1592,7 @@ function prompt { $ok = $?; $e = [char]27; $c = if ($ok) { 0 } else { 1 }; "$e]1
 | 49.10 | In a folder `claude` already trusts (otherwise its trust dialog takes the keys), `claude` in the pane, type `one`, `<S-Enter>`, `two` (v0.86.0, tsumugi 2.55) | Claude Code's box shows `one` and `two` on two lines and sends nothing; `<Enter>` then sends both |
 | 49.10a | `cmd` (or `bash`) in the pane, type `echo one`, `<S-Enter>` (v0.86.0, tsumugi 2.55) | The line runs as with `<Enter>`: a shell that does not ask for the kitty keyboard protocol sees no change. (pwsh is not a test of this: PSReadLine binds `<S-Enter>` to `AddLine`, so the line is continued, not run) |
 | 49.11 | `wezterm imgcat some.png` in the pane (v0.86.0, tsumugi 2.48) | The picture is drawn; `imgcat` no longer stops on a division by zero (the pane answers `CSI 16 t`, the cell size) |
+| 49.12 | With the prompt above, run `dir`, then make the window narrower and wide again so the pane's width changes (drag its edge, or `SetWindowPos`), then `<C-S-l>` and `<C-S-Up>` (v0.116.2, tsumugi #16) | The toast reads `Copied the last command's output (N lines)` and the clipboard holds `dir`'s listing alone, as in 49.3; `<C-S-Up>` still puts a prompt on the top row, and the green bar is still beside `dir`'s output. Before ito v0.46.1 a width change on Windows lost the prompt marks when ConPTY drew the screen again, so `<C-S-l>` found no finished command or copied the prompt and the command line too |
 
 ## 50. Claude Code reads the window (v0.85.0)
 
