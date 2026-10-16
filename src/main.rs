@@ -276,20 +276,14 @@ fn main() -> eframe::Result<()> {
         .with_title("Kura");
     // Where the window was when it last closed (`window.toml` in the state
     // folder), unless a script is driving it: its screenshots want the size
-    // they ask for. A place on none of the screens there are now (one that
-    // was unplugged) is not put back. It was taken at the scale of the screen
-    // it was on and the zoom: `opening` takes the zoom out, and `put` (in the
-    // creator below, while the window is hidden) moves it to those pixels on
-    // whatever screen they are (#401).
-    let place = if cli.keys.is_empty() {
-        ito_common::window::read(&Config::state_dir()).filter(|w| w.reachable_now(PRIMARY_GUESS, 100.0))
-    } else {
-        None
-    };
-    if let Some(w) = place {
-        let o = w.opening();
-        viewport = viewport.with_inner_size(o.size).with_position(o.pos).with_maximized(o.maximized);
-    }
+    // they ask for. ito's `Saved` reads it: a place on none of the screens
+    // there are now (one that was unplugged) is not put back, and a file from
+    // before the zoom was kept is read at common.toml's `scale`. It was taken
+    // at the scale of the screen it was on and the zoom: the viewport takes
+    // the zoom out, and `put` (in the creator below, while the window is
+    // hidden) moves it to those pixels on whatever screen they are (#401).
+    let saved = ito_common::window::Saved::load(cli.keys.is_empty().then(Config::state_dir));
+    viewport = saved.viewport(viewport);
     // The title bar, Alt+Tab and the taskbar button. `kura.exe`'s own icon is
     // a resource compiled in by `build.rs`, from an `.ico` made of this same
     // drawing. Without an icon the window still opens.
@@ -303,9 +297,7 @@ fn main() -> eframe::Result<()> {
         "Kura",
         options,
         Box::new(move |cc| {
-            if let Some(w) = place {
-                w.put(cc);
-            }
+            saved.put(cc);
             let mut cfg = cfg;
             // Filled as the run sets itself up, and written down at the end of
             // it: `kura env` cannot work either of these out for itself.
@@ -377,7 +369,7 @@ fn main() -> eframe::Result<()> {
                 focused: true,
                 last_input_frame: u64::MAX,
                 last_geometry: None,
-                place: cli.keys.is_empty().then(|| ito_common::window::Tracker::new(Config::state_dir(), place)),
+                place: saved.tracker(),
                 update,
                 script,
                 script_at: (0, std::time::Instant::now()),
@@ -638,11 +630,6 @@ fn bold_siblings(path: &std::path::Path) -> Vec<PathBuf> {
     out
 }
 
-/// A screen to judge a saved window by where the OS is not asked for its
-/// screens (macOS, Linux): the biggest ones in common use. Other monitors can
-/// put a window outside it, so this only refuses what none could show.
-const PRIMARY_GUESS: (f32, f32) = (1920.0, 1080.0);
-
 struct Kura {
     app: App,
     title: String,
@@ -826,8 +813,8 @@ impl Kura {
     /// place stays the one from before; the points are kept with the scale and
     /// the zoom they are in (#401).
     fn remember_place(&mut self, ctx: &egui::Context) {
-        if let Some(wait) = self.place.as_mut().and_then(|t| t.see(ito_common::window::Seen::of(ctx))) {
-            ctx.request_repaint_after(wait);
+        if let Some(t) = self.place.as_mut() {
+            t.follow(ctx);
         }
     }
 
