@@ -1332,7 +1332,7 @@ needs a machine is real files, and the panel's own geometry.
 The geometry and the clamp are unit-tested. What needs a machine is the timing, the drag, and whether
 it is legible against a real theme.
 
-All of 42.1 to 42.13 except 42.7's "no frame hitch" are automated
+All of 42.1 to 42.14 except 42.7's "no frame hitch" are automated
 (`ui::preview::minimap_hover_frame`): the harness delivers egui's own pointer events and moves the
 clock the delay is measured against, so the card can be hovered, dragged, clicked, themed and turned
 off from a test. Note that the delay is egui's `tooltip_delay`, half a second by default rather than
@@ -1341,15 +1341,17 @@ delay, not a number. 42.6's card is measured against a card for an ordinary line
 number and nothing more (v0.80.11). For 42.7 the test asserts the cause rather than the hitch: the
 card lays out two hundred characters at most, whatever the line's length. What is left for an eye:
 that the card is legible where it lands, and that a 2000-character line costs no visible hitch.
+Since v0.116.0 the card holds seven lines rather than one (42.14); 42.1 and 42.6 say what that
+changed.
 
 | # | Do | Expect |
 | --- | --- | --- |
-| 42.1 | Hover the strip on a long source file and **hold still** | After about 0.4 s, a one-row card left of the strip: the line number, then that line in the body's own colours, from its first character: the indent is left out (v0.73.67, #226) |
+| 42.1 | Hover the strip on a long source file and **hold still** | After about 0.4 s, a card left of the strip: each row the line number, then that line in the body's own colours. The indent the card's lines share is left out (v0.73.67, #226); what one has beyond the others is kept (v0.116.0) |
 | 42.2 | Sweep the pointer along the strip | The card follows. It never crosses into the strip, and never leaves the pane at either end |
 | 42.3 | Click where the card points | The preview jumps to **that** line, centred — the card was a preview of the click |
 | 42.4 | Hover the very **bottom pixel** of the strip | The last line, not a blank card (the clamp this release fixed) |
 | 42.5 | Press and **drag** up and down | The card **stays up and keeps following**, so you can find the place before letting go |
-| 42.6 | Hover a blank run | The number alone, in a card that shrinks to the gutter |
+| 42.6 | Hover a blank run | A blank line is its number alone; a card over nothing but blank lines shrinks to the gutter |
 | 42.7 | Hover a 2000-character line | Ellipsized on one row, no frame hitch |
 | 42.8 | Move the pointer off the strip and back | The delay starts again; no card left behind |
 | 42.9 | With a yazi `theme.toml` setting `[mgr] preview_hovered` (try `fg` and `bg`) | The card follows it. **This key never did anything before this release** |
@@ -1357,6 +1359,7 @@ that the card is legible where it lands, and that a 2000-character line costs no
 | 42.11 | `M` on a Markdown file to get the source view, then hover | The card works there; in the rendered view there is no strip at all |
 | 42.12 | Hover on a file truncated at `max_text_bytes` | The number matches the body's own numbering for that line |
 | 42.13 | `<A-n>` to turn the minimap off | No strip, and so no card |
+| 42.14 | Hover the middle of the strip, then its very top, then a little above its bottom | Seven lines: the one a click would go to on the pointer's row, marked in the listing's cursor colour, with three either side. At the top, lines 1 to 7 with the first marked. Near the bottom, the marked line is the card's last row, still beside the pointer (v0.116.0) |
 
 ## 43. CSV / TSV as a table (v0.41.0)
 

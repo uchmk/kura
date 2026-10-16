@@ -381,15 +381,19 @@ fn line_at_y(y: f32, rect: Rect, lines: usize) -> usize {
     ((t * lines as f32) as usize).min(lines - 1)
 }
 
-/// Where the hover card goes: against the strip, beside the pointer, inside the
-/// pane. Apart from the painting so the geometry can be tested without a window.
 /// How much of the pane the hover card may take.
 const HOVER_CARD_SHARE: f32 = 0.6;
 
-fn hover_card(pointer_y: f32, pane: Rect, strip: Rect, w: f32, h: f32) -> Rect {
+/// Where the hover card goes: against the strip, beside the pointer, inside the
+/// pane. Apart from the painting so the geometry can be tested without a window.
+///
+/// `at` is how far down the card the pointer should be -- the middle of the row
+/// for the line pointed at, which is the middle of the card except near either
+/// end of the file, where the card shows the lines there are.
+fn hover_card(pointer_y: f32, pane: Rect, strip: Rect, w: f32, h: f32, at: f32) -> Rect {
     let w = w.min(pane.width() * HOVER_CARD_SHARE);
     let right = strip.left() - 4.0;
-    let top = (pointer_y - h / 2.0).clamp(pane.top(), (pane.bottom() - h).max(pane.top()));
+    let top = (pointer_y - at).clamp(pane.top(), (pane.bottom() - h).max(pane.top()));
     Rect::from_min_size(pos2(right - w, top), Vec2::new(w, h))
 }
 
@@ -398,8 +402,96 @@ fn hover_card(pointer_y: f32, pane: Rect, strip: Rect, w: f32, h: f32) -> Rect {
 /// the minimap exists to avoid.
 const HOVER_MAX_CHARS: usize = 200;
 
-/// The line under the pointer, painted beside the strip: what a click here would
-/// jump to.
+/// Lines the card shows either side of the one pointed at. One line on its own
+/// rarely said what the code around it was doing; seven do, and at two hundred
+/// characters a line they are still less to lay out than one screen of the body.
+const HOVER_CONTEXT: usize = 3;
+
+/// The lines the card shows for line `k` of `len`, when `fit` rows fit in the
+/// pane and there is room for `above` rows over the pointer's and `below`
+/// under it: `k` and up to [`HOVER_CONTEXT`] either side. Near either end of
+/// the file the window slides rather than shrinks, so the card is the same
+/// height wherever it is. Near either end of the pane it slides too: a card
+/// stopped at the pane's edge would leave the pointer beside some other line
+/// than the one marked.
+fn hover_window(k: usize, len: usize, fit: usize, above: usize, below: usize) -> Range<usize> {
+    let n = (2 * HOVER_CONTEXT + 1).min(len).min(fit.max(1));
+    let row = (n / 2).min(above).max((n - 1).saturating_sub(below));
+    let start = k.saturating_sub(row).min(len - n);
+    start..start + n
+}
+
+/// How many whitespace characters a line starts with; `None` for a blank line,
+/// which says nothing about how deep the lines around it are.
+fn indent_chars(spans: &[Span]) -> Option<usize> {
+    spans.iter().flat_map(|s| s.text.chars()).position(|c| !c.is_whitespace())
+}
+
+/// One row of the hover card: the number, then the line with `cut` characters
+/// of indent taken off.
+///
+/// The indent the lines have in common is dropped: the band already shows it by
+/// where it starts, and on a card held to 60% of the pane a deep one left room
+/// for little else (#226). What one line has beyond the others stays, since
+/// that is the shape of the code -- but as plain space, so the hovered line's
+/// underline starts where its text does.
+fn hover_line(number: &str, spans: &[Span], cut: usize, pointed: bool, max_width: f32, st: &PreviewStyle<'_>) -> LayoutJob {
+    let hov = st.theme.preview_hovered;
+    let mut job = LayoutJob::default();
+    // The number first: a band carries no text by design, so "which line is
+    // this" is the question the strip cannot answer on its own.
+    job.append(number, 0.0, format(&Span::default(), if pointed { st.theme.fg } else { st.theme.fg_dim }, st));
+    let mut budget = HOVER_MAX_CHARS;
+    let mut skip = cut;
+    let mut leading = true;
+    if indent_chars(spans).is_some() {
+        for span in spans {
+            if budget == 0 {
+                break;
+            }
+            let mut text = span.text.as_str();
+            if skip > 0 {
+                let at = text.char_indices().nth(skip).map_or(text.len(), |(i, _)| i);
+                skip -= text[..at].chars().count();
+                text = &text[at..];
+            }
+            if leading {
+                let rest = text.trim_start();
+                let pad: String = text[..text.len() - rest.len()].chars().take(budget).collect();
+                budget -= pad.chars().count();
+                job.append(&pad, 0.0, format(&Span::default(), st.theme.fg, st));
+                if rest.is_empty() {
+                    continue;
+                }
+                leading = false;
+                text = rest;
+            }
+            let text: String = text.chars().take(budget).collect();
+            budget -= text.chars().count();
+            let mut span = span.clone();
+            let color = if pointed {
+                span.underline |= hov.underline;
+                span.bold |= hov.bold;
+                span.italic |= hov.italic;
+                hov.fg.unwrap_or_else(|| span_color(&span, st))
+            } else {
+                span_color(&span, st)
+            };
+            job.append(&text, 0.0, format(&span, color, st));
+        }
+    }
+    // Cut to the card, on one row. The card is held to 60% of the pane but
+    // the text was laid out unbounded, so a long line ran out of the card
+    // and over the minimap being dragged (#215).
+    job.wrap.max_width = max_width;
+    job.wrap.max_rows = 1;
+    job.wrap.break_anywhere = true;
+    job.wrap.overflow_character = Some('…');
+    job
+}
+
+/// The lines under the pointer, painted beside the strip: the one a click here
+/// would jump to, marked, with a few either side of it for what it is part of.
 ///
 /// Not part of [`minimap`], which is already at clippy's seven-argument limit
 /// and is doing a different job. Nothing is kept between frames except the
@@ -408,6 +500,11 @@ const HOVER_MAX_CHARS: usize = 200;
 /// knows about the file, and holding it in `PreviewSlot` would mean invalidating
 /// it on a file change, a payload swap, a resize and a minimap toggle -- four
 /// ways to leave a stale card on the screen.
+///
+/// The cost is the rows' layout, on frames where the pointer is over the strip:
+/// seven lines of two hundred characters at most, and egui keeps a laid-out
+/// row from one frame to the next, so moving down one line lays out the two
+/// rows whose marking changed and the one that came into the window.
 fn minimap_hover(ui: &Ui, painter: &Painter, strip: Rect, body: Rect, lines: &[Vec<Span>], st: &PreviewStyle<'_>) {
     let id = ui.id().with("minimap-hover");
     let over = ui.rect_contains_pointer(strip);
@@ -431,55 +528,36 @@ fn minimap_hover(ui: &Ui, painter: &Painter, strip: Rect, body: Rect, lines: &[V
     }
 
     let k = line_at_y(p.y, strip, lines.len());
-    let Some(spans) = lines.get(k) else { return };
-    let hov = st.theme.preview_hovered;
-    let mut job = LayoutJob::default();
-    // The number first: a band carries no text by design, so "which line is
-    // this" is the question the strip cannot answer on its own.
-    job.append(
-        &format!("{:>width$} ", k + 1, width = (lines.len().to_string().len()).max(2)),
-        0.0,
-        format(&Span::default(), st.theme.fg_dim, st),
-    );
-    let mut budget = HOVER_MAX_CHARS;
-    // The indent is dropped: the band already shows it by where it starts, and
-    // on a card held to 60% of the pane a deep one left room for little else,
-    // underlined spaces and all (#226).
-    let mut leading = true;
-    for span in spans {
-        if budget == 0 {
-            break;
-        }
-        let from = match leading {
-            true => span.text.trim_start(),
-            false => span.text.as_str(),
-        };
-        if from.is_empty() {
-            continue;
-        }
-        leading = false;
-        let text: String = from.chars().take(budget).collect();
-        budget -= text.chars().count();
-        let mut span = span.clone();
-        span.underline |= hov.underline;
-        span.bold |= hov.bold;
-        span.italic |= hov.italic;
-        let color = hov.fg.unwrap_or_else(|| span_color(&span, st));
-        job.append(&text, 0.0, format(&span, color, st));
+    if k >= lines.len() {
+        return;
     }
-    // Cut to the card, on one row. The card is held to 60% of the pane but
-    // the text was laid out unbounded, so a long line ran out of the card
-    // and over the minimap being dragged (#215).
-    job.wrap.max_width = (body.width() * HOVER_CARD_SHARE - 12.0).max(40.0);
-    job.wrap.max_rows = 1;
-    job.wrap.break_anywhere = true;
-    job.wrap.overflow_character = Some('…');
-    let galley = painter.layout_job(job);
+    // Whole rows the card has room for on either side of the pointer's own,
+    // inside the pane: the card's top is the pointer less half a row and the
+    // two-point margin.
+    let room = |space: f32| ((space - 2.0 - st.row_h / 2.0) / st.row_h).floor().max(0.0) as usize;
+    let fit = ((body.height() - 4.0) / st.row_h).floor() as usize;
+    let window = hover_window(k, lines.len(), fit, room(p.y - body.top()), room(body.bottom() - p.y));
+    let cut = window.clone().filter_map(|i| indent_chars(&lines[i])).min().unwrap_or(0);
+    let digits = lines.len().to_string().len().max(2);
+    let max_width = (body.width() * HOVER_CARD_SHARE - 12.0).max(40.0);
+    let rows: Vec<_> = window
+        .clone()
+        .map(|i| painter.layout_job(hover_line(&format!("{:>digits$} ", i + 1), &lines[i], cut, i == k, max_width, st)))
+        .collect();
 
-    let card = hover_card(p.y, body, strip, galley.size().x + 12.0, st.row_h + 4.0);
+    let w = rows.iter().map(|g| g.size().x).fold(0.0, f32::max) + 12.0;
+    let pointed = (k - window.start) as f32 * st.row_h + 2.0;
+    let card = hover_card(p.y, body, strip, w, rows.len() as f32 * st.row_h + 4.0, pointed + st.row_h / 2.0);
+    let hov = st.theme.preview_hovered;
     painter.rect_filled(card, CornerRadius::same(3), hov.bg.unwrap_or_else(|| mix(st.theme.bg, st.theme.fg, 0.06)));
+    // The line a click would go to is the one in the listing's cursor colour,
+    // so it reads as "this one" among the lines around it.
+    let mark = Rect::from_min_size(card.left_top() + Vec2::new(1.0, pointed), Vec2::new(card.width() - 2.0, st.row_h));
+    painter.rect_filled(mark, CornerRadius::ZERO, st.theme.hovered_bg);
     painter.rect_stroke(card, CornerRadius::same(3), Stroke::new(1.0, st.theme.border), StrokeKind::Inside);
-    painter.galley(card.left_top() + Vec2::new(6.0, 2.0), galley, st.theme.fg);
+    for (i, g) in rows.into_iter().enumerate() {
+        painter.galley(card.left_top() + Vec2::new(6.0, 2.0 + i as f32 * st.row_h), g, st.theme.fg);
+    }
 }
 
 /// A band from `top` to `bottom`, in points, on whole physical pixels and at
@@ -1066,7 +1144,7 @@ mod tests {
 
 #[cfg(test)]
 mod minimap_scale {
-    use super::{at_line, hover_card, line_at_y};
+    use super::{at_line, hover_card, hover_window, line_at_y};
     use egui::{pos2, Rect};
 
     fn strip(top: f32, h: f32) -> Rect {
@@ -1117,15 +1195,56 @@ mod minimap_scale {
         let pane = Rect::from_min_max(pos2(0.0, 100.0), pos2(200.0, 500.0));
         let strip = Rect::from_min_max(pos2(200.0, 100.0), pos2(220.0, 500.0));
         for y in [-100.0f32, 100.0, 101.0, 300.0, 499.0, 500.0, 900.0] {
-            let card = hover_card(y, pane, strip, 80.0, 18.0);
+            let card = hover_card(y, pane, strip, 80.0, 18.0, 9.0);
             assert!(card.right() <= strip.left(), "y={y}: {card:?} runs into the strip");
             assert!(card.top() >= pane.top() - 0.01, "y={y}: {card:?} above the pane");
             assert!(card.bottom() <= pane.bottom() + 0.01, "y={y}: {card:?} below the pane");
         }
         // A line too long for the pane is capped rather than drawn off the side.
-        let wide = hover_card(300.0, pane, strip, 10_000.0, 18.0);
+        let wide = hover_card(300.0, pane, strip, 10_000.0, 18.0, 9.0);
         assert!(wide.width() <= pane.width() * 0.6 + 0.01, "{wide:?}");
         assert!(wide.left() >= pane.left() - 0.01, "{wide:?}");
+        // A tall card still fits: seven rows near the bottom move up rather
+        // than hang off the pane.
+        let tall = hover_card(499.0, pane, strip, 80.0, 130.0, 65.0);
+        assert!(tall.bottom() <= pane.bottom() + 0.01 && tall.top() >= pane.top() - 0.01, "{tall:?}");
+        // And away from the ends, the row `at` names sits on the pointer.
+        let off = hover_card(300.0, pane, strip, 80.0, 130.0, 20.0);
+        assert!((off.top() + 20.0 - 300.0).abs() < 0.01, "{off:?}");
+    }
+
+    /// The card's lines: the one pointed at with three either side, the
+    /// window sliding at the ends of the file and of the pane rather than
+    /// shrinking, and never more rows than the pane has.
+    #[test]
+    fn the_hover_window_slides_at_the_ends() {
+        let w = |k, len, fit| hover_window(k, len, fit, 50, 50);
+        assert_eq!(w(200, 400, 50), 197..204, "three either side");
+        assert_eq!(w(0, 400, 50), 0..7, "the top line, and the six after it");
+        assert_eq!(w(2, 400, 50), 0..7);
+        assert_eq!(w(399, 400, 50), 393..400, "the last line, and the six before it");
+        assert_eq!(w(1, 3, 50), 0..3, "a short file is all of it");
+        assert_eq!(w(0, 1, 50), 0..1);
+        assert_eq!(w(200, 400, 3), 199..202, "a short pane takes what fits");
+        assert_eq!(w(200, 400, 0), 200..201, "and at least the line itself");
+        // At the pane's edges: the pointed line keeps to the pointer's row.
+        assert_eq!(hover_window(200, 400, 50, 0, 50), 200..207, "at the pane's top it is the first row");
+        assert_eq!(hover_window(200, 400, 50, 1, 50), 199..206, "one row over it");
+        assert_eq!(hover_window(200, 400, 50, 50, 0), 194..201, "at the pane's bottom it is the last row");
+        assert_eq!(hover_window(200, 400, 50, 50, 2), 196..203, "two rows under it");
+        assert_eq!(hover_window(1, 400, 50, 50, 0), 0..7, "the file's top still wins");
+        for len in 1..20 {
+            for fit in 0..10 {
+                for room in 0..9 {
+                    for k in 0..len {
+                        for (above, below) in [(room, 50), (50, room), (room, room)] {
+                            let w = hover_window(k, len, fit, above, below);
+                            assert!(w.contains(&k) && w.end <= len && w.len() <= fit.max(1), "{k} of {len}, {fit} fit: {w:?}");
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// The bands have to reach the bottom of the strip. They did not: sized at
@@ -1566,6 +1685,29 @@ mod minimap_hover_frame {
         assert_eq!(text, "201 deep 200", "the number, one space, then the line itself");
     }
 
+    /// v0.116.0: the indent the card's lines share is dropped, and what one
+    /// has beyond the others is kept, so the card still shows the shape of the
+    /// code -- a body under its `if`, not a column of lines all starting at
+    /// the left.
+    #[test]
+    fn the_card_keeps_what_one_line_is_indented_beyond_the_others() {
+        use crate::ui::preview::Span;
+        let lines: Vec<Vec<Span>> = (0..400)
+            .map(|i| {
+                let indent = if i % 2 == 0 { 8 } else { 12 };
+                vec![Span { text: format!("{}x{i}", " ".repeat(indent)), ..Default::default() }]
+            })
+            .collect();
+        let mut s = screen("hover-relative", source(lines, Vec::new(), 400));
+        let theme = s.app.cfg.theme.clone();
+        let f = s.draw();
+        let st = strip(&f, &theme);
+        let f = hover(&mut s, egui::pos2(st.center().x, st.center().y));
+        assert_eq!(card_text(&f, 201, 400).map(String::as_str), Some("201 x200"), "{:?}", f.texts);
+        assert_eq!(card_text(&f, 202, 400).map(String::as_str), Some("202     x201"), "four deeper: {:?}", f.texts);
+        assert_eq!(card_text(&f, 200, 400).map(String::as_str), Some("200     x199"), "{:?}", f.texts);
+    }
+
     /// 42.4: the bottom pixel of the strip is the last line, not one past it.
     ///
     /// The clamp `line_at_y` grew in v0.40.0, tested there on its own. This is
@@ -1658,14 +1800,17 @@ mod minimap_hover_frame {
         assert!(f.filled(fill).is_empty(), "letting go off the strip ends it");
     }
 
-    /// 42.6 and 42.7: a blank line is the number on its own, in a card no
-    /// wider than the number, and a very long one is cut rather than laid out
-    /// in full -- two hundred characters at most, which is what keeps a
-    /// 2000-character line from costing the hover frame anything.
+    /// 42.6 and 42.7: a blank line is the number on its own, and a card over
+    /// nothing but blank lines is no wider than the numbers; a very long line
+    /// is cut rather than laid out in full -- two hundred characters at most,
+    /// which is what keeps a 2000-character line from costing the hover frame
+    /// anything.
     #[test]
     fn a_blank_line_is_the_number_alone_and_a_long_one_is_cut() {
         let mut lines = plain(400);
-        lines[100] = Vec::new();
+        for line in &mut lines[90..=110] {
+            line.clear();
+        }
         lines[200] = vec![crate::preview::Span { text: "x".repeat(2000), ..Default::default() }];
         let mut s = screen("hover-shapes", source(lines, Vec::new(), 400));
         let theme = s.app.cfg.theme.clone();
@@ -1679,16 +1824,21 @@ mod minimap_hover_frame {
         let blank = card_text(&f, 101, 400).unwrap_or_else(|| panic!("{:?}", f.texts));
         assert_eq!(blank.trim(), "101", "the number and nothing else: {blank:?}");
         let narrow = f.filled(fill)[0].width();
+        // A number on its own is one colour, which the harness can read: the
+        // line pointed at has the bright one, the lines around it the dim.
+        let ink = |n: &str| f.inked.iter().find(|(t, _)| t == n).map(|(_, c)| *c);
+        assert_eq!(ink("101 "), Some(theme.fg), "{:?}", f.inked);
+        assert_eq!(ink("100 "), Some(theme.fg_dim), "{:?}", f.inked);
 
         // "Shrinks to the gutter": the card is as wide as what it holds, so
-        // beside the card for `line 99` (`100 line 99`, eleven monospace
-        // characters) the blank one holds the number's four and nothing more.
+        // beside the card for lines around `line 300` (`301 line 300`, twelve
+        // monospace characters) the blank run's holds the numbers' four.
         s.feed(vec![moved(egui::pos2(10.0, 10.0))]);
-        let f = hover(&mut s, egui::pos2(st.center().x, y(99)));
-        assert_eq!(card_text(&f, 100, 400).map(String::as_str), Some("100 line 99"), "{:?}", f.texts);
+        let f = hover(&mut s, egui::pos2(st.center().x, y(300)));
+        assert_eq!(card_text(&f, 301, 400).map(String::as_str), Some("301 line 300"), "{:?}", f.texts);
         let wide = f.filled(fill)[0].width();
-        let per_char = (wide - 12.0) / 11.0;
-        assert!(((narrow - 12.0) - 4.0 * per_char).abs() < 1.0, "the blank card fits its number: {narrow} against {wide}");
+        let per_char = (wide - 12.0) / 12.0;
+        assert!(((narrow - 12.0) - 4.0 * per_char).abs() < 1.0, "the blank card fits its numbers: {narrow} against {wide}");
 
         // A fresh hover, so the delay is measured from arriving here.
         s.feed(vec![moved(egui::pos2(10.0, 10.0))]);
@@ -1702,6 +1852,63 @@ mod minimap_hover_frame {
         let shown = f.drawn(long).unwrap_or_else(|| panic!("the card's glyphs"));
         assert!(shown.ends_with('…'), "cut, and says so: {shown:?}");
         assert!(shown.chars().count() < long.chars().count(), "fewer glyphs than laid out");
+    }
+
+    /// 42.14 (v0.116.0): the card shows the line pointed at with three lines
+    /// either side, the one a click would go to marked in the cursor colour on
+    /// the pointer's own row -- and at the top of the file, the first seven
+    /// lines with the mark on the first.
+    #[test]
+    fn the_card_shows_the_lines_around_the_one_pointed_at() {
+        let mut s = screen("hover-context", source(plain(400), Vec::new(), 400));
+        let theme = s.app.cfg.theme.clone();
+        let fill = card_fill(&theme);
+        let f = s.draw();
+        let st = strip(&f, &theme);
+        let mark_in = |f: &crate::ui::harness::Painted, card: egui::Rect| -> Vec<egui::Rect> {
+            f.rects.iter().filter(|(r, c)| *c == theme.hovered_bg && card.contains_rect(*r)).map(|(r, _)| *r).collect()
+        };
+
+        let at = egui::pos2(st.center().x, st.center().y);
+        let f = hover(&mut s, at);
+        let card = f.filled(fill)[0];
+        for n in 198..=204 {
+            let text = card_text(&f, n, 400).unwrap_or_else(|| panic!("line {n} is on the card: {:?}", f.texts));
+            assert_eq!(text, &format!("{n} line {}", n - 1));
+        }
+        assert!(card_text(&f, 197, 400).is_none() && card_text(&f, 205, 400).is_none(), "seven and no more");
+        let mark = mark_in(&f, card);
+        assert_eq!(mark.len(), 1, "one line is marked: {mark:?}");
+        let mark = mark[0];
+        let row_h = mark.height();
+        assert!(mark.y_range().contains(at.y), "on the pointer's row: {mark:?} against {}", at.y);
+        let pointed = f.placed(card_text(&f, 201, 400).unwrap()).expect("where 201 went");
+        assert!(mark.contains(pointed + egui::vec2(1.0, 1.0)), "and it is line 201's row: {mark:?} against {pointed:?}");
+        assert!((card.height() - (7.0 * mark.height() + 4.0)).abs() < 0.5, "seven rows tall: {card:?} with rows of {}", mark.height());
+
+        s.feed(vec![moved(egui::pos2(10.0, 10.0))]);
+        let top = egui::pos2(st.center().x, st.top() + 0.5);
+        let f = hover(&mut s, top);
+        let card = f.filled(fill)[0];
+        for n in 1..=7 {
+            assert!(card_text(&f, n, 400).is_some(), "line {n} at the top: {:?}", f.texts);
+        }
+        assert!(card_text(&f, 8, 400).is_none(), "still seven");
+        let mark = mark_in(&f, card)[0];
+        assert!((mark.top() - card.top()).abs() < 3.0, "the first row is the marked one: {mark:?} in {card:?}");
+
+        // At the pane's bottom, short of the file's end: the card cannot go
+        // lower, so the window does, and the marked line is still the one
+        // beside the pointer -- the last row rather than the middle.
+        s.feed(vec![moved(egui::pos2(10.0, 10.0))]);
+        let low = egui::pos2(st.center().x, st.bottom() - 1.5 * row_h);
+        let f = hover(&mut s, low);
+        let card = f.filled(fill)[0];
+        let mark = mark_in(&f, card);
+        assert_eq!(mark.len(), 1, "{mark:?}");
+        assert!(mark[0].y_range().contains(low.y), "on the pointer's row: {:?} against {}", mark[0], low.y);
+        assert!(card.bottom() <= st.bottom() + 0.5, "inside the pane: {card:?}");
+        assert!((card.height() - (7.0 * mark[0].height() + 4.0)).abs() < 0.5, "still seven rows: {card:?}");
     }
 
     /// 42.9: `[mgr] preview_hovered` reaches the card -- the key that did

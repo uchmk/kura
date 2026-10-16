@@ -1066,12 +1066,16 @@ the cost being avoided. The rows are summarised on the preview worker, six bytes
 
 Click or drag the minimap to go there — the line pointed at lands in the middle of the pane.
 
-Rest the pointer on it for a moment and the line under it appears beside the strip, with its number:
-the line a click would jump to, in the colours the body uses. A band carries no text by design, so
-this is the question the strip cannot answer on its own. It waits out the same delay as any tooltip
-(`interaction.tooltip_delay`, 0.4 s), and it keeps up during a drag, so you can look for a place
-before letting go. Style it with `[mgr] preview_hovered` in a yazi `theme.toml`; the default
-underlines it.
+Rest the pointer on it for a moment and a card appears beside the strip with the line under it and
+three lines either side, each with its number, in the colours the body uses. The line a click would
+jump to is on the pointer's row, marked in the listing's cursor colour, even at the top or bottom of
+the pane, where it becomes the card's first or last row; near either end of the file the card shows
+the first or last seven lines instead. The indent the seven share is left out, and
+what one has beyond the others is kept, so a body still sits under its `if`. A band carries no text
+by design, so this is the question the strip cannot answer on its own. It waits out the same delay
+as any tooltip (`interaction.tooltip_delay`, 0.4 s), and it keeps up during a drag, so you can look
+for a place before letting go. Style the marked line with `[mgr] preview_hovered` in a yazi
+`theme.toml`; the default underlines it.
 
 It appears where the pane is wide enough to spare seven columns, and `<A-n>` (or `[ui] minimap = false`
 in `config.toml`) turns it off. Rendered Markdown gets none: its lines are not the file's lines, so

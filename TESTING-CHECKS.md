@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 653 件（TESTING.md の全 846 件のうち、`cargo test` が見ている 193 件は外してある）。
+押すものは 653 件（TESTING.md の全 847 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -744,7 +744,7 @@ fsutil hardlink list <新しくできたパス>
 - [ ] **41.14** 遅いネットワークドライブ上のフォルダで `<Tab>` → パネルはカーソルに追従し続ける（spot ワーカーは newest-wins） — *`<Tab>` on a folder on a slow network drive → The panel still follows the cursor; the spot worker is newest-wins*
 - [~] **41.15** 行が収まらないほど多いファイル（短い窓の `.docx`）で `<Tab>` → パネルの右端に細いつまみが上に出る。`<A-j>` で最後まで下るとつまみも下へ動く。収まるパネルには出ない（v0.78.197、#224） — *`<Tab>` on a file with more spot lines than fit (a `.docx` in a short window) → A thin thumb on the panel's right edge, at the top; `<A-j>` to the end moves it to the bottom. A panel that fits has none (v0.78.197, #224)*
 
-## 42. ミニマップのホバーカード — 全 13 件が自動
+## 42. ミニマップのホバーカード — 全 14 件が自動
 
 `cargo test` が全部見ているので、押すものはありません。
 
