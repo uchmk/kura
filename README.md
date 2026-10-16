@@ -320,7 +320,7 @@ registered: the menu is read back out of the config every time it opens.
 `[git]`, `[filetype].rules` and `[icon]` (`globs`, `dirs`, `exts`, `files`, `conds`) are applied on
 top of the [common theme](#commontoml-the-clock) (`tsumugi Dark` when common.toml chooses none), and stay
 over it when another is chosen: what `theme.toml` sets keeps its colour, the rest takes the common
-theme's. Without a `theme.toml`, kura has the colours of tsumugi and mimamori (v0.100.0). A light theme starts with `[app]` / `overall = { bg = "#ffffff", fg =
+theme's. Without a `theme.toml`, kura has the colours of tsumugi and yagura (v0.100.0). A light theme starts with `[app]` / `overall = { bg = "#ffffff", fg =
 "#222222" }`; the preview's text keeps its own colours, from `syntect_theme` below. On a light
 background (by its relative luminance) the warning colour and a plain file's name turn dark amber
 and dark grey, and so does the text when `fg` is not given; the cursor's bar becomes a light tint
@@ -397,7 +397,7 @@ drawing the glyphs twice.
 The status bar's right end shows a clock, set in the config shared by every uchmk app
 (`%APPDATA%\uchmk\common.toml` on Windows, `~/Library/Application Support/uchmk/common.toml` on macOS,
 `$XDG_CONFIG_HOME/uchmk/common.toml` on Linux; `UCHMK_CONFIG_DIR` names another folder to hold it). It is read at
-start-up and watched: a change saved by another uchmk app (tsumugi's or mimamori's settings screen) or an editor
+start-up and watched: a change saved by another uchmk app (tsumugi's or yagura's settings screen) or an editor
 applies within 2 seconds, with no restart, so every open uchmk app changes its clock together. A file that does not
 read keeps the clock as it was, with a toast; a key no uchmk app reads is skipped with a toast and the rest applies.
 There is no override in `config.toml`. The scale (`<C-=>` / `<C-->` / `<C-0>`) is kept here too, as `scale`, so every uchmk app open follows it.
@@ -406,7 +406,7 @@ There is no override in `config.toml`. The scale (`<C-=>` / `<C-->` / `<C-0>`) i
 `tsumugi Light`, `Nord`, `Catppuccin Latte`, …) or one of your own in `<uchmk>/themes/*.toml`. With
 `theme = "system"`, `dark_theme` and `light_theme` are used as the OS is dark or light, and kura
 follows the OS when it changes. kura's colours start from this theme and yazi's [theme.toml](#themetoml)
-is drawn over it, so with no `theme.toml` kura matches tsumugi and mimamori; a name no theme has keeps the
+is drawn over it, so with no `theme.toml` kura matches tsumugi and yagura; a name no theme has keeps the
 colours as they were, with a toast. egui's own widgets (the text boxes, the scroll bars) turn light
 with a light window, whichever of the two made it light.
 

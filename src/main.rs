@@ -320,14 +320,18 @@ fn main() -> eframe::Result<()> {
     // Where the window was when it last closed (`window.toml` in the state
     // folder), unless a script is driving it: its screenshots want the size
     // they ask for. A place on none of the screens there are now (one that
-    // was unplugged) is not put back.
+    // was unplugged) is not put back. It was taken at the scale of the screen
+    // it was on and the zoom: `opening` takes the zoom out, and `put` (in the
+    // creator below, while the window is hidden) moves it to those pixels on
+    // whatever screen they are (#401).
     let place = if cli.keys.is_empty() {
         ito_common::window::read(&Config::state_dir()).filter(|w| w.reachable_now(PRIMARY_GUESS, 100.0))
     } else {
         None
     };
     if let Some(w) = place {
-        viewport = viewport.with_inner_size([w.w, w.h]).with_position([w.x, w.y]).with_maximized(w.maximized);
+        let o = w.opening();
+        viewport = viewport.with_inner_size(o.size).with_position(o.pos).with_maximized(o.maximized);
     }
     // The title bar, Alt+Tab and the taskbar button. `kura.exe`'s own icon is
     // a resource compiled in by `build.rs`, from an `.ico` made of this same
@@ -342,6 +346,9 @@ fn main() -> eframe::Result<()> {
         "Kura",
         options,
         Box::new(move |cc| {
+            if let Some(w) = place {
+                w.put(cc);
+            }
             let mut cfg = cfg;
             // Filled as the run sets itself up, and written down at the end of
             // it: `kura env` cannot work either of these out for itself.
@@ -877,22 +884,18 @@ impl Kura {
         if !self.remember_place {
             return;
         }
-        let (outer, inner, maximized, minimized) = ctx.input(|i| {
+        let (outer, inner, maximized, minimized, scale) = ctx.input(|i| {
             let v = i.viewport();
-            (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false))
+            (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false), i.pixels_per_point())
         });
         if let (Some(o), Some(i)) = (outer, inner) {
             if !minimized {
                 // Maximized, the place is the one before it: leaving the
-                // maximum goes back there.
-                let was = self.place.filter(|_| maximized);
-                let now = Window { x: o.min.x, y: o.min.y, w: i.width(), h: i.height(), maximized };
-                let now = Window {
-                    x: was.map_or(now.x, |w| w.x),
-                    y: was.map_or(now.y, |w| w.y),
-                    w: was.map_or(now.w, |w| w.w),
-                    h: was.map_or(now.h, |w| w.h),
-                    maximized,
+                // maximum goes back there. The points are kept with the
+                // scale and the zoom they are in (#401).
+                let now = match self.place.filter(|_| maximized) {
+                    Some(was) => Window { maximized, ..was },
+                    None => Window { x: o.min.x, y: o.min.y, w: i.width(), h: i.height(), maximized, scale, zoom: ctx.zoom_factor() },
                 };
                 if self.place != Some(now) {
                     self.place = Some(now);

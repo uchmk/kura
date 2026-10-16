@@ -251,7 +251,7 @@ note = "時計は共有の `uchmk/common.toml` の `[clock]` と `language` を�
 
 [section.54]
 title = "設定の画面（v0.97.0）"
-note = "`<C-,>` で uchmk のアプリ共通の設定の画面（`ito_prefs`）が窓いっぱいに開く。一般は言語と倍率と時計を `common.toml` に書き（53 節と同じ）、テーマは共通のテーマを書いて kura の色もそこから決まり（v0.100.0）、詳細は設定のフォルダと読んだときの問題を出す。開いている間 `<State:>` は `overlay: settings`。54.4 と 54.18 のために tsumugi か mimamori を用意する。"
+note = "`<C-,>` で uchmk のアプリ共通の設定の画面（`ito_prefs`）が窓いっぱいに開く。一般は言語と倍率と時計を `common.toml` に書き（53 節と同じ）、テーマは共通のテーマを書いて kura の色もそこから決まり（v0.100.0）、詳細は設定のフォルダと読んだときの問題を出す。開いている間 `<State:>` は `overlay: settings`。54.4 と 54.18 のために tsumugi か yagura を用意する。"
 
 [row]
 # 1. ターミナルペイン
@@ -936,7 +936,7 @@ note = "`<C-,>` で uchmk のアプリ共通の設定の画面（`ito_prefs`）�
 "53.7" = 'kura を `common.toml` なしで動かしたまま、`language = "ja"` と `[clock]` / `hour24 = false` を書いて保存し、何も押さない（v0.96.0） → 3 秒以内に時計が 12 時間表記の `(土)` 付きに変わる。再起動もトーストも無い。`<State:>` は `clock: %Y/%m/%d (%a) %-I:%M %p, lang ja`'
 "53.8" = 'kura を動かしたまま、`common.toml` を `language = "e`（壊れた行）で保存し、次に `language = "en"` に直して保存する（v0.96.0） → 1 回目の保存から 3 秒以内に `common.toml:` で始まるトーストが出て（1 度だけ。`common.toml: common.toml:` ではない）、時計はそれまでの表示のまま。2 回目のあとは曜日が `(Sat)` に戻る'
 "53.9" = 'kura を `[clock]` / `show = false` の `common.toml` で動かしたまま、ファイルを消す（v0.96.0） → 3 秒以内に既定の時計（`2026/10/10 (Sat) 14:32`）が戻る'
-"53.10" = 'kura・tsumugi・mimamori を一緒に開き、tsumugi の設定の画面（`Ctrl+,`）で時計の 24 時間表記を切り、次に言語を日本語にする（v0.96.0） → それぞれの変更から 3 秒以内に 3 つの時計が揃って変わる（12 時間表記、次に `(土)`）。kura にトーストは出ない。mimamori の設定の画面で戻すと 3 つとも戻る'
+"53.10" = 'kura・tsumugi・yagura を一緒に開き、tsumugi の設定の画面（`Ctrl+,`）で時計の 24 時間表記を切り、次に言語を日本語にする（v0.96.0） → それぞれの変更から 3 秒以内に 3 つの時計が揃って変わる（12 時間表記、次に `(土)`）。kura にトーストは出ない。yagura の設定の画面で戻すと 3 つとも戻る'
 "54.1" = '一覧で `<C-,>`、もう一度 `<C-,>` → 画面が窓全体を覆う。左に `Search settings`・`General`・`Theme`・`config.toml`・`Keys`・`Notifications`・`Advanced`、下に **Open config.toml**、右にページ。色は共通のテーマのもの（`common.toml` が無ければ tsumugi Dark）。2 回目の `<C-,>` で閉じ、一覧は元のまま。ターミナルペイン（`<C-t>`）では `<C-,>` はシェルに何も送らず（v0.103.11、#334）、画面は開かない'
 "54.2" = '開いて `<C-Tab>` を 6 回、`<C-S-Tab>`、`<C-PageDown>`・`<C-PageUp>` → ページが Theme、config.toml、Keys、Notifications、Advanced、General（一周）、Advanced（逆に一周）、次に General、Advanced と動く。後ろの一覧にはキーが届かない'
 "54.3" = '開いて `<C-f>`、`date` と打つ。`<Esc>`、`<Esc>` → 検索欄がキーを取り、ナビには当たりのあるページだけが残り（ここでは General と config.toml の「更新を確かめる」）、当たった行が光る。1 回目の `<Esc>` は欄から出るだけで画面は開いたまま。2 回目で閉じる。欄に打った `j` は文字で、カーソル移動ではない'
@@ -954,7 +954,7 @@ note = "`<C-,>` で uchmk のアプリ共通の設定の画面（`ito_prefs`）�
 "54.15" = 'config.toml が yazi のフォルダ（`%APPDATA%\yazi\config\config.toml`）にだけある状態で `<C-F5>`、`Row padding` を変えて **Open config.toml** を押す → どちらもそのファイルに向かい、`%APPDATA%\uchmk\kura` に config.toml は作られない'
 "54.16" = '一般の `倍率` の行で `150%` を選ぶ（v0.99.0）→ kura がすぐ大きくなり、common.toml に `scale = 1.5` が入る。隣に開いた tsumugi か yagura も 3 秒ほどで従う'
 "54.17" = '`theme.toml` を無くし（yazi のを退ける）、`common.toml` も無しで kura と tsumugi を並べて起動し、テーマのページを開く（v0.100.0）→ kura の窓・パネル・枠・字が tsumugi の色。ページに `Mode` があって `Dark` が点き、`THEME · ` の下にダークのテーマが並んで `tsumugi Dark` が点く。`PREVIEW · tsumugi Dark` の下に小さな kura の一覧（`~/kura`・`docs`・`src`・カーソルの帯の `Cargo.toml`・` NOR ` の札・`4/7`）'
-"54.18" = 'テーマのページで `Light` を押す。次に `Catppuccin Latte` を選ぶ。次に `Dark` を押して `Nord` を選ぶ（v0.100.0）→ どれも同じフレームで kura の色が変わる: 明るい地に暗い字、egui の部品（検索欄・スクロールバー）も明るくなる。common.toml は `theme = "tsumugi Light"`、`"Catppuccin Latte"`、`"Nord"` と変わり、コメントは残る。tsumugi と mimamori も 3 秒以内に従う。控えめの字（サイズ・日付）・警告・`F` で見つけた語、選んでいるタブの札の番号（v0.113.6、#397）はどれでも読める'
+"54.18" = 'テーマのページで `Light` を押す。次に `Catppuccin Latte` を選ぶ。次に `Dark` を押して `Nord` を選ぶ（v0.100.0）→ どれも同じフレームで kura の色が変わる: 明るい地に暗い字、egui の部品（検索欄・スクロールバー）も明るくなる。common.toml は `theme = "tsumugi Light"`、`"Catppuccin Latte"`、`"Nord"` と変わり、コメントは残る。tsumugi と yagura も 3 秒以内に従う。控えめの字（サイズ・日付）・警告・`F` で見つけた語、選んでいるタブの札の番号（v0.113.6、#397）はどれでも読める'
 "54.19" = '`Follow OS` を押し、`Nord` と `tsumugi Light` を選ぶ。Windows をライトモードにし（設定 > 個人用設定 > 色）、ダークに戻す（v0.100.0）→ common.toml に `theme = "system"`・`dark_theme = "Nord"`・`light_theme = "tsumugi Light"`。両方のテーマが並び、`when dark` / `when light` の札が付く。切り替えるたびに 1 秒以内に kura が tsumugi Light と Nord を行き来する。キーは押さない'
 "54.20" = 'yazi のフォルダに `[mgr]` の `hovered = { bg = "#aa3355" }` と `[status]` の `mode_normal = { bg = "#33aa55" }` だけの `theme.toml` を置いて `<C-F5>`。`tsumugi Light`、次に `tsumugi Dark` を選ぶ（v0.100.0）→ どちらのテーマでもカーソルの帯はその赤、` NOR ` の札はその緑（一覧でもページの見本でも）。ほかはそれぞれのテーマの色'
 "54.21" = 'その `theme.toml` を `[app]` の `overall = { bg = "#ffffff", fg = "#222222" }` だけにして `<C-F5>`。画面を開いて `Nord` を選ぶ（v0.100.0）→ Nord でも kura は白地に暗い字のまま。設定の画面自体と egui の部品（スクロールバーが明るい）も同じ。ほか（パネル・枠・ファイルの色）は Nord のもの。v0.113.6（#396）から状態バーは明るい地、テキストファイルのプレビューは暗い字で、どちらも読める'

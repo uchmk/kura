@@ -55,11 +55,11 @@
 
 ## 多言語対応（2026-10-10、持ち主の希望）
 
-持ち主は filer も後で多言語にしたい。言語は uchmk のアプリ（filer・tsumugi・mimamori）で共通の `<設定のフォルダ>/uchmk/common.toml` の
+持ち主は filer も後で多言語にしたい。言語は uchmk のアプリ（filer・tsumugi・yagura（旧 mimamori））で共通の `<設定のフォルダ>/uchmk/common.toml` の
 `language = "auto" | "en" | "ja" | …` で選び、アプリごとの設定に `language` があればそちらが勝つ。`auto` は OS の言語（`sys-locale`）。
-仕組みは先に mimamori の `src/i18n.rs`（`tr("key")` / `trf("key", &[..])`、英語の表は `src/lang/en.toml`）で作った。
+仕組みは先に yagura の `src/i18n.rs`（`tr("key")` / `trf("key", &[..])`、英語の表は `src/lang/en.toml`）で作った。
 
-- [ ] mimamori の `i18n` を tsumugi の workspace の共有クレートに切り出す（tsumugi を `access:"push"` で付け直す。tsumugi の設定画面の言語の欄 `prefs.rs` もつなぐ）。【後】
+- [ ] yagura の `i18n` を tsumugi の workspace の共有クレートに切り出す（tsumugi を `access:"push"` で付け直す。tsumugi の設定画面の言語の欄 `prefs.rs` もつなぐ）。【後】
 - [ ] filer の画面の文字（ヘルプの見出し・トースト・オーバーレイ・ステータスバー・確認の文）を `tr()` に通し、英語の表を足す。
   yazi の keymap の `desc` は利用者の設定から来るので訳さない。表に無いキーはテストで落とす。【後】
 - [ ] 日本語の表を足す。CJK のフォントは tsumugi の `fonts.rs` の取り方を使う。filer.toml に `language` を足し、README に書く。【後】

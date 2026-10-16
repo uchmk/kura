@@ -405,7 +405,7 @@ pub fn default_colors() -> Colors {
 impl Theme {
     /// kura's colours from a common theme's (Q98): every colour kura draws
     /// is one of the theme's, or mixed from them, so `tsumugi Light` gives a
-    /// light kura that matches tsumugi and mimamori.
+    /// light kura that matches tsumugi and yagura.
     pub fn from_common(c: &Colors) -> Self {
         let dim = quiet(c);
         // Text on a filled accent: the mode, the active tab.
