@@ -1872,7 +1872,7 @@ fn pane_key_bytes(key: egui::Key, mods: terminal::Mods, win32: bool, app_cursor:
         // resolves -- so `Esc` did nothing in lazygit or gh-dash. See
         // `terminal::win32_key`.
         Some(terminal::Special::Escape) if cfg!(windows) => Some(terminal::win32_key(0x1b, 1, 0x1b, mods)),
-        Some(s) => Some(terminal::encode(s, mods, app_cursor)),
+        Some(s) => Some(terminal::key_bytes(s, mods, app_cursor)),
         // A letter with Ctrl held is a control code; egui sends no
         // Text event for those, so this is where they are made. The
         // character is the key's own, not the first letter of its

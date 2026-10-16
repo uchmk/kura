@@ -11371,7 +11371,7 @@ mod escape_and_max_preview {
         let pane = |a: &App| {
             a.term.as_ref().map_or((String::new(), Vec::new()), |t| {
                 t.with_grid(|g| {
-                    let rows = crate::terminal::snapshot(g);
+                    let rows = crate::terminal::cell_rows(g);
                     let text = rows.iter().flat_map(|row| row.iter().map(|c| c.c)).collect::<String>();
                     let widths = rows.iter().map(|row| row.iter().filter(|c| c.c != ' ').count()).collect();
                     (text, widths)
