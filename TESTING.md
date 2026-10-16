@@ -941,6 +941,7 @@ the same lines -- so what is being tested here is mostly the instructions.
 | 29.26 | `×` on one of a row's default keys (e.g. `p` of "Paste the files"), then `↺` on that row (v0.111.0) | After `×` the key is struck through and `keymap.toml` has `{ on = "p", run = "noop" }`; `p` does nothing in the list. `↺` takes the row's entries out of the file and `p` pastes again. With every row reset, `prepend_keymap` is gone from the file and its comments are still there; a key from yazi's `keymap.toml` cannot be removed (its `×` is off and says where it is written); one from `append_keymap` in kura's own `keymap.toml` can, and `×` takes its entry out of the file |
 | 29.27 | F1 with the language set to Japanese (v0.111.0) | The help lists each key's description in Japanese (e.g. `p` 貼り付け); keys a `keymap.toml` added with their own `desc` keep it |
 | 29.28 | `[notify] webhook` = a Discord channel's incoming webhook, `webhook_format = "discord"` (the Notifications page's Format shows "Discord"); press "Send a test" (v0.113.0) | The channel shows the test notice with its title in bold |
+| 29.29 | Notifications page: "Add an address", type a second address, set its Format and States, press its test; then "Remove" it (v0.118.0) | Each address has its own row set and test button; the test posts only to that address. `config.toml` gains a `[[notify.webhooks]]` table with `url`, `format` and `states`, and an old `webhook` key is turned into a table too. Removing the row takes the table out of the file |
 
 ## 30. Right-click paste in a prompt (v0.14.0)
 

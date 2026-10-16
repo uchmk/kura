@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 661 件（TESTING.md の全 855 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 662 件（TESTING.md の全 856 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 62 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 63 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -565,6 +565,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **29.26** `×` on one of a row's default keys (e.g. `p` of "Paste the files"), then `↺` on that row (v0.111.0) → After `×` the key is struck through and `keymap.toml` has `{ on = "p", run = "noop" }`; `p` does nothing in the list. `↺` takes the row's entries out of the file and `p` pastes again. With every row reset, `prepend_keymap` is gone from the file and its comments are still there; a key from yazi's `keymap.toml` cannot be removed (its `×` is off and says where it is written); one from `append_keymap` in kura's own `keymap.toml` can, and `×` takes its entry out of the file 〔未訳〕
 - [x] **29.27** F1 with the language set to Japanese (v0.111.0) → The help lists each key's description in Japanese (e.g. `p` 貼り付け); keys a `keymap.toml` added with their own `desc` keep it 〔未訳〕
 - [ ] **29.28** `[notify] webhook` = a Discord channel's incoming webhook, `webhook_format = "discord"` (the Notifications page's Format shows "Discord"); press "Send a test" (v0.113.0) → The channel shows the test notice with its title in bold 〔未訳〕
+- [ ] **29.29** Notifications page: "Add an address", type a second address, set its Format and States, press its test; then "Remove" it (v0.118.0) → Each address has its own row set and test button; the test posts only to that address. `config.toml` gains a `[[notify.webhooks]]` table with `url`, `format` and `states`, and an old `webhook` key is turned into a table too. Removing the row takes the table out of the file 〔未訳〕
 
 ## 30. プロンプトでの右クリック貼り付け
 

@@ -3,6 +3,8 @@
 //! notification with kura's icon, a sound, and a webhook. And `[notify]` as
 //! the settings' Notifications page (`ito_prefs::notify_page`) shows it.
 
+use ito_notify::webhook::Place;
+
 use crate::config::{NotifyCfg, NOTIFY_EVENTS};
 
 /// Who the notifications are from.
@@ -18,22 +20,40 @@ fn icon(side: u32) -> Vec<u8> {
 pub fn tell(n: &NotifyCfg, event: &str, title: &str, body: &str) {
     let on = |list: &[String]| list.iter().any(|e| e == event);
     let sound = if event == "failed" { &n.sound_failed } else { &n.sound_done };
-    send(n, on(&n.system), on(&n.sound).then_some(sound.as_str()), on(&n.webhook_states), event == "failed", title, body);
+    send(n, on(&n.system), on(&n.sound).then_some(sound.as_str()), title, body);
+    let level = if event == "failed" { ito_notify::webhook::Level::Error } else { ito_notify::webhook::Level::Done };
+    ito_notify::webhook::send_all(&n.places, event, level, title, body, "");
 }
 
-/// "Send a test": a finished job's notice, through all three ways (the
-/// webhook when it has an address), as `p` on the page sets them now.
-pub fn test(p: &ito_prefs::Notify, title: &str, body: &str) {
-    let n = NotifyCfg {
-        focus_mode: p.focus,
-        webhook: p.webhook_url.trim().to_owned(),
-        webhook_format: p.webhook_format.clone(),
-        ..NotifyCfg::default()
-    };
-    send(&n, true, p.sounds.first().map(String::as_str), true, false, title, body);
+/// "Send a test", as `p` on the page sets things now: all of `Test::All` (a
+/// finished job's notice, through the system's notification, the sound and
+/// every webhook), or only the webhook `Test::Hook` names, whatever it is
+/// told of.
+pub fn test(p: &ito_prefs::Notify, what: ito_prefs::Test, title: &str, body: &str) {
+    let places: Vec<Place> = p.hooks.iter().map(|h| h.place(&NOTIFY_EVENTS)).collect();
+    let level = ito_notify::webhook::Level::Done;
+    match what {
+        ito_prefs::Test::All => {
+            let n = NotifyCfg { focus_mode: p.focus, ..NotifyCfg::default() };
+            send(&n, true, p.sounds.first().map(String::as_str), title, body);
+            ito_notify::webhook::send_all(&places, "done", level, title, body, "");
+        }
+        ito_prefs::Test::Hook(k) => {
+            if let Some(h) = places.get(k).filter(|h| ito_notify::is_http(&h.url)) {
+                ito_notify::webhook::send(
+                    h.url.trim().to_owned(),
+                    h.format.clone(),
+                    level,
+                    title.to_owned(),
+                    body.to_owned(),
+                    String::new(),
+                );
+            }
+        }
+    }
 }
 
-fn send(n: &NotifyCfg, system: bool, sound: Option<&str>, webhook: bool, failed: bool, title: &str, body: &str) {
+fn send(n: &NotifyCfg, system: bool, sound: Option<&str>, title: &str, body: &str) {
     if system {
         ito_notify::toast::show_with_icon(APP, icon, title, body);
     }
@@ -41,10 +61,6 @@ fn send(n: &NotifyCfg, system: bool, sound: Option<&str>, webhook: bool, failed:
         if !(n.focus_mode && ito_notify::sound::quiet_time()) {
             ito_notify::sound::play(name);
         }
-    }
-    if webhook && ito_notify::is_http(&n.webhook) {
-        let level = if failed { ito_notify::webhook::Level::Error } else { ito_notify::webhook::Level::Done };
-        ito_notify::webhook::send(n.webhook.clone(), n.webhook_format.clone(), level, title.to_owned(), body.to_owned(), String::new());
     }
 }
 
@@ -56,12 +72,17 @@ impl NotifyCfg {
         ito_prefs::Notify {
             system: col(&self.system),
             sound: col(&self.sound),
-            webhook: col(&self.webhook_states),
             sounds: vec![self.sound_done.clone(), self.sound_failed.clone()],
             focus: self.focus_mode,
-            webhook_url: self.webhook.clone(),
-            webhook_format: self.webhook_format.clone(),
+            hooks: self.places.iter().map(|p| ito_prefs::Hook::of(p, &NOTIFY_EVENTS, true)).collect(),
         }
+    }
+
+    /// The webhooks to write when the page's `p` changed them: None when they
+    /// are the same as now.
+    pub fn webhooks_of(&self, p: &ito_prefs::Notify) -> Option<Vec<Place>> {
+        let now: Vec<Place> = p.hooks.iter().map(|h| h.place(&NOTIFY_EVENTS)).collect();
+        (now != self.places).then_some(now)
     }
 
     /// The `[notify]` keys to write, as TOML, so that the file reads as the
@@ -74,9 +95,7 @@ impl NotifyCfg {
         let quote = |s: &str| toml::Value::String(s.to_owned()).to_string();
         let was = self.page();
         let mut out = Vec::new();
-        for (key, a, b) in
-            [("system", &was.system, &p.system), ("sound", &was.sound, &p.sound), ("webhook_states", &was.webhook, &p.webhook)]
-        {
+        for (key, a, b) in [("system", &was.system, &p.system), ("sound", &was.sound, &p.sound)] {
             if a != b {
                 out.push((key, list(b)));
             }
@@ -88,12 +107,6 @@ impl NotifyCfg {
         }
         if p.focus != was.focus {
             out.push(("focus_mode", p.focus.to_string()));
-        }
-        if p.webhook_url != was.webhook_url {
-            out.push(("webhook", quote(&p.webhook_url)));
-        }
-        if p.webhook_format != was.webhook_format {
-            out.push(("webhook_format", quote(&p.webhook_format)));
         }
         out
     }
@@ -116,7 +129,6 @@ mod tests {
         p.sound[1] = true;
         p.sounds[1] = "low".into();
         p.focus = false;
-        p.webhook_url = "http://127.0.0.1:8765/hook".into();
         assert_eq!(
             was.edits(&p),
             [
@@ -124,9 +136,16 @@ mod tests {
                 ("sound", "[\"failed\"]".to_owned()),
                 ("sound_failed", "\"low\"".to_owned()),
                 ("focus_mode", "false".to_owned()),
-                ("webhook", "\"http://127.0.0.1:8765/hook\"".to_owned()),
             ]
         );
+        assert_eq!(was.webhooks_of(&p), None, "no webhook, none to write");
+        p.hooks.push(ito_prefs::Hook::new(2));
+        p.hooks[0].url = "http://127.0.0.1:8765/hook".into();
+        let place = Place { url: "http://127.0.0.1:8765/hook".into(), format: "ntfy".into(), states: vec!["done".into(), "failed".into()] };
+        assert_eq!(was.webhooks_of(&p), Some(vec![place.clone()]));
+        let now = NotifyCfg { places: vec![place], ..was };
+        assert_eq!(now.page().hooks, p.hooks, "and back");
+        assert_eq!(now.webhooks_of(&p), None);
     }
 
     /// kura's icon is drawn for the notification at the side asked for.

@@ -19,6 +19,7 @@ pub mod yazi;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use ito_notify::webhook::Place;
 use serde::Deserialize;
 
 pub use keymap::Keymap;
@@ -161,7 +162,8 @@ pub struct NotifyCfg {
     pub system: Vec<String>,
     /// A sound of the system's.
     pub sound: Vec<String>,
-    /// The webhook's, when it has an address.
+    /// The one webhook of before (`webhook`, `webhook_format`,
+    /// `webhook_states`): read as the first of [`NotifyCfg::places`].
     pub webhook_states: Vec<String>,
     /// The sound for a job that finished, one of `ito_notify::SOUNDS`.
     pub sound_done: String,
@@ -174,6 +176,28 @@ pub struct NotifyCfg {
     pub webhook: String,
     /// One of `ito_notify::FORMATS`.
     pub webhook_format: String,
+    /// `[[notify.webhooks]]`, as written.
+    pub webhooks: Vec<HookCfg>,
+    /// Where it is told of, in order: the one webhook of before, then
+    /// `webhooks`. Made by [`NotifyCfg::check`], not read.
+    #[serde(skip)]
+    pub places: Vec<Place>,
+}
+
+/// A `[[notify.webhooks]]` table: its `url`, `format` and the events sent
+/// there (`[]`: none).
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default)]
+pub struct HookCfg {
+    pub url: String,
+    pub format: String,
+    pub states: Vec<String>,
+}
+
+impl Default for HookCfg {
+    fn default() -> Self {
+        Self { url: String::new(), format: "ntfy".into(), states: NOTIFY_EVENTS.map(str::to_owned).to_vec() }
+    }
 }
 
 /// What a long job can end as, for `[notify]`: it finished, or it failed.
@@ -191,6 +215,8 @@ impl Default for NotifyCfg {
             focus_mode: true,
             webhook: String::new(),
             webhook_format: "ntfy".into(),
+            webhooks: Vec::new(),
+            places: Vec::new(),
         }
     }
 }
@@ -224,6 +250,18 @@ impl NotifyCfg {
         if !self.webhook.is_empty() && !ito_notify::is_http(&self.webhook) {
             warnings.push(format!("{path}: [notify] `webhook` `{}` is not an http(s) address", self.webhook));
         }
+        let mut list = Vec::new();
+        for (i, h) in self.webhooks.iter().enumerate() {
+            let mut p = Place { url: h.url.trim().to_owned(), format: h.format.clone(), states: h.states.clone() };
+            warnings.extend(p.problems(&NOTIFY_EVENTS).into_iter().map(|w| format!("{path}: [[notify.webhooks]] {}: {w}", i + 1)));
+            if !ito_notify::FORMATS.contains(&p.format.as_str()) {
+                p.format = "ntfy".into();
+            }
+            p.states.retain(|s| NOTIFY_EVENTS.contains(&s.as_str()));
+            list.push(p);
+        }
+        let old = Place { url: self.webhook.trim().to_owned(), format: self.webhook_format.clone(), states: self.webhook_states.clone() };
+        self.places = ito_notify::webhook::places(old, list);
     }
 }
 
@@ -1578,5 +1616,29 @@ mod notify_from_the_config {
         let mut warnings = Vec::new();
         n.check("config.toml", &mut warnings);
         assert_eq!((n.webhook_format.as_str(), warnings.len()), ("discord", 0), "{warnings:?}");
+    }
+
+    /// `[[notify.webhooks]]` come after the old `webhook`, a bad one is warned
+    /// of by its number, and `states = []` pauses one.
+    #[test]
+    fn the_webhook_tables_follow_the_old_address() {
+        let text = "[notify]
+webhook = \"https://a.example/x\"
+[[notify.webhooks]]
+url = \"https://b.example/y\"
+format = \"xml\"
+states = [\"finished\"]
+[[notify.webhooks]]
+url = \"https://c.example/z\"
+states = []
+";
+        let mut n: NotifyCfg = toml::from_str::<toml::Table>(text).unwrap()["notify"].clone().try_into().unwrap();
+        let mut warnings = Vec::new();
+        n.check("config.toml", &mut warnings);
+        assert_eq!(n.places.len(), 3, "{:?}", n.places);
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
+        assert!(warnings.iter().all(|w| w.starts_with("config.toml: [[notify.webhooks]] 1: ")), "{warnings:?}");
+        assert_eq!(n.places[1].format, "ntfy");
+        assert!(n.places[2].states.is_empty(), "{:?}", n.places[2]);
     }
 }

@@ -720,7 +720,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut kura = Vec::new();
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
-    let mut test: Option<ito_prefs::Notify> = None;
+    let mut test: Option<(ito_prefs::Test, ito_prefs::Notify)> = None;
+    let mut webhooks = None;
     let mut key_edits = Vec::new();
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
     child.set_clip_rect(full);
@@ -764,9 +765,10 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                 ito_prefs::End { name: k.notify_failed, color: l.c.err, sound: k.notify_failed_sound },
             ];
             let defaults = crate::config::NotifyCfg::default().page();
-            if ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
-                test = Some(n.clone());
+            if let Some(what) = ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
+                test = Some((what, n.clone()));
             }
+            webhooks = notify.webhooks_of(&n);
             kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }));
         }
         _ => {
@@ -837,8 +839,11 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             Err(e) => app.error(format!("Copy failed: {e}")),
         }
     }
-    if let Some(n) = test {
-        crate::notify::test(&n, k.notify_test_title, k.notify_test_body);
+    if let Some((what, n)) = test {
+        crate::notify::test(&n, what, k.notify_test_title, k.notify_test_body);
+    }
+    if let Some(places) = webhooks {
+        app.write_webhooks(places);
     }
     app.write_common(changes);
     app.write_kura(kura);
@@ -1001,7 +1006,7 @@ mod tests {
         let w = Words::of("en");
         let f = s.draw();
         assert_eq!(page_name(NOTIFY), "notify");
-        for text in [w.notify_test, w.notify_system, w.focus, w.webhook_url, EN.notify_done, EN.notify_failed] {
+        for text in [w.notify_test, w.notify_system, w.focus, w.webhook_none, EN.notify_done, EN.notify_failed] {
             assert!(f.says(text), "{text} is on the page");
         }
         let file = dir.join("config.toml");

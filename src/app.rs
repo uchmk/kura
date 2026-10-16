@@ -791,6 +791,9 @@ struct KuraJob {
     changes: Vec<KuraChange>,
     /// For a keymap.toml (the Keys page), the edits to make to it instead.
     keys: Vec<ito_keymap::Edit>,
+    /// Every `[[notify.webhooks]]` to write after the changes, in place of the
+    /// ones there and of the old one address.
+    webhooks: Option<Vec<ito_notify::webhook::Place>>,
 }
 
 /// What a write of config.toml came to: the rows written, as a toast says
@@ -815,6 +818,7 @@ fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Option<Sender<K
                     Some(m) if m.path == j.path => {
                         m.changes.extend(j.changes);
                         m.keys.extend(j.keys);
+                        m.webhooks = j.webhooks.or(m.webhooks.take());
                         m.dirs = j.dirs;
                     }
                     _ => jobs.push(j),
@@ -844,6 +848,7 @@ fn write_kura_toml(job: KuraJob) -> KuraWritten {
             Some(v) => format!("{} = {v}", c.key),
             None => format!("{} removed", c.key),
         })
+        .chain(job.webhooks.iter().map(|w| format!("{} webhook(s)", w.len())))
         .collect::<Vec<_>>()
         .join(", ");
     let said = format!("Saved {file}: {said}");
@@ -870,6 +875,10 @@ fn write_kura_toml(job: KuraJob) -> KuraWritten {
                 None => ito_common::remove_key(&t, Some(c.table), c.key),
             })
             .map_err(at)?;
+        let new = match &job.webhooks {
+            Some(places) => ito_prefs::write_webhooks(&new, places, true).map_err(at)?,
+            None => new,
+        };
         let new = head + &new;
         ito_common::write_atomic(&job.path, new)?;
         Ok(Config::read_fresh(&job.dirs))
@@ -2128,10 +2137,30 @@ impl App {
     /// [`App::write_kura`] to a file named here, reading the config back from
     /// `dirs`: what a test drives with a folder of its own.
     pub(crate) fn write_kura_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, changes: Vec<KuraChange>) {
+        self.send_kura_job(KuraJob { path, dirs, changes, keys: Vec::new(), webhooks: None });
+    }
+
+    /// The `[[notify.webhooks]]` the Notifications page changed, written to
+    /// the config.toml in force.
+    pub fn write_webhooks(&mut self, places: Vec<ito_notify::webhook::Place>) {
+        let Some(path) = self.own_config_in_force() else {
+            self.error("config.toml: there is no config folder to keep it in");
+            return;
+        };
+        self.send_kura_job(KuraJob {
+            path,
+            dirs: crate::config::dirs_to_read(),
+            changes: Vec::new(),
+            keys: Vec::new(),
+            webhooks: Some(places),
+        });
+    }
+
+    fn send_kura_job(&mut self, job: KuraJob) {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
-        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes, keys: Vec::new() }).is_ok());
+        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(job).is_ok());
         if !sent {
             self.kura_jobs = None;
             self.error("config.toml: could not start writing it");
@@ -2189,7 +2218,8 @@ impl App {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
-        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes: Vec::new(), keys }).is_ok());
+        let sent =
+            self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes: Vec::new(), keys, webhooks: None }).is_ok());
         if !sent {
             self.kura_jobs = None;
             self.error("keymap.toml: could not start writing it");

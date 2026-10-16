@@ -373,6 +373,17 @@ The webhook goes through the system's `curl`, once a job. An address that does n
 with an HTTP error, is tried once more after 30 seconds (v0.113.0). `discord` puts the title in bold
 over the message and lets no `@everyone` in it ping anyone.
 
+Any number of addresses can be kept (v0.118.0): the `webhook` above stays the first, and each
+`[[notify.webhooks]]` table adds one with its own `url`, `format` and `states` (`done` / `failed`;
+`states = []` pauses it). The Notifications page lists them, with a test for each.
+
+```toml
+[[notify.webhooks]]
+url = "https://discord.com/api/webhooks/..."
+format = "discord"
+states = ["failed"]
+```
+
 `backend` picks what draws the window (v0.74.0). `auto` is GL on Windows when the machine has it,
 and wgpu's own pick otherwise (v0.75.0): on some AMD GPUs a driver thread keeps an idle window's core
 busy under Vulkan and DX12, and GL stops it. A Windows machine without GL gets Vulkan or DX12 without
