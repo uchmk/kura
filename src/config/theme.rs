@@ -568,6 +568,18 @@ impl Theme {
             }
             self.bg = bg;
             self.bg_alt = toward(bg, self.fg, 0.03);
+            // #396: the status bar is a step on from the panels, as the
+            // common theme's is; left on the common theme's panel, a white
+            // window's text sat on Nord's dark bar at 1.7:1. `[status]
+            // overall` still sets its own below.
+            self.status_bg = toward(self.bg_alt, self.fg, 0.03);
+            // The highlighter's text was chosen for the common theme's ground
+            // too (#c0c5ce on white, 1.6:1), so the built-in pair turn over
+            // with it; one the file named is left alone, and `[mgr]
+            // syntect_theme` below still names its own.
+            if matches!(self.syntect_theme.as_str(), "base16-ocean.dark" | "base16-ocean.light") {
+                self.syntect_theme = if light { "base16-ocean.light" } else { "base16-ocean.dark" }.into();
+            }
             // #321: the quiet text was the common theme's, and on a ground
             // of the file's own it can fade out (Nord's grey on white reads
             // at a contrast under 3). Then it is made again from this text and ground,
@@ -1007,6 +1019,48 @@ mod tests {
         let before = t.fg_dim;
         t.apply(&toml::from_str::<ThemeToml>("[app]\noverall = { bg = \"#101010\" }\n").unwrap());
         assert_eq!(t.fg_dim, before);
+    }
+
+    /// #396: a ground the file sets carries the status bar and the
+    /// highlighter with it. On a white window over a dark common theme the
+    /// bar stayed the theme's dark panel under text chosen for white, and the
+    /// preview kept `base16-ocean.dark`'s pale text; the other way round too.
+    #[test]
+    fn the_status_bar_and_the_highlighter_follow_a_ground_the_file_sets() {
+        let named = |n: &str| ito_theme::builtin().into_iter().find(|t| t.name == n).expect(n).colors;
+        for (common, toml, highlighter) in [
+            (default_colors(), "[app]\noverall = { bg = \"#ffffff\", fg = \"#222222\" }\n", "base16-ocean.light"),
+            (default_colors(), "[app]\noverall = { bg = \"#ffffff\" }\n", "base16-ocean.light"),
+            (named("Nord"), "[app]\noverall = { bg = \"#ffffff\", fg = \"#222222\" }\n", "base16-ocean.light"),
+            (named("tsumugi Light"), "[app]\noverall = { bg = \"#1e1e1e\" }\n", "base16-ocean.dark"),
+            (named("tsumugi Light"), "[app]\noverall = { bg = \"#1e1e1e\", fg = \"#d0d0d0\" }\n", "base16-ocean.dark"),
+        ] {
+            let t = Theme::layered(&common, vec![toml::from_str(toml).unwrap()]);
+            assert_eq!(t.syntect_theme, highlighter, "{toml}");
+            assert_eq!(is_light(t.status_bg), is_light(t.bg), "the bar is the window's kind: {toml}");
+            assert!(contrast(t.fg, t.status_bg) >= 4.5, "the clock: {toml}");
+            assert!(contrast(t.fg_dim, t.status_bg) >= 3.5, "the file's details: {toml}");
+        }
+
+        // What the file names itself still wins over both.
+        let t = Theme::layered(
+            &named("Nord"),
+            vec![toml::from_str(
+                "[app]\noverall = { bg = \"#ffffff\" }\n[mgr]\nsyntect_theme = \"InspiredGitHub\"\n\
+                     [status]\noverall = { bg = \"#eeeeee\" }\n",
+            )
+            .unwrap()],
+        );
+        assert_eq!((t.syntect_theme.as_str(), t.status_bg), ("InspiredGitHub", Color32::from_rgb(0xee, 0xee, 0xee)));
+        // And a highlighter an earlier file chose is not swapped for ours.
+        let t = Theme::layered(
+            &named("Nord"),
+            vec![
+                toml::from_str("[mgr]\nsyntect_theme = \"Solarized (dark)\"\n").unwrap(),
+                toml::from_str("[app]\noverall = { bg = \"#ffffff\" }\n").unwrap(),
+            ],
+        );
+        assert_eq!(t.syntect_theme, "Solarized (dark)");
     }
 
     /// Q93: on a light background the warning and a plain file's name turn

@@ -286,10 +286,13 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     let mut clicked: Option<usize> = None;
     for (i, tab) in app.tabs.iter().enumerate() {
         let label = format!(" {} {} ", i + 1, util::ellipsize_middle(&tab.name(), 18));
-        let g = painter.layout_no_wrap(label, f.clone(), theme.fg);
+        let st = if i == app.active { theme.tab_active } else { theme.tab_inactive };
+        // Laid out in the chip's own text colour: `galley`'s colour below is
+        // only a fallback, and the window's text on the blue chip read at
+        // 1.3:1 (#397).
+        let g = painter.layout_no_wrap(label, f.clone(), st.fg.unwrap_or(theme.fg));
         let w = g.size().x + 8.0;
         let chip = Rect::from_min_size(egui::pos2(x, y), Vec2::new(w, row_h));
-        let st = if i == app.active { theme.tab_active } else { theme.tab_inactive };
         if let Some(bg) = st.bg {
             painter.rect_filled(chip, CornerRadius::same(4), bg);
         }
@@ -1546,13 +1549,16 @@ pub(crate) mod harness {
                 into.texts.push(text.clone());
                 into.glyphs.push(t.galley.rows.iter().flat_map(|r| r.glyphs.iter()).map(|g| g.chr).collect());
                 into.places.push(t.pos);
-                // `Painter::text` lays the galley out in the colour it is given
-                // and passes the same colour as the fallback, so for a string
-                // drawn in one colour this is that colour. A galley built from
-                // a `LayoutJob` of several colours -- a preview line, a hover
-                // card -- reports only the fallback, which is why the checks
-                // that care read a rule or a fill instead.
-                into.inked.push((text, t.override_text_color.unwrap_or(t.fallback_color)));
+                // The colour the galley was laid out in, when it is one: the
+                // fallback only fills in for `PLACEHOLDER`, and a label laid out
+                // in the window's text but painted with a chip's colour as the
+                // fallback came out in the window's text (#397). A galley built
+                // from a `LayoutJob` of several colours -- a preview line, a
+                // hover card -- reports only the fallback, which is why the
+                // checks that care read a rule or a fill instead.
+                let mut laid = t.galley.job.sections.iter().map(|s| s.format.color);
+                let one = laid.next().filter(|c| *c != Color32::PLACEHOLDER && laid.all(|o| o == *c));
+                into.inked.push((text, t.override_text_color.or(one).unwrap_or(t.fallback_color)));
             }
             Shape::Rect(r) => {
                 into.rects.push((r.rect, r.fill));
@@ -1611,6 +1617,33 @@ mod whole_frame {
         // The hovered name is joined to the directory with the platform's own
         // separator, which was a literal `\` until v0.45.0.
         assert!(f.says(&dir.join("one.txt").display().to_string()), "the header spells a path this platform would accept: {:?}", f.texts,);
+    }
+
+    /// #397: the active tab's label is written in `tab_active`'s text colour,
+    /// as the NORMAL chip is in its mode's, not in the window's text, which
+    /// read at 1.3:1 on the blue chip; and a `tab_active` fg a theme.toml
+    /// sets reaches the screen.
+    #[test]
+    fn the_active_tab_is_written_in_its_own_colour() {
+        let dir = crate::util::test_dir("frame-tab-ink");
+        let mut s = Screen::open(dir);
+        let named = |n: &str| ito_theme::builtin().into_iter().find(|t| t.name == n).expect(n).colors;
+        for common in [crate::config::theme::default_colors(), named("tsumugi Light"), named("Catppuccin Latte"), named("Nord")] {
+            s.app.cfg.theme = std::sync::Arc::new(crate::config::theme::Theme::from_common(&common));
+            let st = s.app.cfg.theme.tab_active;
+            let (fg, bg) = (st.fg.expect("the chip has a text colour"), st.bg.expect("and a fill"));
+            assert_ne!(fg, s.app.cfg.theme.fg, "a theme drawing both alike says nothing");
+            let f = s.draw();
+            let ink: Vec<egui::Color32> = f.inked.iter().filter(|(t, _)| t.starts_with(" 1 ")).map(|(_, c)| *c).collect();
+            assert_eq!(ink, [fg], "the chip's label, in the chip's text colour");
+            assert!(ito_theme::contrast(fg, bg) >= 4.5, "and it reads on the chip");
+        }
+
+        let red = egui::Color32::from_rgb(0xff, 0, 0);
+        std::sync::Arc::make_mut(&mut s.app.cfg.theme).tab_active.fg = Some(red);
+        let f = s.draw();
+        let ink: Vec<egui::Color32> = f.inked.iter().filter(|(t, _)| t.starts_with(" 1 ")).map(|(_, c)| *c).collect();
+        assert_eq!(ink, [red], "a theme.toml's `tab_active` fg");
     }
 
     /// #191: a toast starts below the breadcrumb, not on it. The breadcrumb
