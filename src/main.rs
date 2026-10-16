@@ -68,63 +68,26 @@ struct Cli {
 /// `$v = & kura.exe env` connect nothing and come back empty, whatever this
 /// does (#176, #183). That is why the release zip has `kura.com`, the console
 /// front PowerShell does wait for (v0.71.0, `src/bin/kura-com.rs`).
-#[cfg(windows)]
+///
+/// The writing is ito's `ito_console::out` (v0.114.0, shared with the other
+/// uchmk apps), which also lets the line go when nobody reads it:
+/// `$v = & kura.exe --version` hands it a pipe PowerShell has already closed.
 fn say(text: &str) {
-    say_on(text, false);
+    ito_console::out(&format!(
+        "{text}
+"
+    ));
 }
 
 /// [`say`] on standard error, for a line about the output rather than the
 /// output itself: `kura: wrote <path>` on standard output was captured along
 /// with everything else by `$p = & kura env --out x.txt` and handed on as a
 /// path (#200). On a console the two look the same.
-#[cfg(windows)]
 fn say_err(text: &str) {
-    say_on(text, true);
-}
-
-#[cfg(windows)]
-fn say_on(text: &str, err: bool) {
-    use std::io::Write;
-    use windows::Win32::Storage::FileSystem::{GetFileType, FILE_TYPE_DISK, FILE_TYPE_PIPE};
-    use windows::Win32::System::Console::{AttachConsole, GetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
-
-    let which = if err { STD_ERROR_HANDLE } else { STD_OUTPUT_HANDLE };
-    let redirected = unsafe { GetStdHandle(which) }.ok().filter(|h| !h.is_invalid()).is_some_and(|h| {
-        let kind = unsafe { GetFileType(h) };
-        kind == FILE_TYPE_DISK || kind == FILE_TYPE_PIPE
-    });
-    if redirected {
-        if err {
-            let mut out = std::io::stderr().lock();
-            let _ = writeln!(out, "{text}");
-            let _ = out.flush();
-        } else {
-            let mut out = std::io::stdout().lock();
-            let _ = writeln!(out, "{text}");
-            let _ = out.flush();
-        }
-        return;
-    }
-    if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) }.is_ok() {
-        if let Ok(mut out) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
-            let _ = writeln!(out, "{text}");
-            return;
-        }
-    }
-    match err {
-        true => eprintln!("{text}"),
-        false => println!("{text}"),
-    }
-}
-
-#[cfg(not(windows))]
-fn say(text: &str) {
-    println!("{text}");
-}
-
-#[cfg(not(windows))]
-fn say_err(text: &str) {
-    eprintln!("{text}");
+    ito_console::err(&format!(
+        "{text}
+"
+    ));
 }
 
 /// PowerShell does not wait for a windowed program, so a script that calls

@@ -122,6 +122,19 @@ jobs:
           "cmd >:    $((Get-Item env.txt).Length) bytes"
           "piped:    $arch"
           "--out:    $((Get-Item env-out.txt).Length) bytes"
+          # PowerShell hands kura.exe a pipe for `$v = & kura.exe --version`
+          # and closes it without waiting. ito_console lets the write go there
+          # (v0.114.0): here the pipe is closed before kura.exe has started.
+          $p = [System.Diagnostics.Process]::new()
+          $p.StartInfo.FileName = (Resolve-Path $exe).Path
+          $p.StartInfo.Arguments = '--version'
+          $p.StartInfo.UseShellExecute = $false
+          $p.StartInfo.RedirectStandardOutput = $true
+          [void]$p.Start()
+          $p.StandardOutput.Close()
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0) { throw "kura.exe --version into a closed pipe exited $($p.ExitCode)" }
+          "closed:   exit $($p.ExitCode)"
           # kura.com (v0.71.0, Q44): the console front the zip ships beside
           # kura.exe. Being a console program, PowerShell waits for it, so the
           # bare forms that come back empty from kura.exe have to work here.

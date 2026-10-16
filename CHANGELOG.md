@@ -9,6 +9,20 @@
 
 ## [未リリース]
 
+## [0.114.0] - 2026-10-16
+
+### 変更
+
+- `kura.com` の中身を ito 0.42.0 の `ito_console::front` に移した。yagura・tsumugi・minato・michi の `.com` と同じ 1 つのコードになり、
+  kura が持つのはどのコマンドラインを文字で答えるか（`answers_in_text`）だけになった。
+  パイプから窓を開くとき（`kura.com | Tee-Object` など）、窓の出力は kura.com の持つパイプでなく一時フォルダのファイル
+  （`kura-com-<pid>-<n>.out` と `.err`）に書き、窓が上がったところで kura.com がパイプに写す。ファイルは窓が閉じると消える。
+  前はパイプで、kura.com が戻った後に窓が書くと誰も読まないパイプに当たっていた。
+- `--version`・`--help`・`env`・`shell-hook` の答えを書く `say` も `ito_console::out`・`err` にした。コンソールへは UTF-16 で書くので、
+  コンソールのコードページに依らない。PowerShell が閉じたパイプ（`$v = & kura.exe --version`）にも panic しない
+  （Build の CI に確かめを足した）。`windows` の機能 `Win32_System_Console` は要らなくなった。
+- ito を 0.42.0 に上げた（`ito-console`）。
+
 ## [0.113.9] - 2026-10-16
 
 ### 変更
