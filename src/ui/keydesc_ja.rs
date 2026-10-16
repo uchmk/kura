@@ -33,7 +33,7 @@ pub fn ja(desc: &str) -> Option<&'static str> {
         "Fit the image to the pane" => "画像をペインに合わせる",
         "Show the image at 1:1" => "画像を等倍で出す",
         "Show or hide the preview's minimap" => "プレビューのミニマップを出す・隠す",
-        "Switch Markdown preview between rendered and source" => "Markdown のプレビューを整形・元の文に切り替える",
+        "Switch Markdown / HTML preview between rendered and source" => "Markdown・HTML のプレビューを整形・元の文に切り替える",
         "Focus the preview's outline (functions / headings)" => "プレビューの目次（関数・見出し）へ",
         "Spot hovered file" => "カーソルのファイルの詳しい情報",
         "Toggle the current selection state" => "選ぶ・外すを切り替える",

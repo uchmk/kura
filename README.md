@@ -342,7 +342,7 @@ row_padding = 4.0
 fonts = []                 # explicit font file paths, tried first
 bold_fonts = []            # explicit bold font file paths, tried first
 icons = "auto"             # auto | nerd | ascii | none
-render_markdown = true     # start Markdown previews rendered (`M` toggles)
+render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144
 max_history = 200
@@ -448,6 +448,10 @@ together with whatever sits next to it in the same word — `{path}:{line}` come
 `.md` / `.mdx` files are rendered: headings, emphasis, lists and task lists, tables, block quotes
 and GitHub alerts, with fenced code blocks highlighted by language. `M` switches between the
 rendered view and the highlighted source, keeping your place.
+
+`.html` / `.htm` / `.xhtml` files are read the same way: the markup becomes headings, paragraphs, lists, tables,
+quotes and code blocks, with an outline. It is a reader, not a browser: no CSS layout, scripts or forms, images show
+their alt text, and `<head>`, `<script>`, `<style>` and `<svg>` are left out. `M` shows the source.
 
 ## Outline (Contents)
 
@@ -1219,7 +1223,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `<C-t>` `<C-S-t>` `<A-t>` | terminal: keys in and back out / end the shell / type the selection into it |
 | `<A-k>` `<A-j>` | scroll the preview, without moving the list's cursor |
 | `<A-g>` `<A-G>` | the preview's top / end (`seek top` / `seek bot`; v0.76.2) |
-| `M` | Markdown rendered ↔ source |
+| `M` | Markdown / HTML rendered ↔ source |
 | `<A-i>` `<A-o>` `<A-0>` `<A-1>` | image: zoom in / out / fit the pane / 1:1 |
 | `<A-n>` | show or hide the preview's minimap |
 | `<S-Tab>` | move the keys into the preview's outline and back |

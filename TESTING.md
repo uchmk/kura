@@ -1731,3 +1731,18 @@ reading them. `<State:>` reads `overlay: settings` while it is open. Have tsumug
 | 54.21 | Make that `theme.toml` `[app]` / `overall = { bg = "#ffffff", fg = "#222222" }` only; `<C-F5>`; open the screen and pick `Nord` (v0.100.0) | kura stays white with dark text under Nord, and so does the settings screen itself and egui's widgets (the scroll bars light); the rest (panels, borders, file colours) is Nord's. Since v0.113.6 (#396) the status bar is light and a text file's preview dark-lettered, both readable |
 | 54.22 | Write `theme = "No Such Theme"` into common.toml and save; save it once more (v0.100.0) | One toast starting `common.toml:` that names `No Such Theme`, not two; the colours stay as they were. Fixing the name recolours kura within 3 seconds |
 | 54.23 | Save `%APPDATA%\uchmk\themes\mine.toml` with `name = "Mine"`, `light = false`, `bg = "#202830"`, `fg = "#e0e0e0"`; restart kura and open the Theme page (v0.100.0) | `Mine` is listed with the dark themes; picking it makes kura's ground `#202830` and writes `theme = "Mine"`. A file with `bg = "nope"` is left out, with a toast starting `theme:` that names it |
+
+## 55. HTML preview (v0.117.0)
+
+`.html` / `.htm` / `.xhtml` files read as documents, like Markdown: headings, lists, tables, quotes and code, with the
+outline. No CSS, scripts or forms; images show their alt text. `M` switches to the highlighted source. Use a real page
+(a rustdoc `index.html`, a saved article) and a small file of your own.
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 55.1 | Hover a saved web page (`.html`) | It reads as text: headings in the heading colours, paragraphs separated by a blank line, lists with bullets, links underlined. Nothing from `<script>`, `<style>`, `<head>` or `<svg>` shows |
+| 55.2 | `M` on it, then `M` again | The first press shows the highlighted HTML source, the second the reading view, at the same place |
+| 55.3 | `l` into its outline, pick a heading | The preview scrolls to that heading |
+| 55.4 | Hover an HTML file holding a `<table>` with `<th>` cells and a `<pre><code class="language-rust">` block | The table is drawn with a header rule and aligned columns; the code block is coloured as Rust |
+| 55.5 | Narrow and widen the window while it is on show | The text re-wraps to the pane's width |
+| 55.6 | Set `render_markdown = false`, restart, hover an `.html` file | It starts as source; `M` brings the reading view |

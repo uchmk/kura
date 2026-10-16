@@ -58,7 +58,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-0>` — Fit the image to the pane · `zoom fit`
 - [x] `<A-1>` — Show the image at 1:1 · `zoom actual`
 - [x] `<A-n>` — Show or hide the preview's minimap · `minimap`
-- [x] `M` — Switch Markdown preview between rendered and source · `toggle_render`
+- [x] `M` — Switch Markdown / HTML preview between rendered and source · `toggle_render`
 - [x] `<BackTab>` — Focus the preview's outline (functions / headings) · `toggle_outline`
 - [x] `<Tab>` — Spot hovered file · `spot`
 

@@ -14,6 +14,7 @@ use crossbeam_channel::{Receiver, Sender};
 mod csv;
 mod external;
 mod font_preview;
+mod html;
 mod image_preview;
 mod markdown;
 mod office;

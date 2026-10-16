@@ -155,6 +155,16 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
     // The Markdown grammar paints fenced code as one flat color, so fence
     // bodies are re-highlighted with the language named after the fence.
     let is_markdown = syntax.name == "Markdown";
+    // HTML is laid out as a document too, from the same events.
+    let is_html = req.mime == "text/html";
+    let renders = is_markdown || is_html;
+    let lay = |text: &str| {
+        if is_html {
+            super::html::render(text, req.key.cols, theme, syntaxes)
+        } else {
+            super::markdown::render(text, req.key.cols, theme, syntaxes)
+        }
+    };
     // The parse is kept apart from the coloring so the outline can read the
     // same scopes without parsing twice.
     let highlighter = ThemeHighlighter::new(theme);
@@ -166,7 +176,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
     // Laid out once: the first screen of a long Markdown file carries all of
     // it, which is cheap next to coloring the source beside it.
     let mut doc = None;
-    let head = if is_markdown && req.markdown_rendered { 0 } else { HEAD_LINES };
+    let head = if renders && req.markdown_rendered { 0 } else { HEAD_LINES };
     for (i, line) in LinesWithEndings::from(&expanded).take(max_lines(req)).enumerate() {
         if i >= color_lines(req) {
             lines.extend(LinesWithEndings::from(&expanded).take(max_lines(req)).skip(i).map(plain_line));
@@ -189,8 +199,8 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
                 let mut source = lines.clone();
                 source.extend(LinesWithEndings::from(&expanded).take(max_lines(req)).skip(i).map(plain_line));
                 let map = super::minimap(&source);
-                let payload = if is_markdown {
-                    let (d, clipped) = doc.get_or_insert_with(|| super::markdown::render(&expanded, req.key.cols, theme, syntaxes));
+                let payload = if renders {
+                    let (d, clipped) = doc.get_or_insert_with(|| lay(&expanded));
                     let extent = Extent { truncated: extent.truncated || *clipped, ..extent };
                     Payload::Markdown { doc: d.clone(), source, map, extent }
                 } else {
@@ -204,7 +214,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
         }
         // Always fed, even when its output is discarded, to keep its state in sync.
         let md = parse.parse_line(line, syntaxes).map(|ops| {
-            if !is_markdown {
+            if !renders {
                 symbols.feed(i, line, &ops);
             }
             HighlightIterator::new(&mut state, &ops, line, &highlighter).collect::<Vec<_>>()
@@ -241,8 +251,8 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
         }
         lines.push(spans);
     }
-    if is_markdown {
-        let (doc, clipped) = doc.unwrap_or_else(|| super::markdown::render(&expanded, req.key.cols, theme, syntaxes));
+    if renders {
+        let (doc, clipped) = doc.unwrap_or_else(|| lay(&expanded));
         let map = super::minimap(&lines);
         let extent = Extent { truncated: extent.truncated || clipped, ..extent };
         return Payload::Markdown { doc, source: lines, map, extent };
@@ -423,6 +433,14 @@ mod tests {
         render_ext(src, "md")
     }
 
+    #[test]
+    fn html_is_laid_out_like_a_document() {
+        match render(b"<h1>Hi</h1><p>there</p>", &request("html"), &mut Highlighter::default()) {
+            Payload::Markdown { doc, .. } => assert_eq!(doc.toc.len(), 1),
+            other => panic!("unexpected payload {other:?}"),
+        }
+    }
+
     fn render_ext(src: &str, ext: &str) -> Vec<Vec<Span>> {
         match render(src.as_bytes(), &request(ext), &mut Highlighter::default()) {
             Payload::Text { lines, .. } => lines,
@@ -434,6 +452,7 @@ mod tests {
     fn request(ext: &str) -> Request {
         let mime = match ext {
             "md" | "mdx" => "text/markdown",
+            "html" => "text/html",
             _ => "text/plain",
         };
         Request {

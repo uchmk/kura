@@ -35,12 +35,19 @@ const NO_END: &str = "（〔［｛〈《「『【〘〖‘“([{";
 /// Lay out `text` for a pane `cols` cells wide. The flag is set when the
 /// document was cut short.
 pub fn render(text: &str, cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Doc, bool) {
-    let opts = options();
+    let events: Vec<_> = Parser::new_ext(text, options()).into_offset_iter().collect();
+    lay_out(text, &events, cols, theme, syntaxes)
+}
+
+/// Lay out a document already read into Markdown's events, each with the
+/// byte range of `text` it came from. HTML is read into the same events
+/// (`html.rs`), so both look alike on screen.
+pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Doc, bool) {
     let cols = if cols == 0 { 80 } else { cols };
 
     // The outline's width decides how much room the body gets, so headings
     // are collected before anything is laid out.
-    let headings = outline(text, opts);
+    let headings = outline(events);
     let top = headings.iter().map(|h| h.0).min().unwrap_or(1);
     let labels: Vec<String> = headings.iter().map(|(level, title)| format!("{}{title}", "  ".repeat((level - top) as usize))).collect();
     let named = headings.iter().filter(|h| !h.1.is_empty()).count();
@@ -49,7 +56,7 @@ pub fn render(text: &str, cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Do
     let body_cols = if toc_cols > 0 { cols - toc_cols - 3 } else { cols }.min(MAX_BODY);
 
     let mut b = Builder::new(text, theme, syntaxes, body_cols as usize);
-    b.run(text, opts);
+    b.run(events);
 
     // Kept without a column too: a narrow pane shows it over the text when
     // the outline is focused.
@@ -75,12 +82,12 @@ fn options() -> Options {
 }
 
 /// Level and plain-text title of every heading the outline can show.
-fn outline(text: &str, opts: Options) -> Vec<(u8, String)> {
+fn outline(events: &[(Event<'_>, Range<usize>)]) -> Vec<(u8, String)> {
     let mut out = Vec::new();
     let mut open: Option<(u8, String)> = None;
-    for event in Parser::new_ext(text, opts) {
+    for (event, _) in events {
         match event {
-            Event::Start(Tag::Heading { level, .. }) => open = Some((level as u8, String::new())),
+            Event::Start(Tag::Heading { level, .. }) => open = Some((*level as u8, String::new())),
             Event::End(TagEnd::Heading(_)) => {
                 if let Some((level, title)) = open.take().filter(|h| h.0 <= TOC_LEVELS) {
                     out.push((level, title.split_whitespace().collect::<Vec<_>>().join(" ")));
@@ -88,7 +95,7 @@ fn outline(text: &str, opts: Options) -> Vec<(u8, String)> {
             }
             Event::Text(t) | Event::Code(t) => {
                 if let Some((_, title)) = open.as_mut() {
-                    title.push_str(&t);
+                    title.push_str(t);
                 }
             }
             Event::SoftBreak | Event::HardBreak => {
@@ -275,8 +282,8 @@ impl<'a> Builder<'a> {
         self.line_starts.partition_point(|&s| s <= offset).saturating_sub(1)
     }
 
-    fn run(&mut self, text: &str, opts: Options) {
-        for (event, range) in Parser::new_ext(text, opts).into_offset_iter() {
+    fn run(&mut self, events: &[(Event<'_>, Range<usize>)]) {
+        for (event, range) in events.iter().cloned() {
             if self.clipped {
                 break;
             }
@@ -501,6 +508,11 @@ impl<'a> Builder<'a> {
 
     fn text(&mut self, t: &str, src: usize) {
         if let Some(code) = self.code.as_mut() {
+            // Where the code itself starts: the line after a fence, or for
+            // HTML's `<pre>` wherever its text begins.
+            if code.text.is_empty() {
+                code.src = src;
+            }
             code.text.push_str(t);
             return;
         }
@@ -1063,7 +1075,7 @@ fn attr(tag: &str, name: &str) -> Option<String> {
     None
 }
 
-fn decode_entities(s: &str) -> String {
+pub(super) fn decode_entities(s: &str) -> String {
     if !s.contains('&') {
         return s.to_owned();
     }
@@ -1106,6 +1118,46 @@ fn entity(name: &str) -> Option<char> {
         "times" => '×',
         "larr" => '←',
         "rarr" => '→',
+        "uarr" => '↑',
+        "darr" => '↓',
+        "harr" => '↔',
+        "lArr" => '⇐',
+        "rArr" => '⇒',
+        "hArr" => '⇔',
+        "lsquo" => '‘',
+        "rsquo" => '’',
+        "sbquo" => '‚',
+        "ldquo" => '“',
+        "rdquo" => '”',
+        "bdquo" => '„',
+        "laquo" => '«',
+        "raquo" => '»',
+        "bull" => '•',
+        "prime" => '′',
+        "Prime" => '″',
+        "deg" => '°',
+        "plusmn" => '±',
+        "divide" => '÷',
+        "minus" => '−',
+        "ne" => '≠',
+        "le" => '≤',
+        "ge" => '≥',
+        "infin" => '∞',
+        "frac12" => '½',
+        "frac14" => '¼',
+        "frac34" => '¾',
+        "sup2" => '²',
+        "sup3" => '³',
+        "micro" => 'µ',
+        "para" => '¶',
+        "sect" => '§',
+        "cent" => '¢',
+        "pound" => '£',
+        "yen" => '¥',
+        "euro" => '€',
+        "iexcl" => '¡',
+        "iquest" => '¿',
+        "ensp" | "emsp" | "thinsp" => ' ',
         _ => {
             let num = name.strip_prefix('#')?;
             let code = match num.strip_prefix(['x', 'X']) {

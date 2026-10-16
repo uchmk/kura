@@ -202,7 +202,7 @@ desc = "Show or hide the preview's minimap"
 [[mgr.keymap]]
 on = "M"
 run = "toggle_render"
-desc = "Switch Markdown preview between rendered and source"
+desc = "Switch Markdown / HTML preview between rendered and source"
 [[mgr.keymap]]
 on = "<BackTab>"
 run = "toggle_outline"

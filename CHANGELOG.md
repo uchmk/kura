@@ -9,6 +9,17 @@
 
 ## [未リリース]
 
+## [0.117.0] - 2026-10-16
+
+### 追加
+
+- HTML（`.html` `.htm` `.xhtml`）のプレビューを、Markdown と同じ読む表示にした。タグを pulldown-cmark のイベントに直して `markdown::lay_out` で組むので、見出し・段落・リスト・表・引用・コードブロックとアウトラインが Markdown と同じように出る。`<head>`・`<script>`・`<style>`・`<svg>`・隠した要素は出さず、画像は代替テキストで出す。CSS の配置・スクリプト・フォームは扱わない。`M` で元の文に切り替わる。
+
+### 変更
+
+- HTML は設定 `render_markdown`（既定 true）に従い、**既定で読む表示で開く**ようになった（それまでは常にハイライトされた元の文）。元の文で開きたい人は `render_markdown = false`。設定画面の文言も「Markdown・HTML」にした。
+- `markdown::render` を、イベントを受ける `lay_out` と、Markdown を読む `render` に分けた。見た目は変わらない。
+
 ## [0.116.3] - 2026-10-16
 
 ### 変更
