@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.119.2] - 2026-10-17
+
+### 変更
+
+- CI のワークフロー（`ci.yml`・`build.yml`・`arm64.yml`・`audit.yml`・`checklists.yml`）に `permissions: contents: read` を足した。トークンは読み取りだけになり、Code scanning の `actions/missing-workflow-permissions`（12 件）が消える。
+
 ## [0.119.1] - 2026-10-17
 
 ### 変更

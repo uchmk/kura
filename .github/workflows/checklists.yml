@@ -53,6 +53,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   checklists:
     runs-on: ubuntu-latest
