@@ -2387,7 +2387,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.114.6"
+version = "0.114.7"
 dependencies = [
  "ab_glyph",
  "alacritty_terminal",

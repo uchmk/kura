@@ -224,8 +224,8 @@ Every rule that matches contributes, in the order written, so the catch-all at t
 A file Windows has no app for is not handed over (v0.82.0, Q92). Before `<Enter>` opens with the
 default app, either because no opener applies or because the first one is a bare `start "" %*`,
 kura asks Windows which program the extension opens with; when there is none it says
-`No default app for .xyz` (with `— <S-Enter> to pick one` when the file has other openers) and opens
-nothing. Handed over anyway, such a file got a "How do you want to open this file?" box at best and
+`No default app for .xyz` (with `— O to pick one` when the file has other openers; the key is the
+first one bound to `open --interactive`) and opens nothing. Handed over anyway, such a file got a "How do you want to open this file?" box at best and
 nothing at all at worst. `start "" msedge %*` names its program and is not checked. An association
 that exists but fails to start its program is not caught this way.
 
