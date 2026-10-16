@@ -420,11 +420,8 @@ fn main() -> eframe::Result<()> {
                 focused: true,
                 last_input_frame: u64::MAX,
                 last_geometry: None,
-                place,
-                place_saved: place,
+                place: cli.keys.is_empty().then(|| ito_common::window::Tracker::new(Config::state_dir(), place)),
                 update,
-                place_changed: std::time::Instant::now(),
-                remember_place: cli.keys.is_empty(),
                 script,
                 script_at: (0, std::time::Instant::now()),
                 script_now: false,
@@ -700,13 +697,10 @@ struct Kura {
     /// costs nothing while nothing moves. A resize or a drag onto a monitor at
     /// another scale changes it; a frame does not.
     last_geometry: Option<([f32; 2], f32, [usize; 2])>,
-    /// Where the window is now, where it was last written down, and since
-    /// when it has been where it is: a drag is one write after it stops.
-    place: Option<ito_common::window::Window>,
-    place_saved: Option<ito_common::window::Window>,
-    place_changed: std::time::Instant,
-    /// Off under `--keys`.
-    remember_place: bool,
+    /// Follows the window and writes `window.toml` once a move has held
+    /// still and on close (ito's, as yagura and tsumugi do). None under
+    /// `--keys`.
+    place: Option<ito_common::window::Tracker>,
     /// The start-up check for a newer release, until it has answered.
     update: Option<std::sync::mpsc::Receiver<ito_common::update::Update>>,
     /// `--keys`, as the events each press arrives as, still to be pressed.
@@ -870,57 +864,22 @@ impl Kura {
         }
     }
 
+    /// Hand the window's place to the tracker, which writes `window.toml` on a
+    /// thread of its own once it has held still for a moment. Maximized, the
+    /// place stays the one from before; the points are kept with the scale and
+    /// the zoom they are in (#401).
+    fn remember_place(&mut self, ctx: &egui::Context) {
+        if let Some(wait) = self.place.as_mut().and_then(|t| t.see(ito_common::window::Seen::of(ctx))) {
+            ctx.request_repaint_after(wait);
+        }
+    }
+
     /// Put the window's own view of its size into `last-run.toml`.
     ///
     /// Only when it has moved: every frame would rewrite the file for nothing.
     /// The record is carried over rather than rebuilt, for the same reason the
     /// font reload carries it -- the adapter cannot be re-read without holding
     /// the render state, and a geometry change is no reason to lose it.
-    /// Note where the window is, and write it to `window.toml` once it has
-    /// stayed there for a moment (`force` at the end: now). The disk is
-    /// touched on a thread of its own.
-    fn remember_place(&mut self, ctx: &egui::Context, force: bool) {
-        use ito_common::window::Window;
-        if !self.remember_place {
-            return;
-        }
-        let (outer, inner, maximized, minimized, scale) = ctx.input(|i| {
-            let v = i.viewport();
-            (v.outer_rect, v.inner_rect, v.maximized.unwrap_or(false), v.minimized.unwrap_or(false), i.pixels_per_point())
-        });
-        if let (Some(o), Some(i)) = (outer, inner) {
-            if !minimized {
-                // Maximized, the place is the one before it: leaving the
-                // maximum goes back there. The points are kept with the
-                // scale and the zoom they are in (#401).
-                let now = match self.place.filter(|_| maximized) {
-                    Some(was) => Window { maximized, ..was },
-                    None => Window { x: o.min.x, y: o.min.y, w: i.width(), h: i.height(), maximized, scale, zoom: ctx.zoom_factor() },
-                };
-                if self.place != Some(now) {
-                    self.place = Some(now);
-                    self.place_changed = std::time::Instant::now();
-                }
-            }
-        }
-        let Some(place) = self.place.filter(|p| self.place_saved != Some(*p)) else { return };
-        let still = std::time::Duration::from_millis(800);
-        let left = still.saturating_sub(self.place_changed.elapsed());
-        if !force && !left.is_zero() {
-            ctx.request_repaint_after(left);
-            return;
-        }
-        self.place_saved = Some(place);
-        let dir = Config::state_dir();
-        if force {
-            let _ = ito_common::window::write(&dir, &place);
-        } else {
-            let _ = std::thread::Builder::new().name("window-place".into()).spawn(move || {
-                let _ = ito_common::window::write(&dir, &place);
-            });
-        }
-    }
-
     fn record_geometry(&mut self, ctx: &egui::Context) {
         let (size, ppp) = ctx.input(|i| (i.viewport_rect().size(), i.pixels_per_point()));
         let now = ([size.x, size.y], ppp);
@@ -949,8 +908,10 @@ impl Kura {
 
 impl eframe::App for Kura {
     fn on_exit(&mut self) {
-        let ctx = self.app.ctx.clone();
-        self.remember_place(&ctx, true);
+        // Written now, held still or not: the process is about to end.
+        if let Some(t) = self.place.as_mut() {
+            t.close(ito_common::window::Seen::of(&self.app.ctx));
+        }
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -1119,7 +1080,7 @@ impl eframe::App for Kura {
         self.app.set_os_light(ctx.system_theme() == Some(egui::Theme::Light));
         self.answer_mcp();
         self.record_geometry(&ctx);
-        self.remember_place(&ctx, false);
+        self.remember_place(&ctx);
         if let Some(rx) = &self.update {
             if let Ok(found) = rx.try_recv() {
                 self.update = None;
