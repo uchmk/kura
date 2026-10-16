@@ -73,10 +73,7 @@ struct Cli {
 /// uchmk apps), which also lets the line go when nobody reads it:
 /// `$v = & kura.exe --version` hands it a pipe PowerShell has already closed.
 fn say(text: &str) {
-    ito_console::out(&format!(
-        "{text}
-"
-    ));
+    ito_console::out(&format!("{text}\n"));
 }
 
 /// [`say`] on standard error, for a line about the output rather than the
@@ -84,10 +81,7 @@ fn say(text: &str) {
 /// with everything else by `$p = & kura env --out x.txt` and handed on as a
 /// path (#200). On a console the two look the same.
 fn say_err(text: &str) {
-    ito_console::err(&format!(
-        "{text}
-"
-    ));
+    ito_console::err(&format!("{text}\n"));
 }
 
 /// PowerShell does not wait for a windowed program, so a script that calls
