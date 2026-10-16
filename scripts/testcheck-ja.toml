@@ -948,6 +948,7 @@ note = "`<C-,>` で uchmk のアプリ共通の設定の画面（`ito_prefs`）�
 "54.8" = 'yazi の `yazi.toml` に `bogus = [` を保存して `<C-F5>`、Advanced を開く。ファイルを直して **Reload** → `PROBLEMS READING THE CONFIG` の下に読み込みのエラーが警告の色・等幅の字で出て、`^` が指す桁の下にある。**Reload** のあとは `No problems`'
 "54.9" = '`config.toml` がまだ無い状態で **Open config.toml** を押す → コメント 2 行のファイルが作られ、`.toml` のエディタ（無ければメモ帳）で開く。画面は開いたまま。ファイルがあればそのまま開く'
 "54.10" = '言語を日本語にして画面を開く → ナビが `一般` / `テーマ` / `config.toml` / `キー` / `通知` / `詳細`、行の言葉が日本語になり、検索欄で `時計` が見つかる'
+"54.10a" = '日本語のまま `<C-f>`、`font_size` と打って `<Enter>`、`18` と打って `<Enter>`（v0.115.0、#388）。次に `<Esc>`、`<Esc>`、`<C-,>`、`<C-f>`、`clock.show` と打って `<Enter>`、`<Space>` → 画面は `文字の大きさ` と書いていても、ファイルのキーで行が見つかる: ナビに config.toml が残り、`<Enter>` でその欄に入って値が選ばれ、`18` で `font_size = 18.0` が保存される（トーストは 54.11 と同じ）。`clock.show` は一般の `ステータスバーに時刻を出す` に行き、`<Space>` で時計が消える（common.toml に `[clock] show = false`）。キーは画面のどこにも出ない'
 "54.11" = 'config.toml の `[ui]` に `font_size = 14.0 # mine` を書く。config.toml のページの `Font size` に `16` と打って `<Enter>` → 一覧の字がすぐ大きくなり、`Saved config.toml: font_size = 16.0` のトーストが出る。ファイルは `font_size = 16.0 # mine` になり、ほかの行とコメントは元のまま'
 "54.12" = '`Font size` に `abc` と打って `<Enter>`、次に `100` と打って `<Enter>` → 赤いトースト `Font size: "abc" is not a number from 6 to 72`、`100` でも同じ。config.toml は変わらない'
 "54.13" = '`Minimap` を切り、`Icons` を `ascii` にし、`Shell` に `pwsh` と入れて `<Tab>` で欄を出る。`<C-t>` でペインを開く。`Shell` を空にし、ペインを閉じてまた開く → ミニマップとアイコンはすぐ変わる。config.toml に `minimap = false`・`icons = "ascii"`・`[term]` の `shell = "pwsh"` が入り、ペインは PowerShell 7 で開く。空にすると `shell` の行が消え、次のペインは既定のシェル'

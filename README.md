@@ -575,7 +575,10 @@ down the left, a search box over them, and **Open config.toml** at the bottom (m
 saying what goes in it, when there is none yet). `<C-,>` again closes it, as does `<Esc>` — the
 first `<Esc>` only leaves the search box or a control that has the keys. `<C-Tab>` / `<C-PageDown>`
 and `<C-S-Tab>` / `<C-PageUp>` go to the next / previous page, `<C-f>` puts the keys in the search
-box, and `<Tab>` moves between the controls. Nothing pressed here reaches the list behind it. These
+box, and `<Tab>` moves between the controls. The search finds a row by its words, and a row with a value in a
+settings file by its key there too, written `table.key` (`ui.font_size`, `term.shell`; `clock.show` for common.toml),
+whatever the language; `<Enter>` in the search puts the keys in the first row it lights, which is how a `--keys`
+script reaches a row (v0.115.0). Nothing pressed here reaches the list behind it. These
 are the `[settings]` keymap section.
 
 | Page | |

@@ -15,7 +15,9 @@
 use std::path::PathBuf;
 
 use egui::{Color32, Rect, RichText, Ui};
-use ito_prefs::{button, clock_card, field, language_row, row, scale_row, section, select, sep, switch, Drafts, Look, Nav, Words};
+use ito_prefs::{
+    button, clock_card, field, keyed_row, language_row, row, scale_row, section, select, sep, switch, Drafts, Look, Nav, Words,
+};
 use ito_theme::{mix, Colors};
 
 use crate::app::{App, KuraChange, Overlay};
@@ -393,7 +395,8 @@ struct Num<'a> {
 /// Draw a number row: a field that writes on Enter or on leaving it.
 /// Words that are not a number in range are said in `bad`, and not written.
 fn number_row(ui: &mut Ui, l: Look, drafts: &mut Drafts, n: Num, k: &KuraWords, out: &mut Vec<KuraChange>, bad: &mut Option<String>) {
-    let Some(text) = row(ui, l, n.label, n.note, |ui| field(ui, drafts, n.key, n.now, "", 110.0)) else { return };
+    let key = format!("ui.{}", n.key);
+    let Some(text) = keyed_row(ui, l, &key, n.label, n.note, |ui| field(ui, drafts, n.key, n.now, "", 110.0)) else { return };
     match number_toml(&text, n.lo, n.hi, n.whole) {
         Some(value) => out.push(KuraChange { table: "ui", key: n.key, value: Some(value) }),
         None => {
@@ -427,6 +430,25 @@ fn backends() -> Vec<(&'static str, &'static str)> {
     list
 }
 
+/// The keys of the config.toml page's rows, `table.key`, for the search to
+/// find them by in any language (#388).
+const KURA_KEYS: [&str; 14] = [
+    "ui.font_size",
+    "ui.row_padding",
+    "ui.icons",
+    "ui.minimap",
+    "ui.render_markdown",
+    "ui.preview_debounce_ms",
+    "ui.max_text_bytes",
+    "ui.max_history",
+    "ui.window_width",
+    "ui.window_height",
+    "ui.backend",
+    "mcp.enable",
+    "ui.check_updates",
+    "term.shell",
+];
+
 /// The config.toml page: the main rows of `[ui]`, `[mcp]` and `[term]`.
 fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Drafts, out: &mut Vec<KuraChange>, bad: &mut Option<String>) {
     let set = |key: &'static str, value: String| KuraChange { table: "ui", key, value: Some(value) };
@@ -446,15 +468,15 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
         number_row(ui, l, drafts, n, k, out, bad);
         sep(ui, l);
         let icons = [("auto", "auto"), ("nerd", "nerd"), ("ascii", "ascii"), ("none", "none")];
-        let picked = row(ui, l, k.icons, k.icons_note, |ui| select(ui, "icons", now.icons.as_str(), &icons));
+        let picked = keyed_row(ui, l, "ui.icons", k.icons, k.icons_note, |ui| select(ui, "icons", now.icons.as_str(), &icons));
         out.extend(picked.map(|v| set("icons", format!("\"{v}\""))));
         sep(ui, l);
-        if row(ui, l, k.minimap, k.minimap_note, |ui| switch(ui, l, now.minimap)) {
+        if keyed_row(ui, l, "ui.minimap", k.minimap, k.minimap_note, |ui| switch(ui, l, now.minimap)) {
             out.push(set("minimap", (!now.minimap).to_string()));
         }
     });
     section(ui, l, k.preview, |ui| {
-        if row(ui, l, k.render_markdown, k.render_markdown_note, |ui| switch(ui, l, now.render_markdown)) {
+        if keyed_row(ui, l, "ui.render_markdown", k.render_markdown, k.render_markdown_note, |ui| switch(ui, l, now.render_markdown)) {
             out.push(set("render_markdown", (!now.render_markdown).to_string()));
         }
         sep(ui, l);
@@ -492,15 +514,15 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
         number_row(ui, l, drafts, n, k, out, bad);
         sep(ui, l);
         let list = backends();
-        let picked = row(ui, l, k.backend, k.backend_note, |ui| select(ui, "backend", now.backend.as_str(), &list));
+        let picked = keyed_row(ui, l, "ui.backend", k.backend, k.backend_note, |ui| select(ui, "backend", now.backend.as_str(), &list));
         out.extend(picked.map(|v| set("backend", format!("\"{v}\""))));
         sep(ui, l);
-        if row(ui, l, k.mcp, k.mcp_note, |ui| switch(ui, l, now.mcp)) {
+        if keyed_row(ui, l, "mcp.enable", k.mcp, k.mcp_note, |ui| switch(ui, l, now.mcp)) {
             out.push(KuraChange { table: "mcp", key: "enable", value: Some((!now.mcp).to_string()) });
         }
     });
     section(ui, l, k.updates, |ui| {
-        if row(ui, l, k.check_updates, k.check_updates_note, |ui| switch(ui, l, now.check_updates)) {
+        if keyed_row(ui, l, "ui.check_updates", k.check_updates, k.check_updates_note, |ui| switch(ui, l, now.check_updates)) {
             out.push(set("check_updates", (!now.check_updates).to_string()));
         }
     });
@@ -509,7 +531,8 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
             true => format!("{}\n{}", k.shell_note, k.shell_env_note),
             false => k.shell_note.to_owned(),
         };
-        if let Some(text) = row(ui, l, k.shell, &note, |ui| field(ui, drafts, "shell", &now.shell, k.shell_hint, 220.0)) {
+        if let Some(text) = keyed_row(ui, l, "term.shell", k.shell, &note, |ui| field(ui, drafts, "shell", &now.shell, k.shell_hint, 220.0))
+        {
             let text = text.trim();
             // Empty is the system's default, which is the key not there.
             let value = (!text.is_empty()).then(|| toml::Value::String(text.to_owned()).to_string());
@@ -681,6 +704,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (ADVANCED, k.reload),
         (ADVANCED, k.reload_note),
     ];
+    index.extend(ito_prefs::GENERAL_KEYS.map(|key| (GENERAL, key)));
+    index.extend(KURA_KEYS.map(|key| (KURA, key)));
     let kw = ito_prefs::KeyWords::of(&lang);
     index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
     index.extend(k.layers.iter().map(|(_, n)| (KEYS, *n)));
@@ -932,6 +957,35 @@ mod tests {
         let run = ito_theme::colors().run;
         assert!(p.strokes.iter().any(|(r, c)| *c == run && r.width() > 100.0), "{:?}", p.strokes);
         assert!(matches!(s.app.overlay, Overlay::Settings(_)), "the screen stays open");
+    }
+
+    /// #388: with the words in Japanese the search still finds a config.toml
+    /// row by its key, and Enter puts the keys in its field, so a `--keys`
+    /// script reaches it in any language.
+    #[test]
+    fn the_search_finds_a_row_by_its_key_in_any_language() {
+        let dir = crate::util::test_dir("settings-key");
+        let mut s = crate::ui::harness::Screen::open(dir);
+        s.app.lang = "ja".into();
+        s.app.overlay = Overlay::Settings(Default::default());
+        let f = s.draw();
+        assert!(f.says("一般"), "the screen is in Japanese");
+        s.app_ctx().memory_mut(|m| m.request_focus(egui::Id::new("prefs-search")));
+        s.draw();
+        s.feed(vec![egui::Event::Text("font_size".into())]);
+        let enter = |pressed| egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.feed(vec![enter(true), enter(false)]);
+        s.draw();
+        let Overlay::Settings(ov) = &s.app.overlay else { panic!("the screen stays open") };
+        assert_eq!(ov.state.page, KURA, "the search went to the config.toml page");
+        let focused = s.app_ctx().memory(|m| m.focused());
+        assert_eq!(focused, Some(egui::Id::new(("prefs-field", "font_size"))));
     }
 
     /// The Notifications page shows `[notify]` as every uchmk app does, a
