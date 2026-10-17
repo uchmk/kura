@@ -657,10 +657,11 @@ fn to_lines(rows: &[HelpRow]) -> Vec<ito_help::Line> {
     };
     rows.iter()
         .map(|r| match () {
+            _ if r.goes_to.is_some() && r.warning => Line::WarnLink { text: said(r), target: r.text.trim().to_owned() },
             _ if r.goes_to.is_some() => Line::Link { text: said(r), target: r.text.trim().to_owned() },
             _ if r.warning => Line::Warn(said(r)),
             _ if r.keys.is_empty() && r.text.is_empty() => Line::Blank,
-            _ if r.keys.is_empty() => Line::Row(vec![r.text.clone()]),
+            _ if r.keys.is_empty() => Line::Text(r.text.clone()),
             _ if r.text.is_empty() => Line::Head(r.keys.clone()),
             _ => Line::Cmd { keys: r.keys.clone(), desc: r.text.clone(), cmd: r.raw.clone() },
         })
