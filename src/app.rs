@@ -378,6 +378,25 @@ pub struct SettingsOverlay {
     /// operation. While it takes keys ([`ito_prefs::KeysEdit::busy`]) no
     /// key is the screen's.
     pub keys_edit: ito_prefs::KeysEdit,
+    /// Whether kura starts at sign-in, as the OS says; `None` until the
+    /// worker answers (the registry and the disk are not asked on the UI thread).
+    pub startup: Option<bool>,
+    pub startup_rx: Option<crossbeam_channel::Receiver<(bool, Option<String>)>>,
+}
+
+/// Ask the OS whether kura starts at sign-in, setting it first when `set` is
+/// given, on a thread of its own. The answer is `(enabled now, error)`.
+fn startup_worker(set: Option<bool>, ctx: egui::Context) -> crossbeam_channel::Receiver<(bool, Option<String>)> {
+    let (tx, rx) = crossbeam_channel::bounded(1);
+    std::thread::spawn(move || {
+        let err = set.and_then(|on| {
+            let exe = std::env::current_exe().map_err(|e| e.to_string());
+            exe.and_then(|exe| ito_common::startup::set("kura", &exe, &[], on)).err()
+        });
+        let _ = tx.send((ito_common::startup::enabled("kura"), err));
+        ctx.request_repaint();
+    });
+    rx
 }
 
 /// Which keymap layer a panel reads, and which dispatcher runs what it names.
@@ -2265,9 +2284,29 @@ impl App {
     pub fn toggle_settings(&mut self) {
         self.overlay = match self.overlay {
             Overlay::Settings(_) => Overlay::None,
-            _ => Overlay::Settings(SettingsOverlay::default()),
+            _ => Overlay::Settings(SettingsOverlay { startup_rx: Some(startup_worker(None, self.ctx.clone())), ..Default::default() }),
         };
         self.pending.clear();
+    }
+
+    /// Take the worker's answer about starting at sign-in, and start one when
+    /// the switch was clicked (`toggled` is the new state).
+    pub fn settings_startup(&mut self, toggled: Option<bool>) {
+        let ctx = self.ctx.clone();
+        let mut said = None;
+        let Overlay::Settings(ov) = &mut self.overlay else { return };
+        if let Some(on) = toggled {
+            ov.startup_rx = Some(startup_worker(Some(on), ctx));
+            ov.startup = None;
+        }
+        if let Some((now, err)) = ov.startup_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            ov.startup = Some(now);
+            ov.startup_rx = None;
+            said = err;
+        }
+        if let Some(e) = said {
+            self.error(format!("Start at sign-in: {e}"));
+        }
     }
 
     /// The settings screen's own keys, from the `[settings]` layer. The rest

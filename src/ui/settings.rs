@@ -634,6 +634,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let lang = app.lang.clone();
     let mw = ito_prefs::MoreWords::of(&lang);
     let window = app.common.window_or_default();
+    app.settings_startup(None);
+    let startup = if let Overlay::Settings(ov) = &app.overlay { ov.startup } else { None };
     let own_keymap = app.own_keymap_named().unwrap_or_default();
     let keymap = &app.cfg.keymap;
     let Overlay::Settings(ov) = &mut app.overlay else { return };
@@ -708,6 +710,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     ];
     index.extend(ito_prefs::GENERAL_KEYS.map(|key| (GENERAL, key)));
     index.extend(ito_prefs::window_index(mw).into_iter().map(|t| (GENERAL, t)));
+    index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
     index.extend(KURA_KEYS.map(|key| (KURA, key)));
     let kw = ito_prefs::KeyWords::of(&lang);
@@ -726,6 +729,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
     let mut forget = false;
+    let mut toggled = None;
     let mut test: Option<(ito_prefs::Test, ito_prefs::Notify)> = None;
     let mut webhooks = None;
     let mut key_edits = Vec::new();
@@ -744,6 +748,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             let out = ito_prefs::window_card(ui, l, mw, &window);
             changes.extend(out.changes);
             forget |= out.forget;
+            toggled = ito_prefs::startup_card(ui, l, mw, startup);
         }
         THEME => {
             let choice = (theme.as_str(), dark.as_str(), light.as_str());
@@ -845,6 +850,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     if out.open_file {
         app.open_own_config();
     }
+    app.settings_startup(toggled);
     if forget {
         match ito_prefs::forget_place(&crate::config::Config::state_dir()) {
             Ok(()) => app.toast("window.toml: forgotten".to_owned()),
