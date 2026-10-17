@@ -664,21 +664,20 @@ impl Config {
 
 /// The directory both config layers sit under, when no variable overrides them.
 ///
-/// `dirs::config_dir()` is right on Windows (`%APPDATA%`) but not on macOS, where
-/// it answers `~/Library/Application Support` -- and yazi does not keep its config
-/// there. yazi uses XDG on every Unix, macOS included, so following `dirs` there
+/// `%APPDATA%` on Windows. Not a platform folder lookup elsewhere: that answers
+/// `~/Library/Application Support` on macOS, and yazi does not keep its config
+/// there. yazi uses XDG on every Unix, macOS included, so following the platform
 /// had kura hunting for a `yazi.toml` in a directory yazi never writes to. Since
 /// kura's whole premise is reading yazi's own files, it has to look where yazi
 /// put them.
 #[cfg(windows)]
 fn base_config_dir() -> Option<PathBuf> {
-    dirs::config_dir()
+    ito_common::env_dir("APPDATA")
 }
 
 #[cfg(not(windows))]
 fn base_config_dir() -> Option<PathBuf> {
-    // `dirs::config_dir()` honors `XDG_CONFIG_HOME` on Linux but not on macOS,
-    // so read it here to get the same answer on both.
+    // Read `XDG_CONFIG_HOME` here, so macOS gives the same answer as Linux.
     xdg_base(std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from), ito_common::home_dir())
 }
 
@@ -738,78 +737,9 @@ pub fn config_home(var: &str) -> Option<PathBuf> {
     }
 }
 
-/// The app's name before v0.95.0, still on the folders an older build made.
-const OLD_NAME: &str = "filer";
-
-/// kura's own settings file in its folder. `kura.toml` before v0.99.0, when
-/// every uchmk app came to name it the same (ito's common spec).
+/// kura's own settings file in its folder, named as every uchmk app names it
+/// (ito's common spec).
 pub const OWN_FILE: &str = "config.toml";
-
-/// What kura keeps between runs, in [`Config::state_dir`].
-pub const STATE_FILES: [&str; 5] = ["bookmarks.toml", "history.txt", "search-history.txt", "shell-history.txt", "last-run.toml"];
-
-/// Moves what an older build kept to where this one reads it, so an upgrade
-/// keeps its settings, bookmarks and history:
-///
-/// - v0.95.0: the folders and the file named after filer, to kura's names.
-/// - v0.99.0: kura's folder from `<base>/kura` to `<uchmk>/kura` (the folder
-///   every uchmk app shares), `kura.toml` to `config.toml`, and the state
-///   files to a folder of their own (on Windows they shared `%APPDATA%\kura`
-///   with the settings).
-///
-/// Only when the old one is there and the new one is not: a machine that
-/// already has both keeps both, and nothing is merged. A folder a variable
-/// names is the user's own and is left where it is; only the file inside
-/// it is renamed. Run before anything reads the config, once per start.
-pub fn move_old_dirs() -> Vec<String> {
-    let mut warn = Vec::new();
-    let set = |var: &str| std::env::var_os(var).is_some_and(|v| !v.is_empty());
-    let (old_base, old_state) = (base_config_dir(), dirs::data_dir());
-    if !set("KURA_CONFIG_HOME") {
-        if let Some(base) = &old_base {
-            move_old(&base.join(OLD_NAME), &base.join("kura"), &mut warn);
-        }
-    }
-    // On Windows this is the same `%APPDATA%` as above, so the first move
-    // already took it; on Unix it is `~/.local/share`.
-    if !set("KURA_STATE_HOME") {
-        if let Some(base) = &old_state {
-            move_old(&base.join(OLD_NAME), &base.join("kura"), &mut warn);
-            // Before the settings: on Windows the state is in the folder they leave.
-            if let Some(new) = ito_common::state_dir("kura") {
-                move_state(&base.join("kura"), &new, &mut warn);
-            }
-        }
-    }
-    if !set("KURA_CONFIG_HOME") {
-        if let (Some(old), Some(new)) = (&old_base, config_dir_default("KURA_CONFIG_HOME")) {
-            move_old(&old.join("kura"), &new, &mut warn);
-        }
-    }
-    if let Some(dir) = config_home("KURA_CONFIG_HOME") {
-        move_old(&dir.join("kura.toml"), &dir.join(OWN_FILE), &mut warn);
-        move_old(&dir.join(format!("{OLD_NAME}.toml")), &dir.join(OWN_FILE), &mut warn);
-    }
-    warn
-}
-
-/// The [`STATE_FILES`] in `old` moved to `new`, each when `new` has none of
-/// its own; `old` itself goes when nothing else is left in it.
-fn move_state(old: &Path, new: &Path, warn: &mut Vec<String>) {
-    if old == new || !old.is_dir() {
-        return;
-    }
-    for name in STATE_FILES {
-        move_old(&old.join(name), &new.join(name), warn);
-    }
-    let _ = std::fs::remove_dir(old);
-}
-
-fn move_old(old: &Path, new: &Path, warn: &mut Vec<String>) {
-    if let Err(e) = ito_common::move_old(old, new) {
-        warn.push(e);
-    }
-}
 
 /// Later directories override earlier ones.
 pub fn config_dirs() -> Vec<PathBuf> {
@@ -1062,48 +992,6 @@ mod dirs_tests {
         assert_eq!(dirs.len(), 2, "both layers are always listed: {dirs:?}");
         assert_eq!(dirs[1].file_name().unwrap(), "kura");
         assert_ne!(dirs[0], dirs[1], "a layer that overrode itself would merge nothing");
-    }
-
-    /// v0.95.0: the folder an older build made under filer's name is moved,
-    /// but never over one kura already has.
-    #[test]
-    fn the_folder_from_before_the_rename_is_moved() {
-        let dir = crate::util::test_dir("move-old");
-        let (old, new) = (dir.join("filer"), dir.join("kura"));
-        std::fs::create_dir(&old).unwrap();
-        std::fs::write(old.join(OWN_FILE), "[ui]\n").unwrap();
-        let mut warn = Vec::new();
-        move_old(&old, &new, &mut warn);
-        assert!(warn.is_empty(), "{warn:?}");
-        assert!(!old.exists());
-        assert!(new.join(OWN_FILE).exists(), "the contents come along");
-
-        std::fs::create_dir(&old).unwrap();
-        move_old(&old, &new, &mut warn);
-        assert!(old.exists() && new.join(OWN_FILE).exists(), "both stay when both are there");
-        assert!(warn.is_empty(), "{warn:?}");
-    }
-
-    /// v0.99.0: the state files leave the folder they shared with the
-    /// settings on Windows, which stays for the settings to move after them.
-    #[test]
-    fn the_state_files_move_out_and_the_settings_stay() {
-        let dir = crate::util::test_dir("move-state");
-        let (old, new) = (dir.join("kura"), dir.join("state").join("kura"));
-        std::fs::create_dir(&old).unwrap();
-        std::fs::write(old.join("bookmarks.toml"), "a = 1\n").unwrap();
-        std::fs::write(old.join("kura.toml"), "[ui]\n").unwrap();
-        let mut warn = Vec::new();
-        move_state(&old, &new, &mut warn);
-        assert!(warn.is_empty(), "{warn:?}");
-        assert!(new.join("bookmarks.toml").exists() && !old.join("bookmarks.toml").exists());
-        assert!(old.join("kura.toml").exists(), "the settings are not state");
-
-        // With only state in it, the old folder goes too.
-        std::fs::remove_file(old.join("kura.toml")).unwrap();
-        std::fs::write(old.join("history.txt"), "x\n").unwrap();
-        move_state(&old, &new, &mut warn);
-        assert!(!old.exists() && new.join("history.txt").exists());
     }
 
     /// #180: one folder named by both variables is read once, however it is

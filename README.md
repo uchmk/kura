@@ -102,12 +102,12 @@ The trailing `config` in layer 1 is a quirk of yazi's Windows layout, not part o
 elsewhere. macOS uses `~/.config` for yazi's files for the same reason: that is where yazi reads
 from. Run `kura env` to print the directories in effect and which files were actually found.
 
-Before v0.99.0 kura's folder was `<base>\kura` (`%APPDATA%\kura`, `~/.config/kura`) and its own file
-`kura.toml`. The first start of v0.99.0 moves both: the folder to `<uchmk>\kura`, `kura.toml` to
-`config.toml`, and the bookmarks and histories to a folder of their own (`KURA_STATE_HOME`, else
+From v0.121.0 kura no longer moves the folders an older build made (filer's, or `<base>\kura` and
+`kura.toml` from before v0.99.0): move them by hand, or start from v0.120.x once.
+The bookmarks and histories are in a folder of their own (`KURA_STATE_HOME`, else
 `%LOCALAPPDATA%\uchmk\kura`, `~/.local/state/uchmk/kura` or
-`~/Library/Application Support/uchmk/kura/state`). Nothing is moved over a file that is already
-there. `UCHMK_CONFIG_DIR` moves the whole `uchmk` folder.
+`~/Library/Application Support/uchmk/kura/state`).
+`UCHMK_CONFIG_DIR` moves the whole `uchmk` folder.
 
 `common.toml` in the `uchmk` folder is shared by every uchmk app: the language, the theme, the
 clock and the scale. A change there, from any of them, reaches kura within two seconds, and kura's
@@ -331,8 +331,7 @@ syntax theme.
 ### config.toml (GUI-only settings)
 
 [`kura.example.toml`](kura.example.toml) in this repository is a commented copy of the defaults —
-copy it to `%APPDATA%\uchmk\kura\config.toml` and edit from there. It was `kura.toml` before v0.99.0,
-and an old one is renamed on the first start.
+copy it to `%APPDATA%\uchmk\kura\config.toml` and edit from there.
 The [settings screen](#settings-screen)'s config.toml page writes the main rows for you, keeping the file's comments.
 
 ```toml

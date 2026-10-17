@@ -255,12 +255,8 @@ fn main() -> eframe::Result<()> {
     // (or System32), never the working folder or the `PATH` (#184).
     ito_pane::restrict_dll_search();
     ito_pane::set_identity("kura", env!("CARGO_PKG_VERSION"));
-    // Before `kura env` or the config reads them: an upgrade from filer
-    // finds its folders under the new name.
-    let moved = crate::config::move_old_dirs();
     let cli = parse_cli();
     let mut cfg = Config::load();
-    cfg.warnings.extend(moved);
 
     // Where the window opens if the command line named nothing usable. The
     // path it did name is taken on faith: `is_dir` on a share that stopped
