@@ -321,6 +321,7 @@ const KURA: usize = 2;
 const KEYS: usize = 3;
 const NOTIFY: usize = 4;
 const ADVANCED: usize = 5;
+const ABOUT: usize = 6;
 
 /// The page's name for `<State:>`'s `settings page:` line (#336): a script
 /// read which page was open off a picture before.
@@ -332,6 +333,7 @@ pub fn page_name(page: usize) -> &'static str {
         KEYS => "keys",
         NOTIFY => "notify",
         ADVANCED => "advanced",
+        ABOUT => "about",
         _ => "?",
     }
 }
@@ -652,6 +654,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (k.keys, k.keys_lead),
         (w.notify, k.notify_lead),
         (k.advanced, k.advanced_lead),
+        (mw.p_about, mw.p_about_lead),
     ];
     let mut index = vec![
         (GENERAL, w.language),
@@ -717,7 +720,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
     index.extend(k.layers.iter().map(|(_, n)| (KEYS, *n)));
     index.extend(ito_prefs::notify_index(w).into_iter().map(|t| (NOTIFY, t)));
-    index.extend(ito_prefs::bug_index(w).into_iter().map(|t| (ADVANCED, t)));
+    index.extend(ito_prefs::about_index(mw, w).into_iter().map(|t| (ABOUT, t)));
     index.extend([(NOTIFY, k.notify_done), (NOTIFY, k.notify_failed), (NOTIFY, k.notify_done_sound), (NOTIFY, k.notify_failed_sound)]);
     for f in &folders {
         index.extend([(ADVANCED, f.name), (ADVANCED, f.note)]);
@@ -785,6 +788,13 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             webhooks = notify.webhooks_of(&n);
             kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }));
         }
+        ABOUT => {
+            let system = ito_bugreport::os_line();
+            let about = ito_prefs::About { version: env!("CARGO_PKG_VERSION"), commit: None, system: &system, license: None };
+            if ito_prefs::about_page(ui, l, mw, w, "kura", &about).contains(&ito_prefs::AboutAction::Report) {
+                queued.push(Act::BugReport);
+            }
+        }
         _ => {
             section(ui, l, k.folders, |ui| {
                 for (i, f) in folders.iter().enumerate() {
@@ -829,9 +839,6 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                     queued.push(Act::ConfigReload);
                 }
             });
-            if ito_prefs::bug_card(ui, l, w) {
-                queued.push(Act::BugReport);
-            }
         }
     });
     if let Overlay::Settings(ov) = &mut app.overlay {
