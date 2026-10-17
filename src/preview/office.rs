@@ -245,7 +245,7 @@ fn slides(zip: &mut zip::ZipArchive<std::fs::File>) -> Result<Read1, String> {
     // Sorted by number, not by the order the zip happens to hold them: a deck
     // read out of order is worse than no deck.
     let mut names: Vec<String> = (0..zip.len())
-        .filter_map(|i| Some(zip.by_index(i).ok()?.name().to_owned()))
+        .filter_map(|i| Some(zip.by_index(i).ok()?.name().ok()?.into_owned()))
         .filter(|n| n.starts_with("ppt/slides/slide") && n.ends_with(".xml"))
         .collect();
     names.sort_by_key(|n| slide_number(n));
@@ -359,7 +359,7 @@ fn sheet(zip: &mut zip::ZipArchive<std::fs::File>) -> Result<Read1, String> {
         // No workbook part, or one this scanner did not understand: fall back
         // to whatever worksheets are in the zip, in order.
         names = (0..zip.len())
-            .filter_map(|i| Some(zip.by_index(i).ok()?.name().to_owned()))
+            .filter_map(|i| Some(zip.by_index(i).ok()?.name().ok()?.into_owned()))
             .filter(|n| n.starts_with("xl/worksheets/sheet") && n.ends_with(".xml"))
             .map(|n| (n.clone(), n.clone()))
             .collect();

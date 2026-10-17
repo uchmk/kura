@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.119.8"
+version = "0.119.9"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -30,7 +30,7 @@ ignore = "0.4"
 ab_glyph = "0.2"
 ttf-parser = "0.25"
 resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 tar = { version = "0.4", default-features = false }
 sevenz-rust2 = "0.23"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

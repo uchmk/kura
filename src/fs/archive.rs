@@ -214,7 +214,12 @@ fn extract_zip(archive: &Path, dest: &Path, pick: Pick<'_>, on_entry: OnEntry<'_
     let mut dirs = Vec::new();
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(|e| io::Error::other(e.to_string()))?;
-        let Some(name) = pick(entry.name()) else { continue };
+        // A name that is not valid text in the archive's encoding is refused like an unsafe one.
+        let Ok(entry_name) = entry.name() else {
+            refused += 1;
+            continue;
+        };
+        let Some(name) = pick(&entry_name) else { continue };
         let Some(path) = safe_dest(dest, &name) else {
             refused += 1;
             continue;
@@ -447,7 +452,11 @@ pub fn list(archive: &Path, limit: usize) -> io::Result<(Vec<Listed>, bool)> {
             more = zip.len() > limit;
             for i in 0..zip.len().min(limit) {
                 let e = zip.by_index(i).map_err(|e| io::Error::other(e.to_string()))?;
-                out.push(Listed { name: e.name().to_owned(), size: e.size(), dir: e.is_dir() });
+                out.push(Listed {
+                    name: e.name().map_or_else(|_| String::from_utf8_lossy(e.name_raw()).into_owned(), |n| n.into_owned()),
+                    size: e.size(),
+                    dir: e.is_dir(),
+                });
             }
         }
         Format::Tar => list_tar(&mut BufReader::new(File::open(archive)?), limit, &mut out, &mut more)?,
@@ -722,7 +731,7 @@ fn write_zip<W: Write + io::Seek>(members: &[Member], out: W, on_entry: OnEntry<
         if let Some(secs) = unix_secs(&m.path) {
             let mut field = vec![1u8];
             field.extend_from_slice(&secs.to_le_bytes());
-            opts.add_extra_data(0x5455, field, false).map_err(to_io)?;
+            opts.add_extra_field(0x5455, field, false).map_err(to_io)?;
         }
         if m.dir {
             zip.add_directory(&m.name, opts).map_err(to_io)?;
@@ -1063,7 +1072,7 @@ mod tests {
         }
         let mut opts =
             zip::write::FullFileOptions::default().last_modified_time(zip::DateTime::from_date_and_time(2019, 3, 1, 0, 0, 0).unwrap());
-        opts.add_extra_data(0x000a, ntfs, false).unwrap();
+        opts.add_extra_field(0x000a, ntfs, false).unwrap();
         let archive = dir.join("7z-made.zip");
         let mut zip = zip::ZipWriter::new(File::create(&archive).unwrap());
         zip.start_file("late.txt", opts).unwrap();

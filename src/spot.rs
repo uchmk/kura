@@ -1132,7 +1132,7 @@ mod tests {
         let docx = dir.join("a.docx");
         let f = std::fs::File::create(&docx).unwrap();
         let mut z = zip::ZipWriter::new(f);
-        let opt: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        let opt: zip::write::FileOptions<'_, '_, ()> = zip::write::FileOptions::default();
         for (name, body) in [("docProps/core.xml", core), ("docProps/app.xml", app)] {
             z.start_file(name, opt).unwrap();
             std::io::Write::write_all(&mut z, body.as_bytes()).unwrap();
