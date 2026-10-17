@@ -713,6 +713,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     ];
     index.extend(ito_prefs::GENERAL_KEYS.map(|key| (GENERAL, key)));
     index.extend(ito_prefs::window_index(mw).into_iter().map(|t| (GENERAL, t)));
+    index.extend(ito_prefs::backup_index(mw).into_iter().map(|t| (ADVANCED, t)));
     index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
     index.extend(KURA_KEYS.map(|key| (KURA, key)));
@@ -732,6 +733,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
     let mut forget = false;
+    let mut backup = Vec::new();
+    let backup_file = ito_common::home_dir().unwrap_or_default().join("kura-settings.toml");
     let mut toggled = None;
     let mut test: Option<(ito_prefs::Test, ito_prefs::Notify)> = None;
     let mut webhooks = None;
@@ -822,6 +825,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                     }
                 }
             });
+            backup.extend(ito_prefs::backup_card(ui, l, mw, &backup_file));
             section(ui, l, k.problems, |ui| {
                 if warnings.is_empty() {
                     row(ui, l, k.no_problems, k.no_problems_note, |_| ());
@@ -858,6 +862,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         app.open_own_config();
     }
     app.settings_startup(toggled);
+    for b in backup {
+        app.settings_backup(b);
+    }
     if forget {
         match ito_prefs::forget_place(&crate::config::Config::state_dir()) {
             Ok(()) => app.toast("window.toml: forgotten".to_owned()),

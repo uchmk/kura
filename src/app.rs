@@ -1650,8 +1650,9 @@ pub struct App {
     theme_said: Option<String>,
     /// What went wrong opening config.toml from the settings screen, said
     /// from the thread that tried.
-    settings_rx: crossbeam_channel::Receiver<String>,
-    settings_tx: crossbeam_channel::Sender<String>,
+    /// `(is an error, text)`.
+    settings_rx: crossbeam_channel::Receiver<(bool, String)>,
+    settings_tx: crossbeam_channel::Sender<(bool, String)>,
     /// The thread that writes config.toml for the settings screen, started at
     /// its first write; one thread, so two quick changes land in order.
     kura_jobs: Option<Sender<KuraJob>>,
@@ -2274,9 +2275,38 @@ impl App {
                 None => std::fs::write(&path, OWN_FILE_START),
             };
             if let Err(e) = made.and_then(|()| exec::open_default(&path)) {
-                let _ = tx.send(format!("{}: {e}", path.display()));
+                let _ = tx.send((true, format!("{}: {e}", path.display())));
                 ctx.request_repaint();
             }
+        });
+    }
+
+    /// Write the settings to a file, or read them back from one
+    /// (`ito_common::bundle`), on a thread of its own. The result is said by
+    /// `drain_channels`; common.toml and kura's files are read again by their watchers.
+    pub fn settings_backup(&mut self, what: ito_prefs::Backup) {
+        let (Some(base), Some(app_dir)) = (ito_common::base_dir(), ito_common::app_dir("kura")) else {
+            self.error("settings: there is no config folder");
+            return;
+        };
+        let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
+        std::thread::spawn(move || {
+            let said = match what {
+                ito_prefs::Backup::Export(file) => ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"))
+                    .map(|n| format!("Wrote {n} settings files to {}", file.display())),
+                ito_prefs::Backup::Import(file) => ito_common::bundle::import(&file, &base, &app_dir, "kura").map(|r| {
+                    let mut s = format!("Read {} settings files from {} ({} unchanged)", r.written.len(), file.display(), r.unchanged);
+                    for (name, why) in &r.skipped {
+                        s.push_str(&format!("; skipped {name}: {why}"));
+                    }
+                    s
+                }),
+            };
+            let _ = tx.send(match said {
+                Ok(s) => (false, s),
+                Err(e) => (true, e),
+            });
+            ctx.request_repaint();
         });
     }
 
@@ -2534,8 +2564,12 @@ impl App {
         while let Some(read) = self.common_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
             self.set_common(read);
         }
-        while let Ok(e) = self.settings_rx.try_recv() {
-            self.error(e);
+        while let Ok((bad, text)) = self.settings_rx.try_recv() {
+            if bad {
+                self.error(text);
+            } else {
+                self.toast(text);
+            }
         }
         while let Ok(w) = self.kura_rx.try_recv() {
             self.kura_written(w);
