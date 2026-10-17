@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.119.8] - 2026-10-17
+
+### 変更
+
+- ユーザーのフォントのフォルダーを `dirs::font_dir` ではなく ito-common の `fonts::font_dirs` で引くようにした（Linux では `XDG_DATA_HOME` も見る）。`dirs` は `home_dir`・`config_dir`・`data_dir` のために残る（ito に頼む）。
+
 ## [0.119.7] - 2026-10-17
 
 ### 変更

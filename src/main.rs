@@ -562,10 +562,8 @@ fn install_fonts(ctx: &egui::Context, cfg: &Config, used: &mut crate::runinfo::R
 /// are ito's, which every uchmk app shares (since v0.99.0).
 fn system_fonts() -> Vec<PathBuf> {
     let mut out = Vec::new();
-    // `font_dir` is `~/.local/share/fonts` on Linux and `~/Library/Fonts` on
-    // macOS; Windows has none, and keeps a user's fonts under LOCALAPPDATA.
-    let user = dirs::font_dir().or_else(|| dirs::data_local_dir().map(|d| d.join("Microsoft").join("Windows").join("Fonts")));
-    if let Some(dir) = user {
+    // The first of ito's `font_dirs` is the user's own folder on every OS.
+    if let Some(dir) = ito_common::fonts::font_dirs().into_iter().next() {
         out.extend(ito_common::fonts::NERD_FONTS.iter().map(|n| dir.join(n)));
     }
     if cfg!(windows) {
