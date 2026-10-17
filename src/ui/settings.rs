@@ -84,11 +84,10 @@ pub struct KuraWords {
     pub updates: &'static str,
     pub check_updates: &'static str,
     pub check_updates_note: &'static str,
-    pub terminal: &'static str,
-    pub shell: &'static str,
+    /// The Shell card's note on the program: what Ctrl+T starts, and the same
+    /// with the line saying `KURA_TERM_SHELL` is in force.
     pub shell_note: &'static str,
-    pub shell_env_note: &'static str,
-    pub shell_hint: &'static str,
+    pub shell_note_env: &'static str,
     pub notify_lead: &'static str,
     pub notify_done: &'static str,
     pub notify_failed: &'static str,
@@ -178,11 +177,8 @@ pub const EN: KuraWords = KuraWords {
     updates: "UPDATES",
     check_updates: "Check for updates",
     check_updates_note: "Asks GitHub once at start whether a newer kura is out (through curl) and says so in a toast. Read at start",
-    terminal: "TERMINAL",
-    shell: "Shell",
-    shell_note: "What Ctrl+T starts; empty for the system's default. A pane already open keeps its own",
-    shell_env_note: "KURA_TERM_SHELL names the shell for this run",
-    shell_hint: "default",
+    shell_note: "What Ctrl+T starts. A pane already open keeps its own",
+    shell_note_env: "What Ctrl+T starts. A pane already open keeps its own\nKURA_TERM_SHELL names the shell for this run",
     notify_lead: "How a file job of 10 seconds or more (copy, move, delete, extract...) that ends while kura's window is behind another is told. Written to config.toml's [notify].",
     notify_done: "Finished",
     notify_failed: "Failed",
@@ -262,11 +258,8 @@ pub const JA: KuraWords = KuraWords {
     updates: "更新",
     check_updates: "更新を確かめる",
     check_updates_note: "起動時に 1 回、GitHub に新しい kura が出ているか聞き（curl を使う）、あればトーストで知らせる。起動時に読む",
-    terminal: "ターミナル",
-    shell: "シェル",
-    shell_note: "Ctrl+T で起動するもの。空なら OS の既定。開いているペインはそのまま",
-    shell_env_note: "KURA_TERM_SHELL がこの回のシェルを決めている",
-    shell_hint: "既定",
+    shell_note: "Ctrl+T で起動するもの。開いているペインはそのまま",
+    shell_note_env: "Ctrl+T で起動するもの。開いているペインはそのまま\nKURA_TERM_SHELL がこの回のシェルを決めている",
     notify_lead: "10 秒以上かかったファイルの作業（コピー・移動・削除・展開など）が、kura の窓が後ろにある間に終わったときの知らせ方。config.toml の [notify] に書く。",
     notify_done: "終わった",
     notify_failed: "失敗した",
@@ -356,6 +349,10 @@ struct KuraNow {
     check_updates: bool,
     shell: String,
     shell_from_env: bool,
+    shell_args: Vec<String>,
+    shell_env: std::collections::BTreeMap<String, String>,
+    /// What the automatic shell is, as the card names it.
+    shell_auto: String,
 }
 
 impl KuraNow {
@@ -377,6 +374,13 @@ impl KuraNow {
             check_updates: u.check_updates,
             shell: app.cfg.term.shell.clone(),
             shell_from_env: app.cfg.term.from_env,
+            shell_args: app.cfg.term.args.clone(),
+            shell_env: app.cfg.term.env.clone(),
+            // Looking for `pwsh` reads the disk: once, not every frame.
+            shell_auto: {
+                static AUTO: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+                AUTO.get_or_init(|| crate::terminal::shell_label(crate::terminal::default_shell().as_deref())).clone()
+            },
         }
     }
 }
@@ -400,7 +404,7 @@ fn number_row(ui: &mut Ui, l: Look, drafts: &mut Drafts, n: Num, k: &KuraWords, 
     let key = format!("ui.{}", n.key);
     let Some(text) = keyed_row(ui, l, &key, n.label, n.note, |ui| field(ui, drafts, n.key, n.now, "", 110.0)) else { return };
     match number_toml(&text, n.lo, n.hi, n.whole) {
-        Some(value) => out.push(KuraChange { table: "ui", key: n.key, value: Some(value) }),
+        Some(value) => out.push(KuraChange { table: "ui", key: n.key.into(), value: Some(value) }),
         None => {
             *bad = Some((k.not_a_number)(n.label, text.trim(), n.lo, n.hi));
             // Enter took the caret out of the field; put it back on what was
@@ -434,7 +438,7 @@ fn backends() -> Vec<(&'static str, &'static str)> {
 
 /// The keys of the config.toml page's rows, `table.key`, for the search to
 /// find them by in any language (#388).
-const KURA_KEYS: [&str; 14] = [
+const KURA_KEYS: [&str; 13] = [
     "ui.font_size",
     "ui.row_padding",
     "ui.icons",
@@ -448,12 +452,22 @@ const KURA_KEYS: [&str; 14] = [
     "ui.backend",
     "mcp.enable",
     "ui.check_updates",
-    "term.shell",
 ];
 
 /// The config.toml page: the main rows of `[ui]`, `[mcp]` and `[term]`.
-fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Drafts, out: &mut Vec<KuraChange>, bad: &mut Option<String>) {
-    let set = |key: &'static str, value: String| KuraChange { table: "ui", key, value: Some(value) };
+#[allow(clippy::too_many_arguments)]
+fn kura_page(
+    ui: &mut Ui,
+    l: Look,
+    k: &KuraWords,
+    lang: &str,
+    now: &KuraNow,
+    drafts: &mut Drafts,
+    shell_edit: &mut ito_prefs::ShellEdit,
+    out: &mut Vec<KuraChange>,
+    bad: &mut Option<String>,
+) {
+    let set = |key: &'static str, value: String| KuraChange { table: "ui", key: key.into(), value: Some(value) };
     section(ui, l, k.look, |ui| {
         let n = Num { key: "font_size", label: k.font_size, note: k.font_size_note, now: &now.font_size, lo: 6.0, hi: 72.0, whole: false };
         number_row(ui, l, drafts, n, k, out, bad);
@@ -520,7 +534,7 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
         out.extend(picked.map(|v| set("backend", format!("\"{v}\""))));
         sep(ui, l);
         if keyed_row(ui, l, "mcp.enable", k.mcp, k.mcp_note, |ui| switch(ui, l, now.mcp)) {
-            out.push(KuraChange { table: "mcp", key: "enable", value: Some((!now.mcp).to_string()) });
+            out.push(KuraChange { table: "mcp", key: "enable".into(), value: Some((!now.mcp).to_string()) });
         }
     });
     section(ui, l, k.updates, |ui| {
@@ -528,19 +542,47 @@ fn kura_page(ui: &mut Ui, l: Look, k: &KuraWords, now: &KuraNow, drafts: &mut Dr
             out.push(set("check_updates", (!now.check_updates).to_string()));
         }
     });
-    section(ui, l, k.terminal, |ui| {
-        let note = match now.shell_from_env {
-            true => format!("{}\n{}", k.shell_note, k.shell_env_note),
-            false => k.shell_note.to_owned(),
-        };
-        if let Some(text) = keyed_row(ui, l, "term.shell", k.shell, &note, |ui| field(ui, drafts, "shell", &now.shell, k.shell_hint, 220.0))
-        {
-            let text = text.trim();
-            // Empty is the system's default, which is the key not there.
-            let value = (!text.is_empty()).then(|| toml::Value::String(text.to_owned()).to_string());
-            out.push(KuraChange { table: "term", key: "shell", value });
+    let base = ito_prefs::ShellWords::of(lang);
+    let words = ito_prefs::ShellWords {
+        shell_note: if now.shell_from_env { k.shell_note_env } else { k.shell_note },
+        head: base.head,
+        shell: base.shell,
+        args: base.args,
+        args_note: base.args_note,
+        env: base.env,
+        env_note: base.env_note,
+        edit: base.edit,
+        edit_n: base.edit_n,
+        add: base.add,
+        remove: base.remove,
+        value: base.value,
+        bad_name: base.bad_name,
+        save: base.save,
+        cancel: base.cancel,
+    };
+    let shell = ito_prefs::Shell { program: &now.shell, auto: &now.shell_auto, shells: &[], args: &now.shell_args, env: &now.shell_env };
+    out.extend(ito_prefs::shell_card(ui, l, &words, drafts, shell_edit, &shell).into_iter().map(shell_change));
+}
+
+/// A change of the Shell card as the write to config.toml it comes to. A
+/// variable's name is written as a quoted TOML key, so any name the card
+/// takes stays one key.
+fn shell_change(c: ito_prefs::ShellChange) -> KuraChange {
+    let string = |s: &str| toml::Value::String(s.to_owned()).to_string();
+    match c {
+        // Empty is the system's default, which is the key not there.
+        ito_prefs::ShellChange::Program(p) => {
+            KuraChange { table: "term", key: "shell".into(), value: (!p.trim().is_empty()).then(|| string(p.trim())) }
         }
-    });
+        ito_prefs::ShellChange::Args(a) => {
+            let list = toml::Value::Array(a.into_iter().map(toml::Value::String).collect()).to_string();
+            KuraChange { table: "term", key: "args".into(), value: Some(list) }
+        }
+        ito_prefs::ShellChange::SetVar { name, value } => {
+            KuraChange { table: "term.env", key: string(&name).into(), value: Some(string(&value)) }
+        }
+        ito_prefs::ShellChange::RemoveVar(name) => KuraChange { table: "term.env", key: string(&name).into(), value: None },
+    }
 }
 
 /// The Theme page's preview: a few rows of kura's list in the theme in
@@ -646,6 +688,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let keys_edit = &mut ov.keys_edit;
     let mut state = std::mem::take(&mut ov.state);
     let mut drafts = std::mem::take(&mut ov.drafts);
+    let mut shell_edit = std::mem::take(&mut ov.shell_edit);
 
     let pages = [
         (k.general, k.general_lead),
@@ -703,9 +746,6 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (KURA, k.updates),
         (KURA, k.check_updates),
         (KURA, k.check_updates_note),
-        (KURA, k.terminal),
-        (KURA, k.shell),
-        (KURA, k.shell_note),
         (ADVANCED, k.folders),
         (ADVANCED, k.problems),
         (ADVANCED, k.reload),
@@ -718,6 +758,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
     index.extend(KURA_KEYS.map(|key| (KURA, key)));
+    let sw = ito_prefs::ShellWords::of(&lang);
+    index.extend(ito_prefs::shell_index(sw).into_iter().map(|t| (KURA, t)));
+    index.extend([(KURA, k.shell_note), (KURA, k.shell_note_env)]);
     let kw = ito_prefs::KeyWords::of(&lang);
     index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
     index.extend(k.layers.iter().map(|(_, n)| (KEYS, *n)));
@@ -763,7 +806,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             let choice = (theme.as_str(), dark.as_str(), light.as_str());
             changes.extend(ito_prefs::theme_page(ui, l, w, &themes, choice, k.theme_note, |ui| sample(ui, &look)));
         }
-        KURA => kura_page(ui, l, k, &now, &mut drafts, &mut kura, &mut bad),
+        KURA => kura_page(ui, l, k, &lang, &now, &mut drafts, &mut shell_edit, &mut kura, &mut bad),
         KEYS => {
             let now = keymap.layers();
             let layer_name = |n: &str| k.layers.iter().find(|(id, _)| *id == n).map_or_else(|| n.to_owned(), |(_, w)| (*w).to_owned());
@@ -792,7 +835,11 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                 test = Some((what, n.clone()));
             }
             webhooks = notify.webhooks_of(&n);
-            kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }));
+            kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange {
+                table: "notify",
+                key: key.into(),
+                value: Some(value),
+            }));
         }
         ABOUT => {
             let system = ito_bugreport::os_line();
@@ -858,6 +905,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         }
         ov.state = state;
         ov.drafts = drafts;
+        ov.shell_edit = shell_edit;
     }
     if out.close {
         queued.push(Act::Settings);
@@ -920,6 +968,23 @@ mod tests {
         assert_eq!(number_toml("73", 6.0, 72.0, false), None);
         assert_eq!(number_toml("inf", 6.0, f64::INFINITY, false), None);
         assert_eq!(number_toml("1.5", 0.0, 100.0, true), None);
+    }
+
+    /// The Shell card's changes are writes to `[term]`: the program is the key
+    /// not there when empty, the arguments a list, and a variable's name is a
+    /// quoted key under `[term.env]`, so a name with odd characters stays one key.
+    #[test]
+    fn the_shell_cards_changes_are_writes_to_term() {
+        use ito_prefs::ShellChange as C;
+        let w = |c| {
+            let c = shell_change(c);
+            (c.table, c.key.into_owned(), c.value)
+        };
+        assert_eq!(w(C::Program(" pwsh ".into())), ("term", "shell".into(), Some("\"pwsh\"".into())));
+        assert_eq!(w(C::Program(String::new())), ("term", "shell".into(), None));
+        assert_eq!(w(C::Args(vec!["-NoLogo".into(), "-x".into()])), ("term", "args".into(), Some("[\"-NoLogo\", \"-x\"]".into())));
+        assert_eq!(w(C::SetVar { name: "A.B".into(), value: "x y".into() }), ("term.env", "\"A.B\"".into(), Some("\"x y\"".into())));
+        assert_eq!(w(C::RemoveVar("A".into())), ("term.env", "\"A\"".into(), None));
     }
 
     /// The screen is drawn in the common theme itself, so the Theme page
@@ -1055,7 +1120,7 @@ mod tests {
         let mut n = s.app.cfg.notify.page();
         n.sound[1] = true;
         let edits = s.app.cfg.notify.edits(&n);
-        let changes = edits.into_iter().map(|(key, value)| KuraChange { table: "notify", key, value: Some(value) }).collect();
+        let changes = edits.into_iter().map(|(key, value)| KuraChange { table: "notify", key: key.into(), value: Some(value) }).collect();
         s.app.write_kura_to(file.clone(), vec![dir.clone()], changes);
         let mut text = String::new();
         for _ in 0..500 {

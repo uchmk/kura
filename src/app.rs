@@ -371,6 +371,8 @@ pub struct SettingsOverlay {
     pub state: ito_prefs::State,
     /// The config.toml page's text fields while they are typed in.
     pub drafts: ito_prefs::Drafts,
+    /// The Shell card's environment variables while they are edited.
+    pub shell_edit: ito_prefs::ShellEdit,
     /// What the `[settings]` layer asked of the screen since it was last
     /// drawn: the next page, the search. Taken by the draw.
     pub keys: ito_prefs::Keys,
@@ -797,8 +799,11 @@ const OWN_FILE_START: &str = "# kura's own settings, beside yazi's yazi.toml, ke
 /// the value written as TOML, or `None` to take the key out.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KuraChange {
+    /// May be dotted (`term.env`).
     pub table: &'static str,
-    pub key: &'static str,
+    /// Borrowed for the settings' own rows, owned for a name the person typed
+    /// (an environment variable, written as a quoted TOML key).
+    pub key: std::borrow::Cow<'static, str>,
     pub value: Option<String>,
 }
 
@@ -890,8 +895,8 @@ fn write_kura_toml(job: KuraJob) -> KuraWritten {
             .changes
             .iter()
             .try_fold(body, |t, c| match &c.value {
-                Some(v) => ito_common::set_key(&t, Some(c.table), c.key, v),
-                None => ito_common::remove_key(&t, Some(c.table), c.key),
+                Some(v) => ito_common::set_key(&t, Some(c.table), &c.key, v),
+                None => ito_common::remove_key(&t, Some(c.table), &c.key),
             })
             .map_err(at)?;
         let new = match &job.webhooks {
@@ -6455,7 +6460,8 @@ impl App {
         let program = shell.as_ref().map(|(p, _)| p.clone());
         let args = shell.as_ref().map(|(_, a)| a.clone()).unwrap_or_default();
         let log = std::env::var_os("KURA_PTY_LOG").map(PathBuf::from);
-        match crate::terminal::Terminal::spawn(&cwd, size, (8, 16), shell, log.as_deref(), move || ctx.request_repaint()) {
+        let env: Vec<(String, String)> = self.cfg.term.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        match crate::terminal::Terminal::spawn_with_env(&cwd, size, (8, 16), shell, log.as_deref(), env, move || ctx.request_repaint()) {
             Ok(t) => {
                 self.term = Some(t);
                 self.term_focus = true;
@@ -10218,7 +10224,7 @@ mod usage_view {
     }
 
     fn change(table: &'static str, key: &'static str, value: Option<&str>) -> KuraChange {
-        KuraChange { table, key, value: value.map(str::to_owned) }
+        KuraChange { table, key: key.into(), value: value.map(str::to_owned) }
     }
 
     /// What a press of `on` in the list runs now.
@@ -10333,6 +10339,29 @@ mod usage_view {
         assert!(text.starts_with("# mine\n[ui]\n"), "{text}");
         assert_eq!(a.cfg.ui.font_size, crate::config::Ui::default().font_size);
         assert!(a.toasts.last().is_some_and(|t| t.text == "Saved config.toml: font_size removed"));
+    }
+
+    /// `[term.env]` is written one quoted key per variable and read back into
+    /// the config the terminal starts with; removing one leaves the others.
+    #[test]
+    fn term_env_is_written_per_variable_and_read_back() {
+        let dir = util::test_dir("settings-term-env");
+        let cfg = dir.join("cfg");
+        std::fs::create_dir_all(&cfg).unwrap();
+        let file = cfg.join("config.toml");
+        std::fs::write(&file, "[term]\nshell = \"bash\"\n").unwrap();
+        let mut a = app_in(&dir);
+        let var = |name: &str, value: Option<&str>| change("term.env", Box::leak(format!("\"{name}\"").into_boxed_str()), value);
+        a.write_kura_to(file.clone(), vec![cfg.clone()], vec![var("EDITOR", Some("\"vim\"")), var("MY.TAG", Some("\"a b\""))]);
+        kura_written(&mut a);
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.starts_with("[term]\nshell = \"bash\"\n"), "{text}");
+        assert!(text.contains("[term.env]\n") && text.contains("EDITOR = \"vim\"") && text.contains("\"MY.TAG\" = \"a b\""), "{text}");
+        let env = |a: &App| a.cfg.term.env.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>();
+        assert_eq!(env(&a), ["EDITOR=vim", "MY.TAG=a b"]);
+        a.write_kura_to(file.clone(), vec![cfg.clone()], vec![var("EDITOR", None)]);
+        kura_written(&mut a);
+        assert_eq!(env(&a), ["MY.TAG=a b"]);
     }
 
     /// A config.toml that is not there yet is started with its comment; one

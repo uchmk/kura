@@ -1509,6 +1509,16 @@ shell = "powershell"
 Leaving `[term]` out keeps the default above. The same setting names a shell on macOS and Linux,
 where the default is the login shell.
 
+`[term.env]` adds environment variables to every new terminal (v0.129.0):
+
+```toml
+[term.env]
+EDITOR = "nvim"
+```
+
+Settings (`Ctrl+,`) has a Shell card for the program, its arguments and these variables; it writes
+`[term]` and `[term.env]` and keeps your comments. A variable changed there reaches terminals started afterwards.
+
 `KURA_SCALE=1.5` starts one run at that scale (0.2 to 5.0, in tenths), as if `<C-=>` had been pressed
 until it was reached, without touching what the keys saved (v0.78.64). Since v0.99.0 that is the
 scale in common.toml: while `KURA_SCALE` is set, the run neither writes it nor follows it. A value that is not a number in

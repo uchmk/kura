@@ -279,6 +279,9 @@ pub struct TermCfg {
     /// Arguments for it, e.g. `["-NoLogo"]`. Ignored without a `shell`.
     #[serde(default)]
     pub args: Vec<String>,
+    /// Variables added to every terminal's environment (`[term.env]`).
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
     /// The shell came from `KURA_TERM_SHELL`, not from a file.
     #[serde(skip)]
     pub from_env: bool,
@@ -315,6 +318,7 @@ impl TermCfg {
         let dropped_args = std::mem::take(&mut self.args);
         let args = args.and_then(|v| v.into_string().ok()).map(|v| split_words(&v)).unwrap_or_default();
         *self = Self {
+            env: std::mem::take(&mut self.env),
             shell: shell.trim().to_owned(),
             args_from_env: !args.is_empty(),
             args_unused: false,

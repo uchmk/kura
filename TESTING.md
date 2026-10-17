@@ -1765,3 +1765,14 @@ home folder.
 | 56.6 | Advanced, Backup card: Export, change the theme, then Import the same file (v0.127.0) | `kura-settings.toml` appears in your home folder; Import brings the theme back and a toast says so. kura's own `config.toml` and keymap are part of the bundle, and nothing outside the keep list (v0.127.1) is overwritten |
 | 56.7 | General, Monospace font card: switch Bundled to System and back (v0.128.0) | The file list, preview and terminal pane change face at once (JetBrains Mono ↔ the system's font), with no restart; Japanese and icons still draw. With `[ui] fonts = [...]` in config.toml the card changes nothing, since your own fonts win |
 | 56.8 | In another uchmk app change the Monospace font, with kura open (v0.128.0) | kura follows within 3 seconds |
+
+## 57. Shell card and `[term.env]` (v0.129.0)
+
+The Terminal section of Settings is ito's Shell card. Use a copy of `config.toml` you can lose.
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 57.1 | `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane | The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key |
+| 57.2 | Type `-NoLogo` in Arguments and press Enter, open a new terminal | The shell starts with it; `[term] args = ["-NoLogo"]` is written |
+| 57.3 | Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` | It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line |
+| 57.4 | Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable | The pane runs `cmd` and the variable is still set |

@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 670 件（TESTING.md の全 864 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 674 件（TESTING.md の全 868 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 71 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 75 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -997,3 +997,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **56.6** Advanced, Backup card: Export, change the theme, then Import the same file (v0.127.0) → `kura-settings.toml` appears in your home folder; Import brings the theme back and a toast says so. kura's own `config.toml` and keymap are part of the bundle, and nothing outside the keep list (v0.127.1) is overwritten 〔未訳〕
 - [ ] **56.7** General, Monospace font card: switch Bundled to System and back (v0.128.0) → The file list, preview and terminal pane change face at once (JetBrains Mono ↔ the system's font), with no restart; Japanese and icons still draw. With `[ui] fonts = [...]` in config.toml the card changes nothing, since your own fonts win 〔未訳〕
 - [ ] **56.8** In another uchmk app change the Monospace font, with kura open (v0.128.0) → kura follows within 3 seconds 〔未訳〕
+
+## 57. Shell card and `[term.env]` (v0.129.0)
+
+- [ ] **57.1** `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane → The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key 〔未訳〕
+- [ ] **57.2** Type `-NoLogo` in Arguments and press Enter, open a new terminal → The shell starts with it; `[term] args = ["-NoLogo"]` is written 〔未訳〕
+- [ ] **57.3** Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` → It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line 〔未訳〕
+- [ ] **57.4** Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable → The pane runs `cmd` and the variable is still set 〔未訳〕
