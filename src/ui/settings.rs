@@ -353,6 +353,7 @@ struct KuraNow {
     shell_env: std::collections::BTreeMap<String, String>,
     /// What the automatic shell is, as the card names it.
     shell_auto: String,
+    shells: Vec<(String, String)>,
 }
 
 impl KuraNow {
@@ -381,8 +382,21 @@ impl KuraNow {
                 static AUTO: std::sync::OnceLock<String> = std::sync::OnceLock::new();
                 AUTO.get_or_init(|| crate::terminal::shell_label(crate::terminal::default_shell().as_deref())).clone()
             },
+            shells: installed_shells(),
         }
     }
+}
+
+/// The shells on PATH, found once on a worker (it reads the disk); empty until then.
+fn installed_shells() -> Vec<(String, String)> {
+    static FOUND: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        std::thread::spawn(|| {
+            let _ = FOUND.set(ito_pane::installed_shells());
+        });
+    });
+    FOUND.get().cloned().unwrap_or_default()
 }
 
 /// A number row of config.toml: its key in `[ui]`, its words, what it is now,
@@ -560,7 +574,8 @@ fn kura_page(
         save: base.save,
         cancel: base.cancel,
     };
-    let shell = ito_prefs::Shell { program: &now.shell, auto: &now.shell_auto, shells: &[], args: &now.shell_args, env: &now.shell_env };
+    let shell =
+        ito_prefs::Shell { program: &now.shell, auto: &now.shell_auto, shells: &now.shells, args: &now.shell_args, env: &now.shell_env };
     out.extend(ito_prefs::shell_card(ui, l, &words, drafts, shell_edit, &shell).into_iter().map(shell_change));
 }
 
