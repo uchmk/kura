@@ -1,2 +1,2 @@
 # Known gaps against ito, kept visible on purpose: `<crate> <reason>`. Each line is a migration still to do, not a decision to stay.
-ito-help kura draws its own key help; not yet moved to ito-help
+ito-help kura draws its own key help; its clickable path rows, warning rows and right-hand command column need ito-help to grow; waiting on uchmk/ito#17
