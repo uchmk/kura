@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 662 件（TESTING.md の全 856 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 670 件（TESTING.md の全 864 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 63 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 71 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -938,3 +938,14 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **55.4** `<th>` のある `<table>` と `<pre><code class="language-rust">` を含む HTML にカーソルを置く → 表は見出しの罫線と揃った列で出て、コードは Rust として色が付く — *Hover an HTML file holding a `<table>` with `<th>` cells and a `<pre><code class="language-rust">` block → The table is drawn with a header rule and aligned columns; the code block is coloured as Rust*
 - [ ] **55.5** 表示したまま窓を狭め、広げる → 文がプレビューの幅で折り返し直される — *Narrow and widen the window while it is on show → The text re-wraps to the pane's width*
 - [ ] **55.6** `render_markdown = false` にして再起動し、`.html` にカーソルを置く → 元の文で始まり、`M` で読む表示になる — *Set `render_markdown = false`, restart, hover an `.html` file → It starts as source; `M` brings the reading view*
+
+## 56. Settings cards from ito-prefs (v0.124.0 – v0.128.0)
+
+- [ ] **56.1** General, Window card: turn "Remember window position" off, move and resize the window, close and start kura again (v0.124.0) → The window opens at its default place and size, and `window.json` in kura's state folder is not rewritten. Turning it back on and moving the window again keeps it across a restart 〔未訳〕
+- [ ] **56.2** Turn "Always on top" on, then focus another window (v0.124.0) → kura stays above it at once, with no restart; off, and it goes behind again 〔未訳〕
+- [ ] **56.3** "Forget saved position", close and start kura (v0.124.0) → A toast says it was forgotten and the next start is at the default place 〔未訳〕
+- [ ] **56.4** General, Start at sign-in card: turn it on, check Task Manager > Startup apps and `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; turn it off (v0.125.0) → An entry for kura appears and goes; the screen does not stall when it opens, and the switch shows the real state after reopening the screen 〔未訳〕
+- [ ] **56.5** About page (v0.126.0) → Version, system line and the licences (JetBrains Mono's SIL OFL since v0.128.0) are shown; "Report a problem" opens the bug form as `Ctrl+,` → Bug report did before 〔未訳〕
+- [ ] **56.6** Advanced, Backup card: Export, change the theme, then Import the same file (v0.127.0) → `kura-settings.toml` appears in your home folder; Import brings the theme back and a toast says so. kura's own `config.toml` and keymap are part of the bundle, and nothing outside the keep list (v0.127.1) is overwritten 〔未訳〕
+- [ ] **56.7** General, Monospace font card: switch Bundled to System and back (v0.128.0) → The file list, preview and terminal pane change face at once (JetBrains Mono ↔ the system's font), with no restart; Japanese and icons still draw. With `[ui] fonts = [...]` in config.toml the card changes nothing, since your own fonts win 〔未訳〕
+- [ ] **56.8** In another uchmk app change the Monospace font, with kura open (v0.128.0) → kura follows within 3 seconds 〔未訳〕
