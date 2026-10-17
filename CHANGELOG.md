@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.119.7] - 2026-10-17
+
+### 変更
+
+- キーの説明の日本語訳（`src/ui/keydesc_ja.rs` の `match`）を ito-i18n の表（`src/lang/en.toml`・`ja.toml` の `[keydesc]`）に移し、言語の選び方（`auto` は OS の言語）も `ito_i18n::resolve` にした。表と英語の食い違いは `ito_i18n::check` のテストで見る。`scripts/ito-first.allow` の `ito-i18n` の行を消した。設定の画面の文言は `ito-prefs` の部品の語で、これまでどおり。動作は変わらない（`language` に `ja-JP` のような地域つきの値を手で書いたときだけ、英語になる）。
+
 ## [0.119.6] - 2026-10-17
 
 ### 変更

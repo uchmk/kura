@@ -9,6 +9,7 @@ mod envreport;
 mod exec;
 mod fs;
 mod glob;
+mod i18n;
 mod keyscript;
 mod mcp;
 mod mime;

@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.119.6"
+version = "0.119.7"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -64,6 +64,7 @@ ito-theme = { git = "https://github.com/uchmk/ito", rev = "2c82056fc6da21003b77d
 # A toast from the OS when a long copy, move or delete ends behind another window (#345); the same commit as the others.
 ito-notify = { git = "https://github.com/uchmk/ito", rev = "2c82056fc6da21003b77d27b562eb509d7adf309", default-features = false }
 # The key notation (parse, print, from egui, `display_seq`), shared with yagura; the same commit as the others.
+ito-i18n = { git = "https://github.com/uchmk/ito", rev = "2c82056fc6da21003b77d27b562eb509d7adf309" }
 ito-keys = { git = "https://github.com/uchmk/ito", rev = "2c82056fc6da21003b77d27b562eb509d7adf309", features = ["egui"] }
 # keymap.toml: the layers folded over the defaults, resolved key by key, and the
 # warnings for keys that can never run (moved out of here into ito 0.32.0); the same commit as the others.

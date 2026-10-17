@@ -2007,11 +2007,7 @@ impl App {
                     self.set_scale(common.scale_or_one());
                 }
                 self.clock = common.clock_or(None);
-                let lang = match common.language.as_deref() {
-                    Some(l) if l != "auto" => l.to_owned(),
-                    _ => ito_common::os_language().unwrap_or_default(),
-                };
-                self.lang = if lang.starts_with("ja") { "ja".into() } else { "en".into() };
+                self.lang = crate::i18n::resolve(common.language.as_deref(), ito_common::os_language().as_deref());
                 self.common = common;
                 if let Some(w) = warnings.first() {
                     self.warn(w.clone());

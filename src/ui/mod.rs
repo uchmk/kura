@@ -2,7 +2,6 @@
 //! interaction turns into an [`Act`] that runs after drawing, so the borrow
 //! checker never gets in the way of the layout code.
 
-pub(crate) mod keydesc_ja;
 mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;

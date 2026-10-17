@@ -2395,7 +2395,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.119.6"
+version = "0.119.7"
 dependencies = [
  "ab_glyph",
  "arboard",
@@ -2411,6 +2411,7 @@ dependencies = [
  "ito-bugreport",
  "ito-common",
  "ito-console",
+ "ito-i18n",
  "ito-ipc",
  "ito-keymap",
  "ito-keys",

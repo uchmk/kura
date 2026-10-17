@@ -744,7 +744,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         KEYS => {
             let now = keymap.layers();
             let layer_name = |n: &str| k.layers.iter().find(|(id, _)| *id == n).map_or_else(|| n.to_owned(), |(_, w)| (*w).to_owned());
-            let tr = |d: &str| crate::ui::keydesc_ja::tr(&lang, d);
+            let tr = |d: &str| crate::i18n::tr_desc(&lang, d);
             let table = ito_prefs::KeyTable {
                 now: &now,
                 built_in: crate::config::Keymap::built_in_layers(),

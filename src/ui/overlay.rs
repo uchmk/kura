@@ -600,7 +600,7 @@ fn help_lines(app: &App) -> Vec<HelpRow> {
         keys: crate::config::keys::display_seq(&b.on),
         // The built-in descriptions in the screen's language, as the
         // settings screen's Keys page shows them.
-        text: if b.desc.is_empty() { b.raw.clone() } else { crate::ui::keydesc_ja::tr(&app.lang, &b.desc) },
+        text: if b.desc.is_empty() { b.raw.clone() } else { crate::i18n::tr_desc(&app.lang, &b.desc) },
         raw: b.raw.clone(),
         warning: false,
         goes_to: None,
