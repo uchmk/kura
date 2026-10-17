@@ -2061,16 +2061,16 @@ dependencies = [
 
 [[package]]
 name = "ito-bugreport"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "windows",
 ]
 
 [[package]]
 name = "ito-common"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "chrono",
  "egui",
@@ -2086,24 +2086,24 @@ dependencies = [
 
 [[package]]
 name = "ito-console"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "windows",
 ]
 
 [[package]]
 name = "ito-gpu"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui-wgpu",
 ]
 
 [[package]]
 name = "ito-help"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
  "ito-keymap",
@@ -2111,8 +2111,8 @@ dependencies = [
 
 [[package]]
 name = "ito-i18n"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "ito-common",
  "toml",
@@ -2120,8 +2120,8 @@ dependencies = [
 
 [[package]]
 name = "ito-ipc"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "postcard",
  "serde",
@@ -2130,8 +2130,8 @@ dependencies = [
 
 [[package]]
 name = "ito-keymap"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "ito-common",
  "ito-keys",
@@ -2141,16 +2141,16 @@ dependencies = [
 
 [[package]]
 name = "ito-keys"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-keyscript"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
  "ito-keys",
@@ -2159,41 +2159,50 @@ dependencies = [
 
 [[package]]
 name = "ito-layout"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-match"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "fancy-regex 0.19.2",
 ]
 
 [[package]]
 name = "ito-mcp"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "ito-notify"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "png",
  "windows",
 ]
 
 [[package]]
+name = "ito-openin"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
+dependencies = [
+ "serde",
+ "toml",
+]
+
+[[package]]
 name = "ito-pane"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "alacritty_terminal",
  "crossbeam-channel",
@@ -2213,8 +2222,8 @@ dependencies = [
 
 [[package]]
 name = "ito-prefs"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
  "ito-common",
@@ -2222,21 +2231,22 @@ dependencies = [
  "ito-keymap",
  "ito-keys",
  "ito-notify",
+ "ito-openin",
  "ito-theme",
 ]
 
 [[package]]
 name = "ito-select"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "ito-testcheck"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "serde",
  "toml",
@@ -2244,8 +2254,8 @@ dependencies = [
 
 [[package]]
 name = "ito-theme"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "egui",
  "ito-select",
@@ -2254,8 +2264,8 @@ dependencies = [
 
 [[package]]
 name = "ito-winres"
-version = "0.70.0"
-source = "git+https://github.com/uchmk/ito?rev=2dde6ad88913186a905fec3a0694e62cdec0d7b9#2dde6ad88913186a905fec3a0694e62cdec0d7b9"
+version = "0.71.0"
+source = "git+https://github.com/uchmk/ito?rev=a0aba9e13bbf61d29182ff139de4d9317a69b1ad#a0aba9e13bbf61d29182ff139de4d9317a69b1ad"
 dependencies = [
  "png",
 ]
@@ -2384,7 +2394,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.122.1"
+version = "0.123.0"
 dependencies = [
  "ab_glyph",
  "arboard",
@@ -2408,6 +2418,7 @@ dependencies = [
  "ito-match",
  "ito-mcp",
  "ito-notify",
+ "ito-openin",
  "ito-pane",
  "ito-prefs",
  "ito-select",

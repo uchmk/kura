@@ -193,54 +193,7 @@ pub fn command_line(run: &str, paths: &[PathBuf], line: Option<usize>, custom: &
     line.and_then(|n| at_line(run, paths, n, custom)).unwrap_or_else(|| substitute(run, paths))
 }
 
-/// Line-jump argument templates from `config.toml`'s `[line_args]`, keyed by
-/// [`editor_key`]. A template is written as the arguments themselves, e.g.
-/// `"/j{line} {path}"` or `"-g {path}:{line}"`; it wins over the built-in table.
-pub type LineArgs = std::collections::HashMap<String, String>;
-
-/// The key an editor is looked up by: its file name, lowercased, without the
-/// executable extension. `C:\bin\Sakura.exe` and `sakura` both give `sakura`.
-pub fn editor_key(program: &str) -> String {
-    let name = match Path::new(program).file_name() {
-        Some(n) => n.to_string_lossy().to_ascii_lowercase(),
-        None => return String::new(),
-    };
-    let stem = [".exe", ".cmd", ".bat"].iter().find_map(|x| name.strip_suffix(x)).unwrap_or(&name);
-    stem.to_owned()
-}
-
-/// Split a `[line_args]` template into the arguments that come before the path
-/// and the single token carrying it, with `{line}` already filled in. `None`
-/// when the template names no path, or more than one.
-fn split_template(template: &str, line: usize) -> Option<(String, String)> {
-    let mut before: Vec<&str> = Vec::new();
-    let mut path = None;
-    for tok in template.split_whitespace() {
-        match (tok.contains("{path}"), path.is_some()) {
-            (true, true) => return None,
-            (true, false) => path = Some(tok),
-            (false, _) => before.push(tok),
-        }
-    }
-    let n = line.to_string();
-    Some((before.join(" ").replace("{line}", &n), path?.replace("{line}", &n)))
-}
-
-/// Whether a `[line_args]` template can be used at all, for the config loader
-/// to warn about the ones that cannot.
-pub fn template_is_valid(template: &str) -> bool {
-    split_template(template, 1).is_some()
-}
-
-/// How an editor is told which line to open at.
-enum LineArg {
-    /// A flag before the paths: `nvim +12 file`, `sakura -Y=12 file`.
-    Flag(&'static str),
-    /// `code -g file:12`
-    Goto,
-    /// `hx file:12`
-    Colon,
-}
+pub use ito_openin::lines::{editor_key, template_is_valid, LineArgs};
 
 /// The toast note for a line the opener cannot take; empty when no line was asked for or it is passed.
 pub fn no_line_note(run: &str, paths: &[PathBuf], line: Option<usize>, custom: &LineArgs) -> String {
@@ -262,40 +215,13 @@ pub fn at_line(run: &str, paths: &[PathBuf], line: usize, custom: &LineArgs) -> 
     };
     let program = run[..end].trim_matches('"');
     Path::new(program).file_name()?;
-    let name = editor_key(program);
-    let name = name.as_str();
-    if let Some(template) = custom.get(name) {
-        if let Some((before, token)) = split_template(template, line) {
-            let (head, tail) = run.split_at(end);
-            let head = if before.is_empty() { head.to_owned() } else { format!("{head} {before}") };
-            return Some(substitute_render(&format!("{head}{tail}"), paths, &|p| {
-                let path = p.to_string_lossy().replace('"', "\\\"");
-                format!("\"{}\"", token.replace("{path}", &path))
-            }));
-        }
-    }
-    let how = match name {
-        "nvim" | "vim" | "vi" | "gvim" | "nano" | "emacs" | "emacsclient" | "micro" | "kak" => LineArg::Flag("+"),
-        // Editors common on Windows. Notepad has no line switch, so it stays out.
-        "hidemaru" => LineArg::Flag("/j"),
-        // `-Y=`, not `-L=`. Sakura takes `-L=` without complaining and does
-        // nothing with it, so the file opened at line 1 and the only way to
-        // notice was to look. Checked on sakura 2.4.2: `-L=6` lands on line 1,
-        // `-Y=6` on line 6.
-        "sakura" => LineArg::Flag("-Y="),
-        "emeditor" => LineArg::Flag("/l "),
-        "notepad++" => LineArg::Flag("-n"),
-        "code" | "code-insiders" | "codium" | "cursor" | "windsurf" => LineArg::Goto,
-        "hx" | "helix" | "subl" | "zed" => LineArg::Colon,
-        _ => return None,
-    };
+    let how = ito_openin::lines::line_arg(program, custom)?;
     let (head, tail) = run.split_at(end);
-    let colon = format!(":{line}");
-    Some(match how {
-        LineArg::Flag(flag) => substitute(&format!("{head} {flag}{line}{tail}"), paths),
-        LineArg::Goto => substitute_with(&format!("{head} -g{tail}"), paths, &colon),
-        LineArg::Colon => substitute_with(run, paths, &colon),
-    })
+    let before = how.before(line);
+    let head = if before.is_empty() { head.to_owned() } else { format!("{head} {before}") };
+    Some(substitute_render(&format!("{head}{tail}"), paths, &|p| {
+        format!("\"{}\"", how.path_token(line, &p.to_string_lossy().replace('"', "\\\"")))
+    }))
 }
 
 /// Run a command line through the platform shell.
