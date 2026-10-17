@@ -710,7 +710,7 @@ impl Task {
 /// The first line names the file and the place, which is what the toast is
 /// for; the rest is a key away.
 pub fn config_toast(warnings: &[String]) -> Option<String> {
-    config_toast_at(warnings, dirs::home_dir().as_deref())
+    config_toast_at(warnings, ito_common::home_dir().as_deref())
 }
 
 /// [`config_toast`] with the home folder given. The first line starts with the
@@ -1348,7 +1348,7 @@ fn dir_prefill(dir: &Path) -> String {
 /// the folder, the toast says which (`(nearest: typo)`), so the jump is not a
 /// mystery (#285).
 fn nothing_there(name: &str, shown: &Path, near: Option<&str>) -> String {
-    let home = dirs::home_dir();
+    let home = ito_common::home_dir();
     let mut said = format!("No such file or folder: {} — showing {}", shown.join(name).display(), shown.display());
     if let Some(near) = near {
         said.push_str(&format!(" (nearest: {near})"));
@@ -4433,7 +4433,7 @@ impl App {
         }
         let base = self.tabs[self.active].cwd.clone();
         let (target, fallback) =
-            new_tab_target(&base, current, path.as_deref(), self.tabs[self.active].current.hovered(), dirs::home_dir());
+            new_tab_target(&base, current, path.as_deref(), self.tabs[self.active].current.hovered(), ito_common::home_dir());
         let tab =
             Tab::new(target.clone(), self.tabs[self.active].sort, self.tabs[self.active].show_hidden, self.tabs[self.active].linemode);
         let at = self.active + 1;
@@ -8969,7 +8969,7 @@ mod create_and_link_undo {
     /// report's link or its panel.
     #[test]
     fn the_report_names_no_home_folder_from_the_last_error() {
-        let Some(home) = dirs::home_dir().filter(|h| h.as_os_str().len() >= 4) else { return };
+        let Some(home) = ito_common::home_dir().filter(|h| h.as_os_str().len() >= 4) else { return };
         let dir = util::test_dir("report-home");
         let mut a = app(&dir);
         a.error(format!("{}: denied", home.join("secret").display()));

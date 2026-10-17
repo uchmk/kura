@@ -266,7 +266,7 @@ fn main() -> eframe::Result<()> {
     // path it did name is taken on faith: `is_dir` on a share that stopped
     // answering would hold the window back for half a minute, so the first
     // listing is what decides (see `App::start_unproven`).
-    let home = std::env::current_dir().ok().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."));
+    let home = std::env::current_dir().ok().or_else(ito_common::home_dir).unwrap_or_else(|| PathBuf::from("."));
     // Against the directory kura was started in, as `g<Space>` resolves what
     // is typed there: `kura .` and `kura ..\other` are how a shell names a
     // place, and a relative one left the tab with no parent column (#126).

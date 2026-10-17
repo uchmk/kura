@@ -54,7 +54,7 @@ pub(crate) fn without_home(text: &str, home: Option<&std::path::Path>) -> String
 /// a path carries the user's name onto a public tracker.
 pub fn context(last_error: Option<&str>, loaded: &[std::path::PathBuf]) -> String {
     let info = crate::runinfo::load();
-    let home = dirs::home_dir();
+    let home = ito_common::home_dir();
     ito_bugreport::context(&Context {
         last_error,
         home: home.as_deref(),

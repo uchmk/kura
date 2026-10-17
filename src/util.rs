@@ -291,7 +291,7 @@ pub fn host_only_unc(path: &Path) -> bool {
 pub fn expand(input: &str) -> PathBuf {
     let mut s = input.trim().to_string();
     if s == "~" || s.starts_with("~/") || s.starts_with("~\\") {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = ito_common::home_dir() {
             let rest = &s[1..];
             let rest = rest.trim_start_matches(['/', '\\']);
             let mut p = home;

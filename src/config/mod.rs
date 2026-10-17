@@ -679,7 +679,7 @@ fn base_config_dir() -> Option<PathBuf> {
 fn base_config_dir() -> Option<PathBuf> {
     // `dirs::config_dir()` honors `XDG_CONFIG_HOME` on Linux but not on macOS,
     // so read it here to get the same answer on both.
-    xdg_base(std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from), dirs::home_dir())
+    xdg_base(std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from), ito_common::home_dir())
 }
 
 /// Split out from `base_config_dir` so the rules can be tested without setting a
