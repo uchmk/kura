@@ -641,20 +641,30 @@ fn help_lines(app: &App) -> Vec<HelpRow> {
 /// text, and before this it could only be answered from a screenshot (#171).
 /// Also the number of key lines, for the toast.
 pub(crate) fn help_text(app: &App) -> (String, usize) {
-    let mut keys = 0;
-    let text: Vec<String> = help_lines(app)
-        .iter()
-        .map(|r| match (r.keys.is_empty(), r.text.is_empty()) {
-            (false, true) => r.keys.clone(),
-            (false, false) => {
-                keys += 1;
-                format!("{}\t{}\t{}", r.keys, r.text, r.raw)
-            }
-            _ if r.raw.is_empty() => r.text.clone(),
-            _ => format!("{}\t{}", r.text, r.raw),
+    let lines = to_lines(&help_lines(app));
+    let keys = lines.iter().filter(|l| matches!(l, ito_help::Line::Cmd { .. })).count();
+    (ito_help::text(&lines), keys)
+}
+
+/// The rows as ito-help's lines. A row that goes somewhere is a link with its
+/// note after the path (ito-help draws no right-hand column for a link); a
+/// warning is a warning line with its note after it.
+fn to_lines(rows: &[HelpRow]) -> Vec<ito_help::Line> {
+    use ito_help::Line;
+    let said = |r: &HelpRow| match r.raw.is_empty() {
+        true => r.text.clone(),
+        false => format!("{}  — {}", r.text, r.raw),
+    };
+    rows.iter()
+        .map(|r| match () {
+            _ if r.goes_to.is_some() => Line::Link { text: said(r), target: r.text.trim().to_owned() },
+            _ if r.warning => Line::Warn(said(r)),
+            _ if r.keys.is_empty() && r.text.is_empty() => Line::Blank,
+            _ if r.keys.is_empty() => Line::Row(vec![r.text.clone()]),
+            _ if r.text.is_empty() => Line::Head(r.keys.clone()),
+            _ => Line::Cmd { keys: r.keys.clone(), desc: r.text.clone(), cmd: r.raw.clone() },
         })
-        .collect();
-    (text.join("\n") + "\n", keys)
+        .collect()
 }
 
 pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queued: &mut Vec<Act>) {
@@ -664,17 +674,18 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     let inner = modal_frame(ui, rect, &app.cfg.theme, title, f, row_h);
     let theme = app.cfg.theme.clone();
     let cell = ui.painter().layout_no_wrap("M".repeat(20), f.clone(), theme.fg).size().x / 20.0;
-    let cols = ((inner.width() - 130.0) / cell.max(1.0)).floor().max(10.0) as usize;
-    let lines = wrap_warnings(help_lines(app), cols);
+    let cols = ((inner.width() - 24.0) / cell.max(1.0)).floor().max(10.0) as usize;
+    let rows = wrap_warnings(help_lines(app), cols);
+    let lines = to_lines(&rows);
 
-    let rows = ((inner.height() / row_h).floor() as usize).max(1);
+    let visible = ((inner.height() / row_h).floor() as usize).max(1);
     // What the keys need to know to page and to stop; only the renderer knows
     // how tall the panel came out.
-    app.help_rows = rows;
+    app.help_rows = visible;
     app.help_lines = lines.len();
     // The last line at the bottom, not at the top: a panel showing one row of a
     // list it has room for twenty of is not the end of a scroll.
-    let stop = lines.len().saturating_sub(rows);
+    let stop = lines.len().saturating_sub(visible);
     // The wheel, over the panel rather than over the list it covers.
     if ui.rect_contains_pointer(rect) {
         let scroll = ui.ctx().input(|i| i.smooth_scroll_delta.y);
@@ -686,38 +697,34 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     // A smaller font fits more lines, so a scroll position that was at the
     // bottom before a `<C-+>` has to come back to it.
     app.help_scroll = app.help_scroll.min(stop);
-    let start = app.help_scroll;
+    let style = ito_help::Style {
+        font: f.clone(),
+        row_h,
+        head: theme.fg,
+        keys: theme.which_cand.fg.unwrap_or(theme.fg),
+        desc: theme.fg,
+        warn: theme.warning,
+        dim: theme.fg_dim,
+        bar: theme.border,
+    };
     let pointer = ui.rect_contains_pointer(inner).then(|| ui.ctx().pointer_latest_pos()).flatten();
     let clicked = ui.input(|i| i.pointer.primary_clicked());
     let mut went = None;
-
     let painter = ui.painter_at(inner);
-    for (i, row) in lines[start..].iter().take(rows).enumerate() {
-        let y = inner.top() + i as f32 * row_h;
-        let at = Rect::from_min_size(egui::pos2(inner.left(), y), Vec2::new(inner.width(), row_h));
-        // Only the config paths answer to the pointer; a key list is a key
-        // list and a row that lit up under the cursor would only mislead.
-        let live = row.goes_to.is_some() && pointer.is_some_and(|p| at.contains(p));
-        if live {
+    // Only the config paths answer to the pointer; a key list is a key
+    // list and a row that lit up under the cursor would only mislead.
+    if let Some(i) = pointer.and_then(|p| ito_help::hit(inner, lines.len(), app.help_scroll, &style, p)) {
+        if let Some(act) = rows[i].goes_to.clone() {
+            let y = inner.top() + (i - app.help_scroll) as f32 * row_h;
+            let at = Rect::from_min_size(egui::pos2(inner.left(), y), Vec2::new(inner.width(), row_h));
             painter.rect_filled(at, CornerRadius::same(3), theme.hovered_bg);
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             if clicked {
-                went = row.goes_to.clone();
+                went = Some(act);
             }
         }
-        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, &row.keys, f.clone(), theme.which_cand.fg.unwrap_or(theme.fg));
-        let color = match (row.warning, row.goes_to.is_some()) {
-            (true, _) => theme.warning,
-            // A path reads as somewhere to go, in the colour the breadcrumb
-            // already uses for a directory.
-            (false, true) => theme.cwd.fg.unwrap_or(theme.fg),
-            (false, false) => theme.fg,
-        };
-        painter.text(egui::pos2(inner.left() + 130.0, y), Align2::LEFT_TOP, &row.text, f.clone(), color);
-        if !row.raw.is_empty() {
-            painter.text(egui::pos2(inner.right(), y), Align2::RIGHT_TOP, &row.raw, f.clone(), theme.fg_dim);
-        }
     }
+    ito_help::draw(&painter, inner, &lines, app.help_scroll, &style);
 
     // Going somewhere means looking at it, so the panel gets out of the way.
     if let Some(act) = went {

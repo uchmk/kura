@@ -3327,7 +3327,8 @@ mod config_warning_frame {
         let rows: Vec<&String> =
             f.inked.iter().filter(|(t, c)| *c == theme.warning && !t.starts_with("Config: ")).map(|(t, _)| t).collect();
         assert!(rows.len() > 1, "wider than the panel, so more than one row: {rows:?}");
-        assert!(rows[1..].iter().all(|r| r.starts_with("    ") && !r.starts_with("     ")), "indented by four: {rows:?}");
+        // At least four: a break that falls before a space keeps it.
+        assert!(rows[1..].iter().all(|r| r.starts_with("    ")), "indented by four: {rows:?}");
         let joined: String = rows.iter().enumerate().map(|(i, r)| if i == 0 { r.as_str() } else { &r[4..] }).collect();
         assert_eq!(joined, warning, "nothing lost between the rows");
         for r in &rows {
