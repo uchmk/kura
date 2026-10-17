@@ -632,6 +632,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let look = app.cfg.theme.clone();
     let notify = app.cfg.notify.clone();
     let lang = app.lang.clone();
+    let mw = ito_prefs::MoreWords::of(&lang);
+    let window = app.common.window_or_default();
     let own_keymap = app.own_keymap_named().unwrap_or_default();
     let keymap = &app.cfg.keymap;
     let Overlay::Settings(ov) = &mut app.overlay else { return };
@@ -705,6 +707,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (ADVANCED, k.reload_note),
     ];
     index.extend(ito_prefs::GENERAL_KEYS.map(|key| (GENERAL, key)));
+    index.extend(ito_prefs::window_index(mw).into_iter().map(|t| (GENERAL, t)));
+    index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
     index.extend(KURA_KEYS.map(|key| (KURA, key)));
     let kw = ito_prefs::KeyWords::of(&lang);
     index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
@@ -721,6 +725,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut kura = Vec::new();
     let mut bad: Option<String> = None;
     let mut copy: Option<String> = None;
+    let mut forget = false;
     let mut test: Option<(ito_prefs::Test, ito_prefs::Notify)> = None;
     let mut webhooks = None;
     let mut key_edits = Vec::new();
@@ -736,6 +741,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                 changes.extend(scale_row(ui, l, w, scale, k.scale_note));
             });
             changes.extend(clock_card(ui, l, w, &clock));
+            let out = ito_prefs::window_card(ui, l, mw, &window);
+            changes.extend(out.changes);
+            forget |= out.forget;
         }
         THEME => {
             let choice = (theme.as_str(), dark.as_str(), light.as_str());
@@ -836,6 +844,12 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     }
     if out.open_file {
         app.open_own_config();
+    }
+    if forget {
+        match ito_prefs::forget_place(&crate::config::Config::state_dir()) {
+            Ok(()) => app.toast("window.toml: forgotten".to_owned()),
+            Err(e) => app.error(format!("Forget failed: {e}")),
+        }
     }
     if let Some(path) = copy {
         match crate::exec::set_clipboard(&path) {

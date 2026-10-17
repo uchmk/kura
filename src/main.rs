@@ -280,8 +280,17 @@ fn main() -> eframe::Result<()> {
     // at the scale of the screen it was on and the zoom: the viewport takes
     // the zoom out, and `put` (in the creator below, while the window is
     // hidden) moves it to those pixels on whatever screen they are (#401).
-    let saved = ito_common::window::Saved::load(cli.keys.is_empty().then(Config::state_dir));
+    // common.toml's `[window]` can turn the keeping off, and ask for the
+    // window to stay on top.
+    let prefs = ito_common::base_dir()
+        .map(|b| ito_common::Common::read(&b).map(|(c, _)| c).unwrap_or_default())
+        .unwrap_or_default()
+        .window_or_default();
+    let saved = ito_common::window::Saved::load((cli.keys.is_empty() && ito_prefs::keeps_place(&prefs)).then(Config::state_dir));
     viewport = saved.viewport(viewport);
+    if prefs.always_on_top {
+        viewport = viewport.with_always_on_top();
+    }
     // The title bar, Alt+Tab and the taskbar button. `kura.exe`'s own icon is
     // a resource compiled in by `build.rs`, from an `.ico` made of this same
     // drawing. Without an icon the window still opens.
@@ -368,6 +377,7 @@ fn main() -> eframe::Result<()> {
                 last_input_frame: u64::MAX,
                 last_geometry: None,
                 place: saved.tracker(),
+                on_top: prefs.always_on_top,
                 update,
                 script,
                 script_at: (0, std::time::Instant::now()),
@@ -641,6 +651,8 @@ struct Kura {
     /// still and on close (ito's, as yagura and tsumugi do). None under
     /// `--keys`.
     place: Option<ito_common::window::Tracker>,
+    /// Whether the window is asked to stay on top now (common.toml's `[window]`).
+    on_top: bool,
     /// The start-up check for a newer release, until it has answered.
     update: Option<std::sync::mpsc::Receiver<ito_common::update::Update>>,
     /// `--keys`, as the events each press arrives as, still to be pressed.
@@ -809,6 +821,15 @@ impl Kura {
     /// place stays the one from before; the points are kept with the scale and
     /// the zoom they are in (#401).
     fn remember_place(&mut self, ctx: &egui::Context) {
+        let prefs = self.app.common.window_or_default();
+        if prefs.always_on_top != self.on_top {
+            self.on_top = prefs.always_on_top;
+            let level = if self.on_top { egui::WindowLevel::AlwaysOnTop } else { egui::WindowLevel::Normal };
+            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(level));
+        }
+        if !ito_prefs::keeps_place(&prefs) {
+            return;
+        }
         if let Some(t) = self.place.as_mut() {
             t.follow(ctx);
         }
