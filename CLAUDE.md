@@ -15,7 +15,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 ## 作業ルール
 
 - 返答は日本語。コード・コメント・コミットメッセージは英語。
-- 頼まれるまでコミットしない（例外は「自動実行モード」）。
+- コミットと push は、検証（`scripts/verify.sh` が `ALL OK`。`main` へは `scripts/push-main.sh`）が通ったら、頼まれなくてもしてよい（force push・履歴の書き換えはしない。自分の変更だけを `git add` する）。「自動実行モード」の決まりはそのまま。
 - 実行中の `kura.exe` を止めるときは事前確認を不要とし、ビルドを優先する。
 - 改行は LF（`.gitattributes` の `eol=lf`）。スクリプトで書き換えるときは改行を変えない（Python なら `newline=''`）。
 - タスクは [TODO.md](TODO.md) と、レーン・QA の所見の issue（ラベル `finding`。直したら版を書いて閉じる）。
