@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.119.6] - 2026-10-17
+
+### 変更
+
+- ターミナルペインの `alacritty_terminal` を、直接の依存をやめて `ito_pane::alacritty_terminal`（ito-pane の再公開）から使うようにした。`scripts/ito-first.allow` の `alacritty_terminal` の行を消した。動作は変わらない。
+
 ## [0.119.5] - 2026-10-17
 
 ### 変更

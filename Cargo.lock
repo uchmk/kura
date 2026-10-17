@@ -2395,10 +2395,9 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.119.5"
+version = "0.119.6"
 dependencies = [
  "ab_glyph",
- "alacritty_terminal",
  "arboard",
  "chrono",
  "crossbeam-channel",

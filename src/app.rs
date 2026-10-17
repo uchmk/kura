@@ -4289,7 +4289,7 @@ impl App {
     /// Walk the terminal's scrollback.
     fn term_scroll(&mut self, step: Step) {
         if let Some(t) = &self.term {
-            use alacritty_terminal::grid::Scroll;
+            use ito_pane::alacritty_terminal::grid::Scroll;
             let page = t.size().lines as i64;
             // Negated, because the two conventions run opposite ways.
             // `term_scroll -50%` reads like `arrow -50%` and means
@@ -9278,8 +9278,8 @@ mod term_scroll_direction {
         }
 
         // The mapping under test, lifted out of `Act::TermScroll`.
-        let scroll = |t: &mut alacritty_terminal::Term<crate::terminal::Proxy>, step: Step| {
-            use alacritty_terminal::grid::Scroll;
+        let scroll = |t: &mut ito_pane::alacritty_terminal::Term<crate::terminal::Proxy>, step: Step| {
+            use ito_pane::alacritty_terminal::grid::Scroll;
             let page = lines as i64;
             let by = match step {
                 Step::Top => Scroll::Top,
