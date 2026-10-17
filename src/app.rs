@@ -2028,6 +2028,9 @@ impl App {
                 }
                 self.clock = common.clock_or(None);
                 self.lang = crate::i18n::resolve(common.language.as_deref(), ito_common::os_language().as_deref());
+                if common.mono_font_or_default() != self.common.mono_font_or_default() {
+                    self.refont = true;
+                }
                 self.common = common;
                 if let Some(w) = warnings.first() {
                     self.warn(w.clone());

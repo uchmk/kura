@@ -282,10 +282,9 @@ fn main() -> eframe::Result<()> {
     // hidden) moves it to those pixels on whatever screen they are (#401).
     // common.toml's `[window]` can turn the keeping off, and ask for the
     // window to stay on top.
-    let prefs = ito_common::base_dir()
-        .map(|b| ito_common::Common::read(&b).map(|(c, _)| c).unwrap_or_default())
-        .unwrap_or_default()
-        .window_or_default();
+    let common = ito_common::base_dir().map(|b| ito_common::Common::read(&b).map(|(c, _)| c).unwrap_or_default()).unwrap_or_default();
+    let prefs = common.window_or_default();
+    let mono_font = common.mono_font_or_default();
     let saved = ito_common::window::Saved::load((cli.keys.is_empty() && ito_prefs::keeps_place(&prefs)).then(Config::state_dir));
     viewport = saved.viewport(viewport);
     if prefs.always_on_top {
@@ -324,7 +323,7 @@ fn main() -> eframe::Result<()> {
                 used.device = format!("{:?}", info.device_type);
             }
             name_the_fallback(&mut cfg.warnings, &used.backend);
-            let has_bold = apply_fonts(&cc.egui_ctx, &mut cfg, &mut used);
+            let has_bold = apply_fonts(&cc.egui_ctx, &mut cfg, mono_font, &mut used);
             crate::runinfo::save(&used);
             ui::set_look(&cc.egui_ctx, cfg.theme.light());
             // egui zooms on Ctrl +/-/0 of its own accord, at the end of the
@@ -462,8 +461,8 @@ fn plain_icons(icons: &str, has_nerd: bool) -> bool {
 ///
 /// Startup and `config_reload` both go through here, so a reloaded config gets
 /// exactly the fonts a fresh start would have given it.
-fn apply_fonts(ctx: &egui::Context, cfg: &mut Config, used: &mut crate::runinfo::RunInfo) -> bool {
-    let (has_nerd, has_bold) = install_fonts(ctx, cfg, used);
+fn apply_fonts(ctx: &egui::Context, cfg: &mut Config, mono: ito_common::MonoFont, used: &mut crate::runinfo::RunInfo) -> bool {
+    let (has_nerd, has_bold) = install_fonts(ctx, cfg, mono, used);
     if plain_icons(&cfg.ui.icons, has_nerd) {
         // The one place the theme is changed after `Config::load` built it, and
         // it runs once at startup or on a reload -- so paying for a copy here is
@@ -477,7 +476,7 @@ fn apply_fonts(ctx: &egui::Context, cfg: &mut Config, used: &mut crate::runinfo:
 /// bold faces for the `bold` family when any can be found.
 /// Returns whether the chosen font looks like a Nerd Font, and whether the
 /// `bold` family was registered.
-fn install_fonts(ctx: &egui::Context, cfg: &Config, used: &mut crate::runinfo::RunInfo) -> (bool, bool) {
+fn install_fonts(ctx: &egui::Context, cfg: &Config, mono: ito_common::MonoFont, used: &mut crate::runinfo::RunInfo) -> (bool, bool) {
     let mut candidates: Vec<PathBuf> = cfg.ui.fonts.iter().map(PathBuf::from).collect();
     candidates.extend(system_fonts());
 
@@ -522,6 +521,12 @@ fn install_fonts(ctx: &egui::Context, cfg: &Config, used: &mut crate::runinfo::R
         }
         loaded.push(path);
         break;
+    }
+
+    // common.toml's `mono_font`: the bundled face goes first unless the user
+    // named fonts of their own in `[ui] fonts`, which win.
+    if cfg.ui.fonts.is_empty() {
+        ito_fonts::register(&mut fonts, mono);
     }
 
     used.fonts = loaded.clone();
@@ -1068,7 +1073,7 @@ impl eframe::App for Kura {
             // has yet asked.
             let mut used = crate::runinfo::load().unwrap_or_default();
             used.version = env!("CARGO_PKG_VERSION").into();
-            self.app.bold_font = apply_fonts(&ctx, &mut self.app.cfg, &mut used);
+            self.app.bold_font = apply_fonts(&ctx, &mut self.app.cfg, self.app.common.mono_font_or_default(), &mut used);
             crate::runinfo::save(&used);
         }
         self.app.kick_scans();
