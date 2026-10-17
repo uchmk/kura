@@ -710,6 +710,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::keys_index(kw).into_iter().map(|t| (KEYS, t)));
     index.extend(k.layers.iter().map(|(_, n)| (KEYS, *n)));
     index.extend(ito_prefs::notify_index(w).into_iter().map(|t| (NOTIFY, t)));
+    index.extend(ito_prefs::bug_index(w).into_iter().map(|t| (ADVANCED, t)));
     index.extend([(NOTIFY, k.notify_done), (NOTIFY, k.notify_failed), (NOTIFY, k.notify_done_sound), (NOTIFY, k.notify_failed_sound)]);
     for f in &folders {
         index.extend([(ADVANCED, f.name), (ADVANCED, f.note)]);
@@ -815,6 +816,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                     queued.push(Act::ConfigReload);
                 }
             });
+            if ito_prefs::bug_card(ui, l, w) {
+                queued.push(Act::BugReport);
+            }
         }
     });
     if let Overlay::Settings(ov) = &mut app.overlay {

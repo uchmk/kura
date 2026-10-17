@@ -1,5 +1,5 @@
 # Known gaps against ito, kept visible on purpose: `<crate> <reason>`. Each line is a migration still to do, not a decision to stay.
 ito-help kura draws its own key help; not yet moved to ito-help
 dirs used in app.rs, bugreport.rs, config/mod.rs, main.rs and util.rs; not yet replaced by ito_common::base_dir / app_dir / state_dir
-fancy-regex used by src/rename.rs for rename patterns; whether ito-match covers it is undecided (ask ito if not)
-notify the file watcher in src/fs/watch.rs; not yet replaced by ito-common's watch (which polls)
+fancy-regex used by src/rename.rs for rename patterns (lookaround); waiting on uchmk/ito#16
+notify the file watcher in src/fs/watch.rs (event-driven, newest-wins set); waiting on uchmk/ito#15
