@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.128.3] - 2026-10-18
+
+### 変更
+
+- `scripts/verify.sh` が `scripts/ito-first.py` と `cargo audit` も回すようにした（ito の `templates/app` の `verify.sh` と同じ）。
+  CI に `ito-first` のジョブを足した。
+
 ## [0.128.2] - 2026-10-18
 
 ### 変更
