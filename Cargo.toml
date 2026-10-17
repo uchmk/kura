@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.120.1"
+version = "0.120.2"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -25,7 +25,6 @@ unicode-width = "0.2"
 open = { version = "5", features = ["shellexecute-on-windows"] }
 trash = "5"
 arboard = "3"
-notify = "8"
 ignore = "0.4"
 ab_glyph = "0.2"
 ttf-parser = "0.25"
@@ -39,50 +38,40 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # v0.93.10. Pinned to a commit, the same one for every ito crate; to take a
 # fix, move `rev` and run `cargo build` so Cargo.lock follows. Pure Rust, like
 # the rest.
-ito-pane = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9", features = ["egui", "wgpu"] }
+ito-pane = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b", features = ["egui", "wgpu"] }
 # The border above the terminal pane, dragged to change its height (Q94).
 # From the same commit as the pane; it depends on nothing but egui.
-ito-layout = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9", features = ["egui"] }
-ito-keyscript = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-layout = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b", features = ["egui"] }
+ito-keyscript = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # `kura mcp` (Q95, Q96): the per-user door into the running window (Unix
 # socket / named pipe) and the MCP server Claude Code talks to over stdio.
 # Hand-written on serde_json, no async runtime. The same commit as the pane.
-ito-ipc = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-ipc = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # The rule a search query matches by (`f` `s` `S` `/` `?` `F`), shared with tsumugi; the same commit as the others.
-ito-match = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-match = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # The clock at the status bar's right end and the `[clock]` / `language` of the
 # config shared by every uchmk app (common.toml); the same commit as the others.
-ito-common = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9", features = ["clock", "egui"] }
+ito-common = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b", features = ["clock", "egui", "dirwatch"] }
 # The bug report link and its form (F12): version/OS lines, the context text and the shared issue form; the same commit as the others.
-ito-bugreport = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
-ito-mcp = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-bugreport = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
+ito-mcp = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # The settings screen (Ctrl+,): the frame, side nav, search and the shared
 # Language / CLOCK rows every uchmk app draws alike, and the palette it paints
 # with. The same commit as the others; pure Rust on egui.
-ito-prefs = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
-ito-theme = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-prefs = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
+ito-theme = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # A toast from the OS when a long copy, move or delete ends behind another window (#345); the same commit as the others.
-ito-notify = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9", default-features = false }
+ito-notify = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b", default-features = false }
 # The key notation (parse, print, from egui, `display_seq`), shared with yagura; the same commit as the others.
-ito-i18n = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
-ito-keys = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9", features = ["egui"] }
+ito-i18n = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
+ito-keys = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b", features = ["egui"] }
 # keymap.toml: the layers folded over the defaults, resolved key by key, and the
 # warnings for keys that can never run (moved out of here into ito 0.32.0); the same commit as the others.
-ito-keymap = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-keymap = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # Mouse selection and copy of the preview pane's painted text (v0.112.0); the same commit as the others.
-ito-select = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-select = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 # `kura.com` (src/bin/kura-com.rs) and the answers `say` writes (v0.114.0); the same commit as the others.
-ito-console = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
-# Already in the tree: syntect's `default-fancy` builds it. Naming it here is
-# what lets bulk rename use it, and adds no crate to the build.
-#
-# Held at syntect's version rather than the newest, which is the whole point:
-# syntect 5.3 asks for `0.16.2`, so a newer one here does not replace it, it
-# joins it -- two regex engines compiled, 272 KB on the binary, for an API
-# (`Regex::new`, `replace`, `replace_all`) that has not changed. Dependabot is
-# told to leave it alone for the same reason; when syntect moves, this moves.
-fancy-regex = "0.16"
-
+ito-console = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 [dependencies.image]
 version = "0.25"
 default-features = false
@@ -107,7 +96,7 @@ default-features = false
 [dev-dependencies]
 # The checklists' generator behind examples/make-testcheck.rs and
 # make-keycheck.rs (v0.103.0); the same commit as the ito crates above.
-ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }
 
 [profile.dev]
 opt-level = 1
@@ -130,4 +119,4 @@ windows = { version = "0.62", features = ["Wdk_System_SystemServices", "Win32_Fo
 # The host, not the target: compiling a Windows resource needs the SDK's rc.exe,
 # so this is only pulled in where it can actually run.
 [build-dependencies]
-ito-winres = { git = "https://github.com/uchmk/ito", rev = "4e4d8b882185326a3dac7c9b965d5026ab57b7c9" }
+ito-winres = { git = "https://github.com/uchmk/ito", rev = "b36ec657e0029774958affd18c75394bf5150b6b" }

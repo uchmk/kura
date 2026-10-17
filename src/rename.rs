@@ -15,7 +15,7 @@ pub enum Rule {
     /// A whole new name, with `{name}`, `{ext}` and `{n}` filled in.
     Template(Vec<Part>),
     /// A regular expression over the whole name, sed's spelling.
-    Subst { re: fancy_regex::Regex, rep: String, all: bool },
+    Subst(ito_match::Subst),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -53,12 +53,8 @@ pub fn parse_rule(text: &str) -> Result<Rule, String> {
                 return Err(format!("unknown flag `{f}`; only g and i"));
             }
         }
-        let pattern = match flags.contains('i') {
-            true => format!("(?i){}", parts[0]),
-            false => parts[0].clone(),
-        };
-        let re = fancy_regex::Regex::new(&pattern).map_err(|e| format!("{e}"))?;
-        return Ok(Rule::Subst { re, rep: parts[1].clone(), all: flags.contains('g') });
+        let subst = ito_match::Subst::new(&parts[0], &parts[1], flags.contains('g'), flags.contains('i'))?;
+        return Ok(Rule::Subst(subst));
     }
     Ok(Rule::Template(parse_template(text)?))
 }
@@ -182,10 +178,7 @@ pub fn plan(paths: &[PathBuf], text: &str, taken: &BTreeSet<String>) -> Result<V
 
 fn apply(rule: &Rule, name: &str, n: usize) -> String {
     match rule {
-        Rule::Subst { re, rep, all } => match all {
-            true => re.replace_all(name, rep.as_str()).into_owned(),
-            false => re.replace(name, rep.as_str()).into_owned(),
-        },
+        Rule::Subst(subst) => subst.apply(name),
         Rule::Template(parts) => {
             let (stem, ext) = util::stem_and_ext(name);
             let mut out = String::new();

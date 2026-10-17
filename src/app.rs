@@ -23,12 +23,12 @@ use crate::fs::git;
 use crate::fs::ops::{self, OpKind, OpRequest, Resolution};
 use crate::fs::restore;
 use crate::fs::scan::{ScanResult, Scanner};
-use crate::fs::watch::Watcher;
 use crate::fs::{Entry, Kind, SortSpec};
 use crate::preview::{self, Payload, Previewer, TocEntry};
 use crate::rename;
 use crate::spot::{self, Section, Spotter};
 use crate::util::{self, Lru};
+use ito_common::dirwatch::DirWatcher;
 
 pub const MAX_TABS: usize = 9;
 
@@ -1550,7 +1550,7 @@ pub struct App {
     pub scanner: Scanner,
     pub previewer: Previewer,
     pub ops: ops::Runner,
-    pub watcher: Watcher,
+    pub watcher: DirWatcher,
     pub git: git::Git,
     /// The shell in the bottom pane, while there is one.
     pub term: Option<crate::terminal::Terminal>,
@@ -1796,7 +1796,7 @@ impl App {
         let spotter = Spotter::new(wake.clone());
         let differ = diff::Differ::new(wake.clone());
         let git = git::Git::new(wake.clone());
-        let watcher = Watcher::new(wake);
+        let watcher = DirWatcher::new(wake);
 
         let sort = SortSpec {
             by: cfg.yazi.mgr.sort_by,

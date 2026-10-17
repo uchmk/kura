@@ -80,7 +80,7 @@ Nothing that touches the disk runs on the UI thread.
 | Images | Decoded and downscaled off-thread, uploaded once as a texture |
 | File operations | A sequential job queue with progress and conflict prompts |
 | Repaints | Event-driven: egui only redraws when something actually changed |
-| External changes | Watched via `notify`, debounced 150 ms, then rescanned |
+| External changes | Watched (ito-common `dirwatch`), debounced 150 ms, then rescanned |
 
 ## Configuration
 
@@ -794,7 +794,7 @@ The prompt opens on `{name}{ext}`, which changes nothing, so you edit from where
 A rule starting with `s/` is a **regular expression** over the whole name instead, spelled as in
 sed and vim: `s/pattern/replacement/`, with `g` for every match and `i` for case-insensitive, `$1`
 for a group and `\/` for a literal slash. `s/ copy//g` drops every " copy". The engine is
-`fancy-regex`, already in the build for syntax highlighting.
+`fancy-regex` (through ito-match), already in the build for syntax highlighting.
 
 Nothing is renamed until Enter, and Enter is refused outright if any row is a problem — an empty
 name, a separator in it, two files given the same name, or a name another file in the directory is
