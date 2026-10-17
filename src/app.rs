@@ -2292,15 +2292,18 @@ impl App {
         let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
         std::thread::spawn(move || {
             let said = match what {
-                ito_prefs::Backup::Export(file) => ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"))
-                    .map(|n| format!("Wrote {n} settings files to {}", file.display())),
-                ito_prefs::Backup::Import(file) => ito_common::bundle::import(&file, &base, &app_dir, "kura").map(|r| {
-                    let mut s = format!("Read {} settings files from {} ({} unchanged)", r.written.len(), file.display(), r.unchanged);
-                    for (name, why) in &r.skipped {
-                        s.push_str(&format!("; skipped {name}: {why}"));
-                    }
-                    s
-                }),
+                ito_prefs::Backup::Export(file) => {
+                    ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"), &ito_common::bundle::all)
+                        .map(|n| format!("Wrote {n} settings files to {}", file.display()))
+                }
+                ito_prefs::Backup::Import(file) => ito_common::bundle::import(&file, &base, &app_dir, "kura", &ito_common::bundle::all)
+                    .map(|r| {
+                        let mut s = format!("Read {} settings files from {} ({} unchanged)", r.written.len(), file.display(), r.unchanged);
+                        for (name, why) in &r.skipped {
+                            s.push_str(&format!("; skipped {name}: {why}"));
+                        }
+                        s
+                    }),
             };
             let _ = tx.send(match said {
                 Ok(s) => (false, s),
