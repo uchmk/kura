@@ -1776,3 +1776,16 @@ The Terminal section of Settings is ito's Shell card. Use a copy of `config.toml
 | 57.2 | Type `-NoLogo` in Arguments and press Enter, open a new terminal | The shell starts with it; `[term] args = ["-NoLogo"]` is written |
 | 57.3 | Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` | It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line |
 | 57.4 | Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable | The pane runs `cmd` and the variable is still set |
+
+## 58. Advanced page: folders and Reset (v0.130.0)
+
+The Advanced page of Settings carries ito's card (Settings folder, Data folder, Reset). Use a copy of your config you can lose.
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 58.1 | `Ctrl+,` → Advanced, press Open settings folder | Settings closes and the list shows kura's settings folder |
+| 58.2 | Press Open data folder | Settings closes and the list shows kura's data (state) folder |
+| 58.3 | Press Reset once, then wait | Nothing is changed; the button asks for a second press |
+| 58.4 | Press Reset twice | `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched |
+| 58.5 | Press Reset again with no files | A toast says there was nothing to reset |
+| 58.6 | Look at the sidebar order of Settings | General, Theme, config.toml, Keys, Notifications, Advanced, About |

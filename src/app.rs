@@ -860,6 +860,19 @@ fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Option<Sender<K
     spawned.ok().map(|_| tx)
 }
 
+/// Rename each of `files` that exists to `<name>.bak-<seconds>`; how many moved.
+fn move_aside(files: &[PathBuf]) -> std::io::Result<usize> {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let mut moved = 0;
+    for f in files.iter().filter(|f| f.exists()) {
+        let mut aside = f.clone().into_os_string();
+        aside.push(format!(".bak-{secs}"));
+        std::fs::rename(f, aside)?;
+        moved += 1;
+    }
+    Ok(moved)
+}
+
 /// Change the rows in config.toml and keep the rest of it -- comments, order,
 /// blank lines -- as it was; a file that is not there yet is started with
 /// [`OWN_FILE_START`]. A file that does not read as TOML is left alone.
@@ -2316,6 +2329,22 @@ impl App {
             let _ = tx.send(match said {
                 Ok(s) => (false, s),
                 Err(e) => (true, e),
+            });
+            ctx.request_repaint();
+        });
+    }
+
+    /// Start over (the Advanced page's Reset): config.toml and keymap.toml are
+    /// moved aside as `*.bak-<seconds>`, on a thread, and the watchers read
+    /// the defaults back. common.toml and the themes are left alone.
+    pub fn settings_reset(&mut self) {
+        let files: Vec<PathBuf> = self.own_config_in_force().into_iter().chain(Self::own_keymap()).collect();
+        let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(match move_aside(&files) {
+                Ok(0) => (false, "Nothing to reset: no config.toml or keymap.toml".to_owned()),
+                Ok(n) => (false, format!("Settings reset; {n} file(s) kept as *.bak-…")),
+                Err(e) => (true, format!("Reset failed: {e}")),
             });
             ctx.request_repaint();
         });
@@ -10307,6 +10336,19 @@ mod usage_view {
         assert_eq!(runs(&a, "p"), "paste");
         assert!(a.kura_wrote.is_none(), "no watcher event to keep quiet");
         assert!(!a.toasts.iter().any(|t| t.text.starts_with("Saved")), "nothing was saved");
+    }
+
+    /// Reset moves the files that exist aside and leaves the rest alone.
+    #[test]
+    fn move_aside_renames_only_what_exists() {
+        let dir = util::test_dir("move-aside");
+        let (a, b) = (dir.join("config.toml"), dir.join("keymap.toml"));
+        std::fs::write(&a, "x").unwrap();
+        assert_eq!(move_aside(&[a.clone(), b.clone()]).unwrap(), 1);
+        assert!(!a.exists());
+        let kept: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert!(kept.len() == 1 && kept[0].starts_with("config.toml.bak-"), "{kept:?}");
+        assert_eq!(move_aside(&[a, b]).unwrap(), 0);
     }
 
     /// The config.toml page writes its rows into the file in force, keeping the

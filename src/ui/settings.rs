@@ -23,6 +23,7 @@ use ito_theme::{mix, Colors};
 use crate::app::{App, KuraChange, Overlay};
 use crate::config::cmd::Act;
 use crate::config::theme::{is_light, Theme};
+use ito_prefs::Page;
 
 /// kura's own words on the screen, in one language.
 pub struct KuraWords {
@@ -308,6 +309,9 @@ pub fn colors(t: &Theme) -> Colors {
 }
 
 /// The pages, in the nav's order.
+/// The pages besides General and About, in ito's order (`ito_prefs::default_order`);
+/// the numbers below are their places in it.
+const HAS: [Page; 5] = [Page::Theme, Page::App, Page::Keys, Page::Notifications, Page::Advanced];
 const GENERAL: usize = 0;
 const THEME: usize = 1;
 const KURA: usize = 2;
@@ -705,15 +709,19 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut drafts = std::mem::take(&mut ov.drafts);
     let mut shell_edit = std::mem::take(&mut ov.shell_edit);
 
-    let pages = [
-        (k.general, k.general_lead),
-        (k.theme, k.theme_lead),
-        ("config.toml", k.kura_lead),
-        (k.keys, k.keys_lead),
-        (w.notify, k.notify_lead),
-        (k.advanced, k.advanced_lead),
-        (mw.p_about, mw.p_about_lead),
-    ];
+    let pages: Vec<(&str, &str)> = ito_prefs::default_order(&HAS)
+        .into_iter()
+        .map(|p| match p {
+            Page::General => (k.general, k.general_lead),
+            Page::Theme => (k.theme, k.theme_lead),
+            Page::App => ("config.toml", k.kura_lead),
+            Page::Keys => (k.keys, k.keys_lead),
+            Page::Notifications => (w.notify, k.notify_lead),
+            Page::Advanced => (k.advanced, k.advanced_lead),
+            Page::About => (mw.p_about, mw.p_about_lead),
+            Page::Appearance | Page::OpenIn => ("", ""),
+        })
+        .collect();
     let mut index = vec![
         (GENERAL, w.language),
         (GENERAL, k.language_note),
@@ -769,6 +777,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::GENERAL_KEYS.map(|key| (GENERAL, key)));
     index.extend(ito_prefs::window_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::backup_index(mw).into_iter().map(|t| (ADVANCED, t)));
+    index.extend(ito_prefs::advanced_index(mw).into_iter().map(|t| (ADVANCED, t)));
     index.extend(ito_prefs::mono_font_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
@@ -793,6 +802,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut copy: Option<String> = None;
     let mut forget = false;
     let mut backup = Vec::new();
+    let mut advanced = Vec::new();
     let mono_font = app.common.mono_font_or_default();
     let backup_file = ito_common::home_dir().unwrap_or_default().join("kura-settings.toml");
     let mut toggled = None;
@@ -891,6 +901,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
                     }
                 }
             });
+            advanced.extend(ito_prefs::advanced_card(ui, l, mw, true));
             backup.extend(ito_prefs::backup_card(ui, l, mw, &backup_file));
             section(ui, l, k.problems, |ui| {
                 if warnings.is_empty() {
@@ -932,6 +943,24 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     for b in backup {
         app.settings_backup(b);
     }
+    for a in advanced {
+        let dir = match a {
+            ito_prefs::Advanced::OpenConfigDir => App::kura_config_dir(),
+            ito_prefs::Advanced::OpenStateDir => Some(crate::config::Config::state_dir()),
+            ito_prefs::Advanced::Reset => {
+                app.settings_reset();
+                continue;
+            }
+        };
+        match dir {
+            // Out of the screen and into the folder, in the list.
+            Some(d) => {
+                queued.push(Act::Settings);
+                queued.push(Act::Cd { target: d.display().to_string(), interactive: false });
+            }
+            None => app.error(k.no_folder.to_owned()),
+        }
+    }
     if forget {
         match ito_prefs::forget_place(&crate::config::Config::state_dir()) {
             Ok(()) => app.toast("window.toml: forgotten".to_owned()),
@@ -969,6 +998,25 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pages sit where ito's default order puts them.
+    #[test]
+    fn the_pages_follow_itos_default_order() {
+        let order = ito_prefs::default_order(&HAS);
+        let at = |p: Page| order.iter().position(|o| *o == p).unwrap();
+        assert_eq!(
+            [GENERAL, THEME, KURA, KEYS, NOTIFY, ADVANCED, ABOUT],
+            [
+                at(Page::General),
+                at(Page::Theme),
+                at(Page::App),
+                at(Page::Keys),
+                at(Page::Notifications),
+                at(Page::Advanced),
+                at(Page::About)
+            ]
+        );
+    }
 
     /// A float is written as the README writes it, a whole number without a
     /// point, and words that are not a number in range are not written.

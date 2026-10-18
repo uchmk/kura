@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 674 件（TESTING.md の全 868 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 680 件（TESTING.md の全 874 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 75 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 81 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -956,3 +956,12 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **57.2** Type `-NoLogo` in Arguments and press Enter, open a new terminal → The shell starts with it; `[term] args = ["-NoLogo"]` is written 〔未訳〕
 - [ ] **57.3** Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` → It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line 〔未訳〕
 - [ ] **57.4** Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable → The pane runs `cmd` and the variable is still set 〔未訳〕
+
+## 58. Advanced page: folders and Reset (v0.130.0)
+
+- [ ] **58.1** `Ctrl+,` → Advanced, press Open settings folder → Settings closes and the list shows kura's settings folder 〔未訳〕
+- [ ] **58.2** Press Open data folder → Settings closes and the list shows kura's data (state) folder 〔未訳〕
+- [ ] **58.3** Press Reset once, then wait → Nothing is changed; the button asks for a second press 〔未訳〕
+- [ ] **58.4** Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched 〔未訳〕
+- [ ] **58.5** Press Reset again with no files → A toast says there was nothing to reset 〔未訳〕
+- [ ] **58.6** Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About 〔未訳〕
