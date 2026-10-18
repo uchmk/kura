@@ -376,6 +376,7 @@ function Save-DirtyWorktree([string[]]$changes) {
 
 . (Join-Path $PSScriptRoot 'lane-marks.ps1')
 . (Join-Path $PSScriptRoot 'lane-status.ps1')
+. (Join-Path $PSScriptRoot 'lane-trust.ps1')
 
 # This firing, written into the lane's status issue on GitHub (lane-status.ps1)
 # at the start of a run and at the end of every firing, so a cloud session can
@@ -740,6 +741,9 @@ try {
             Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-3) } |
             ForEach-Object { Remove-Item -Recurse -Force -LiteralPath $_.FullName -ErrorAction SilentlyContinue }
     }
+    # Claude Code asks about trusting a folder the first time it starts in one, and
+    # every run folder is new: trust the scratch root once (lane-trust.ps1).
+    Set-ClaudeFolderTrust $Scratch | Out-Null
     # The report's name carries the start time: a section run twice on one day
     # (a re-test) wrote the earlier run's file again, which the Merge lanes
     # workflow refuses (a run only adds its own report).
