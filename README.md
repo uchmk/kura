@@ -606,6 +606,17 @@ are the `[settings]` keymap section.
 
 The screen is drawn in the common theme's colours, or in `theme.toml`'s when its `[app] overall` sets the window's.
 
+## Title bar and notices
+
+The window has no OS title bar (v0.131.0): kura draws its own with ito's `ito-titlebar`. At the left is the title
+(`Kura: <cwd>`, the same text the taskbar shows), in the middle a box that opens the command palette (click it, or
+`Ctrl`+`Shift`+`P`) and the bell, and at the right the minimize, maximize and close buttons. Drag the bar to move the
+window, double-click it to maximize, drag an edge or corner to resize. On macOS the system's traffic lights stay over the bar.
+
+Every toast is also kept behind the bell (the last 100, unread until read; the same unread message again is one line).
+The badge is the unread count and turns red when one of them is an error. Click the bell for the list, newest first;
+`Esc` or a click outside closes it, and **Mark all read** clears the badge.
+
 ## Command palette
 
 `<C-S-p>` (`Ctrl`+`Shift`+`P`; `Cmd`+`Shift`+`P` on macOS) lists every `mgr` binding — the built-in ones and whatever

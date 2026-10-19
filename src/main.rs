@@ -296,6 +296,9 @@ fn main() -> eframe::Result<()> {
     if let Some(icon) = app_icon(ICON_SVG, 256) {
         viewport = viewport.with_icon(icon);
     }
+    // The bar is kura's own (ito-titlebar); the Mac keeps its traffic lights
+    // over it.
+    viewport = ito_titlebar::frameless(viewport);
     let wgpu_options = wgpu_options(&mut cfg);
     let options = eframe::NativeOptions { viewport, wgpu_options, ..Default::default() };
 
@@ -1089,12 +1092,21 @@ impl eframe::App for Kura {
         let title = title_for(&self.app);
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
-            self.title = title;
+            self.title = title.clone();
         }
+
+        egui::Panel::top("titlebar").exact_size(ito_titlebar::HEIGHT).frame(egui::Frame::NONE.fill(self.app.cfg.theme.bg)).show(ui, |ui| {
+            self.title_bar(ui, &title);
+        });
+        self.notice_list(&ctx);
 
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(self.app.cfg.theme.bg)).show(ui, |ui| {
             ui::draw(&mut self.app, ui);
         });
+        // Last, so the edges of the frameless window win over what is under them.
+        if !cfg!(target_os = "macos") {
+            ito_titlebar::resize_edges(&ctx);
+        }
 
         // egui walks focus across clickable rows on Tab / Shift+Tab, and a
         // focused row then takes Space / Enter as a click. The keymap owns
@@ -1141,6 +1153,79 @@ impl eframe::App for Kura {
             ctx.request_repaint_after(Duration::from_millis(80));
         }
         self.cursor_icon = ctx.output(|o| o.cursor_icon);
+    }
+}
+
+impl Kura {
+    /// The window's own bar: the title, the palette box, the bell and the
+    /// caption buttons. The bell opens the list of notices.
+    fn title_bar(&mut self, ui: &mut egui::Ui, title: &str) {
+        let ctx = ui.ctx().clone();
+        let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+        let w = ui::settings::KuraWords::of(&self.app.lang);
+        let unread = ito_notices::unread(&self.app.notices);
+        let bell = w.title_bell.replace("{}", &unread.to_string());
+        let spec = ito_titlebar::Spec {
+            own: !cfg!(target_os = "macos"),
+            left: if cfg!(target_os = "macos") { 76.0 } else { 0.0 },
+            maximized,
+            unread,
+            any_error: ito_notices::any_error(&self.app.notices),
+            centre: true,
+            words: ito_titlebar::Words {
+                search: w.title_search,
+                search_key: "Ctrl+Shift+P",
+                bell: &bell,
+                minimize: w.minimize,
+                maximize: w.maximize,
+                restore: w.restore,
+                close: w.close,
+            },
+        };
+        let fg = ito_theme::colors().fg;
+        let out = ito_titlebar::show(
+            ui,
+            &spec,
+            |ui, rect| {
+                let galley = ui.painter().layout_no_wrap(title.to_owned(), egui::FontId::proportional(13.0), fg);
+                let x = rect.left() + 12.0;
+                let right = x + galley.size().x;
+                ui.painter().galley(egui::pos2(x, rect.center().y - galley.size().y / 2.0), galley, egui::Color32::WHITE);
+                right
+            },
+            |_, _| {},
+        );
+        if let Some(r) = out.bell_rect {
+            self.app.bell_at = r;
+        }
+        if out.bell {
+            self.app.bell_open = !self.app.bell_open;
+        }
+        if out.search {
+            self.app.act(Act::Palette);
+        }
+        if let Some(op) = out.window {
+            ito_titlebar::apply(&ctx, op, maximized);
+        }
+    }
+
+    /// The list under the bell, while it is open.
+    fn notice_list(&mut self, ctx: &egui::Context) {
+        if !self.app.bell_open {
+            return;
+        }
+        let w = ui::settings::KuraWords::of(&self.app.lang);
+        let title = w.notices_title.replace("{}", &ito_notices::unread(&self.app.notices).to_string());
+        let words = ito_notices::Words { title: &title, mark_read: w.mark_read, empty: w.notices_empty, ago: w.ago, kinds: w.kinds };
+        match ito_notices::show(ctx, self.app.bell_at, &self.app.notices, &words) {
+            Some(ito_notices::Action::Open(_, id)) => {
+                self.app.notices.iter_mut().filter(|n| n.id == id).for_each(|n| n.read = true);
+                self.app.bell_open = false;
+            }
+            Some(ito_notices::Action::ReadAll) => self.app.notices.iter_mut().for_each(|n| n.read = true),
+            Some(ito_notices::Action::Close) => self.app.bell_open = false,
+            None => {}
+        }
     }
 }
 

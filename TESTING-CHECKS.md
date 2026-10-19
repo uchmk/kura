@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 680 件（TESTING.md の全 874 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 691 件（TESTING.md の全 885 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 81 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 92 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1013,3 +1013,17 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **58.4** Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched 〔未訳〕
 - [ ] **58.5** Press Reset again with no files → A toast says there was nothing to reset 〔未訳〕
 - [ ] **58.6** Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About 〔未訳〕
+
+## 59. Own title bar and the bell (v0.131.0)
+
+- [ ] **59.1** Start kura → A bar on top: `Kura: <cwd>` at the left, a palette box and a bell in the middle, minimize / maximize / close at the right 〔未訳〕
+- [ ] **59.2** Drag the empty part of the bar → The window moves; double-click maximizes and restores it 〔未訳〕
+- [ ] **59.3** Click minimize, maximize, restore, then close → Each does what it says; close ends kura and saves the window's place 〔未訳〕
+- [ ] **59.4** Drag each edge and corner of the window → The window resizes from that edge 〔未訳〕
+- [ ] **59.5** Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways 〔未訳〕
+- [ ] **59.6** Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it 〔未訳〕
+- [ ] **59.7** Click the bell → A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge 〔未訳〕
+- [ ] **59.8** Cause an error toast (open a file that cannot open) → The badge is red until it is read 〔未訳〕
+- [ ] **59.9** Change the language to Japanese in Settings → The bar's hints and the list's words are Japanese 〔未訳〕
+- [ ] **59.10** macOS: look at the bar's left → The traffic lights sit over it and the title starts after them 〔未訳〕
+- [ ] **59.11** Linux (X11 and Wayland): drag, maximize and resize from the edges → They work with the bar and edges kura draws 〔未訳〕

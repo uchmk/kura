@@ -1789,3 +1789,21 @@ The Advanced page of Settings carries ito's card (Settings folder, Data folder, 
 | 58.4 | Press Reset twice | `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched |
 | 58.5 | Press Reset again with no files | A toast says there was nothing to reset |
 | 58.6 | Look at the sidebar order of Settings | General, Theme, config.toml, Keys, Notifications, Advanced, About |
+
+## 59. Own title bar and the bell (v0.131.0)
+
+The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a list of notices behind the bell (ito-notices).
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 59.1 | Start kura | A bar on top: `Kura: <cwd>` at the left, a palette box and a bell in the middle, minimize / maximize / close at the right |
+| 59.2 | Drag the empty part of the bar | The window moves; double-click maximizes and restores it |
+| 59.3 | Click minimize, maximize, restore, then close | Each does what it says; close ends kura and saves the window's place |
+| 59.4 | Drag each edge and corner of the window | The window resizes from that edge |
+| 59.5 | Click the palette box, and press `Ctrl+Shift+P` | The command palette opens both ways |
+| 59.6 | Do something that toasts (`y`), then look at the bell | The bell has a badge of 1; the toast fades but the bell's list still has it |
+| 59.7 | Click the bell | A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge |
+| 59.8 | Cause an error toast (open a file that cannot open) | The badge is red until it is read |
+| 59.9 | Change the language to Japanese in Settings | The bar's hints and the list's words are Japanese |
+| 59.10 | macOS: look at the bar's left | The traffic lights sit over it and the title starts after them |
+| 59.11 | Linux (X11 and Wayland): drag, maximize and resize from the edges | They work with the bar and edges kura draws |

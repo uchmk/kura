@@ -779,6 +779,9 @@ pub enum Level {
     Error,
 }
 
+/// How many notices [`App::notices`] keeps.
+const NOTICES: usize = 100;
+
 /// How many keys [`App::recent_keys`] keeps.
 const RECENT_KEYS: usize = 20;
 
@@ -1707,6 +1710,14 @@ pub struct App {
     /// out, so a check whose expected result is a toast does not have to
     /// catch it on screen before it goes (#176, #190, #196).
     pub toast_log: std::collections::VecDeque<String>,
+    /// What the bell in the title bar lists: every toast raised, oldest
+    /// first, at most [`NOTICES`] of them, unread until the list is opened on
+    /// it. The toasts fade; these stay.
+    pub notices: Vec<ito_notices::Notice<()>>,
+    next_notice: u64,
+    pub bell_open: bool,
+    /// Where the bell was drawn last frame, for the list to hang from.
+    pub bell_at: egui::Rect,
     /// The last keys pressed, rendered, newest last, for `<F12>`'s report
     /// (Q64). Keys only: text typed into a prompt is not kept.
     pub recent_keys: std::collections::VecDeque<String>,
@@ -1913,6 +1924,10 @@ impl App {
             tasks: Vec::new(),
             toasts: Vec::new(),
             toast_log: std::collections::VecDeque::new(),
+            notices: Vec::new(),
+            next_notice: 1,
+            bell_open: false,
+            bell_at: egui::Rect::NOTHING,
             recent_keys: std::collections::VecDeque::new(),
             last_error: None,
             last_report: None,
@@ -2465,12 +2480,34 @@ impl App {
             self.toast_log.pop_front();
         }
         self.toast_log.push_back(text.clone());
+        self.note(&text, level);
         if let Some(t) = self.toasts.iter_mut().rev().find(|t| t.text == text && t.level == level) {
             t.count += 1;
             t.at = Instant::now();
             return;
         }
         self.toasts.push(Toast { text, level, at: Instant::now(), count: 1 });
+    }
+
+    /// Add `text` to the bell's list, or refresh the unread notice already
+    /// saying it (the same news again is not a second line).
+    fn note(&mut self, text: &str, level: Level) {
+        let kind = match level {
+            Level::Info => ito_notices::Kind::Info,
+            Level::Warn => ito_notices::Kind::Warn,
+            Level::Error => ito_notices::Kind::Err,
+        };
+        let now = std::time::SystemTime::now();
+        if let Some(n) = self.notices.iter_mut().rev().find(|n| !n.read && n.kind == kind && n.title == text) {
+            n.at = now;
+            return;
+        }
+        if self.notices.len() == NOTICES {
+            self.notices.remove(0);
+        }
+        let id = self.next_notice;
+        self.next_notice += 1;
+        self.notices.push(ito_notices::Notice { id, at: now, kind, title: text.to_owned(), note: None, go: None, read: false });
     }
 
     // ------------------------------------------------------------- scanning
@@ -12797,6 +12834,31 @@ mod find_marks {
         a.open_input(InputKind::Create, "New", String::new());
         a.recall_input(true);
         assert_eq!(text(&a), "", "a file name prompt has no history");
+    }
+
+    /// Every toast also lands in the bell's list, unread; the same unread
+    /// news twice is one line, and the list stops at [`NOTICES`].
+    #[test]
+    fn a_toast_is_kept_in_the_bells_list() {
+        let dir = crate::util::test_dir("bell-notices");
+        let mut a = app_in(&dir);
+        a.notices.clear();
+        a.raise("one".into(), Level::Info);
+        a.raise("one".into(), Level::Info);
+        a.raise("bad".into(), Level::Error);
+        let kinds: Vec<_> = a.notices.iter().map(|n| (n.title.as_str(), n.kind)).collect();
+        assert_eq!(kinds, [("one", ito_notices::Kind::Info), ("bad", ito_notices::Kind::Err)]);
+        assert_eq!(ito_notices::unread(&a.notices), 2);
+        assert!(ito_notices::any_error(&a.notices));
+        a.notices[0].read = true;
+        a.raise("one".into(), Level::Info);
+        assert_eq!(a.notices.len(), 3, "a read notice does not take the repeat");
+        for i in 0..NOTICES + 5 {
+            a.raise(format!("n{i}"), Level::Warn);
+        }
+        assert_eq!(a.notices.len(), NOTICES);
+        assert_eq!(a.notices.last().map(|n| n.title.as_str()), Some(format!("n{}", NOTICES + 4).as_str()));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The end of a search says how many it found and where it looked, a miss

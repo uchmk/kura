@@ -27,6 +27,21 @@ use ito_prefs::Page;
 
 /// kura's own words on the screen, in one language.
 pub struct KuraWords {
+    pub title_search: &'static str,
+    /// `{}` is the unread count.
+    pub title_bell: &'static str,
+    pub minimize: &'static str,
+    pub maximize: &'static str,
+    pub restore: &'static str,
+    pub close: &'static str,
+    /// `{}` is the unread count.
+    pub notices_title: &'static str,
+    pub mark_read: &'static str,
+    pub notices_empty: &'static str,
+    /// `{}` is the age (`5m`).
+    pub ago: &'static str,
+    /// Done, info, check, failed, waiting.
+    pub kinds: [&'static str; 5],
     pub general: &'static str,
     pub general_lead: &'static str,
     pub theme: &'static str,
@@ -110,6 +125,17 @@ fn not_a_number_ja(label: &str, text: &str, lo: f64, hi: f64) -> String {
 }
 
 pub const EN: KuraWords = KuraWords {
+    title_search: "Command palette",
+    title_bell: "Notices ({} unread)",
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore",
+    close: "Close",
+    notices_title: "Notices ({} unread)",
+    mark_read: "Mark all read",
+    notices_empty: "No notices",
+    ago: "{} ago",
+    kinds: ["done", "info", "check", "failed", "waiting"],
     general: "General",
     general_lead: "The language, the scale and the clock, shared with every uchmk app through common.toml.",
     theme: "Theme",
@@ -191,6 +217,17 @@ pub const EN: KuraWords = KuraWords {
 };
 
 pub const JA: KuraWords = KuraWords {
+    title_search: "コマンド パレット",
+    title_bell: "通知（未読 {}）",
+    minimize: "最小化",
+    maximize: "最大化",
+    restore: "元に戻す",
+    close: "閉じる",
+    notices_title: "通知（未読 {}）",
+    mark_read: "すべて既読にする",
+    notices_empty: "通知はありません",
+    ago: "{}前",
+    kinds: ["完了", "情報", "要確認", "失敗", "待機中"],
     general: "一般",
     general_lead: "言語・倍率・時計。common.toml を通して uchmk のどのアプリにも同じものが当たる。",
     theme: "テーマ",
