@@ -688,7 +688,7 @@ struct Kura {
     script_watch: Option<Arc<Mutex<ScriptWatch>>>,
     /// What `kura mcp` asks through the door (`mcp::listen`); `None` with
     /// `[mcp] enable = false`.
-    mcp: Option<crossbeam_channel::Receiver<mcp::Ask>>,
+    mcp: Option<std::sync::mpsc::Receiver<mcp::Ask>>,
 }
 
 /// How far `--keys` has got, shared with the thread that watches it.

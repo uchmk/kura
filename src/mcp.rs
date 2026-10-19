@@ -20,23 +20,20 @@
 
 use std::io;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
-use crossbeam_channel::{bounded, Receiver, Sender};
-use ito_ipc::{frame, Address, Listener};
+use ito_ipc::door::{self, Door, ANSWER_WAIT};
+use ito_ipc::Address;
 use ito_mcp::serde_json::{json, Value};
 use ito_mcp::{arg_str, Server, Tool};
 use serde::{Deserialize, Serialize};
 
+pub use ito_ipc::door::Reply;
+
 /// Bumped when [`Request`] or [`Reply`] change shape, so a window and a
 /// `kura mcp` from different versions say so instead of misreading.
 const PROTO: u32 = 2;
-
-/// How long `kura mcp` and the door wait for the window to answer. A window
-/// that is busy for longer (a modal dialog on Windows) is reported, not waited for.
-const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 /// How long a writing request waits for the user to answer its box. Past it
 /// the box no longer does anything (see [`Ask::expired`]).
@@ -45,10 +42,36 @@ const DECIDE_WAIT: Duration = Duration::from_secs(120);
 /// Most paths one writing request may name; the box lists the first few.
 const MAX_PATHS: usize = 500;
 
-/// The door: `\\.\pipe\kura-<user>` on Windows, `$XDG_RUNTIME_DIR/kura/sock`
-/// (or `/tmp/kura-<user>/sock`) elsewhere; `KURA_ADDRESS` names another.
+/// The door (ito's `ito-ipc::door`): `\.\pipe\kura-<user>` on Windows,
+/// `$XDG_RUNTIME_DIR/kura/sock` (or `/tmp/kura-<user>/sock`) elsewhere;
+/// `KURA_ADDRESS` names another.
+fn door() -> Door<Request> {
+    let mut d = Door::new("kura", "KURA_ADDRESS", PROTO);
+    d.check = check;
+    d.wait = |r| if matches!(r, Request::Write(_)) { DECIDE_WAIT } else { ANSWER_WAIT };
+    d
+}
+
 pub fn address() -> Address {
-    Address::per_user("kura", "KURA_ADDRESS")
+    door().address()
+}
+
+/// What is wrong with a request on its face, checked off the UI thread: a
+/// path on a share that stopped answering would hold the window.
+fn check(request: &Request) -> Result<(), String> {
+    match request {
+        Request::State => Ok(()),
+        Request::Reveal(p) => {
+            if !p.is_absolute() {
+                return Err(format!("{} is not an absolute path", p.display()));
+            }
+            if std::fs::symlink_metadata(p).is_err() {
+                return Err(format!("{} does not exist", p.display()));
+            }
+            Ok(())
+        }
+        Request::Write(w) => w.check(),
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -146,101 +169,18 @@ impl Write {
     }
 }
 
-/// What the window says: the tool's text, or why it could not.
-pub type Reply = Result<String, String>;
-
 /// One request handed to the UI thread, with where its answer goes.
-pub struct Ask {
-    pub request: Request,
-    pub reply: Sender<Reply>,
-    /// Set when the one asking stopped waiting: a box for it that is pressed
-    /// after that does nothing.
-    pub expired: Arc<AtomicBool>,
-}
+pub type Ask = door::Ask<Request>;
 
 /// Opens the door on a thread of its own and hands each request to the UI
 /// thread through the returned channel, waking it with `ctx`.
 pub fn listen(ctx: egui::Context) -> Receiver<Ask> {
-    let (tx, rx) = bounded::<Ask>(16);
-    let at = address();
-    let _ = std::thread::Builder::new().name("kura-mcp".into()).spawn(move || {
-        let listener = loop {
-            match Listener::bind(&at) {
-                Ok(l) => break l,
-                // Another kura window has it. Try again later, so the door
-                // moves on when that window closes.
-                Err(e) if e.kind() == io::ErrorKind::AddrInUse => std::thread::sleep(Duration::from_secs(30)),
-                // Nothing to report it to that anyone reads: the door is a
-                // convenience, and the window works without it.
-                Err(_) => return,
-            }
-        };
-        while let Ok(conn) = listener.accept() {
-            let tx = tx.clone();
-            let ctx = ctx.clone();
-            let _ = std::thread::Builder::new().name("kura-mcp-conn".into()).spawn(move || {
-                let _ = serve_one(conn, &tx, &ctx);
-            });
-        }
-    });
-    rx
-}
-
-/// One connection: one request, one reply. A probe that connects and goes
-/// away (another window checking whether the door is taken) ends here at the read.
-fn serve_one(conn: ito_ipc::Conn, tx: &Sender<Ask>, ctx: &egui::Context) -> io::Result<()> {
-    let (mut r, mut w) = conn.split()?;
-    let (proto, request): (u32, Request) = frame::read(&mut r)?;
-    let reply = if proto != PROTO {
-        Err(format!("this kura window speaks version {PROTO} of the door and kura mcp spoke {proto}; run the same kura for both"))
-    } else {
-        answer(request, tx, ctx)
-    };
-    frame::write(&mut w, &reply)
-}
-
-fn answer(request: Request, tx: &Sender<Ask>, ctx: &egui::Context) -> Reply {
-    // Checked here, off the UI thread: a path on a share that stopped
-    // answering would hold the window.
-    if let Request::Reveal(p) = &request {
-        if !p.is_absolute() {
-            return Err(format!("{} is not an absolute path", p.display()));
-        }
-        if std::fs::symlink_metadata(p).is_err() {
-            return Err(format!("{} does not exist", p.display()));
-        }
-    }
-    let writes = matches!(request, Request::Write(_));
-    if let Request::Write(w) = &request {
-        w.check()?;
-    }
-    let (reply_tx, reply_rx) = bounded(1);
-    let expired = Arc::new(AtomicBool::new(false));
-    tx.send_timeout(Ask { request, reply: reply_tx, expired: expired.clone() }, ANSWER_WAIT)
-        .map_err(|_| "the kura window is busy".to_owned())?;
-    ctx.request_repaint();
-    let wait = if writes { DECIDE_WAIT } else { ANSWER_WAIT };
-    match reply_rx.recv_timeout(wait) {
-        Ok(reply) => reply,
-        // The box was closed with Esc: that is an answer, and it is no.
-        Err(crossbeam_channel::RecvTimeoutError::Disconnected) => Err("the user closed the box: not done".to_owned()),
-        Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-            expired.store(true, Ordering::Relaxed);
-            // An idle window draws nothing, so wake it to close the box.
-            ctx.request_repaint();
-            Err(if writes { "the user did not answer in time: not done" } else { "the kura window did not answer in time" }.to_owned())
-        }
-    }
+    door().listen(move || ctx.request_repaint())
 }
 
 /// Asks the running window, for `kura mcp`.
 fn ask(request: Request) -> Reply {
-    let at = address();
-    let conn = ito_ipc::connect(&at)
-        .map_err(|_| "kura is not running (or its [mcp] enable is false in kura's config.toml); start kura and ask again".to_owned())?;
-    let (mut r, mut w) = conn.split().map_err(|e| e.to_string())?;
-    frame::write(&mut w, &(PROTO, request)).map_err(|e| format!("could not reach the kura window: {e}"))?;
-    frame::read::<_, Reply>(&mut r).map_err(|e| format!("the kura window did not answer: {e}"))?
+    door::ask(&door(), &request)
 }
 
 /// The MCP server `kura mcp` runs on its standard input and output.
@@ -448,37 +388,16 @@ mod tests {
         assert!(v["result"]["content"][0]["text"].as_str().unwrap().contains("kura is not running"));
     }
 
-    /// The door end to end, without a window: a fake UI thread answers what
-    /// comes down the channel, and a relative path never reaches it.
-    #[cfg(unix)]
+    /// A reveal is turned away on its face before the window is asked.
     #[test]
-    fn the_door_carries_a_request_and_its_reply() {
+    fn a_bad_reveal_never_reaches_the_window() {
         let dir = crate::util::test_dir("mcp-door");
         std::fs::create_dir_all(&dir).unwrap();
-        let at = Address(dir.join("sock"));
-        let listener = Listener::bind(&at).unwrap();
-        let (tx, rx) = bounded::<Ask>(1);
-        std::thread::spawn(move || {
-            while let Ok(ask) = rx.recv() {
-                let _ = ask.reply.send(Ok(format!("{:?}", ask.request)));
-            }
-        });
-        let ctx = egui::Context::default();
-        std::thread::spawn(move || {
-            while let Ok(conn) = listener.accept() {
-                let _ = serve_one(conn, &tx, &ctx);
-            }
-        });
-        let send = |req: Request| -> Reply {
-            let (mut r, mut w) = ito_ipc::connect(&at).unwrap().split().unwrap();
-            frame::write(&mut w, &(PROTO, req)).unwrap();
-            frame::read(&mut r).unwrap()
-        };
-        assert_eq!(send(Request::State), Ok("State".into()));
         let file = dir.join("a.txt");
         std::fs::write(&file, "x").unwrap();
-        assert_eq!(send(Request::Reveal(file.clone())), Ok(format!("Reveal({file:?})")));
-        assert!(send(Request::Reveal("a.txt".into())).unwrap_err().contains("not an absolute path"));
-        assert!(send(Request::Reveal(dir.join("gone"))).unwrap_err().contains("does not exist"));
+        assert!(check(&Request::State).is_ok());
+        assert!(check(&Request::Reveal(file)).is_ok());
+        assert!(check(&Request::Reveal("a.txt".into())).unwrap_err().contains("not an absolute path"));
+        assert!(check(&Request::Reveal(dir.join("gone"))).unwrap_err().contains("does not exist"));
     }
 }

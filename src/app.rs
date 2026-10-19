@@ -105,7 +105,7 @@ pub enum ConfirmAction {
     /// client stopped waiting; a late Allow then does nothing.
     Mcp {
         write: crate::mcp::Write,
-        reply: Sender<crate::mcp::Reply>,
+        reply: std::sync::mpsc::SyncSender<crate::mcp::Reply>,
         expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
     },
 }
@@ -7429,7 +7429,7 @@ impl App {
     pub fn mcp_write(
         &mut self,
         write: crate::mcp::Write,
-        reply: Sender<crate::mcp::Reply>,
+        reply: std::sync::mpsc::SyncSender<crate::mcp::Reply>,
         expired: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) {
         if !matches!(self.overlay, Overlay::None) {
@@ -12944,8 +12944,8 @@ mod mcp_writes {
         a
     }
 
-    fn ask(a: &mut App, dir: &Path) -> (crossbeam_channel::Receiver<crate::mcp::Reply>, Arc<AtomicBool>) {
-        let (tx, rx) = crossbeam_channel::bounded(1);
+    fn ask(a: &mut App, dir: &Path) -> (std::sync::mpsc::Receiver<crate::mcp::Reply>, Arc<AtomicBool>) {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let expired = Arc::new(AtomicBool::new(false));
         let w = Write { tool: WriteTool::Rename, paths: vec![dir.join("a.txt")], to: Some("b.txt".into()) };
         a.mcp_write(w, tx, expired.clone());

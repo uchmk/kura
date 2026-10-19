@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.131.2] - 2026-10-19
+
+### 変更
+
+- ito 0.90.0。`kura mcp` の戸口（listen・受け取り・返事・問い合わせ）を、ito の `ito-ipc::door` に置き換えた。動きは同じ。
+  違いは、書き込みの箱を閉じたときと時間切れのときの文言が ito の共通のもの（`the kura window closed the request: not done` / `did not answer in time`）になること。
+
 ## [0.131.1] - 2026-10-19
 
 ### 変更
