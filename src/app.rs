@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::Sender;
+use serde::{Deserialize, Serialize};
 
 use crate::config::cmd::{Act, CopyWhat, EscapeWhat, RenameCursor, SearchVia, Step, Tri, ZoomTo};
 use crate::config::keys::{Code, Key};
@@ -1271,14 +1272,50 @@ fn epoch_secs() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
-/// One line of `history.txt`: `path`, a tab, the hit count, a tab, the time.
-/// A path cannot hold a tab on any platform this runs on, so the path needs no
-/// escaping and comes first.
-fn write_visit(v: &Visit) -> String {
-    format!("{}\t{}\t{}", v.path.display(), v.hits, v.at)
+/// `history.toml`: the folders visited, `entries = [{ path, hits, at }, …]`.
+#[derive(Serialize, Deserialize, Default)]
+struct HistoryFile {
+    #[serde(default)]
+    entries: Vec<VisitRow>,
 }
 
-/// The other direction. A line with no counts is one a version before this
+#[derive(Serialize, Deserialize)]
+struct VisitRow {
+    path: String,
+    hits: u32,
+    at: i64,
+}
+
+/// `search-history.toml` and `shell-history.toml`: `entries = ["…", …]`.
+#[derive(Serialize, Deserialize, Default)]
+struct InputFile {
+    #[serde(default)]
+    entries: Vec<String>,
+}
+
+/// The files the app keeps between runs, each with its `.txt` of an older
+/// build (read once, never deleted).
+struct Kept {
+    history: ito_common::kept::Writer,
+    input: [ito_common::kept::Writer; 2],
+}
+
+impl Kept {
+    fn new() -> Self {
+        // A test must not write the real state directory.
+        let on = !cfg!(test);
+        let dir = Config::state_dir();
+        let w = |name: &str| ito_common::kept::Writer::new(dir.join(name), on);
+        Self { history: w("history.toml"), input: [w("search-history.toml"), w("shell-history.toml")] }
+    }
+}
+
+fn visit_of(r: VisitRow) -> Visit {
+    Visit { path: PathBuf::from(r.path), hits: r.hits.max(1), at: r.at }
+}
+
+/// One line of the old `history.txt`: `path`, a tab, the hit count, a tab, the
+/// time. A line with no counts is one a version before this
 /// wrote: it is a real visit, so it keeps a hit, and its age is unknown, which
 /// leaves it ranked below anything visited since.
 fn parse_visit(line: &str) -> Visit {
@@ -1741,6 +1778,7 @@ pub struct App {
     /// What was typed into the prompts that take a search word and the ones that
     /// take a shell command, oldest first: `<Up>` brings them back, as a terminal does.
     pub input_history: [Vec<String>; 2],
+    kept: Kept,
     /// Which of them the prompt is showing, and what was being typed before the
     /// first `<Up>`, so `<Down>` past the newest gives it back.
     input_recall: Option<(usize, String)>,
@@ -1937,6 +1975,7 @@ impl App {
             bookmarks: Vec::new(),
             history: Vec::new(),
             input_history: Default::default(),
+            kept: Kept::new(),
             input_recall: None,
             undos: Undos::default(),
             op_undo: HashMap::new(),
@@ -5555,7 +5594,7 @@ impl App {
         }
     }
 
-    const INPUT_HISTORY_FILES: [&'static str; 2] = ["search-history.txt", "shell-history.txt"];
+    const INPUT_HISTORY_TXT: [&'static str; 2] = ["search-history.txt", "shell-history.txt"];
     const INPUT_HISTORY_MAX: usize = 100;
 
     /// Remember what was submitted: newest last, a repeat moves up rather than
@@ -5570,13 +5609,7 @@ impl App {
         if list.len() > Self::INPUT_HISTORY_MAX {
             list.remove(0);
         }
-        // A test must not write the real state directory.
-        if !cfg!(test) {
-            let dir = Config::state_dir();
-            if std::fs::create_dir_all(&dir).is_ok() {
-                let _ = std::fs::write(dir.join(Self::INPUT_HISTORY_FILES[group]), list.join("\n"));
-            }
-        }
+        self.kept.input[group].save_toml(&InputFile { entries: list.clone() });
     }
 
     /// `<Up>` / `<Down>` in a prompt: step back through what was typed before,
@@ -7588,12 +7621,21 @@ impl App {
                 self.bookmarks = f.bookmark;
             }
         }
-        if let Ok(text) = std::fs::read_to_string(Self::state_file("history.txt")) {
+        // The state files are TOML. A `.txt` of an older build is read when
+        // there is no `.toml` yet, and the `.toml` written from it at once; the
+        // `.txt` is left where it is.
+        if let Some(f) = ito_common::kept::read::<HistoryFile>(self.kept.history.path()) {
+            self.history = f.entries.into_iter().map(visit_of).collect();
+        } else if let Ok(text) = std::fs::read_to_string(Self::state_file("history.txt")) {
             self.history = text.lines().map(parse_visit).collect();
+            self.save_history();
         }
-        for (list, name) in self.input_history.iter_mut().zip(Self::INPUT_HISTORY_FILES) {
-            if let Ok(text) = std::fs::read_to_string(Self::state_file(name)) {
-                *list = text.lines().filter(|l| !l.is_empty()).map(str::to_owned).collect();
+        for (group, txt) in Self::INPUT_HISTORY_TXT.into_iter().enumerate() {
+            if let Some(f) = ito_common::kept::read::<InputFile>(self.kept.input[group].path()) {
+                self.input_history[group] = f.entries.into_iter().filter(|l| !l.is_empty()).collect();
+            } else if let Ok(text) = std::fs::read_to_string(Self::state_file(txt)) {
+                self.input_history[group] = text.lines().filter(|l| !l.is_empty()).map(str::to_owned).collect();
+                self.kept.input[group].save_toml(&InputFile { entries: self.input_history[group].clone() });
             }
         }
     }
@@ -7607,12 +7649,25 @@ impl App {
         if let Ok(text) = toml::to_string_pretty(&f) {
             let _ = std::fs::write(dir.join("bookmarks.toml"), text);
         }
-        let hist: Vec<String> = self.history.iter().map(write_visit).collect();
-        let _ = std::fs::write(dir.join("history.txt"), hist.join("\n"));
+        self.save_history();
+    }
+
+    fn history_file(&self) -> HistoryFile {
+        HistoryFile {
+            entries: self.history.iter().map(|v| VisitRow { path: v.path.display().to_string(), hits: v.hits, at: v.at }).collect(),
+        }
+    }
+
+    fn save_history(&self) {
+        self.kept.history.save_toml(&self.history_file());
     }
 
     pub fn on_quit(&self) {
         self.save_state();
+        // The thread of the save above may not finish before the process ends.
+        if let Ok(text) = toml::to_string(&self.history_file()) {
+            let _ = self.kept.history.save_now(text);
+        }
         if let Some(f) = &self.cwd_file {
             let _ = std::fs::write(f, self.tabs[self.active].cwd.display().to_string());
         }
@@ -8483,7 +8538,10 @@ mod tests {
         assert_eq!(old, Visit { path: PathBuf::from(r"C:\work\kura"), hits: 1, at: 0 });
 
         let new = Visit { path: PathBuf::from(r"C:\work\kura"), hits: 7, at: 1_700_000_000 };
-        assert_eq!(parse_visit(&write_visit(&new)), new, "a round trip keeps everything");
+        let row = VisitRow { path: new.path.to_string_lossy().into_owned(), hits: new.hits, at: new.at };
+        let text = toml::to_string(&HistoryFile { entries: vec![row] }).unwrap();
+        let back: HistoryFile = toml::from_str(&text).unwrap();
+        assert_eq!(visit_of(back.entries.into_iter().next().unwrap()), new, "a round trip keeps everything");
     }
 
     fn renamed(from: &str, to: &str) -> UndoStep {
