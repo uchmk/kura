@@ -984,7 +984,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **55.2** そこで `M`、もう一度 `M` → 1 回目はハイライトされた HTML の元の文、2 回目は読む表示。位置は同じ — *`M` on it, then `M` again → The first press shows the highlighted HTML source, the second the reading view, at the same place*
 - [x] **55.3** `l` でアウトラインに入り、見出しを選ぶ → プレビューがその見出しまで動く — *`l` into its outline, pick a heading → The preview scrolls to that heading*
 - [~] **55.4** `<th>` のある `<table>` と `<pre><code class="language-rust">` を含む HTML にカーソルを置く → 表は見出しの罫線と揃った列で出て、コードは Rust として色が付く — *Hover an HTML file holding a `<table>` with `<th>` cells and a `<pre><code class="language-rust">` block → The table is drawn with a header rule and aligned columns; the code block is coloured as Rust*
-- [ ] **55.5** 表示したまま窓を狭め、広げる → 文がプレビューの幅で折り返し直される — *Narrow and widen the window while it is on show → The text re-wraps to the pane's width*
+- [x] **55.5** 表示したまま窓を狭め、広げる → 文がプレビューの幅で折り返し直される — *Narrow and widen the window while it is on show → The text re-wraps to the pane's width*
 - [x] **55.6** `render_markdown = false` にして再起動し、`.html` にカーソルを置く → 元の文で始まり、`M` で読む表示になる — *Set `render_markdown = false`, restart, hover an `.html` file → It starts as source; `M` brings the reading view*
 
 ## 56. Settings cards from ito-prefs (v0.124.0 – v0.128.0)
