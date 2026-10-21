@@ -1020,8 +1020,8 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **59.2** Drag the empty part of the bar → The window moves; double-click maximizes and restores it 〔未訳〕
 - [ ] **59.3** Click minimize, maximize, restore, then close → Each does what it says; close ends kura and saves the window's place 〔未訳〕
 - [ ] **59.4** Drag each edge and corner of the window → The window resizes from that edge 〔未訳〕
-- [ ] **59.5** Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways 〔未訳〕
-- [ ] **59.6** Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it 〔未訳〕
+- [~] **59.5** Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways 〔未訳〕
+- [x] **59.6** Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it 〔未訳〕
 - [ ] **59.7** Click the bell → A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge 〔未訳〕
 - [ ] **59.8** Cause an error toast (open a file that cannot open) → The badge is red until it is read 〔未訳〕
 - [ ] **59.9** Change the language to Japanese in Settings → The bar's hints and the list's words are Japanese 〔未訳〕
