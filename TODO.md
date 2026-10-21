@@ -110,6 +110,8 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 
 ## Sonnet の見張り（2026-10-05 まで）
 
+- [ ] （Sonnet の見張り）v0.131.6（`e1be4b2`）は履歴の保存を `history.toml` / `search-history.toml` / `shell-history.toml` に変えた（動きが変わる。`.txt` は初回だけ読む）が、TESTING.md に行が無く、`scripts/testcheck-ja.toml` の訳も、実機の再テストの issue も無い（CLAUDE.md の作業ルール）。CI は緑。
+  TESTING.md に「履歴が `.toml` に保存され、`.txt` だけがある状態から起動すると引き継がれる」の行を足し、訳を合わせ、`make-testcheck` で作り直し、`retest` の issue に積む。`.txt`→`.toml` の移行と空の履歴の単体テストがあるかも見る
 - [x] （Sonnet の見張り）v0.79.4（`f3b0910`）は「Ended the shell」が同じシェルの `Started …` のトーストを差し替えるようにして 1.38 を外し、両レーンの再テストに積んだが、TESTING.md の 1.38 の行（と `scripts/testcheck-ja.toml` の訳）は前のままで、新しい期待（終えた後に `Started pwsh …` のトーストが残らず、**Ended the shell** だけが出る）は順番表の行にしか書かれていない。再テストが済んで順番表から消えると、行の文からはこの動きが読めず、戻っても次の回が気づかない。
   1.38 の期待に「`<C-t>` で始めてすぐ `<C-S-t>` で終えても、`Started …` のトーストは残らず **Ended the shell** だけが見える（v0.79.4、#280 の提案 2）」を足し、訳を合わせ、`make-testcheck` で作り直す。再テストは既に積んである
 - [x] （v0.80.4。4 本を書き、`sb.ps1` は #235 の名前の `scripts/read-statusbar.ps1` にした。どれも冒頭に Windows で未実行と書き、順番表の 45.11 と「48.2 / 48.6 at each release」の行、TESTING.md の 32.9a と 48 節の前書きが名指す）（Sonnet の見張り）v0.78.236（`38a9171`）は残りの 5 項目に印を付けて「開いている項目は 0」としたが、うち 2 つの `【実機】` は印の意味（Windows の機械でしか測れないもの）に合わない。`scripts/verify-release.ps1`（「PowerShell は Windows でしか確かめられない」）は、v0.78.233 の `scripts/keys.ps1` と同じく書いて「Linux で動かせず未実行」と書けば進められ、確かめは実機の回が初めて使うときでよい。`sb.ps1` / `run48.ps1` / `fx45.ps1` を `scripts/` に置く項目（「元のスクリプトは機械の証拠フォルダにしかない」）も、ARM64 のレーンが既にそうしたように、45.11・48.6 と順番表の行の文から書ける。
