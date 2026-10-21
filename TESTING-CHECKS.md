@@ -1007,12 +1007,12 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 ## 58. Advanced page: folders and Reset (v0.130.0)
 
-- [ ] **58.1** `Ctrl+,` → Advanced, press Open settings folder → Settings closes and the list shows kura's settings folder 〔未訳〕
-- [ ] **58.2** Press Open data folder → Settings closes and the list shows kura's data (state) folder 〔未訳〕
-- [ ] **58.3** Press Reset once, then wait → Nothing is changed; the button asks for a second press 〔未訳〕
-- [ ] **58.4** Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched 〔未訳〕
-- [ ] **58.5** Press Reset again with no files → A toast says there was nothing to reset 〔未訳〕
-- [ ] **58.6** Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About 〔未訳〕
+- [x] **58.1** `Ctrl+,` → Advanced, press Open settings folder → Settings closes and the list shows kura's settings folder 〔未訳〕
+- [x] **58.2** Press Open data folder → Settings closes and the list shows kura's data (state) folder 〔未訳〕
+- [x] **58.3** Press Reset once, then wait → Nothing is changed; the button asks for a second press 〔未訳〕
+- [~] **58.4** Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched 〔未訳〕
+- [x] **58.5** Press Reset again with no files → A toast says there was nothing to reset 〔未訳〕
+- [x] **58.6** Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About 〔未訳〕
 
 ## 59. Own title bar and the bell (v0.131.0)
 
