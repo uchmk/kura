@@ -1000,10 +1000,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 ## 57. Shell card and `[term.env]` (v0.129.0)
 
-- [ ] **57.1** `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane → The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key 〔未訳〕
+- [x] **57.1** `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane → The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key 〔未訳〕
 - [ ] **57.2** Type `-NoLogo` in Arguments and press Enter, open a new terminal → The shell starts with it; `[term] args = ["-NoLogo"]` is written 〔未訳〕
 - [ ] **57.3** Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` → It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line 〔未訳〕
-- [ ] **57.4** Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable → The pane runs `cmd` and the variable is still set 〔未訳〕
+- [x] **57.4** Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable → The pane runs `cmd` and the variable is still set 〔未訳〕
 
 ## 58. Advanced page: folders and Reset (v0.130.0)
 
