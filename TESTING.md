@@ -1807,3 +1807,15 @@ The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a li
 | 59.9 | Change the language to Japanese in Settings | The bar's hints and the list's words are Japanese |
 | 59.10 | macOS: look at the bar's left | The traffic lights sit over it and the title starts after them |
 | 59.11 | Linux (X11 and Wayland): drag, maximize and resize from the edges | They work with the bar and edges kura draws |
+
+## 60. Content search on big files (v0.132.0)
+
+`S` reads each file in 64 KiB chunks and matches it line by line, so a log of any size is searched in constant memory.
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 60.1 | Put a line `needle-7f3a` at the end of a 200 MB text file (no trailing newline) in a folder; press `S` there and type `needle-7f3a` | The file is listed; the UI stays responsive while it reads (if `content_max_bytes` is raised to `0`) |
+| 60.2 | With the default `content_max_bytes` (64 MiB), do the same on that file | It is not listed, and the toast says 1 large file was searched only in its first 64 MiB |
+| 60.3 | Start the search of 60.1 and press `Esc` while it reads | The search stops within a moment, the folder returns, and the CPU goes idle |
+| 60.4 | Search `^needle` for a file whose lines start with it, after a line with CRLF endings | Both LF and CRLF files match |
+| 60.5 | On a network drive, search a folder of large logs | It finishes without errors; closing kura during it does not hang |

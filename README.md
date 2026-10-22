@@ -344,6 +344,7 @@ icons = "auto"             # auto | nerd | ascii | none
 render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144
+content_max_bytes = 67108864  # how much of each file a content search (`S`) reads; 0 = all (v0.132.0)
 max_history = 200
 window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
 window_height = 800.0

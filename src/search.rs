@@ -24,6 +24,8 @@ pub enum Msg {
         truncated: bool,
         order: Vec<PathBuf>,
         binary: usize,
+        /// Files longer than the byte limit, read only as far as it.
+        capped: usize,
     },
 }
 
@@ -49,7 +51,16 @@ impl Drop for Handle {
     }
 }
 
-const MAX_CONTENT_BYTES: usize = 1024 * 1024;
+/// A content search reads this much at a time and matches it line by line, so a
+/// file of any size costs the same memory.
+const CHUNK_BYTES: usize = 64 * 1024;
+
+/// A file up to this size is matched whole, as one string (so a pattern may span lines);
+/// only a bigger one is streamed and matched line by line.
+const WHOLE_FILE_BYTES: u64 = 1024 * 1024;
+
+/// A line longer than this is cut before it is matched (one-line minified dumps).
+const MAX_LINE_BYTES: usize = 1024 * 1024;
 
 /// How much of a file is looked at before deciding it is not text. Text has no
 /// NUL; a binary almost always shows one in its header.
@@ -71,8 +82,11 @@ enum Look {
     Hit,
     Miss,
     Binary,
+    /// Matched nothing in the head: the file is longer than the byte limit.
+    Capped,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn spawn(
     root: &Path,
     matcher: Matcher,
@@ -80,6 +94,7 @@ pub fn spawn(
     via: SearchVia,
     reach: Reach,
     limit: usize,
+    max_bytes: u64,
     wake: impl Fn() + Send + Sync + 'static,
 ) -> Handle {
     let (tx, rx) = crossbeam_channel::unbounded::<Msg>();
@@ -96,6 +111,7 @@ pub fn spawn(
             let found = Arc::new(AtomicUsize::new(0));
             let ranked: Arc<Mutex<Vec<(i32, PathBuf)>>> = Arc::default();
             let binary = Arc::new(AtomicUsize::new(0));
+            let capped = Arc::new(AtomicUsize::new(0));
 
             let walker = ignore::WalkBuilder::new(&root)
                 .hidden(!reach.hidden)
@@ -115,6 +131,7 @@ pub fn spawn(
                 let found = found.clone();
                 let ranked = ranked.clone();
                 let binary = binary.clone();
+                let capped = capped.clone();
                 let matcher = matcher.clone();
                 let wake = wake.clone();
                 let root = root.clone();
@@ -146,9 +163,13 @@ pub fn spawn(
                                 if is_dir {
                                     false
                                 } else {
-                                    match look(path, &matcher) {
+                                    match look(path, &matcher, max_bytes, &cancel) {
                                         Look::Hit => true,
                                         Look::Miss => false,
+                                        Look::Capped => {
+                                            capped.fetch_add(1, Ordering::Relaxed);
+                                            false
+                                        }
                                         Look::Binary => {
                                             binary.fetch_add(1, Ordering::Relaxed);
                                             false
@@ -178,7 +199,8 @@ pub fn spawn(
             ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
             let order = ranked.into_iter().map(|(_, p)| p).collect();
             let binary = binary.load(Ordering::Relaxed);
-            let _ = tx.send(Msg::Done { total, truncated: total >= limit, order, binary });
+            let capped = capped.load(Ordering::Relaxed);
+            let _ = tx.send(Msg::Done { total, truncated: total >= limit, order, binary, capped });
             wake();
         })
         .expect("spawn search worker");
@@ -186,27 +208,76 @@ pub fn spawn(
     Handle { rx, query: query.to_owned(), via, root: root_for_handle, reach: reach_for_handle, cancel }
 }
 
-fn look(path: &Path, matcher: &Matcher) -> Look {
+fn look(path: &Path, matcher: &Matcher, max_bytes: u64, cancel: &AtomicBool) -> Look {
     if binary_extension(path) {
         return Look::Binary;
     }
     let Ok(mut f) = std::fs::File::open(path) else { return Look::Miss };
-    let mut buf = Vec::new();
-    // The head first: a binary is turned away after 8 KB, not after 1 MB.
-    if f.by_ref().take(SNIFF_BYTES as u64).read_to_end(&mut buf).is_err() {
+    let mut head = Vec::new();
+    // The head first: a binary is turned away after 8 KB, not after the whole file.
+    if f.by_ref().take(SNIFF_BYTES as u64).read_to_end(&mut head).is_err() {
         return Look::Miss;
     }
-    if buf.contains(&0) {
+    if head.contains(&0) {
         return Look::Binary;
     }
-    if f.by_ref().take((MAX_CONTENT_BYTES - SNIFF_BYTES) as u64).read_to_end(&mut buf).is_err() {
-        return Look::Miss;
+    let small = f.metadata().is_ok_and(|m| m.len() <= WHOLE_FILE_BYTES && (max_bytes == 0 || m.len() <= max_bytes));
+    if small {
+        if f.read_to_end(&mut head).is_err() {
+            return Look::Miss;
+        }
+        return if matcher.is_match(&String::from_utf8_lossy(&head)) { Look::Hit } else { Look::Miss };
     }
-    if matcher.is_match(&String::from_utf8_lossy(&buf)) {
-        Look::Hit
+    let mut read = head.len() as u64;
+    // `pending` is the unfinished last line of what was read so far.
+    let mut pending = head;
+    let mut chunk = vec![0u8; CHUNK_BYTES];
+    let mut over = false;
+    loop {
+        // Only the last, unfinished line stays behind; every complete one is matched now.
+        if let Some(end) = pending.iter().rposition(|&b| b == b'\n') {
+            if lines_match(&pending[..end], matcher) {
+                return Look::Hit;
+            }
+            pending.drain(..=end);
+        }
+        if pending.len() > MAX_LINE_BYTES {
+            // One enormous line: match what fits, and drop it so memory stays flat.
+            pending.truncate(MAX_LINE_BYTES);
+            if matcher.is_match(&String::from_utf8_lossy(&pending)) {
+                return Look::Hit;
+            }
+            pending.clear();
+        }
+        if cancel.load(Ordering::Relaxed) {
+            return Look::Miss;
+        }
+        if max_bytes > 0 && read >= max_bytes {
+            over = true;
+            break;
+        }
+        let want = if max_bytes > 0 { CHUNK_BYTES.min((max_bytes - read) as usize) } else { CHUNK_BYTES };
+        match f.read(&mut chunk[..want]) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                read += n as u64;
+                pending.extend_from_slice(&chunk[..n]);
+            }
+        }
+    }
+    if !pending.is_empty() && matcher.is_match(&String::from_utf8_lossy(&pending)) {
+        return Look::Hit;
+    }
+    if over && f.read(&mut chunk[..1]).is_ok_and(|n| n > 0) {
+        Look::Capped
     } else {
         Look::Miss
     }
+}
+
+/// Matches `text` (complete lines, no trailing newline) one line at a time.
+fn lines_match(text: &[u8], matcher: &Matcher) -> bool {
+    text.split(|&b| b == b'\n').any(|line| matcher.is_match(&String::from_utf8_lossy(line.strip_suffix(b"\r").unwrap_or(line))))
 }
 
 /// What a search reaches into besides the folder: hidden files, and, when the
@@ -295,7 +366,7 @@ mod tests {
                 SearchVia::Fuzzy => Matcher::fuzzy(query),
                 _ => Matcher::new(query).unwrap(),
             };
-            let handle = spawn(&self.0, matcher, query, via, Reach::all(), 100, || {});
+            let handle = spawn(&self.0, matcher, query, via, Reach::all(), 100, 0, || {});
             let name = |p: &PathBuf| p.file_name().unwrap().to_string_lossy().into_owned();
             let (mut names, mut order) = (Vec::new(), Vec::new());
             while let Ok(msg) = handle.rx.recv_timeout(std::time::Duration::from_secs(10)) {
@@ -339,6 +410,41 @@ mod tests {
     }
 
     #[test]
+    fn a_content_search_finds_a_line_deep_in_a_file_bigger_than_a_chunk() {
+        let mut big = "filler line\r\n".repeat(120_000).into_bytes();
+        big.extend_from_slice(b"the needle is here");
+        let mut late = "x\n".repeat(700_000).into_bytes();
+        late.extend_from_slice(b"needle\r\n");
+        let t = Tree::new("deep", &[("big.log", &big), ("late.log", &late), ("none.log", &big[..1000])]);
+        assert_eq!(t.find("needle", SearchVia::Content), ["big.log", "late.log"], "no trailing newline, CRLF, and past many chunks");
+        assert_eq!(t.find("^needle$", SearchVia::Content), ["late.log"], "a big file is matched per line, so anchors mean a line");
+    }
+
+    #[test]
+    fn a_content_search_stops_at_the_byte_limit_and_counts_the_file() {
+        let mut data = "x\n".repeat(100_000).into_bytes();
+        data.extend_from_slice(b"needle\n");
+        let t = Tree::new("cap", &[("a.log", &data)]);
+        let run = |max: u64| {
+            let h = spawn(&t.0, Matcher::new("needle").unwrap(), "needle", SearchVia::Content, Reach::all(), 100, max, || {});
+            let (mut n, mut capped) = (0, 0);
+            while let Ok(msg) = h.rx.recv_timeout(std::time::Duration::from_secs(10)) {
+                match msg {
+                    Msg::Found(v) => n += v.len(),
+                    Msg::Done { capped: c, .. } => {
+                        capped = c;
+                        break;
+                    }
+                }
+            }
+            (n, capped)
+        };
+        assert_eq!(run(0), (1, 0), "0 reads it all");
+        assert_eq!(run(100_000), (0, 1), "the match lies past the limit, and the file is counted");
+        assert_eq!(run(1_000_000), (1, 0));
+    }
+
+    #[test]
     fn a_fuzzy_search_takes_letters_in_order_across_the_path() {
         let t = Tree::new(
             "fuzzy",
@@ -357,7 +463,7 @@ mod tests {
 
     /// How many files the finished search says it did not read as text.
     fn binary_count(t: &Tree, query: &str) -> usize {
-        let handle = spawn(&t.0, Matcher::new(query).unwrap(), query, SearchVia::Content, Reach::all(), 100, || {});
+        let handle = spawn(&t.0, Matcher::new(query).unwrap(), query, SearchVia::Content, Reach::all(), 100, 0, || {});
         while let Ok(msg) = handle.rx.recv_timeout(std::time::Duration::from_secs(10)) {
             if let Msg::Done { binary, .. } = msg {
                 return binary;
@@ -403,7 +509,7 @@ mod tests {
         let t = Tree::new("ext", &[("a.log", b"needle"), ("b.txt", b"needle"), ("sub.log/c.txt", b"needle"), ("d.LOG", b"x")]);
         let run = |via: SearchVia, query: &str| {
             let reach = Reach { hidden: true, exts: vec!["log".into()] };
-            let handle = spawn(&t.0, Matcher::new(query).unwrap(), query, via, reach, 100, || {});
+            let handle = spawn(&t.0, Matcher::new(query).unwrap(), query, via, reach, 100, 0, || {});
             let mut names = Vec::new();
             while let Ok(msg) = handle.rx.recv_timeout(std::time::Duration::from_secs(10)) {
                 match msg {

@@ -6883,7 +6883,8 @@ impl App {
             body: via != SearchVia::Name,
             ..Default::default()
         };
-        let handle = crate::search::spawn(&root, matcher, typed, via, reach, 5000, move || ctx.request_repaint());
+        let handle =
+            crate::search::spawn(&root, matcher, typed, via, reach, 5000, self.cfg.ui.content_max_bytes, move || ctx.request_repaint());
 
         let tab = &mut self.tabs[self.active];
         tab.remember_cursor();
@@ -7192,12 +7193,12 @@ impl App {
     fn drain_search(&mut self) {
         let Some(handle) = &self.search else { return };
         let mut batch: Vec<PathBuf> = Vec::new();
-        let mut done: Option<(usize, bool, Vec<PathBuf>, usize)> = None;
+        let mut done: Option<(usize, bool, Vec<PathBuf>, usize, usize)> = None;
         while let Ok(msg) = handle.rx.try_recv() {
             match msg {
                 crate::search::Msg::Found(mut v) => batch.append(&mut v),
-                crate::search::Msg::Done { total, truncated, order, binary } => {
-                    done = Some((total, truncated, order, binary));
+                crate::search::Msg::Done { total, truncated, order, binary, capped } => {
+                    done = Some((total, truncated, order, binary, capped));
                     break;
                 }
             }
@@ -7213,7 +7214,7 @@ impl App {
             }
             f.rebuild(show_hidden);
         }
-        if let Some((total, truncated, order, binary)) = done {
+        if let Some((total, truncated, order, binary, capped)) = done {
             let scope = self.search.take().map(|h| crate::search::scope(&h.root, &h.reach)).unwrap_or_default();
             if !order.is_empty() {
                 // Best match first, and the cursor on it.
@@ -7226,7 +7227,13 @@ impl App {
             }
             // A content search says what it did not read, so a miss is not a
             // mystery: binary files are never searched.
-            let skipped = if binary > 0 { format!("; {binary} binary file(s) not searched") } else { String::new() };
+            let mut skipped = if binary > 0 { format!("; {binary} binary file(s) not searched") } else { String::new() };
+            if capped > 0 {
+                skipped.push_str(&format!(
+                    "; {capped} large file(s) searched only in their first {}",
+                    util::human_size(self.cfg.ui.content_max_bytes)
+                ));
+            }
             if total == 0 {
                 self.error(format!("No matches {scope}{skipped}"));
             } else {
