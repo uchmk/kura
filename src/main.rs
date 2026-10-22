@@ -357,6 +357,10 @@ fn main() -> eframe::Result<()> {
             a.cwd_file = cli.cwd_file;
             a.chooser_file = cli.chooser_file;
             let script_done = std::env::var_os("KURA_KEYS_DONE").filter(|_| !cli.keys.is_empty()).map(PathBuf::from);
+            if !cli.keys.is_empty() {
+                // From here on a write into the real uchmk folder is refused unless UCHMK_CONFIG_DIR points elsewhere.
+                ito_common::scripted_run();
+            }
             if let Some(done) = &script_done {
                 keyscript::install_panic_report(done.clone());
             }
@@ -1035,6 +1039,22 @@ impl eframe::App for Kura {
                 self.script_shot = Some((name, false));
                 self.script_at = (frame, std::time::Instant::now());
             }
+            // The window lays out again at the new size before the next step.
+            Some(keyscript::Press::Size { w, h }) => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w as f32, h as f32)));
+                self.script.push_front(keyscript::Press::Wait(std::time::Duration::from_millis(400)));
+                self.script_at = (frame, std::time::Instant::now());
+            }
+            // The same write the settings screen makes: common.toml, applied
+            // as the watcher would.
+            Some(keyscript::Press::Theme(name)) => {
+                self.app.write_common(vec![ito_common::CommonChange { table: None, key: "theme", value: format!("{name:?}") }]);
+                self.script_at = (frame, std::time::Instant::now());
+            }
+            Some(keyscript::Press::Lang(code)) => {
+                self.app.write_common(vec![ito_common::CommonChange { table: None, key: "language", value: format!("{code:?}") }]);
+                self.script_at = (frame, std::time::Instant::now());
+            }
             // Taken before the wait above; `parse` puts a key after every one.
             Some(keyscript::Press::Now) | None => {}
         }
@@ -1175,6 +1195,7 @@ impl Kura {
             unread,
             any_error: ito_notices::any_error(&self.app.notices),
             centre: true,
+            right_min: 0.0,
             words: ito_titlebar::Words {
                 search: w.title_search,
                 search_key: "Ctrl+Shift+P",

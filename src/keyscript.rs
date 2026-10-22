@@ -43,6 +43,7 @@ mod tests {
     fn the_dialect_is_kuras() {
         assert_eq!(parse("<Shot:p@preview>").unwrap(), [Step::Shot("p@preview".into())]);
         assert!(parse("<PreviewText:p>").is_ok());
+        assert!(parse("<Size:480x600><Theme:light><Lang:ja>").is_ok(), "the common window and settings steps");
     }
 
     /// The list takes `<Space>` once: the key event is not a key to it, so the
