@@ -113,7 +113,7 @@ impl LogIndex {
                 }
                 Enc::Utf16Le | Enc::Utf16Be => {
                     let (nl, zero) = if self.enc == Enc::Utf16Le { (0usize, 1usize) } else { (1, 0) };
-                    for (i, pair) in buf[..got].chunks_exact(2).enumerate() {
+                    for (i, pair) in buf[..got].as_chunks::<2>().0.iter().enumerate() {
                         if pair[nl] == b'\n' && pair[zero] == 0 {
                             found.push(pos + i as u64 * 2 + 2);
                         }
@@ -206,7 +206,9 @@ impl LogIndex {
             Enc::Utf8 => String::from_utf8_lossy(b).into_owned(),
             enc => {
                 let units: Vec<u16> = b
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|c| if enc == Enc::Utf16Be { u16::from_be_bytes([c[0], c[1]]) } else { u16::from_le_bytes([c[0], c[1]]) })
                     .collect();
                 String::from_utf16_lossy(&units)
