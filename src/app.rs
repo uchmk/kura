@@ -3091,9 +3091,11 @@ impl App {
             return;
         }
         // A huge log that grew keeps its index and picks up the new lines in
-        // `tick_log`; reading it again from the front would start over.
+        // `tick_log`; reading it again from the front would start over. The
+        // pane's size does not matter to it (the window cuts the lines), and a
+        // new view would lose the find that is running or done on this one.
         if let (PreviewState::Ready(Payload::Log { view }), Some(old)) = (&self.preview.state, &self.preview.key) {
-            let same = old.path == key.path && old.box_size == key.box_size && old.deep == key.deep && old.n == key.n;
+            let same = old.path == key.path && old.deep == key.deep && old.n == key.n;
             if same && !force && key.len >= view.index.len() {
                 self.preview.key = Some(key);
                 return;
