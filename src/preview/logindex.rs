@@ -40,6 +40,55 @@ pub enum Enc {
     Utf8,
     Utf16Le,
     Utf16Be,
+    /// A byte-oriented set that keeps the newline as a byte of its own (Shift_JIS, EUC-JP).
+    Legacy(&'static encoding_rs::Encoding),
+}
+
+/// How much of the head of a file is looked at to tell its encoding.
+const SNIFF_BYTES: usize = 64 * 1024;
+
+/// The encoding of a file from its first bytes, and how many bytes of byte-order
+/// mark to skip: a mark says it; UTF-16 without one shows as NULs on every
+/// second byte; text that is not valid UTF-8 is tried as EUC-JP, then Shift_JIS
+/// (EUC-JP first, because Shift_JIS reads most EUC-JP as half-width kana).
+pub fn guess(head: &[u8]) -> (Enc, u64) {
+    match head {
+        [0xff, 0xfe, ..] => return (Enc::Utf16Le, 2),
+        [0xfe, 0xff, ..] => return (Enc::Utf16Be, 2),
+        [0xef, 0xbb, 0xbf, ..] => return (Enc::Utf8, 3),
+        _ => {}
+    }
+    let probe = &head[..head.len().min(4096)];
+    let pairs = probe.len() / 2;
+    if pairs >= 16 {
+        let (mut even, mut odd) = (0, 0);
+        for c in probe.as_chunks::<2>().0 {
+            even += (c[0] == 0) as usize;
+            odd += (c[1] == 0) as usize;
+        }
+        if odd * 3 > pairs && even * 20 < pairs {
+            return (Enc::Utf16Le, 0);
+        }
+        if even * 3 > pairs && odd * 20 < pairs {
+            return (Enc::Utf16Be, 0);
+        }
+    }
+    // A head cut in the middle of a character is not an error.
+    let whole = match head.len() >= SNIFF_BYTES {
+        true => &head[..head.len() - 3],
+        false => head,
+    };
+    match std::str::from_utf8(whole) {
+        Ok(_) => return (Enc::Utf8, 0),
+        Err(e) if e.error_len().is_none() => return (Enc::Utf8, 0),
+        _ => {}
+    }
+    for enc in [encoding_rs::EUC_JP, encoding_rs::SHIFT_JIS] {
+        if enc.decode_without_bom_handling_and_without_replacement(whole).is_some() {
+            return (Enc::Legacy(enc), 0);
+        }
+    }
+    (Enc::Utf8, 0)
 }
 
 /// What [`LogIndex::grow`] found.
@@ -78,14 +127,9 @@ impl LogIndex {
     pub fn start(path: &Path) -> Result<Arc<Self>, String> {
         let mut f = File::open(path).map_err(|e| crate::spot::reason(&e))?;
         let len = f.metadata().map_err(|e| crate::spot::reason(&e))?.len();
-        let mut head = [0u8; 3];
-        let n = f.read(&mut head).map_err(|e| crate::spot::reason(&e))?;
-        let (enc, bom) = match &head[..n] {
-            [0xff, 0xfe, ..] => (Enc::Utf16Le, 2),
-            [0xfe, 0xff, ..] => (Enc::Utf16Be, 2),
-            [0xef, 0xbb, 0xbf] => (Enc::Utf8, 3),
-            _ => (Enc::Utf8, 0),
-        };
+        let mut head = Vec::with_capacity(SNIFF_BYTES);
+        (&mut f).take(SNIFF_BYTES as u64).read_to_end(&mut head).map_err(|e| crate::spot::reason(&e))?;
+        let (enc, bom) = guess(&head);
         let idx = Arc::new(Self {
             path: path.to_owned(),
             enc,
@@ -123,7 +167,7 @@ impl LogIndex {
             // A UTF-16 file cut in the middle of a unit (a writer caught half
             // way): leave the odd byte for the next read, or every pair after
             // it would be read one byte off.
-            if self.enc != Enc::Utf8 {
+            if self.wide() {
                 got &= !1;
             }
             if got == 0 {
@@ -131,7 +175,7 @@ impl LogIndex {
             }
             let mut found = Vec::new();
             match self.enc {
-                Enc::Utf8 => {
+                Enc::Utf8 | Enc::Legacy(_) => {
                     for (i, b) in buf[..got].iter().enumerate() {
                         if *b == b'\n' {
                             found.push(pos + i as u64 + 1);
@@ -187,6 +231,11 @@ impl LogIndex {
         self.read_bytes(from, end).unwrap_or_default()
     }
 
+    /// UTF-16: the text is in units of two bytes.
+    fn wide(&self) -> bool {
+        matches!(self.enc, Enc::Utf16Le | Enc::Utf16Be)
+    }
+
     pub fn is_done(&self) -> bool {
         self.done.load(Ordering::Acquire)
     }
@@ -225,7 +274,7 @@ impl LogIndex {
         }
         let Ok(mut f) = File::open(&self.path) else { return Grow::Same };
         let Ok(mut len) = f.metadata().map(|m| m.len()) else { return Grow::Same };
-        if self.enc != Enc::Utf8 {
+        if self.wide() {
             len &= !1;
         }
         let mut g = self.inner.lock().unwrap();
@@ -278,7 +327,7 @@ impl LogIndex {
         let mut lines = Vec::with_capacity(starts.len() - 1);
         for w in starts.windows(2) {
             let mut n = (w[1] - w[0]).min(READ_LINE_BYTES);
-            if self.enc != Enc::Utf8 {
+            if self.wide() {
                 n &= !1;
             }
             let mut v = Vec::with_capacity(n as usize);
@@ -314,6 +363,7 @@ impl LogIndex {
     fn decode(&self, b: &[u8]) -> String {
         match self.enc {
             Enc::Utf8 => String::from_utf8_lossy(b).into_owned(),
+            Enc::Legacy(e) => e.decode_without_bom_handling(b).0.into_owned(),
             enc => {
                 let units: Vec<u16> = b
                     .as_chunks::<2>()
@@ -432,7 +482,7 @@ impl LogIndex {
     /// the one before. A piece after the first starts in the middle of the line,
     /// so a `^` there can match where the line does not begin.
     fn find_in_line(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> bool {
-        let unit: u64 = if self.enc == Enc::Utf8 { 1 } else { 2 };
+        let unit: u64 = if self.wide() { 2 } else { 1 };
         let step = WINDOW_BYTES - OVERLAP_BYTES;
         let mut at = begin;
         while at < end {
@@ -897,6 +947,47 @@ three needle
         assert_eq!(i.grow(), Grow::Grew);
         view.find_more();
         assert_eq!(until(3, &view), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn shift_jis_and_euc_jp_and_bomless_utf16_are_read_as_text() {
+        let text = "ログ開始
+エラー：接続できません
+終わり
+"
+        .repeat(20);
+        for enc in [encoding_rs::SHIFT_JIS, encoding_rs::EUC_JP] {
+            let (bytes, _, bad) = enc.encode(&text);
+            let i = index("li-legacy", &bytes);
+            assert!(!bad);
+            assert_eq!(i.enc, Enc::Legacy(enc));
+            assert_eq!(i.lines(), 60);
+            assert_eq!(i.read(1, 1), vec!["エラー：接続できません"], "{}", enc.name());
+            assert_eq!(hits(&i, "接続").len(), 20);
+        }
+        for be in [false, true] {
+            let mut b = Vec::new();
+            for u in "plain ascii log line
+"
+            .repeat(30)
+            .encode_utf16()
+            {
+                b.extend(if be { u.to_be_bytes() } else { u.to_le_bytes() });
+            }
+            let i = index("li-nobom", &b);
+            assert_eq!((i.enc, i.lines()), (if be { Enc::Utf16Be } else { Enc::Utf16Le }, 30));
+            assert_eq!(i.read(0, 1), vec!["plain ascii log line"]);
+        }
+        assert_eq!(
+            index(
+                "li-utf8",
+                "日本語のログ
+"
+                .as_bytes()
+            )
+            .enc,
+            Enc::Utf8
+        );
     }
 
     #[test]

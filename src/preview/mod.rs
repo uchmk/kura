@@ -525,7 +525,7 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
     // binary test first, and a CSV keeps its table.
     if req.key.len >= req.big_bytes
         && mime != "text/csv"
-        && (matches!(head.as_slice(), [0xff, 0xfe, ..] | [0xfe, 0xff, ..]) || !looks_binary(&head))
+        && (matches!(logindex::guess(&head).0, logindex::Enc::Utf16Le | logindex::Enc::Utf16Be) || !looks_binary(&head))
     {
         return match logindex::LogIndex::start(path) {
             Ok(index) => Payload::Log { view: logindex::LogView::new(index) },

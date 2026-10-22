@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.134.2"
+version = "0.135.0"
 dependencies = [
  "ab_glyph",
  "arboard",
@@ -2430,6 +2430,7 @@ dependencies = [
  "crossbeam-channel",
  "eframe",
  "egui",
+ "encoding_rs",
  "flate2",
  "ignore",
  "image",

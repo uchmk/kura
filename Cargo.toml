@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.134.2"
+version = "0.135.0"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -19,6 +19,7 @@ egui = "0.36"
 serde = { version = "1", features = ["derive"] }
 toml = "1.1"
 crossbeam-channel = "0.5"
+encoding_rs = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 unicode-width = "0.2"
 open = { version = "5", features = ["shellexecute-on-windows"] }
