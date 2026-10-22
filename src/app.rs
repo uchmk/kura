@@ -1652,6 +1652,8 @@ pub struct App {
     /// What the terminal was last searched for, so the key repeats it.
     term_needle: String,
     log_needle: String,
+    /// The compiled `log_needle`, which the preview marks in the window.
+    pub log_matcher: Option<ito_match::Matcher>,
     /// The shell the pane started, as its first toast named it.
     term_shell: String,
     /// A file to put the cursor on when its directory is next read, ahead of
@@ -1939,6 +1941,7 @@ impl App {
             list_scroll_rows: [0.0; 2],
             term_needle: String::new(),
             log_needle: String::new(),
+            log_matcher: None,
             term_shell: String::new(),
             land_on: None,
             cd_refused: None,
@@ -4362,6 +4365,7 @@ impl App {
         match ito_match::Matcher::new(text) {
             Ok(m) => {
                 self.log_needle = text.to_owned();
+                self.log_matcher = Some(m.clone());
                 self.tabs[self.active].find_at = None;
                 view.find(text, m);
                 self.toast("Searching...");
@@ -8131,6 +8135,7 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         assert_eq!(view.found().lines.len(), 3);
+        assert!(a.log_matcher.is_some(), "the preview marks what was searched for");
         a.find_arrow(false);
         let first = a.tabs[a.active].preview_offset;
         a.find_arrow(false);

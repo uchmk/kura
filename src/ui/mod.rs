@@ -48,6 +48,16 @@ pub const TERM_SHARE: f32 = 0.35;
 /// least four rows, and never so much that the list above keeps fewer than six
 /// (`chrome` is the header and the status bar). On a window too short for
 /// both, the four rows win.
+/// What the preview marks: the body search's pattern, or what `preview_find`
+/// looked for while a huge log is on show.
+fn preview_find(app: &App) -> Option<&ito_match::Matcher> {
+    let body = app.tabs[app.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref());
+    body.or(match app.preview.state {
+        PreviewState::Ready(Payload::Log { .. }) => app.log_matcher.as_ref(),
+        _ => None,
+    })
+}
+
 fn term_height(full_h: f32, chrome: f32, row_h: f32, share: f32) -> f32 {
     let least = row_h * 4.0;
     (full_h * share).clamp(least, (full_h - chrome - row_h * 6.0).max(least))
@@ -485,7 +495,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 minimap: app.cfg.ui.minimap,
                 zoom: app.preview.zoom,
                 pan: app.preview.pan,
-                find: app.tabs[app.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref()),
+                find: preview_find(app),
             };
             // What the selection belongs to: the read (path, size, time,
             // width), or for an archive member's card, which has none, the

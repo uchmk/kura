@@ -1040,7 +1040,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 - [ ] **61.1** Hover a 1-million-line log → The first lines show at once; the bottom note reads "indexing N%" and then "line N of M" 〔未訳〕
 - [ ] **61.2** Scroll to the end with `<A-j>` / the wheel → The last line is reachable; the UI stays responsive 〔未訳〕
-- [ ] **61.3** Press `<A-/>`, type `error\nretry` → Matches spanning two lines are found; `n` / `N` jump between them 〔未訳〕
+- [ ] **61.3** Press `<A-/>`, type `error\nretry` → Matches spanning two lines are found; `n` / `N` jump between them, and the matched words are highlighted in the window (a match over a line break is not) 〔未訳〕
 - [ ] **61.4** Do 61.1 with a UTF-16 (BOM) log and a CRLF log → Lines show correctly, no stray characters 〔未訳〕
 - [ ] **61.5** Append lines to the file while it is on show → The view follows the change after the next scan (no live tail) 〔未訳〕
 - [ ] **61.6** Open it from a network drive → It does not freeze; moving away cancels the indexing 〔未訳〕
