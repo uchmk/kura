@@ -1654,6 +1654,9 @@ pub struct App {
     log_needle: String,
     /// The compiled `log_needle`, which the preview marks in the window.
     pub log_matcher: Option<ito_match::Matcher>,
+    /// Keep the huge log on show scrolled to its end as it grows.
+    pub log_follow: bool,
+    log_polled: Option<Instant>,
     /// The shell the pane started, as its first toast named it.
     term_shell: String,
     /// A file to put the cursor on when its directory is next read, ahead of
@@ -1942,6 +1945,8 @@ impl App {
             term_needle: String::new(),
             log_needle: String::new(),
             log_matcher: None,
+            log_follow: false,
+            log_polled: None,
             term_shell: String::new(),
             land_on: None,
             cd_refused: None,
@@ -3084,6 +3089,15 @@ impl App {
         };
         if self.preview.key.as_ref() == Some(&key) && !force {
             return;
+        }
+        // A huge log that grew keeps its index and picks up the new lines in
+        // `tick_log`; reading it again from the front would start over.
+        if let (PreviewState::Ready(Payload::Log { view }), Some(old)) = (&self.preview.state, &self.preview.key) {
+            let same = old.path == key.path && old.box_size == key.box_size && old.deep == key.deep && old.n == key.n;
+            if same && !force && key.len >= view.index.len() {
+                self.preview.key = Some(key);
+                return;
+            }
         }
         if let Some(hit) = self.preview.cache.get(&key).cloned() {
             self.preview.in_flight = false;
@@ -4259,6 +4273,7 @@ impl App {
             Act::TermCd => self.term_pull_cwd(),
             Act::TermFind { prev, repeat } => self.term_search(prev, repeat),
             Act::PreviewFind { prev, repeat } => self.preview_search(prev, repeat),
+            Act::PreviewFollow => self.preview_follow(),
             Act::TermScroll(step) => self.term_scroll(step),
             Act::TermPrompt { prev } => self.term_prompt(prev),
             Act::TermCopyOutput => self.term_copy_output(),
@@ -4343,6 +4358,51 @@ impl App {
             PreviewState::Ready(Payload::Log { view }) => Some(view.clone()),
             _ => None,
         }
+    }
+
+    /// Turn following the end of the huge log on show on or off.
+    fn preview_follow(&mut self) {
+        if self.log_view().is_none() {
+            self.toast("Following works on a huge log in the preview");
+            return;
+        }
+        self.log_follow = !self.log_follow;
+        let msg = if self.log_follow { "Following the log" } else { "Stopped following" };
+        self.toast(msg);
+        if self.log_follow {
+            self.log_polled = None;
+        }
+    }
+
+    /// Look for lines added to the huge log on show (twice a second) and, when
+    /// following, scroll to the last. Returns when to look again, if one is on show.
+    pub fn tick_log(&mut self) -> Option<Duration> {
+        const EVERY: Duration = Duration::from_millis(500);
+        let Some(view) = self.log_view() else {
+            self.log_follow = false;
+            return None;
+        };
+        if let Some(t) = self.log_polled.filter(|t| t.elapsed() < EVERY) {
+            return Some(EVERY - t.elapsed());
+        }
+        self.log_polled = Some(Instant::now());
+        let before = view.index.lines();
+        match view.index.grow() {
+            crate::preview::logindex::Grow::Rebuild => {
+                // Cut or replaced: read it again from the front.
+                self.preview.key = None;
+                self.request_preview(true);
+            }
+            _ if self.log_follow => {
+                let now = view.index.lines();
+                let tab = &mut self.tabs[self.active];
+                if now > before || tab.preview_offset + 1 < now {
+                    tab.preview_offset = now.saturating_sub(1);
+                }
+            }
+            _ => {}
+        }
+        Some(EVERY)
     }
 
     /// Search the huge log in the preview, or step to the next match.
@@ -8113,6 +8173,35 @@ fn spot_text_of(entries: &[Entry]) -> String {
 mod tests {
     use super::*;
     use crate::config::keys::Key;
+
+    /// Following a huge log picks up appended lines and sits on the last one.
+    #[test]
+    fn preview_follow_tracks_an_appended_log() {
+        use std::io::Write;
+        let dir = crate::util::test_dir("app-log-follow");
+        let f = dir.join("grow.log");
+        std::fs::write(&f, (0..100).map(|i| format!("line {i}\n")).collect::<String>()).unwrap();
+        let mut a = App::new(Config::load(), dir.clone(), egui::Context::default());
+        let index = crate::preview::logindex::LogIndex::start(&f).unwrap();
+        while !index.is_done() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let view = crate::preview::logindex::LogView::new(index.clone());
+        a.preview.state = PreviewState::Ready(Payload::Log { view });
+        a.preview_follow();
+        assert!(a.log_follow);
+        std::fs::OpenOptions::new().append(true).open(&f).unwrap().write_all(b"more 1\nmore 2\n").unwrap();
+        assert!(a.tick_log().is_some());
+        while !index.is_done() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        a.log_polled = None;
+        a.tick_log();
+        assert_eq!(index.lines(), 102);
+        assert_eq!(a.tabs[a.active].preview_offset, 101, "follows to the last line");
+        a.preview_follow();
+        assert!(!a.log_follow);
+    }
 
     /// A huge log's preview search finds across lines and `n` / `N` step
     /// through the hits.

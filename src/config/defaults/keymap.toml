@@ -204,6 +204,10 @@ on = "<A-/>"
 run = "preview_find"
 desc = "Find in a huge log shown in the preview (n / N step through the hits)"
 [[mgr.keymap]]
+on = "<A-f>"
+run = "preview_follow"
+desc = "Follow the end of a huge log as it grows (tail -f)"
+[[mgr.keymap]]
 on = "M"
 run = "toggle_render"
 desc = "Switch Markdown / HTML preview between rendered and source"

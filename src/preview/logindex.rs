@@ -34,6 +34,14 @@ pub enum Enc {
     Utf16Be,
 }
 
+/// What [`LogIndex::grow`] found.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Grow {
+    Same,
+    Grew,
+    Rebuild,
+}
+
 #[derive(Default)]
 struct Inner {
     /// Where each line starts. While the index is building the last entry may be
@@ -41,13 +49,15 @@ struct Inner {
     starts: Vec<u64>,
     /// How far into the file the build has read.
     end: u64,
+    /// The file ended in a newline, so the start that followed it was dropped.
+    nl_end: bool,
 }
 
 pub struct LogIndex {
     pub path: PathBuf,
     pub enc: Enc,
-    /// The file's length when the build began.
-    pub len: u64,
+    /// The file's length when the build last began.
+    len: AtomicU64,
     inner: Mutex<Inner>,
     done: AtomicBool,
     cancel: AtomicBool,
@@ -69,8 +79,8 @@ impl LogIndex {
         let idx = Arc::new(Self {
             path: path.to_owned(),
             enc,
-            len,
-            inner: Mutex::new(Inner { starts: vec![bom], end: bom }),
+            len: AtomicU64::new(len),
+            inner: Mutex::new(Inner { starts: vec![bom], end: bom, nl_end: false }),
             done: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
         });
@@ -79,10 +89,10 @@ impl LogIndex {
         Ok(idx)
     }
 
-    fn build(&self, mut f: File, bom: u64) {
+    fn build(&self, mut f: File, from: u64) {
         let mut buf = vec![0u8; CHUNK_BYTES];
-        let mut pos = bom;
-        if f.seek(SeekFrom::Start(bom)).is_err() {
+        let mut pos = from;
+        if f.seek(SeekFrom::Start(from)).is_err() {
             self.finish(pos);
             return;
         }
@@ -136,7 +146,8 @@ impl LogIndex {
         let mut g = self.inner.lock().unwrap();
         g.end = pos;
         // A file that ends in a newline has no line after it.
-        if g.starts.last().is_some_and(|&s| s >= pos) {
+        g.nl_end = g.starts.last().is_some_and(|&s| s >= pos);
+        if g.nl_end {
             g.starts.pop();
         }
         drop(g);
@@ -159,10 +170,50 @@ impl LogIndex {
 
     /// How much of the file the build has read, in 0..=1.
     pub fn progress(&self) -> f32 {
-        if self.is_done() || self.len == 0 {
+        let len = self.len();
+        if self.is_done() || len == 0 {
             return 1.0;
         }
-        (self.inner.lock().unwrap().end as f32 / self.len as f32).min(1.0)
+        (self.inner.lock().unwrap().end as f32 / len as f32).min(1.0)
+    }
+
+    /// The file's length when the build last began.
+    pub fn len(&self) -> u64 {
+        self.len.load(Ordering::Relaxed)
+    }
+
+    /// Index what was appended to the file since the build finished, on a thread
+    /// of its own. A file that is shorter than what was indexed has been cut or
+    /// replaced: that is [`Grow::Rebuild`], and the caller starts over with a
+    /// new index.
+    pub fn grow(self: &Arc<Self>) -> Grow {
+        if !self.is_done() {
+            return Grow::Same;
+        }
+        let Ok(mut f) = File::open(&self.path) else { return Grow::Same };
+        let Ok(len) = f.metadata().map(|m| m.len()) else { return Grow::Same };
+        let mut g = self.inner.lock().unwrap();
+        if len < g.end {
+            return Grow::Rebuild;
+        }
+        if len == g.end {
+            return Grow::Same;
+        }
+        let from = g.end;
+        if g.nl_end {
+            g.starts.push(from);
+            g.nl_end = false;
+        }
+        drop(g);
+        self.len.store(len, Ordering::Relaxed);
+        self.done.store(false, Ordering::Release);
+        let _ = f.seek(SeekFrom::Start(from));
+        let me = self.clone();
+        if std::thread::Builder::new().name("log-index".into()).spawn(move || me.build(f, from)).is_err() {
+            self.done.store(true, Ordering::Release);
+            return Grow::Same;
+        }
+        Grow::Grew
     }
 
     /// Lines `first..first + count` as text, without their line ends and cut to
@@ -392,7 +443,7 @@ impl LogView {
             }
             let mut f = found.lock().unwrap();
             f.lines = lines;
-            f.passed = index.len;
+            f.passed = index.len();
             f.done = true;
             drop(f);
             if let Some(c) = ctx {
@@ -427,6 +478,7 @@ fn clip(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     fn wait(i: &LogIndex) {
         for _ in 0..2000 {
@@ -513,6 +565,33 @@ mod tests {
         let all = hits(&i, r"(?m)^pad \d+ \.+\n");
         assert_eq!(all.len(), at);
         assert!(all.windows(2).all(|w| w[0] + 1 == w[1]));
+    }
+
+    #[test]
+    fn appended_lines_are_indexed() {
+        let dir = crate::util::test_dir("li-grow");
+        let path = dir.join("grow.log");
+        std::fs::write(&path, "a\nb\n").unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        while !i.is_done() {
+            std::thread::yield_now();
+        }
+        assert_eq!((i.lines(), i.grow()), (2, Grow::Same));
+        // A partial last line, then the rest of it and more.
+        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"c\nd").unwrap();
+        assert_eq!(i.grow(), Grow::Grew);
+        while !i.is_done() {
+            std::thread::yield_now();
+        }
+        assert_eq!(i.read(0, 10), ["a", "b", "c", "d"]);
+        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"e\nf\n").unwrap();
+        assert_eq!(i.grow(), Grow::Grew);
+        while !i.is_done() {
+            std::thread::yield_now();
+        }
+        assert_eq!(i.read(0, 10), ["a", "b", "c", "de", "f"]);
+        std::fs::write(&path, "x\n").unwrap();
+        assert_eq!(i.grow(), Grow::Rebuild);
     }
 
     #[test]

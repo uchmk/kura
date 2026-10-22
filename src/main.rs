@@ -1142,6 +1142,9 @@ impl eframe::App for Kura {
         if let Some(due) = self.app.rescan_due() {
             ctx.request_repaint_after(due);
         }
+        if let Some(due) = self.app.tick_log() {
+            ctx.request_repaint_after(due);
+        }
         if self.app.preview.pending_since.is_some() {
             ctx.request_repaint_after(Duration::from_millis(16));
         }

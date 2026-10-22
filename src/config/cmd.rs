@@ -290,6 +290,8 @@ pub enum Act {
         prev: bool,
         repeat: bool,
     },
+    /// Follow the end of a huge log as it grows (tail -f); a second press stops.
+    PreviewFollow,
     /// Move the terminal's view through its scrollback.
     TermScroll(Step),
     /// Scroll the terminal to the prompt above the view's top, or below it
@@ -600,6 +602,7 @@ pub fn parse(line: &str) -> Act {
         "term_send" => Act::TermSend,
         "term_cd" => Act::TermCd,
         "term_find" => Act::TermFind { prev: a.has("prev"), repeat: a.has("repeat") },
+        "preview_follow" => Act::PreviewFollow,
         "preview_find" => Act::PreviewFind { prev: a.has("prev"), repeat: a.has("repeat") },
         "term_scroll" => Act::TermScroll(parse_step(a.first().unwrap_or("-1"))),
         "term_prompt" => Act::TermPrompt { prev: a.has("prev") },

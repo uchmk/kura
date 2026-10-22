@@ -1830,5 +1830,6 @@ A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and
 | 61.2 | Scroll to the end with `<A-j>` / the wheel | The last line is reachable; the UI stays responsive |
 | 61.3 | Press `<A-/>`, type `error\nretry` | Matches spanning two lines are found; `n` / `N` jump between them, and the matched words are highlighted in the window, on both lines of a match over a line break |
 | 61.4 | Do 61.1 with a UTF-16 (BOM) log and a CRLF log | Lines show correctly, no stray characters |
-| 61.5 | Append lines to the file while it is on show | The view follows the change after the next scan (no live tail) |
+| 61.5 | Append lines to the file while it is on show | The note's line count grows within a second and the view stays where it was; the index is not rebuilt from the front |
+| 61.7 | Press `<A-f>` on a log that is being appended to, then `<A-f>` again | The view stays on the last line as lines arrive, and "Following the log" / "Stopped following" show; truncating the file reloads it |
 | 61.6 | Open it from a network drive | It does not freeze; moving away cancels the indexing |

@@ -1253,4 +1253,3 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
 
 ## 巨大ログのプレビュー（v0.133.0、#454）
 
-- [ ] 巨大ログの追記への追従（tail）。（要確認: #454）

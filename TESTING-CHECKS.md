@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 702 件（TESTING.md の全 896 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 703 件（TESTING.md の全 897 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 103 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 104 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1042,5 +1042,6 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **61.2** Scroll to the end with `<A-j>` / the wheel → The last line is reachable; the UI stays responsive 〔未訳〕
 - [ ] **61.3** Press `<A-/>`, type `error\nretry` → Matches spanning two lines are found; `n` / `N` jump between them, and the matched words are highlighted in the window, on both lines of a match over a line break 〔未訳〕
 - [ ] **61.4** Do 61.1 with a UTF-16 (BOM) log and a CRLF log → Lines show correctly, no stray characters 〔未訳〕
-- [ ] **61.5** Append lines to the file while it is on show → The view follows the change after the next scan (no live tail) 〔未訳〕
+- [ ] **61.5** Append lines to the file while it is on show → The note's line count grows within a second and the view stays where it was; the index is not rebuilt from the front 〔未訳〕
+- [ ] **61.7** Press `<A-f>` on a log that is being appended to, then `<A-f>` again → The view stays on the last line as lines arrive, and "Following the log" / "Stopped following" show; truncating the file reloads it 〔未訳〕
 - [ ] **61.6** Open it from a network drive → It does not freeze; moving away cancels the indexing 〔未訳〕

@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-286 keys. How many are checked is not written here, so that two pull requests ticking
+287 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -59,6 +59,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-1>` — Show the image at 1:1 · `zoom actual`
 - [x] `<A-n>` — Show or hide the preview's minimap · `minimap`
 - [ ] `<A-/>` — Find in a huge log shown in the preview (n / N step through the hits) · `preview_find`
+- [ ] `<A-f>` — Follow the end of a huge log as it grows (tail -f) · `preview_follow`
 - [x] `M` — Switch Markdown / HTML preview between rendered and source · `toggle_render`
 - [x] `<BackTab>` — Focus the preview's outline (functions / headings) · `toggle_outline`
 - [x] `<Tab>` — Spot hovered file · `spot`

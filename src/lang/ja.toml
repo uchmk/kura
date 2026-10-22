@@ -30,6 +30,7 @@
 "Fit the image to the pane" = "画像をペインに合わせる"
 "Show the image at 1:1" = "画像を等倍で出す"
 "Show or hide the preview's minimap" = "プレビューのミニマップを出す・隠す"
+"Follow the end of a huge log as it grows (tail -f)" = "巨大なログの末尾を、伸びるのに合わせて追う（tail -f）"
 "Find in a huge log shown in the preview (n / N step through the hits)" = "プレビューに出している巨大なログの中を探す（n / N で一致を行き来）"
 "Switch Markdown / HTML preview between rendered and source" = "Markdown・HTML のプレビューを整形・元の文に切り替える"
 "Focus the preview's outline (functions / headings)" = "プレビューの目次（関数・見出し）へ"
