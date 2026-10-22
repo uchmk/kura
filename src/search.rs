@@ -55,12 +55,12 @@ impl Drop for Handle {
 /// file of any size costs the same memory.
 const CHUNK_BYTES: usize = 64 * 1024;
 
-/// A file up to this size is matched whole, as one string (so a pattern may span lines);
-/// only a bigger one is streamed and matched line by line.
+/// A file up to this size is matched whole, as one string; only a bigger one is streamed in windows.
 const WHOLE_FILE_BYTES: u64 = 1024 * 1024;
 
-/// A line longer than this is cut before it is matched (one-line minified dumps).
-const MAX_LINE_BYTES: usize = 1024 * 1024;
+/// A big file is matched in windows this long, each led by the tail of the last.
+const WINDOW_BYTES: usize = 1024 * 1024;
+const OVERLAP_BYTES: usize = 64 * 1024;
 
 /// How much of a file is looked at before deciding it is not text. Text has no
 /// NUL; a binary almost always shows one in its header.
@@ -228,56 +228,44 @@ fn look(path: &Path, matcher: &Matcher, max_bytes: u64, cancel: &AtomicBool) -> 
         }
         return if matcher.is_match(&String::from_utf8_lossy(&head)) { Look::Hit } else { Look::Miss };
     }
+    // Windows of WINDOW_BYTES, each starting with the OVERLAP_BYTES that ended the last one,
+    // are matched whole: a pattern that spans lines (up to the overlap) matches as it
+    // does in a small file, and no match is lost on a window's edge.
     let mut read = head.len() as u64;
-    // `pending` is the unfinished last line of what was read so far.
-    let mut pending = head;
+    let mut window = head;
     let mut chunk = vec![0u8; CHUNK_BYTES];
     let mut over = false;
     loop {
-        // Only the last, unfinished line stays behind; every complete one is matched now.
-        if let Some(end) = pending.iter().rposition(|&b| b == b'\n') {
-            if lines_match(&pending[..end], matcher) {
-                return Look::Hit;
+        while window.len() < WINDOW_BYTES + OVERLAP_BYTES {
+            if cancel.load(Ordering::Relaxed) {
+                return Look::Miss;
             }
-            pending.drain(..=end);
-        }
-        if pending.len() > MAX_LINE_BYTES {
-            // One enormous line: match what fits, and drop it so memory stays flat.
-            pending.truncate(MAX_LINE_BYTES);
-            if matcher.is_match(&String::from_utf8_lossy(&pending)) {
-                return Look::Hit;
+            if max_bytes > 0 && read >= max_bytes {
+                over = true;
+                break;
             }
-            pending.clear();
+            let want = if max_bytes > 0 { CHUNK_BYTES.min((max_bytes - read) as usize) } else { CHUNK_BYTES };
+            match f.read(&mut chunk[..want]) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    read += n as u64;
+                    window.extend_from_slice(&chunk[..n]);
+                }
+            }
         }
-        if cancel.load(Ordering::Relaxed) {
-            return Look::Miss;
+        if matcher.is_match(&String::from_utf8_lossy(&window)) {
+            return Look::Hit;
         }
-        if max_bytes > 0 && read >= max_bytes {
-            over = true;
+        if window.len() < WINDOW_BYTES + OVERLAP_BYTES {
             break;
         }
-        let want = if max_bytes > 0 { CHUNK_BYTES.min((max_bytes - read) as usize) } else { CHUNK_BYTES };
-        match f.read(&mut chunk[..want]) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => {
-                read += n as u64;
-                pending.extend_from_slice(&chunk[..n]);
-            }
-        }
-    }
-    if !pending.is_empty() && matcher.is_match(&String::from_utf8_lossy(&pending)) {
-        return Look::Hit;
+        window.drain(..window.len() - OVERLAP_BYTES);
     }
     if over && f.read(&mut chunk[..1]).is_ok_and(|n| n > 0) {
         Look::Capped
     } else {
         Look::Miss
     }
-}
-
-/// Matches `text` (complete lines, no trailing newline) one line at a time.
-fn lines_match(text: &[u8], matcher: &Matcher) -> bool {
-    text.split(|&b| b == b'\n').any(|line| matcher.is_match(&String::from_utf8_lossy(line.strip_suffix(b"\r").unwrap_or(line))))
 }
 
 /// What a search reaches into besides the folder: hidden files, and, when the
@@ -417,7 +405,7 @@ mod tests {
         late.extend_from_slice(b"needle\r\n");
         let t = Tree::new("deep", &[("big.log", &big), ("late.log", &late), ("none.log", &big[..1000])]);
         assert_eq!(t.find("needle", SearchVia::Content), ["big.log", "late.log"], "no trailing newline, CRLF, and past many chunks");
-        assert_eq!(t.find("^needle$", SearchVia::Content), ["late.log"], "a big file is matched per line, so anchors mean a line");
+        assert_eq!(t.find(r"(?m)^x\nneedle\r$", SearchVia::Content), ["late.log"], "a pattern that spans lines matches in a big file too");
     }
 
     #[test]
