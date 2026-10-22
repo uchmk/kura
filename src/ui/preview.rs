@@ -213,10 +213,19 @@ fn draw_pane(
                 let total = view.index.lines();
                 let (first, got) = view.window(offset, rows(rect, st), ui.ctx());
                 // Plain lines from `first` on; a scroll beyond what has been read draws nothing until the read lands.
-                let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
                 let rel = offset.saturating_sub(first);
+                // A search across line ends is run over the lines on screen and a few around them.
+                let marks = st.find.map(|m| {
+                    let (lo, hi) = (rel.saturating_sub(16), (rel + rows(rect, st) + 16).min(got.len()));
+                    let mut all = vec![Vec::new(); got.len()];
+                    if lo < hi {
+                        all.splice(lo..hi, spanning_marks(m, &got[lo..hi]));
+                    }
+                    all
+                });
+                let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
                 if offset >= first && !spans.is_empty() {
-                    text(ui, &painter, rect, &spans, Extent::default(), rel, st);
+                    text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), st);
                 } else {
                     painter.text(rect.left_top() + Vec2::new(PAD, 8.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
                 }
@@ -760,6 +769,48 @@ fn split_marked(line: &[Span], marks: &[Range<usize>]) -> Vec<(usize, Range<usiz
 
 /// Highlighted source, one file line per row.
 fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> usize {
+    text_with(ui, painter, rect, lines, extent, offset, None, st)
+}
+
+/// The marks of a search that runs across line ends, cut per line: `lines` are
+/// searched as one text joined by `\n`, and a match that spans several lines
+/// marks the part of each (byte ranges of that line).
+fn spanning_marks(m: &Matcher, lines: &[String]) -> Vec<Vec<Range<usize>>> {
+    let mut text = String::new();
+    let mut at = Vec::with_capacity(lines.len());
+    for l in lines {
+        at.push(text.len());
+        text.push_str(l);
+        text.push('\n');
+    }
+    let mut out = vec![Vec::new(); lines.len()];
+    for r in m.ranges(&text) {
+        let first = at.partition_point(|&s| s <= r.start).saturating_sub(1);
+        for i in first..lines.len() {
+            if at[i] >= r.end {
+                break;
+            }
+            let (s, e) = (r.start.max(at[i]) - at[i], r.end.min(at[i] + lines[i].len()).saturating_sub(at[i]));
+            if e > s {
+                out[i].push(s..e);
+            }
+        }
+    }
+    out
+}
+
+/// [`text`], with the marks of each line given (by index into `lines`) instead of found line by line.
+#[allow(clippy::too_many_arguments)]
+fn text_with(
+    ui: &Ui,
+    painter: &Painter,
+    rect: Rect,
+    lines: &[Vec<Span>],
+    extent: Extent,
+    offset: usize,
+    given: Option<&[Vec<Range<usize>>]>,
+    st: &PreviewStyle<'_>,
+) -> usize {
     let start = offset.min(lines.len().saturating_sub(1));
     let end = (start + rows(rect, st)).min(lines.len());
     let bold_dx = overstrike(ui, st);
@@ -770,9 +821,10 @@ fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Ext
             note(painter, pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h), &blank);
             continue;
         }
-        let marks = match st.find {
-            Some(m) => m.ranges(&line.iter().map(|s| s.text.as_str()).collect::<String>()),
-            None => Vec::new(),
+        let marks = match (given, st.find) {
+            (Some(g), _) => g.get(start + i).cloned().unwrap_or_default(),
+            (None, Some(m)) => m.ranges(&line.iter().map(|s| s.text.as_str()).collect::<String>()),
+            (None, None) => Vec::new(),
         };
         let job_for = |bold_only: bool| {
             let mut job = LayoutJob::default();
@@ -2314,5 +2366,15 @@ mod minimap_bands {
                 last = Some(b);
             }
         }
+    }
+
+    /// A match across line ends is marked on every line it covers, and a
+    /// match inside one line as before.
+    #[test]
+    fn a_match_across_lines_marks_each_line() {
+        let m = ito_match::Matcher::new("b\\nc").unwrap();
+        let lines: Vec<String> = ["a b", "c d", "e"].map(String::from).to_vec();
+        let marks = super::spanning_marks(&m, &lines);
+        assert_eq!(marks, vec![vec![2..3], vec![0..1], vec![]]);
     }
 }
