@@ -4387,7 +4387,12 @@ impl App {
         }
         self.log_polled = Some(Instant::now());
         let before = view.index.lines();
-        match view.index.grow() {
+        let grow = view.index.grow();
+        if grow == crate::preview::logindex::Grow::Grew {
+            // What was added is looked through for the find on show, too.
+            view.find_more();
+        }
+        match grow {
             crate::preview::logindex::Grow::Rebuild => {
                 // Cut or replaced: read it again from the front.
                 self.preview.key = None;

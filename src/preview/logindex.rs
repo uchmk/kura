@@ -24,6 +24,14 @@ const WINDOW_BYTES: u64 = 1024 * 1024;
 const OVERLAP_BYTES: u64 = 64 * 1024;
 /// A line is cut to this many bytes when read for the screen.
 const MAX_LINE_BYTES: usize = 8 * 1024;
+/// How much of a line is read from the disk for the screen: room for a
+/// multi-byte text to still fill `MAX_LINE_BYTES` once decoded.
+const READ_LINE_BYTES: u64 = 4 * MAX_LINE_BYTES as u64;
+/// Lines asked for in one go are read with one read when they take no more than this.
+const BULK_READ_BYTES: u64 = 4 * 1024 * 1024;
+/// How many bytes before the end of what is indexed are remembered, to tell a
+/// file that was cut and written again from one that only grew.
+const TAIL_BYTES: u64 = 32;
 /// The most lines a find keeps.
 pub const MAX_HITS: usize = 1_000_000;
 
@@ -51,6 +59,8 @@ struct Inner {
     end: u64,
     /// The file ended in a newline, so the start that followed it was dropped.
     nl_end: bool,
+    /// The last bytes before `end` when the build last finished.
+    tail: Vec<u8>,
 }
 
 pub struct LogIndex {
@@ -80,7 +90,7 @@ impl LogIndex {
             path: path.to_owned(),
             enc,
             len: AtomicU64::new(len),
-            inner: Mutex::new(Inner { starts: vec![bom], end: bom, nl_end: false }),
+            inner: Mutex::new(Inner { starts: vec![bom], end: bom, nl_end: false, tail: Vec::new() }),
             done: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
         });
@@ -109,6 +119,13 @@ impl LogIndex {
                     Err(_) => break,
                 }
             }
+            let full = got == buf.len();
+            // A UTF-16 file cut in the middle of a unit (a writer caught half
+            // way): leave the odd byte for the next read, or every pair after
+            // it would be read one byte off.
+            if self.enc != Enc::Utf8 {
+                got &= !1;
+            }
             if got == 0 {
                 break;
             }
@@ -135,7 +152,7 @@ impl LogIndex {
             g.starts.extend(found);
             g.end = pos;
             drop(g);
-            if got < buf.len() {
+            if !full {
                 break;
             }
         }
@@ -143,8 +160,10 @@ impl LogIndex {
     }
 
     fn finish(&self, pos: u64) {
+        let tail = self.read_tail(pos);
         let mut g = self.inner.lock().unwrap();
         g.end = pos;
+        g.tail = tail;
         // A file that ends in a newline has no line after it.
         g.nl_end = g.starts.last().is_some_and(|&s| s >= pos);
         if g.nl_end {
@@ -152,6 +171,20 @@ impl LogIndex {
         }
         drop(g);
         self.done.store(true, Ordering::Release);
+    }
+
+    /// The first line to look through again when the file has grown past `end`:
+    /// the first one that starts within the overlap before it.
+    fn resume_line(&self, end: u64) -> usize {
+        let g = self.inner.lock().unwrap();
+        let at = end.saturating_sub(OVERLAP_BYTES);
+        g.starts.partition_point(|&s| s < at)
+    }
+
+    /// The bytes just before `end`, or none when they cannot be read.
+    fn read_tail(&self, end: u64) -> Vec<u8> {
+        let from = end.saturating_sub(TAIL_BYTES);
+        self.read_bytes(from, end).unwrap_or_default()
     }
 
     pub fn is_done(&self) -> bool {
@@ -191,9 +224,17 @@ impl LogIndex {
             return Grow::Same;
         }
         let Ok(mut f) = File::open(&self.path) else { return Grow::Same };
-        let Ok(len) = f.metadata().map(|m| m.len()) else { return Grow::Same };
+        let Ok(mut len) = f.metadata().map(|m| m.len()) else { return Grow::Same };
+        if self.enc != Enc::Utf8 {
+            len &= !1;
+        }
         let mut g = self.inner.lock().unwrap();
         if len < g.end {
+            return Grow::Rebuild;
+        }
+        // The bytes before the end are not what they were: the file was cut
+        // and written again, and happens to be as long as before or longer.
+        if !g.tail.is_empty() && self.read_tail(g.end) != g.tail {
             return Grow::Rebuild;
         }
         if len == g.end {
@@ -220,15 +261,33 @@ impl LogIndex {
     /// a length a screen can show. Fewer when the file ends first.
     pub fn read(&self, first: usize, count: usize) -> Vec<String> {
         let Some((from, to, starts)) = self.span(first, first.saturating_add(count)) else { return Vec::new() };
-        let Ok(bytes) = self.read_bytes(from, to) else { return Vec::new() };
-        starts
-            .windows(2)
-            .map(|w| {
-                let a = (w[0] - from) as usize;
-                let b = ((w[1] - from) as usize).min(bytes.len());
-                clip(&self.decode(&bytes[a.min(b)..b]))
-            })
-            .collect()
+        // One read for the lot, unless a long line makes it big: then each
+        // line is read up to what the screen can show, and no more.
+        if to - from <= BULK_READ_BYTES {
+            let Ok(bytes) = self.read_bytes(from, to) else { return Vec::new() };
+            return starts
+                .windows(2)
+                .map(|w| {
+                    let a = (w[0] - from) as usize;
+                    let b = ((w[1] - from) as usize).min(bytes.len());
+                    clip(&self.decode(&bytes[a.min(b)..b]))
+                })
+                .collect();
+        }
+        let Ok(mut f) = File::open(&self.path) else { return Vec::new() };
+        let mut lines = Vec::with_capacity(starts.len() - 1);
+        for w in starts.windows(2) {
+            let mut n = (w[1] - w[0]).min(READ_LINE_BYTES);
+            if self.enc != Enc::Utf8 {
+                n &= !1;
+            }
+            let mut v = Vec::with_capacity(n as usize);
+            if f.seek(SeekFrom::Start(w[0])).is_err() || (&mut f).take(n).read_to_end(&mut v).is_err() {
+                break;
+            }
+            lines.push(clip(&self.decode(&v)));
+        }
+        lines
     }
 
     /// The byte range of lines `first..end`, and the start of every one of them
@@ -274,10 +333,27 @@ impl LogIndex {
     /// it starts on and only by the window that owns that line, so one that falls
     /// in an overlap is not counted twice. `done` counts the bytes passed.
     /// Returns what was found so far if `cancel` is set.
+    #[cfg(test)]
     pub fn find(&self, matcher: &Matcher, cancel: &AtomicBool, done: &AtomicU64) -> Vec<u32> {
+        self.find_from(matcher, cancel, done, 0).hits
+    }
+
+    /// [`Self::find`] from line `from_line` on, waiting first for the index to be
+    /// whole: a look through a file still being indexed would call itself over
+    /// at the last line read.
+    pub fn find_from(&self, matcher: &Matcher, cancel: &AtomicBool, done: &AtomicU64, from_line: usize) -> Pass {
+        while !self.is_done() {
+            if cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed) {
+                return Pass::default();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let (total, end) = {
+            let g = self.inner.lock().unwrap();
+            (g.starts.len(), g.end)
+        };
         let mut hits: Vec<u32> = Vec::new();
-        let total = self.lines();
-        let mut from = 0usize;
+        let mut from = from_line;
         let mut text = String::new();
         let mut at: Vec<usize> = Vec::new();
         while from < total {
@@ -285,14 +361,30 @@ impl LogIndex {
                 break;
             }
             // Take lines up to a window's worth.
-            let (begin, limit) = {
+            let (begin, line_end) = {
                 let g = self.inner.lock().unwrap();
-                (g.starts[from], g.starts.get(total).copied().unwrap_or(g.end))
+                (g.starts[from], g.starts.get(from + 1).copied().unwrap_or(g.end))
             };
+            // A line bigger than a window is looked through in pieces, so that it
+            // is never held whole.
+            if line_end - begin > WINDOW_BYTES {
+                if self.find_in_line(matcher, begin, line_end, cancel) {
+                    hits.push(from as u32);
+                    if hits.len() >= MAX_HITS {
+                        return Pass { hits, lines: total, end };
+                    }
+                }
+                done.store(line_end, Ordering::Relaxed);
+                from += 1;
+                continue;
+            }
             let mut stop = from + 1;
             {
                 let g = self.inner.lock().unwrap();
-                while stop < total && g.starts[stop] - begin < WINDOW_BYTES {
+                while stop < total
+                    && g.starts[stop] - begin < WINDOW_BYTES
+                    && g.starts.get(stop + 1).copied().unwrap_or(g.end) - g.starts[stop] <= WINDOW_BYTES
+                {
                     stop += 1;
                 }
             }
@@ -326,15 +418,49 @@ impl LogIndex {
                 prev = line;
                 hits.push(abs as u32);
                 if hits.len() >= MAX_HITS {
-                    return hits;
+                    return Pass { hits, lines: total, end };
                 }
             }
-            let _ = limit;
             done.store(starts[own_to - from].min(b), Ordering::Relaxed);
             from = own_to;
         }
-        hits
+        Pass { hits, lines: total, end }
     }
+
+    /// Whether `matcher` matches somewhere in the one line at `begin..end`, which
+    /// is bigger than a window: read in pieces that start again from the end of
+    /// the one before. A piece after the first starts in the middle of the line,
+    /// so a `^` there can match where the line does not begin.
+    fn find_in_line(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> bool {
+        let unit: u64 = if self.enc == Enc::Utf8 { 1 } else { 2 };
+        let step = WINDOW_BYTES - OVERLAP_BYTES;
+        let mut at = begin;
+        while at < end {
+            if cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed) {
+                return false;
+            }
+            let to = (at + WINDOW_BYTES).min(end);
+            let Ok(bytes) = self.read_bytes(at, to) else { return false };
+            if matcher.is_match(&self.decode(&bytes)) {
+                return true;
+            }
+            if to >= end {
+                break;
+            }
+            at += step / unit * unit;
+        }
+        false
+    }
+}
+
+/// What a look through the file found, and how far it saw.
+#[derive(Default, Debug)]
+pub struct Pass {
+    pub hits: Vec<u32>,
+    /// How many lines the index held when the look began.
+    pub lines: usize,
+    /// How far into the file the index reached then.
+    pub end: u64,
 }
 
 impl Drop for LogIndex {
@@ -352,6 +478,7 @@ pub struct LogView {
     ask: crossbeam_channel::Sender<(usize, usize)>,
     ctx: Mutex<Option<egui::Context>>,
     found: Arc<Mutex<Found>>,
+    matcher: Mutex<Option<Matcher>>,
     stop: Mutex<Arc<AtomicBool>>,
 }
 
@@ -370,6 +497,8 @@ pub struct Found {
     pub done: bool,
     /// Bytes looked through so far.
     pub passed: u64,
+    /// How many lines the file had when the look last finished.
+    searched_lines: usize,
 }
 
 impl std::fmt::Debug for LogView {
@@ -390,6 +519,7 @@ impl LogView {
             ask,
             ctx: Mutex::new(None),
             found: Arc::new(Mutex::new(Found::default())),
+            matcher: Mutex::new(None),
             stop: Mutex::new(Arc::new(AtomicBool::new(false))),
         });
         let weak = Arc::downgrade(&view);
@@ -430,20 +560,49 @@ impl LogView {
     /// Look for `matcher` through the whole file on a thread; `n`/`N` read the
     /// result from [`Self::found`] as it grows.
     pub fn find(&self, query: &str, matcher: Matcher) {
+        let stop = self.new_stop();
+        *self.found.lock().unwrap() = Found { query: query.to_owned(), ..Default::default() };
+        *self.matcher.lock().unwrap() = Some(matcher.clone());
+        self.look(matcher, stop, 0, Vec::new());
+    }
+
+    /// Look through what was added to the file since the last find finished, and
+    /// add its hits. It starts a little before where that one ended, because a
+    /// line that was cut off there may now go on, and drops the hits it sees again.
+    pub fn find_more(&self) {
+        let Some(matcher) = self.matcher.lock().unwrap().clone() else { return };
+        let (kept, from) = {
+            let f = self.found.lock().unwrap();
+            if !f.done || f.lines.len() >= MAX_HITS {
+                return;
+            }
+            let from = self.index.resume_line(f.passed).min(f.searched_lines.saturating_sub(1));
+            (f.lines.iter().copied().filter(|&l| (l as usize) < from).collect::<Vec<_>>(), from)
+        };
+        let stop = self.new_stop();
+        self.look(matcher, stop, from, kept);
+    }
+
+    fn new_stop(&self) -> Arc<AtomicBool> {
         let stop = Arc::new(AtomicBool::new(false));
         std::mem::replace(&mut *self.stop.lock().unwrap(), stop.clone()).store(true, Ordering::Relaxed);
-        *self.found.lock().unwrap() = Found { query: query.to_owned(), ..Default::default() };
+        stop
+    }
+
+    fn look(&self, matcher: Matcher, stop: Arc<AtomicBool>, from: usize, mut lines: Vec<u32>) {
         let (index, found) = (self.index.clone(), self.found.clone());
         let ctx = self.ctx.lock().unwrap().clone();
         let _ = std::thread::Builder::new().name("log-find".into()).spawn(move || {
             let done = AtomicU64::new(0);
-            let lines = index.find(&matcher, &stop, &done);
+            let pass = index.find_from(&matcher, &stop, &done, from);
             if stop.load(Ordering::Relaxed) {
                 return;
             }
+            lines.extend(pass.hits);
             let mut f = found.lock().unwrap();
             f.lines = lines;
-            f.passed = index.len();
+            f.passed = pass.end;
+            f.searched_lines = pass.lines;
             f.done = true;
             drop(f);
             if let Some(c) = ctx {
@@ -592,6 +751,152 @@ mod tests {
         assert_eq!(i.read(0, 10), ["a", "b", "c", "de", "f"]);
         std::fs::write(&path, "x\n").unwrap();
         assert_eq!(i.grow(), Grow::Rebuild);
+    }
+
+    #[test]
+    fn a_line_longer_than_a_window_is_neither_read_nor_searched_whole() {
+        let big = 6 * 1024 * 1024;
+        let mut text = String::from(
+            "pad
+",
+        );
+        text.push_str(&"y".repeat(big));
+        // A match across the end of the first piece of the long line.
+        text.insert_str(4 + WINDOW_BYTES as usize - 3, "NEEDLE");
+        text.push_str(
+            "NEEDLE
+after NEEDLE
+last
+",
+        );
+        let i = index("li-biggest", text.as_bytes());
+        assert_eq!(i.lines(), 4);
+        let l = i.read(0, 4);
+        assert_eq!((l[0].as_str(), l[1].len(), l[2].as_str(), l[3].as_str()), ("pad", MAX_LINE_BYTES, "after NEEDLE", "last"));
+        assert_eq!(hits(&i, "NEEDLE"), vec![1, 2]);
+        assert_eq!(hits(&i, "last"), vec![3]);
+    }
+
+    #[test]
+    fn find_waits_for_an_index_that_is_still_being_built() {
+        let text: String = (0..400_000)
+            .map(|n| {
+                if n % 50_000 == 3 {
+                    format!(
+                        "hit {n}
+"
+                    )
+                } else {
+                    format!(
+                        "pad {n}
+"
+                    )
+                }
+            })
+            .collect();
+        let dir = crate::util::test_dir("li-early");
+        let p = dir.join("early.log");
+        std::fs::write(&p, &text).unwrap();
+        let i = LogIndex::start(&p).unwrap();
+        let want: Vec<u32> = text.lines().enumerate().filter(|(_, l)| l.starts_with("hit")).map(|(n, _)| n as u32).collect();
+        assert_eq!(hits(&i, "^hit"), want);
+    }
+
+    #[test]
+    fn a_utf16_file_cut_in_a_unit_is_indexed_right_when_it_grows() {
+        let dir = crate::util::test_dir("li-u16-grow");
+        let path = dir.join("u.log");
+        let mut b = vec![0xff, 0xfe];
+        for u in "ab
+cd
+"
+        .encode_utf16()
+        {
+            b.extend(u.to_le_bytes());
+        }
+        std::fs::write(&path, &b).unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        wait(&i);
+        // The first byte of the next unit, then the rest of it and a line.
+        let mut f = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+        f.write_all(b"e").unwrap();
+        assert_eq!(i.grow(), Grow::Same);
+        f.write_all(&[0]).unwrap();
+        for u in "f
+g
+"
+        .encode_utf16()
+        {
+            f.write_all(&u.to_le_bytes()).unwrap();
+        }
+        assert_eq!(i.grow(), Grow::Grew);
+        wait(&i);
+        assert_eq!(i.read(0, 9), ["ab", "cd", "ef", "g"]);
+    }
+
+    #[test]
+    fn a_file_cut_and_written_longer_is_a_rebuild() {
+        let dir = crate::util::test_dir("li-recut");
+        let path = dir.join("cut.log");
+        std::fs::write(
+            &path,
+            "alpha 1
+alpha 2
+",
+        )
+        .unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        wait(&i);
+        std::fs::write(
+            &path,
+            "bravo 1
+bravo 2
+bravo 3
+",
+        )
+        .unwrap();
+        assert_eq!(i.grow(), Grow::Rebuild);
+    }
+
+    #[test]
+    fn the_find_goes_on_through_lines_added_later() {
+        let dir = crate::util::test_dir("li-more");
+        let path = dir.join("more.log");
+        std::fs::write(
+            &path,
+            "one
+needle two
+part",
+        )
+        .unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        wait(&i);
+        let view = LogView::new(i.clone());
+        let until = |n: usize, view: &LogView| {
+            for _ in 0..2000 {
+                let f = view.found();
+                if f.done && f.lines.len() == n {
+                    return f.lines;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            panic!("find did not reach {n} hits: {:?}", view.found());
+        };
+        view.find("needle", Matcher::new("needle").unwrap());
+        assert_eq!(until(1, &view), vec![1]);
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(
+                b" needle
+three needle
+",
+            )
+            .unwrap();
+        assert_eq!(i.grow(), Grow::Grew);
+        view.find_more();
+        assert_eq!(until(3, &view), vec![1, 2, 3]);
     }
 
     #[test]
