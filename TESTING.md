@@ -1833,3 +1833,6 @@ A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and
 | 61.5 | Append lines to the file while it is on show | The note's line count grows within a second and the view stays where it was; the index is not rebuilt from the front |
 | 61.7 | Press `<A-f>` on a log that is being appended to, then `<A-f>` again | The view stays on the last line as lines arrive, and "Following the log" / "Stopped following" show; truncating the file reloads it |
 | 61.6 | Open it from a network drive | It does not freeze; moving away cancels the indexing |
+| 61.8 | Hover a 10 MB Shift_JIS (or EUC-JP) log, then a small one of the same encoding | Japanese text shows right in both, not as `�`; `<A-/>` finds Japanese words; spot's Encoding row names the encoding |
+| 61.9 | Hover a log with one line of several MB | It shows the start of that line without freezing; `<A-/>` finds a word deep inside it |
+| 61.10 | Press `<A-/>`, then append matching lines while the search is on show or after it ends | The hit count grows by the new lines; hits are not counted twice |

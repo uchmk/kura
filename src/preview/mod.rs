@@ -550,6 +550,15 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
 
     // Before the text fallback, and after `looks_binary` above: a binary blob
     // named `.csv` still hex-dumps, and `max_bytes` has already done its cutting.
+    if let Some((text, _)) = legacy_text(&head) {
+        let cut = head.len() >= req.max_bytes;
+        if mime == "text/csv" {
+            let delim = csv::delimiter(req.ext.as_deref());
+            let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
+            return csv::render(text.as_bytes(), delim, req.key.cols, dim, if cut { 0 } else { usize::MAX });
+        }
+        return text::render_cut(text.as_bytes(), cut, req, syntax);
+    }
     if mime == "text/csv" {
         let delim = csv::delimiter(req.ext.as_deref());
         let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
@@ -590,6 +599,15 @@ pub(crate) fn utf16_text(bytes: &[u8]) -> Option<String> {
     let units: Vec<u16> =
         bytes[2..].as_chunks::<2>().0.iter().map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) }).collect();
     Some(String::from_utf16_lossy(&units))
+}
+
+/// Text that is Shift_JIS or EUC-JP rather than UTF-8, as UTF-8, with the
+/// encoding's name. `None` for anything `logindex::guess` takes as UTF-8 or UTF-16.
+pub(crate) fn legacy_text(bytes: &[u8]) -> Option<(String, &'static str)> {
+    match logindex::guess(bytes).0 {
+        logindex::Enc::Legacy(enc) => Some((enc.decode_without_bom_handling(bytes).0.into_owned(), enc.name())),
+        _ => None,
+    }
 }
 
 pub(crate) fn looks_binary(bytes: &[u8]) -> bool {
@@ -793,6 +811,21 @@ mod tests {
 
     /// #214: a UTF-16 file (Notepad's "Unicode" save) is previewed as text,
     /// both byte orders, not hex-dumped for its NUL bytes.
+    #[test]
+    fn a_small_shift_jis_file_previews_as_its_text() {
+        let (bytes, _, _) = encoding_rs::SHIFT_JIS.encode("日本語のログです。\n二行目です。\n");
+        let (text, name) = legacy_text(&bytes).expect("Shift_JIS");
+        assert_eq!(name, "Shift_JIS");
+        assert_eq!(text, "日本語のログです。\n二行目です。\n");
+        assert!(legacy_text(
+            "plain ascii
+"
+            .as_bytes()
+        )
+        .is_none());
+        assert!(legacy_text("日本語".as_bytes()).is_none());
+    }
+
     #[test]
     fn utf16_previews_as_text() {
         let dir = crate::util::test_dir("preview-utf16");

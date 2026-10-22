@@ -411,12 +411,14 @@ fn text(path: &Path) -> Option<Section> {
         bytes.extend_from_slice(&rest);
     }
     let partial = (bytes.len() as u64) < meta.len();
+    let legacy = if wide.is_none() && bom == "none" { crate::preview::legacy_text(&bytes) } else { None };
     let (body, encoding) = match wide {
         Some(big) => {
             let units: Vec<u16> =
                 bytes[2..].as_chunks::<2>().0.iter().map(|c| if big { u16::from_be_bytes(*c) } else { u16::from_le_bytes(*c) }).collect();
             (String::from_utf16_lossy(&units), if big { "UTF-16 BE" } else { "UTF-16 LE" })
         }
+        None if legacy.is_some() => legacy.unwrap_or_default(),
         None => {
             let start = if bom.starts_with("UTF-8") { 3 } else { 0 };
             match std::str::from_utf8(&bytes[start..]) {
@@ -1002,6 +1004,18 @@ mod tests {
         }
         let s = spotted(&dir, "be.txt", &be);
         assert_eq!(value(section(&s, "Text").unwrap(), "Encoding"), Some("UTF-16 BE"));
+    }
+
+    #[test]
+    fn shift_jis_and_euc_jp_name_their_encoding() {
+        let dir = crate::util::test_dir("legacy-enc");
+        let text = "日本語のログです。\r\n二行目です。\r\n";
+        for (enc, name) in [(encoding_rs::SHIFT_JIS, "Shift_JIS"), (encoding_rs::EUC_JP, "EUC-JP")] {
+            let (bytes, _, _) = enc.encode(text);
+            let s = spotted(&dir, name, &bytes);
+            let s = section(&s, "Text").expect("legacy text is text");
+            assert_eq!(value(s, "Encoding"), Some(name));
+        }
     }
 
     #[test]
