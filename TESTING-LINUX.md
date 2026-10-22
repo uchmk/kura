@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 696 件（TESTING.md の全 890 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 702 件（TESTING.md の全 896 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 97 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 103 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -987,3 +987,12 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **60.3** Start the search of 60.1 and press `Esc` while it reads → The search stops within a moment, the folder returns, and the CPU goes idle 〔未訳〕
 - [ ] **60.4** Search `^needle` for a file whose lines start with it, after a line with CRLF endings → Both LF and CRLF files match 〔未訳〕
 - [ ] **60.5** On a network drive, search a folder of large logs → It finishes without errors; closing kura during it does not hang 〔未訳〕
+
+## 61. Huge text in the preview (v0.133.0)
+
+- [ ] **61.1** Hover a 1-million-line log → The first lines show at once; the bottom note reads "indexing N%" and then "line N of M" 〔未訳〕
+- [ ] **61.2** Scroll to the end with `<A-j>` / the wheel → The last line is reachable; the UI stays responsive 〔未訳〕
+- [ ] **61.3** Press `<A-/>`, type `error\nretry` → Matches spanning two lines are found; `n` / `N` jump between them 〔未訳〕
+- [ ] **61.4** Do 61.1 with a UTF-16 (BOM) log and a CRLF log → Lines show correctly, no stray characters 〔未訳〕
+- [ ] **61.5** Append lines to the file while it is on show → The view follows the change after the next scan (no live tail) 〔未訳〕
+- [ ] **61.6** Open it from a network drive → It does not freeze; moving away cancels the indexing 〔未訳〕

@@ -52,6 +52,8 @@ pub enum InputKind {
     Cd,
     /// A string to find in the terminal's scrollback.
     TermFind,
+    /// A pattern to find in a huge log shown in the preview.
+    PreviewFind,
     /// The name of the archive to pack the selection into.
     Compress,
     Shell {
@@ -1649,6 +1651,7 @@ pub struct App {
     pub list_scroll_rows: [f32; 2],
     /// What the terminal was last searched for, so the key repeats it.
     term_needle: String,
+    log_needle: String,
     /// The shell the pane started, as its first toast named it.
     term_shell: String,
     /// A file to put the cursor on when its directory is next read, ahead of
@@ -1935,6 +1938,7 @@ impl App {
             preview_scroll_rows: 0.0,
             list_scroll_rows: [0.0; 2],
             term_needle: String::new(),
+            log_needle: String::new(),
             term_shell: String::new(),
             land_on: None,
             cd_refused: None,
@@ -3133,6 +3137,7 @@ impl App {
                 true => self.cfg.ui.max_text_bytes.max(preview::DEEP_BYTES),
                 false => self.cfg.ui.max_text_bytes,
             },
+            big_bytes: self.cfg.ui.big_text_bytes,
             tab_size: self.cfg.yazi.preview.tab_size,
             syntect_theme: self.cfg.theme.syntect_theme.clone(),
             markdown_rendered: self.render_markdown,
@@ -4250,6 +4255,7 @@ impl App {
             Act::TermSend => self.term_send_paths(),
             Act::TermCd => self.term_pull_cwd(),
             Act::TermFind { prev, repeat } => self.term_search(prev, repeat),
+            Act::PreviewFind { prev, repeat } => self.preview_search(prev, repeat),
             Act::TermScroll(step) => self.term_scroll(step),
             Act::TermPrompt { prev } => self.term_prompt(prev),
             Act::TermCopyOutput => self.term_copy_output(),
@@ -4325,6 +4331,63 @@ impl App {
             let cwd = self.tabs[self.active].cwd.clone();
             self.tabs[self.active].memo.insert(cwd, name.clone());
             self.tabs[self.active].current.select_name(&name);
+        }
+    }
+
+    /// The huge log on show in the preview, if that is what it is.
+    fn log_view(&self) -> Option<Arc<crate::preview::logindex::LogView>> {
+        match &self.preview.state {
+            PreviewState::Ready(Payload::Log { view }) => Some(view.clone()),
+            _ => None,
+        }
+    }
+
+    /// Search the huge log in the preview, or step to the next match.
+    fn preview_search(&mut self, prev: bool, repeat: bool) {
+        if self.log_view().is_none() {
+            return self.toast("Preview find works on a huge text file");
+        }
+        if repeat && !self.log_needle.is_empty() {
+            return self.log_step(prev);
+        }
+        let needle = self.log_needle.clone();
+        self.open_input(InputKind::PreviewFind, "Find in log", needle);
+    }
+
+    fn preview_find_submit(&mut self, text: &str) {
+        let Some(view) = self.log_view() else { return };
+        if text.is_empty() {
+            return;
+        }
+        match ito_match::Matcher::new(text) {
+            Ok(m) => {
+                self.log_needle = text.to_owned();
+                self.tabs[self.active].find_at = None;
+                view.find(text, m);
+                self.toast("Searching...");
+            }
+            Err(e) => self.toast(format!("Find: {e}")),
+        }
+    }
+
+    /// Jump to the next (or previous) hit of the log search.
+    fn log_step(&mut self, prev: bool) {
+        let Some(view) = self.log_view() else { return };
+        let found = view.found();
+        let tab = &self.tabs[self.active];
+        // From the last hit stepped to, or else from the top of the view.
+        let from = tab.find_at.unwrap_or(tab.preview_offset + 3);
+        let next = match prev {
+            true => found.lines.iter().rev().find(|&&l| (l as usize) < from),
+            false => found.lines.iter().find(|&&l| (l as usize) > from || (tab.find_at.is_none() && l as usize == from)),
+        };
+        match next {
+            Some(&l) => {
+                self.tabs[self.active].find_at = Some(l as usize);
+                self.tabs[self.active].preview_offset = (l as usize).saturating_sub(3);
+            }
+            None if !found.done => self.toast(format!("Searching... {} hits so far", found.lines.len())),
+            None => self.toast(format!("No more matches for {}", found.query)),
         }
     }
 
@@ -5403,6 +5466,9 @@ impl App {
     }
 
     fn find_arrow(&mut self, prev: bool) {
+        if self.tabs[self.active].finder.is_none() && !self.log_needle.is_empty() && self.log_view().is_some() {
+            return self.log_step(prev);
+        }
         if self.find_in_body(prev) {
             return;
         }
@@ -5588,7 +5654,7 @@ impl App {
     /// `s S F f / ?` and the terminal's find) or shell commands.
     pub fn input_group(kind: &InputKind) -> Option<usize> {
         match kind {
-            InputKind::Search { .. } | InputKind::Filter | InputKind::Find { .. } | InputKind::TermFind => Some(0),
+            InputKind::Search { .. } | InputKind::Filter | InputKind::Find { .. } | InputKind::TermFind | InputKind::PreviewFind => Some(0),
             InputKind::Shell { .. } => Some(1),
             _ => None,
         }
@@ -5712,6 +5778,7 @@ impl App {
             InputKind::Create => self.do_create(&text),
             InputKind::Compress => self.do_compress(&text),
             InputKind::TermFind => self.term_find(&text, true),
+            InputKind::PreviewFind => self.preview_find_submit(&text),
             InputKind::Rename { from } => self.do_rename(&from, &text),
             InputKind::Bulk { paths } => self.do_bulk_rename(&paths, &text),
             InputKind::Filter => { /* already applied live */ }
@@ -8042,6 +8109,36 @@ fn spot_text_of(entries: &[Entry]) -> String {
 mod tests {
     use super::*;
     use crate::config::keys::Key;
+
+    /// A huge log's preview search finds across lines and `n` / `N` step
+    /// through the hits.
+    #[test]
+    fn preview_find_steps_through_a_huge_log() {
+        let dir = crate::util::test_dir("app-log-find");
+        let f = dir.join("big.log");
+        let text: String = (0..3000).map(|i| if i % 1000 == 500 { format!("hit {i}\nnext\n") } else { format!("line {i}\n") }).collect();
+        std::fs::write(&f, text).unwrap();
+        let mut a = App::new(Config::load(), dir.clone(), egui::Context::default());
+        let index = crate::preview::logindex::LogIndex::start(&f).unwrap();
+        while !index.is_done() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let view = crate::preview::logindex::LogView::new(index);
+        a.preview.state = PreviewState::Ready(Payload::Log { view: view.clone() });
+        a.preview_find_submit("hit \\d+\\nnext");
+        a.log_needle = "hit \\d+\\nnext".into();
+        while !view.found().done {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(view.found().lines.len(), 3);
+        a.find_arrow(false);
+        let first = a.tabs[a.active].preview_offset;
+        a.find_arrow(false);
+        assert!(a.tabs[a.active].preview_offset > first, "n goes on to the next hit");
+        a.find_arrow(true);
+        assert_eq!(a.tabs[a.active].preview_offset, first, "N goes back");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// Several lines into a program without bracketed paste are asked about,
     /// as tsumugi does; one copied line (with its end) and a bracketed paste

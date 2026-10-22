@@ -209,6 +209,25 @@ fn draw_pane(
                 }
                 return drawn;
             }
+            Payload::Log { view } => {
+                let total = view.index.lines();
+                let (first, got) = view.window(offset, rows(rect, st), ui.ctx());
+                // Plain lines from `first` on; a scroll beyond what has been read draws nothing until the read lands.
+                let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
+                let rel = offset.saturating_sub(first);
+                if offset >= first && !spans.is_empty() {
+                    text(ui, &painter, rect, &spans, Extent::default(), rel, st);
+                } else {
+                    painter.text(rect.left_top() + Vec2::new(PAD, 8.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
+                }
+                let pct = view.index.progress();
+                let note = match view.index.is_done() {
+                    true => format!("line {} of {}", offset + 1, total),
+                    false => format!("line {} · indexing {:.0}%", offset + 1, pct * 100.0),
+                };
+                painter.text(pos2(rect.left() + PAD, rect.bottom() - st.row_h), Align2::LEFT_TOP, note, st.font.clone(), st.theme.fg_dim);
+                total
+            }
             Payload::Markdown { doc, source, map, extent } => {
                 // Rendered Markdown gets no minimap: `map` describes the source,
                 // and a rendered line is not the same line, so the viewport box

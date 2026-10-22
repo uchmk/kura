@@ -289,7 +289,7 @@ Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `bac
 `hardlink`, `remove`, `create`, `rename`, `copy`, `shell`, `hidden`, `linemode`, `sort`, `find`,
 `find_arrow`, `filter`, `search`, `help`, `tasks_show`, `spot`, `noop`, plus `undo`, `redo`, `jump`,
 `bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `config_reload`, `palette`,
-`menu`, `extract`, `compress`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
+`menu`, `extract`, `compress`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_find` (search a huge log in the preview; `--repeat [--prev]` steps, `<A-/>`), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
 `split`, `pane_focus`, `toggle_render`, `toggle_outline`, `usage`, `settings` and `bug-report` (the last
 three this project's own). `select` and `select_all` are accepted as `toggle --state=on` /
 `toggle_all --state=on`. In the `[input]` section: `close --submit` (and the `*_do` spellings),
@@ -344,6 +344,7 @@ icons = "auto"             # auto | nerd | ascii | none
 render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144
+big_text_bytes = 8388608    # a text file this big is shown by line index and Seek+Read, not cut at max_text_bytes (v0.133.0)
 content_max_bytes = 67108864  # how much of each file a content search (`S`) reads; 0 = all (v0.132.0)
 max_history = 200
 window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
@@ -1074,6 +1075,9 @@ copies `l` opened are kept while an editor may have them, and a later start clea
 The preview scrolls without the file list losing the cursor: `<A-k>` / `<A-j>`, or the wheel with the
 pointer over it. Only the lines on screen are ever drawn, and only the first
 256 KiB of a file is read at all (`max_text_bytes`), so a huge log opens as fast as a short one.
+A text file of `big_text_bytes` (8 MiB) or more is different: a line index is built in the background and only the lines on
+screen are read (Seek + Read, no mmap), so `<A-j>` reaches the end. It is plain text (no colours), does not follow appends, and
+`<A-/>` searches it — regular expressions may span lines — with `n` / `N` jumping between hits.
 
 There is no scrollbar — this is a pane of lines, not a `ScrollArea`, because measuring ten thousand
 lines to know how tall the content is would cost the frame that virtualizing just saved. The

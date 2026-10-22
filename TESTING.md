@@ -1819,3 +1819,16 @@ The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a li
 | 60.3 | Start the search of 60.1 and press `Esc` while it reads | The search stops within a moment, the folder returns, and the CPU goes idle |
 | 60.4 | Search `^needle` for a file whose lines start with it, after a line with CRLF endings | Both LF and CRLF files match |
 | 60.5 | On a network drive, search a folder of large logs | It finishes without errors; closing kura during it does not hang |
+
+## 61. Huge text in the preview (v0.133.0)
+
+A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and read window by window; `<A-/>` searches it.
+
+| # | Do | Expect |
+| --- | --- | --- |
+| 61.1 | Hover a 1-million-line log | The first lines show at once; the bottom note reads "indexing N%" and then "line N of M" |
+| 61.2 | Scroll to the end with `<A-j>` / the wheel | The last line is reachable; the UI stays responsive |
+| 61.3 | Press `<A-/>`, type `error\nretry` | Matches spanning two lines are found; `n` / `N` jump between them |
+| 61.4 | Do 61.1 with a UTF-16 (BOM) log and a CRLF log | Lines show correctly, no stray characters |
+| 61.5 | Append lines to the file while it is on show | The view follows the change after the next scan (no live tail) |
+| 61.6 | Open it from a network drive | It does not freeze; moving away cancels the indexing |

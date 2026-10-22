@@ -200,6 +200,10 @@ on = "<A-n>"
 run = "minimap"
 desc = "Show or hide the preview's minimap"
 [[mgr.keymap]]
+on = "<A-/>"
+run = "preview_find"
+desc = "Find in a huge log shown in the preview (n / N step through the hits)"
+[[mgr.keymap]]
 on = "M"
 run = "toggle_render"
 desc = "Switch Markdown / HTML preview between rendered and source"

@@ -461,6 +461,7 @@ mod tests {
             mime,
             ext: Some(ext.into()),
             max_bytes: 1 << 20,
+            big_bytes: u64::MAX,
             tab_size: 4,
             preview: None,
             syntect_theme: "base16-ocean.dark".into(),

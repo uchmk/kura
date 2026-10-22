@@ -285,6 +285,11 @@ pub enum Act {
         prev: bool,
         repeat: bool,
     },
+    /// Search a huge log in the preview; `repeat` steps to the next match.
+    PreviewFind {
+        prev: bool,
+        repeat: bool,
+    },
     /// Move the terminal's view through its scrollback.
     TermScroll(Step),
     /// Scroll the terminal to the prompt above the view's top, or below it
@@ -595,6 +600,7 @@ pub fn parse(line: &str) -> Act {
         "term_send" => Act::TermSend,
         "term_cd" => Act::TermCd,
         "term_find" => Act::TermFind { prev: a.has("prev"), repeat: a.has("repeat") },
+        "preview_find" => Act::PreviewFind { prev: a.has("prev"), repeat: a.has("repeat") },
         "term_scroll" => Act::TermScroll(parse_step(a.first().unwrap_or("-1"))),
         "term_prompt" => Act::TermPrompt { prev: a.has("prev") },
         "term_copy_output" => Act::TermCopyOutput,

@@ -69,6 +69,8 @@ pub struct Ui {
     pub max_text_bytes: usize,
     /// How much of each file a content search (`S`) reads before moving on; `0` reads all of it.
     pub content_max_bytes: u64,
+    /// A text file this big is not read whole: it is indexed by line and shown by the window (`preview::logindex`).
+    pub big_text_bytes: u64,
     /// Directories remembered for `z` (jump).
     pub max_history: usize,
     pub window_width: f32,
@@ -126,6 +128,7 @@ impl Default for Ui {
             preview_debounce_ms: 40,
             max_text_bytes: 256 * 1024,
             content_max_bytes: 64 * 1024 * 1024,
+            big_text_bytes: 8 * 1024 * 1024,
             max_history: 200,
             window_width: 1280.0,
             window_height: 800.0,

@@ -81,6 +81,8 @@ pub struct Tab {
     pub show_hidden: bool,
     pub linemode: crate::fs::entry::Linemode,
     pub preview_offset: usize,
+    /// The line of a huge log the last preview-find step landed on.
+    pub find_at: Option<usize>,
     /// Rows that fit in the list, measured by the renderer each frame.
     pub page_rows: usize,
     /// The jump this tab is still waiting on, if any.
@@ -104,6 +106,7 @@ impl Tab {
             show_hidden,
             linemode,
             preview_offset: 0,
+            find_at: None,
             page_rows: 20,
             pending_cd: None,
         }

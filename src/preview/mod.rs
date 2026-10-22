@@ -16,6 +16,7 @@ mod external;
 mod font_preview;
 mod html;
 mod image_preview;
+pub mod logindex;
 mod markdown;
 mod office;
 mod shell_thumb;
@@ -61,6 +62,8 @@ pub struct Request {
     pub mime: &'static str,
     pub ext: Option<String>,
     pub max_bytes: usize,
+    /// A text file of at least this many bytes is shown as a [`Payload::Log`].
+    pub big_bytes: u64,
     pub tab_size: u8,
     pub syntect_theme: String,
     /// Markdown is drawn laid out, so its colored source is not on screen: the
@@ -337,6 +340,11 @@ pub enum Payload {
         extent: Extent,
         outline: Vec<TocEntry>,
     },
+    /// A text file too big to read whole: indexed by line on a thread, shown by
+    /// the lines around the top of the pane. Plain, not coloured.
+    Log {
+        view: Arc<logindex::LogView>,
+    },
     /// Markdown carries both views so switching between them needs no reload.
     /// `map` describes `source`, which is why the minimap is only shown for the
     /// source view: a rendered line and a source line are not the same line.
@@ -511,6 +519,19 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
         Ok(b) => b,
         Err(e) => return Payload::Error(e),
     };
+
+    // Too big to read whole: indexed by line and shown by the window. A UTF-16
+    // file is text however many NULs it has; anything else must pass the
+    // binary test first, and a CSV keeps its table.
+    if req.key.len >= req.big_bytes
+        && mime != "text/csv"
+        && (matches!(head.as_slice(), [0xff, 0xfe, ..] | [0xfe, 0xff, ..]) || !looks_binary(&head))
+    {
+        return match logindex::LogIndex::start(path) {
+            Ok(index) => Payload::Log { view: logindex::LogView::new(index) },
+            Err(e) => Payload::Error(e),
+        };
+    }
 
     // Before the binary test: UTF-16 is full of NUL bytes, and a Notepad
     // "Unicode" save was hex-dumped as `binary` while spot, which asks in
@@ -862,6 +883,7 @@ pub(crate) mod for_tests {
             mime: crate::mime::guess(&entry),
             ext: entry.ext.clone(),
             max_bytes: 1 << 20,
+            big_bytes: u64::MAX,
             tab_size: 4,
             syntect_theme: "base16-ocean.dark".into(),
             markdown_rendered: true,
