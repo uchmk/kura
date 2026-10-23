@@ -282,7 +282,7 @@ pub struct TermCfg {
     /// The program, e.g. `pwsh`. Looked up on `PATH`, or an absolute path.
     #[serde(default)]
     pub shell: String,
-    /// Arguments for it, e.g. `["-NoLogo"]`. Ignored without a `shell`.
+    /// Arguments for it, e.g. `["-NoLogo"]`. Passed to the automatic shell too; ignored when none is started.
     #[serde(default)]
     pub args: Vec<String>,
     /// Variables added to every terminal's environment (`[term.env]`).

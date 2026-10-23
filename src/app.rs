@@ -6726,7 +6726,9 @@ impl App {
         // to ask for a particular one.
         let shell = match self.cfg.term.shell.is_empty() {
             false => Some((self.cfg.term.shell.clone(), self.cfg.term.args.clone())),
-            true => crate::terminal::default_shell().map(|s| (s, Vec::new())),
+            // The arguments apply to the automatic pick too (#442); with no
+            // program named there is nothing for them to go to.
+            true => crate::terminal::default_shell().map(|s| (s, self.cfg.term.args.clone())),
         };
         let label = crate::terminal::shell_label(shell.as_ref().map(|(p, _)| p.as_str()));
         let program = shell.as_ref().map(|(p, _)| p.clone());
