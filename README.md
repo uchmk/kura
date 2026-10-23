@@ -1641,7 +1641,7 @@ claude mcp add kura -- kura mcp                             # macOS / Linux, wit
 | Tool | What it does |
 | --- | --- |
 | `kura_state` | The current folder, the path under the cursor, the selected paths (up to 500) and the tabs, as JSON |
-| `kura_reveal` | Goes to a file's folder and puts the cursor on it. Takes an absolute `path`; changes no file |
+| `kura_reveal` | Goes to a file's folder, puts the cursor on it and raises the window. Takes an absolute `path`; changes no file |
 | `kura_copy`, `kura_move` | Copy or move absolute `paths` into the folder `to`. A box in the window asks first; nothing happens unless you press Allow (the default button is Refuse) |
 | `kura_rename`, `kura_trash` | Rename one `path` to `new_name`, or move `paths` to the trash. Same box. There is no tool that deletes for good |
 

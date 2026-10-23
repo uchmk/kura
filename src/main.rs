@@ -812,9 +812,9 @@ impl Kura {
     }
 
     /// What `kura mcp` asked through the door, answered from the state in
-    /// memory. A reveal moves the cursor as `reveal` would; the door checked
+    /// memory. A reveal moves the cursor as `reveal` would and raises the window; the door checked
     /// the path exists before it came here.
-    fn answer_mcp(&mut self) {
+    fn answer_mcp(&mut self, ctx: &egui::Context) {
         self.app.drop_expired_mcp_box();
         let Some(rx) = &self.mcp else { return };
         while let Ok(ask) = rx.try_recv() {
@@ -822,6 +822,9 @@ impl Kura {
                 mcp::Request::State => Ok(mcp::state_json(&self.app, overlay_name(&self.app), view_name(&self.app))),
                 mcp::Request::Reveal(path) => {
                     self.app.reveal(path.display().to_string());
+                    // A second caller (another uchmk app) wants to be seen: bring the window up.
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                     Ok(format!("kura is showing {}", path.display()))
                 }
                 mcp::Request::Write(w) => {
@@ -1073,7 +1076,7 @@ impl eframe::App for Kura {
         self.app.drain_channels(&ctx);
         // `theme = "system"` follows the OS turning light or dark.
         self.app.set_os_light(ctx.system_theme() == Some(egui::Theme::Light));
-        self.answer_mcp();
+        self.answer_mcp(&ctx);
         self.record_geometry(&ctx);
         self.remember_place(&ctx);
         if let Some(rx) = &self.update {

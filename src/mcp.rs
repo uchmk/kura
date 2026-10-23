@@ -78,7 +78,7 @@ fn check(request: &Request) -> Result<(), String> {
 pub enum Request {
     /// The folder, the cursor, the selection and the tabs, as JSON.
     State,
-    /// Go to this absolute path's folder and put the cursor on it.
+    /// Go to this absolute path's folder, put the cursor on it and raise the window.
     Reveal(PathBuf),
     /// A change to files, which the window asks the user about first.
     Write(Write),
