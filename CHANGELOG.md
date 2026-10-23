@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.139.17] - 2026-10-23
+
+### 変更
+
+- `arm64.yml` の 2 つの起動の step（Windows の「It starts, draws and quits」と Linux の「Start it and photograph it」）から `continue-on-error` を外した。
+  10-16 以降の ARM64 の 177 ジョブで失敗した step は無く、これからは起動の失敗が CI を落とす。
+
 ## [0.139.16] - 2026-10-23
 
 ### 追加

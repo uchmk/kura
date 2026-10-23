@@ -61,10 +61,9 @@ jobs:
           "$arch"
           if (-not ("$arch" -match 'aarch64')) { throw "kura env says '$arch', not aarch64" }
       # The window, drawn on a runner with no GPU: wgpu has to find Windows'
-      # software adapter. Not yet known to work, so it does not fail the job
-      # until it has been green for a week (TODO.md).
+      # software adapter. Green for a week (177 ARM64 jobs, 2026-10-16 to
+      # 2026-10-23, no failed step), so it now fails the job (v0.139.17).
       - name: It starts, draws and quits
-        continue-on-error: true
         shell: pwsh
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'smoke'
@@ -104,7 +103,6 @@ jobs:
       - name: Build
         run: cargo build --locked
       - name: Start it and photograph it
-        continue-on-error: true
         run: scripts/smoke-linux.sh --out smoke-arm64.png
       - name: Keep the screenshot
         if: always()

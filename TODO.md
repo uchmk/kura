@@ -83,7 +83,7 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [x] （v0.101.2）段階 2: ARM64 を CI に移す（`.github/workflows/arm64.yml`: `windows-11-arm` と `ubuntu-24.04-arm` で `cargo test` と起動の確認。
   main への push で ci.yml から、リリースでは release.yml から呼び、緑でないとリリースしない）
 - [x] （v0.101.3。run 38095474653 で 2 つとも緑。`windows-11-arm` には Rust があり、2 つの起動の step も通った）arm64.yml の最初の run を見る。`windows-11-arm` に Rust が無い・リンクできない・起動の step が落ちるなら直す
-- [ ] arm64.yml の 2 つの起動の step（`continue-on-error`）が 1 週間緑なら、`continue-on-error` を外して必須にする（2026-10-18 以降）
+- [x] arm64.yml の 2 つの起動の step（`continue-on-error`）が 1 週間緑なら、`continue-on-error` を外して必須にする（2026-10-18 以降。v0.139.17 で外した）
 - [x] （v0.101.3。`TESTING-ARM64.md` の行を release.yml の `arm64-rows` が版ごとの `release-arm64` の issue にし、`-Lane arm` はその issue が
   開いている間だけ押して閉じる。ブランチも PR も作らない。windows-role.md の ARM の順番表を消し、Merge lanes は `test/arm-*` をマージせず、
   issue が無い間は arm の止まりを見張らない。票はクラウドと x64 の 2 票）段階 3: 順番表を 1 つにし、ARM64 はリリースのときだけ
