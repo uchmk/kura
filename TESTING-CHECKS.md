@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 711 件（TESTING.md の全 905 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 712 件（TESTING.md の全 906 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 112 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 113 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1053,3 +1053,4 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **61.13** In a huge log, step to a line over 8 KB with `<A-/>` and `n`, press `<A-y>`, then paste somewhere → The toast says `Copied line N (… K)`; the paste holds the whole line (its size matches the badge's `+N K` plus 8 K), not the first 8 KB 〔未訳〕
 - [ ] **61.14** With kura minimized (or behind another window), run `kura mcp`'s `kura_reveal` on a file path (or send `Request::Reveal` through the `kura-<user>` door) → The window comes back from the taskbar, is in front and focused, and shows the file's folder with the cursor on the file 〔未訳〕
 - [ ] **61.15** Click the path line under the tab strip → The `Change directory` input opens holding the current folder's path; the mouse cursor over the line is an I-beam; Enter on another path goes there, Esc leaves the folder as it was 〔未訳〕
+- [ ] **61.16** Right-click the path line, then paste somewhere → The toast says `Copied <path>`; the paste holds the folder's full path 〔未訳〕

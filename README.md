@@ -619,7 +619,7 @@ Every toast is also kept behind the bell (the last 100, unread until read; the s
 The badge is the unread count and turns red when one of them is an error. Click the bell for the list, newest first;
 `Esc` or a click outside closes it, and **Mark all read** clears the badge.
 
-The path line under the tab strip is clickable: a click opens the `Change directory` input (the same as `g<Space>`) holding the current folder's path, as the path box of WinSCP does.
+The path line under the tab strip is clickable: a click opens the `Change directory` input (the same as `g<Space>`) holding the current folder's path, as the path box of WinSCP does; a right-click copies that path.
 
 ## Command palette
 

@@ -366,12 +366,16 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     // prompt as `g<Space>`, already holding this folder's path.
     let crumb = Rect::from_min_max(egui::pos2(rect.left(), y2 - 2.0), egui::pos2(rect.right(), rect.bottom() - 1.0));
     let hit = ui.interact(crumb, ui.id().with("breadcrumb"), egui::Sense::click());
+    // Right-click copies the folder's path, as the path box of WinSCP's menu does.
+    let secondary = hit.secondary_clicked();
     if hit.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
     }
     painter.galley(egui::pos2(rect.left() + 10.0, y2), g, theme.fg);
     if hit.clicked() {
         app.act(Act::Cd { target: String::new(), interactive: true });
+    } else if secondary {
+        app.copy_cwd();
     }
 }
 

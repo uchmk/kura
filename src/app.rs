@@ -3758,6 +3758,15 @@ impl App {
         }
     }
 
+    /// Copy the folder this tab shows (the path line's right-click).
+    pub fn copy_cwd(&mut self) {
+        let text = self.tabs[self.active].cwd.display().to_string();
+        match exec::set_clipboard(&text) {
+            Ok(()) => self.toast(format!("Copied {text}")),
+            Err(err) => self.error(format!("Clipboard: {err}")),
+        }
+    }
+
     /// `C` with files selected: one panel per file under a `#### <path>`
     /// heading. Reading each file is the spot worker's kind of work, so it
     /// happens on a thread of its own and the toast follows when it is done.
