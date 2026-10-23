@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 710 件（TESTING.md の全 904 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 711 件（TESTING.md の全 905 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 111 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 112 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1004,3 +1004,4 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **61.12** In a huge log, scroll to a line over 8 KB (say 100 KB) without searching → A dim `⋯ +N K` badge sits at the right edge of that row (N = what is not shown); the position footer ends with `· 1 cut at 8.0 K`. Rows that fit show no badge, and nothing scrolls sideways 〔未訳〕
 - [ ] **61.13** In a huge log, step to a line over 8 KB with `<A-/>` and `n`, press `<A-y>`, then paste somewhere → The toast says `Copied line N (… K)`; the paste holds the whole line (its size matches the badge's `+N K` plus 8 K), not the first 8 KB 〔未訳〕
 - [ ] **61.14** With kura minimized (or behind another window), run `kura mcp`'s `kura_reveal` on a file path (or send `Request::Reveal` through the `kura-<user>` door) → The window comes back from the taskbar, is in front and focused, and shows the file's folder with the cursor on the file 〔未訳〕
+- [ ] **61.15** Click the path line under the tab strip → The `Change directory` input opens holding the current folder's path; the mouse cursor over the line is an I-beam; Enter on another path goes there, Esc leaves the folder as it was 〔未訳〕

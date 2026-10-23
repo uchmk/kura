@@ -362,7 +362,17 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
         job.append(&format!("{sep}{name}"), 0.0, egui::TextFormat { font_id: f.clone(), color: theme.fg, ..Default::default() });
     }
     let g = painter.layout_job(job);
+    // The whole row is the target, as WinSCP's path bar: a click opens the same
+    // prompt as `g<Space>`, already holding this folder's path.
+    let crumb = Rect::from_min_max(egui::pos2(rect.left(), y2 - 2.0), egui::pos2(rect.right(), rect.bottom() - 1.0));
+    let hit = ui.interact(crumb, ui.id().with("breadcrumb"), egui::Sense::click());
+    if hit.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
+    }
     painter.galley(egui::pos2(rect.left() + 10.0, y2), g, theme.fg);
+    if hit.clicked() {
+        app.act(Act::Cd { target: String::new(), interactive: true });
+    }
 }
 
 // ------------------------------------------------------------------ body
