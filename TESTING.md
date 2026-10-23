@@ -1150,7 +1150,7 @@ Windows needs confirming that nothing moved.**
 | 35.8 | Linux / macOS | `XDG_CONFIG_HOME=relative kura env`, and again with it empty | Falls back to `~/.config/…`. XDG says a relative value is ignored |
 | 35.9 | Any | `last-run.toml` | In the state folder: `KURA_STATE_HOME` when set, else `%LOCALAPPDATA%\uchmk\kura` on Windows, `~/.local/state/uchmk/kura` on Linux and `~/Library/Application Support/uchmk/kura/state` on macOS (v0.99.0) |
 | 35.10 | Any | Symlink `config.toml` into the config directory from elsewhere, then `<C-F5>` | Read through the link. Re-check after editing via the **link path** with an editor that saves by rename — that replaces the symlink with a regular file |
-| 35.11 | Windows | With no `%APPDATA%\uchmk` folder, put a `kura.toml` with a comment and a `bookmarks.toml` in `%APPDATA%\kura`, then start kura (v0.99.0) | They are now `%APPDATA%\uchmk\kura\config.toml` (the comment kept) and `%LOCALAPPDATA%\uchmk\kura\bookmarks.toml`, and the bookmarks are there. Repeat with a file already at the new place: nothing is moved over it |
+| 35.11 | Windows | With no `%APPDATA%\uchmk` folder, put a `kura.toml` with a comment and a `bookmarks.toml` in `%APPDATA%\kura`, then start kura (v0.121.0 removed the migration v0.99.0 added) | The old files are ignored and left where they are: nothing is moved or copied, no `config.toml` is created at the new place, and the bookmarks are the empty default |
 
 ---
 

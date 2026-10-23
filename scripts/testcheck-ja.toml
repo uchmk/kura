@@ -767,7 +767,7 @@ title = "HTML のプレビュー"
 "35.8" = '[Linux / macOS] `XDG_CONFIG_HOME=relative kura env` と、空にした場合 → どちらも `~/.config/…` に戻る。XDG の仕様では相対値は無視する'
 "35.9" = '[共通] `last-run.toml` → 状態のフォルダにある。`KURA_STATE_HOME` があればそこ、無ければ Windows は `%LOCALAPPDATA%\uchmk\kura`、Linux は `~/.local/state/uchmk/kura`、macOS は `~/Library/Application Support/uchmk/kura/state`（v0.99.0）'
 "35.10" = '[共通] 別の場所から設定ディレクトリへ `config.toml` をシンボリックリンクして `<C-F5>` → リンク越しに読まれる。**リンクのパス経由で、保存時に改名するエディタで編集したあと**もう一度確かめること（それをするとシンボリックリンクが普通のファイルに置き換わる）'
-"35.11" = '[Windows] `%APPDATA%\uchmk` フォルダが無い状態で、`%APPDATA%\kura` にコメント入りの `kura.toml` と `bookmarks.toml` を置いて起動（v0.99.0）→ `%APPDATA%\uchmk\kura\config.toml`（コメントは残る）と `%LOCALAPPDATA%\uchmk\kura\bookmarks.toml` になり、ブックマークも使える。新しい場所にファイルがある状態で繰り返す → その上には移さない'
+"35.11" = '[Windows] `%APPDATA%\uchmk` フォルダが無い状態で、`%APPDATA%\kura` にコメント入りの `kura.toml` と `bookmarks.toml` を置いて起動（v0.99.0 の移行は v0.121.0 で消えた）→ 古いファイルは無視されてそのまま残る。移しも写しもせず、新しい場所に `config.toml` は作られず、ブックマークは空の既定になる'
 
 # 36. T と <F3> の違い
 '36.10' = '''`[[mgr.prepend_keymap]]` で `<S-t>` を目に見えるもの（`run = "quit"`）に割り当てて `<C-F5>`、続けて `T`（Shift と t）を押す → **割り当ては発火しない**: kura は終わらず、`T` は既定の `T` の動き（36.1）をする。Shift と文字はその文字そのものとして届くので、`<S-t>` はどのキーにも当たらない。テストが固定している教訓そのもの。警告がそれを言う（v0.78.7）: `kura env` の `Warnings` に `` `<S-t>` can never be pressed: Shift with a printable key arrives as the character it types -- write `T` `` が出て、`<C-F5>` の後にトーストにも出る。（既定を置き換える `[[mgr.keymap]]` に書くと、一覧ではどのキーも、`q` も含めて何も起きない）'''
