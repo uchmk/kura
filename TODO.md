@@ -22,7 +22,7 @@
 - [ ] （#306 の所見の残り）sixel（`chafa -f sixels`）は同梱の ConPTY に DCS を落とされて本文が文字で出る。kura か tsumugi が ConPTY にパススルーを頼めるか調べる（`KURA_PTY_LOG` で見る）。【pane】
 - [ ] （#306 の所見）`wezterm imgcat` がペインの中で `attempt to divide by zero` で panic する（`wezterm\src\main.rs:383`）。セルのピクセル寸法が 0 で返っている疑い（`CSI 16 t` / `CSI 14 t` の返事、`TIOCGWINSZ`）。49.11 と同じ点。【pane】
 - [x] （v0.86.29。49.7 は ConPTY の限界を前書きにし、49.8 は OSC 1337 を名指しにした）（#306 の提案 2）TESTING.md の 49.7 を ConPTY の落とす OSC 8 に合わせて書き直し、49.8 は `chafa -f sixels` でなく通る iTerm2 の OSC 1337 を名指しにする。【QA】
-- [ ] （#305 の提案 1）`scripts/make-fixtures.ps1`（と `.sh`）に `outline.docx`（見出し 1 / 2 / 1 と本文 2 段落の最小 OOXML）を足す。16.3 / 16.3a / 16.3b が要る。【実機】
+- [x] （v0.139.16。ps1 は実行して kura のアウトラインが 3 件出るのを確かめた。sh は Windows に `zip` が無く未実行）（#305 の提案 1）`scripts/make-fixtures.ps1`（と `.sh`）に `outline.docx`（見出し 1 / 2 / 1 と本文 2 段落の最小 OOXML）を足す。16.3 / 16.3a / 16.3b が要る。【実機】
 - [x] （v0.86.26。16.3b・37.8b・49.5 は一覧から外した）（#305・#306 の提案、マージ担当は `.claude/` に書けないのでここに積む）`.claude/windows-role.md` の x64 と ARM64 の両方の「Re-tests of changed behaviour」から、済んだ 16.3b、37.8b、49.5 を外す（16.3b は #305 / #306 で `[x]`、49.5 と 37.8b は x64 で `[x]`）。ARM64 の表には 37.8b・49.5 を ARM64 の二台目として足してよい。`【人】`
 - [x] （v0.85.7。`pane title:` の行を足した）`<State:>` に `pane title:` の行（tsumugi-pane が返すタイトル。空でも出す）を足す。1.35 で確認ダイアログの文言は読めるが、v0.85.3 が変えた「タイトルが空か」は読めず、x64 と ARM64 を同じ行で比べられない（#300 の提案 1）。
 - [x] （v0.86.19。`scripts\mcp.ps1` を足した: `filer mcp` を起動して `initialize` から `tools/call`（`-Tool` / `-Arguments`）か `tools/list`（`-List`）まで流し、結果を JSON で出す。`-Address` は子プロセスだけの `FILER_ADDRESS`。Linux で書いたので Windows では未実行、最初のレーンが 50.1 / 50.2 で一度確かめる）（#302・#303 の提案）`scripts\mcp.ps1`（`-Address … -Tool filer_state`）を足し、`filer mcp` に JSON-RPC を流す道具にする。ARM64 は `Start-Mcp` / `Rpc` / `Call` を scratch に書いて `$args` の衝突で 1 回余計に回した。`【実機】`

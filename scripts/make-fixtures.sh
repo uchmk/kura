@@ -121,6 +121,32 @@ else
     warn 'zip is missing: skipping sample.zip'
 fi
 
+# --- a minimal .docx with Heading 1 / 2 / 1 and two body paragraphs, for the
+# --- outline (16.3, 16.3a, 16.3b). It names its styles `Heading1` / `Heading2`
+# --- in the paragraphs, so it needs no styles.xml.
+if command -v zip >/dev/null; then
+    docx="$(mktemp -d)"
+    mkdir -p "$docx/_rels" "$docx/word"
+    cat > "$docx/[Content_Types].xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>
+XML
+    cat > "$docx/_rels/.rels" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>
+XML
+    cat > "$docx/word/document.xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>First chapter</w:t></w:r></w:p><w:p><w:r><w:t>Some body text under the first chapter.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>A section inside it</w:t></w:r></w:p><w:p><w:r><w:t>More body text.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Second chapter</w:t></w:r></w:p></w:body></w:document>
+XML
+    rm -f "$root/outline.docx"
+    (cd "$docx" && zip -qX "$root/outline.docx" '[Content_Types].xml' _rels/.rels word/document.xml)
+    rm -rf "${docx:?}"
+    echo '  outline.docx         Heading 1 / 2 / 1: <S-Tab> lists three entries (16.3)'
+else
+    warn 'zip is missing: skipping outline.docx'
+fi
+
 # --- names that have broken things before. Linux folders are case-sensitive,
 # --- so the case pair is two files here, as 24.3 wants.
 awkward="$root/awkward names"

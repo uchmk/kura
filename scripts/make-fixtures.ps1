@@ -163,6 +163,29 @@ Set-Content -LiteralPath (Join-Path $pack 'nested\deep.txt') -Value 'deep' -Enco
 Compress-Archive -Path (Join-Path $pack '*') -DestinationPath (Join-Path $root 'sample.zip') -Force
 Write-Host '  to-pack\, sample.zip pack with E, unpack with e, and preview the listing'
 
+# --- a minimal .docx with Heading 1 / 2 / 1 and two body paragraphs, for the
+# --- outline (16.3, 16.3a, 16.3b). It names its styles `Heading1` / `Heading2`
+# --- in the paragraphs, so it needs no styles.xml.
+Add-Type -AssemblyName System.IO.Compression
+$docxParts = [ordered]@{
+    '[Content_Types].xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+    '_rels/.rels' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'
+    'word/document.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>First chapter</w:t></w:r></w:p><w:p><w:r><w:t>Some body text under the first chapter.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>A section inside it</w:t></w:r></w:p><w:p><w:r><w:t>More body text.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Second chapter</w:t></w:r></w:p></w:body></w:document>'
+}
+$docxPath = Join-Path $root 'outline.docx'
+Remove-Item -LiteralPath $docxPath -Force -ErrorAction SilentlyContinue
+$docxFile = [System.IO.File]::Open($docxPath, 'Create')
+$docxZip = New-Object System.IO.Compression.ZipArchive($docxFile, [System.IO.Compression.ZipArchiveMode]::Create)
+foreach ($part in $docxParts.GetEnumerator()) {
+    $entry = $docxZip.CreateEntry($part.Key)
+    $writer = New-Object System.IO.StreamWriter($entry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+    $writer.Write($part.Value)
+    $writer.Dispose()
+}
+$docxZip.Dispose()
+$docxFile.Dispose()
+Write-Host '  outline.docx         Heading 1 / 2 / 1: <S-Tab> lists three entries (16.3)'
+
 # --- names that have broken things before.
 $awkward = New-Dir 'awkward names'
 foreach ($name in @(
