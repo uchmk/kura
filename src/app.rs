@@ -47,7 +47,7 @@ mod undo;
 #[cfg(test)]
 use self::spot_panel::page_for;
 #[cfg(test)]
-use self::term_pane::{kura_command, no_osc7, program_label, same_file};
+use self::term_pane::{no_osc7, program_label};
 pub use undo::*;
 mod bookmarks;
 mod compare;
