@@ -566,6 +566,30 @@ fn a_history_line_without_counts_still_reads_as_a_visit() {
     assert_eq!(visit_of(back.entries.into_iter().next().unwrap()), new, "a round trip keeps everything");
 }
 
+/// What `load_state` does with a `history.txt` it finds alone: every line
+/// becomes a visit, counts and times where the line has them, and an empty
+/// file (or an empty `.toml`) is an empty history, not an error.
+#[test]
+fn an_old_history_txt_carries_over_and_an_empty_one_is_empty() {
+    let txt = "C:/a\t3\t1700000000\nC:/b\t2\nC:/c\n";
+    let visits: Vec<Visit> = txt.lines().map(parse_visit).collect();
+    assert_eq!(visits.len(), 3);
+    assert_eq!((visits[0].hits, visits[0].at), (3, 1_700_000_000));
+    assert_eq!((visits[1].hits, visits[1].at), (2, 0));
+    assert_eq!((visits[2].hits, visits[2].at), (1, 0));
+
+    // The `.toml` written from it reads back as the same visits.
+    let rows = visits.iter().map(|v| VisitRow { path: v.path.to_string_lossy().into_owned(), hits: v.hits, at: v.at }).collect();
+    let back: HistoryFile = toml::from_str(&toml::to_string(&HistoryFile { entries: rows }).unwrap()).unwrap();
+    assert_eq!(back.entries.into_iter().map(visit_of).collect::<Vec<_>>(), visits);
+
+    assert_eq!("".lines().map(parse_visit).count(), 0, "an empty .txt has no visits");
+    let empty: HistoryFile = toml::from_str("").unwrap();
+    assert!(empty.entries.is_empty(), "an empty .toml is an empty history");
+    let none: HistoryFile = toml::from_str(&toml::to_string(&HistoryFile { entries: Vec::new() }).unwrap()).unwrap();
+    assert!(none.entries.is_empty());
+}
+
 fn renamed(from: &str, to: &str) -> UndoStep {
     UndoStep::Rename { from: PathBuf::from(from), to: PathBuf::from(to) }
 }

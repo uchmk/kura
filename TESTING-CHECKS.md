@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 712 件（TESTING.md の全 906 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 715 件（TESTING.md の全 909 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1052,3 +1052,9 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **61.14** kura を最小化して（または別の窓の後ろにして）、`kura mcp` の `kura_reveal` をファイルのパスに対して走らせる（または `kura-<user>` の扉に `Request::Reveal` を送る）→ 窓がタスクバーから戻って前に出てフォーカスされ、そのファイルのフォルダーを出してカーソルがそのファイルに乗る — *With kura minimized (or behind another window), run `kura mcp`'s `kura_reveal` on a file path (or send `Request::Reveal` through the `kura-<user>` door) → The window comes back from the taskbar, is in front and focused, and shows the file's folder with the cursor on the file*
 - [x] **61.15** タブの並びの下のパスの行をクリックする → `Change directory` の入力が現在のフォルダーのパスを持って開く。その行の上のマウスカーソルは I ビーム。別のパスで Enter を押すとそこへ行き、Esc で元のフォルダーのまま — *Click the path line under the tab strip → The `Change directory` input opens holding the current folder's path; the mouse cursor over the line is an I-beam; Enter on another path goes there, Esc leaves the folder as it was*
 - [x] **61.16** パスの行を右クリックして、どこかに貼り付ける → トーストが `Copied <path>` と言い、貼り付けたものはフォルダーのフルパス — *Right-click the path line, then paste somewhere → The toast says `Copied <path>`; the paste holds the folder's full path*
+
+## 62. History files (v0.131.6)
+
+- [ ] **62.1** kura で何カ所かフォルダーを訪ね、検索（`s`）とシェルコマンド（`;`）を 1 回ずつ使って終了し、状態のフォルダーを見る → `history.toml`・`search-history.toml`・`shell-history.toml` があって TOML（`entries = [...]`）になっている。新しい `.txt` は書かれない — *Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder → `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written*
+- [ ] **62.2** kura を終了し、3 つの `.toml` を消して、状態のフォルダーに `history.txt`（1 行に `C:\dev<TAB>3<TAB>1700000000`）と `search-history.txt` / `shell-history.txt`（1 行に 1 つ）を置き、kura を起動して、最近のフォルダーの一覧と `s` のプロンプトの `<Up>` を見てから終了する → ジャンプの一覧と 2 つのプロンプトの履歴に `.txt` の中身が引き継がれ、3 つの `.toml` ができている。`.txt` は手つかず。もう一度起動すると `.toml` を読み、`.txt` は見ない — *Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit → The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt`*
+- [ ] **62.3** 履歴のファイルを全部（`.toml` も `.txt` も）消して kura を起動する → トーストもエラーも無く起動し、ジャンプの一覧は空、プロンプトの `<Up>` は何も呼び出さない — *Delete every history file (`.toml` and `.txt`) and start kura → It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing*

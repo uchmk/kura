@@ -1842,3 +1842,13 @@ A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and
 | 61.14 | With kura minimized (or behind another window), run `kura mcp`'s `kura_reveal` on a file path (or send `Request::Reveal` through the `kura-<user>` door) | The window comes back from the taskbar, is in front and focused, and shows the file's folder with the cursor on the file |
 | 61.15 | Click the path line under the tab strip | The `Change directory` input opens holding the current folder's path; the mouse cursor over the line is an I-beam; Enter on another path goes there, Esc leaves the folder as it was |
 | 61.16 | Right-click the path line, then paste somewhere | The toast says `Copied <path>`; the paste holds the folder's full path |
+
+## 62. History files (v0.131.6)
+
+The jump history and the search and shell prompt histories are kept as TOML in the state folder (`%LOCALAPPDATA%\uchmk\kura`, or `$KURA_STATE_HOME`). An older build's `.txt` files are read once when no `.toml` exists.
+
+| # | Do | Expect |
+|---|----|--------|
+| 62.1 | Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder | `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written |
+| 62.2 | Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit | The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt` |
+| 62.3 | Delete every history file (`.toml` and `.txt`) and start kura | It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing |
