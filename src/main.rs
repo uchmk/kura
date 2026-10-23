@@ -2588,7 +2588,13 @@ mod tests {
             let at = std::time::Instant::now().checked_sub(quiet).unwrap();
             let watch = Arc::new(Mutex::new(ScriptWatch { left: 1, at, due, finished: false }));
             watch_script(watch.clone(), labels.clone(), done.clone(), egui::Context::default());
-            std::thread::sleep(Duration::from_millis(1500));
+            // The watcher looks once a second, so a report is waited for
+            // (a loaded machine let 1.5 s pass without its first look); the
+            // absence of one can only be had by letting a look or two go by.
+            let until = std::time::Instant::now() + Duration::from_millis(if due.is_zero() { 15_000 } else { 1500 });
+            while std::time::Instant::now() < until && !(due.is_zero() && done.exists()) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
             watch.lock().unwrap().finished = true;
             std::fs::read_to_string(done).ok()
         };
