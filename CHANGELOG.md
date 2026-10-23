@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.139.14] - 2026-10-23
+
+### 変更
+
+- `kura env` の `Kura` の節を ito の `version_rows` に、ファイルの行を ito の共有の `Files` 節（`files_rows`: uchmk のフォルダ・kura のフォルダ・common.toml・themes・状態のフォルダ・last-run.toml）に置き換えた。`State` の行は `Files` の `state folder` に移った（#425）。
+
 ## [0.139.13] - 2026-10-23
 
 ### 変更

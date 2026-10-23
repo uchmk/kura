@@ -11,7 +11,7 @@
 //! to paste into a report that already exists.
 
 use crate::runinfo::KuraRun as _;
-use ito_common::report::{finish, section, variables as env_rows};
+use ito_common::report::{files_rows, finish, section, variables as env_rows, version_rows};
 use std::process::Command;
 
 /// The whole report.
@@ -20,6 +20,7 @@ pub fn text() -> String {
     let mut out = String::new();
     section(&mut out, "Kura", &version());
     section(&mut out, "Config", &config(&cfg));
+    section(&mut out, "Files", &files_rows("kura"));
     section(&mut out, "Last run", &last_run());
     section(&mut out, "Tools", &tools(&cfg));
     section(&mut out, "Variables", &variables());
@@ -31,19 +32,9 @@ fn version() -> Vec<(String, String)> {
     // `os_line` is the bug report's own, already carrying both architectures,
     // so this does not repeat them: on Windows on ARM the two disagree and the
     // disagreement is the finding, which a second copy would only muddle.
-    let mut rows = vec![("Version".into(), env!("CARGO_PKG_VERSION").to_string())];
     // Which `.exe` this is: with two builds side by side, nothing else in the
     // output said which one had answered (#84).
-    let exe = std::env::current_exe().map_or_else(|e| format!("(unknown: {e})"), |p| p.display().to_string());
-    rows.push(("Executable".into(), exe));
-    for line in crate::bugreport::os_line().split('\n') {
-        match line.split_once(": ") {
-            Some((k, v)) => rows.push((k.to_string(), v.to_string())),
-            None => rows.push((line.to_string(), String::new())),
-        }
-    }
-    rows.push(("Debug".into(), cfg!(debug_assertions).to_string()));
-    rows
+    version_rows(env!("CARGO_PKG_VERSION"), &crate::bugreport::os_line())
 }
 
 /// Which files were read, and which were looked for and were not there.
@@ -75,10 +66,6 @@ fn config(cfg: &crate::config::Config) -> Vec<(String, String)> {
         };
         rows.push((format!("{}{}", dir.display(), std::path::MAIN_SEPARATOR), said));
     }
-    // Not a config file, but the other directory kura touches: bookmarks,
-    // the jump history and the window size are written here, and "delete this
-    // and try again" is a step a report is often asked to take.
-    rows.push(("State".into(), crate::config::Config::state_dir().display().to_string()));
     // The file every uchmk app shares: the language, the theme, the clock and
     // the scale (since v0.99.0) come from here unless kura's own says otherwise.
     if let Some(base) = ito_common::base_dir() {
