@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.139.11] - 2026-10-23
+
+### 変更
+
+- `src/app.rs` の巨大な `impl App`（約 6,000 行）を、節の区切りごとに `src/app/` の 12 ファイルへ分けた（`settings`・`scan`・`preview_pane`・`spot_panel`・`nav`・`dispatch`・`panes`・`file_ops`・`input`・`bookmarks`・`persist`・`keys`）。メソッドの見える範囲は変わらない（以前は `app` の中だけ、いまは `pub(super)`）。動作の変更はない。`app.rs` は 1,096 行になった。
+
 ## [0.139.10] - 2026-10-23
 
 ### 変更
