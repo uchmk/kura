@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 706 件（TESTING.md の全 900 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 707 件（TESTING.md の全 901 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 107 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 108 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1000,3 +1000,4 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **61.8** Hover a 10 MB Shift_JIS (or EUC-JP) log, then a small one of the same encoding → Japanese text shows right in both, not as `�`; `<A-/>` finds Japanese words; spot's Encoding row names the encoding 〔未訳〕
 - [ ] **61.9** Hover a log with one line of several MB → It shows the start of that line without freezing; `<A-/>` finds a word deep inside it 〔未訳〕
 - [ ] **61.10** Press `<A-/>`, then append matching lines while the search is on show or after it ends → The hit count grows by the new lines; hits are not counted twice 〔未訳〕
+- [ ] **61.11** In a huge log with one line over 8 KB (say 100 KB) holding a word deep inside it, search for the word and press `n` → The toast says `Long line (N KB): showing around the match`; the line is shown cut (`… ` before, ` …` after) with the word highlighted near the left edge. Other lines are as before 〔未訳〕

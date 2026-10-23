@@ -1836,3 +1836,4 @@ A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and
 | 61.8 | Hover a 10 MB Shift_JIS (or EUC-JP) log, then a small one of the same encoding | Japanese text shows right in both, not as `�`; `<A-/>` finds Japanese words; spot's Encoding row names the encoding |
 | 61.9 | Hover a log with one line of several MB | It shows the start of that line without freezing; `<A-/>` finds a word deep inside it |
 | 61.10 | Press `<A-/>`, then append matching lines while the search is on show or after it ends | The hit count grows by the new lines; hits are not counted twice |
+| 61.11 | In a huge log with one line over 8 KB (say 100 KB) holding a word deep inside it, search for the word and press `n` | The toast says `Long line (N KB): showing around the match`; the line is shown cut (`… ` before, ` …` after) with the word highlighted near the left edge. Other lines are as before |

@@ -4456,6 +4456,11 @@ impl App {
             Some(&l) => {
                 self.tabs[self.active].find_at = Some(l as usize);
                 self.tabs[self.active].preview_offset = (l as usize).saturating_sub(3);
+                view.focus(l as usize);
+                let bytes = view.index.line_bytes(l as usize);
+                if bytes > crate::preview::logindex::MAX_LINE_BYTES as u64 {
+                    self.toast(format!("Long line ({} KB): showing around the match", bytes.div_ceil(1024)));
+                }
             }
             None if !found.done => self.toast(format!("Searching... {} hits so far", found.lines.len())),
             None => self.toast(format!("No more matches for {}", found.query)),

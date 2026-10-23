@@ -22,8 +22,10 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /// edge is seen whole.
 const WINDOW_BYTES: u64 = 1024 * 1024;
 const OVERLAP_BYTES: u64 = 64 * 1024;
+/// How much of a line is shown before the match when it is cut around it.
+const SNIPPET_LEAD_BYTES: u64 = 64;
 /// A line is cut to this many bytes when read for the screen.
-const MAX_LINE_BYTES: usize = 8 * 1024;
+pub const MAX_LINE_BYTES: usize = 8 * 1024;
 /// How much of a line is read from the disk for the screen: room for a
 /// multi-byte text to still fill `MAX_LINE_BYTES` once decoded.
 const READ_LINE_BYTES: u64 = 4 * MAX_LINE_BYTES as u64;
@@ -418,7 +420,7 @@ impl LogIndex {
             // A line bigger than a window is looked through in pieces, so that it
             // is never held whole.
             if line_end - begin > WINDOW_BYTES {
-                if self.find_in_line(matcher, begin, line_end, cancel) {
+                if self.locate(matcher, begin, line_end, cancel).is_some() {
                     hits.push(from as u32);
                     if hits.len() >= MAX_HITS {
                         return Pass { hits, lines: total, end };
@@ -477,29 +479,69 @@ impl LogIndex {
         Pass { hits, lines: total, end }
     }
 
-    /// Whether `matcher` matches somewhere in the one line at `begin..end`, which
-    /// is bigger than a window: read in pieces that start again from the end of
-    /// the one before. A piece after the first starts in the middle of the line,
-    /// so a `^` there can match where the line does not begin.
-    fn find_in_line(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> bool {
+    /// Where `matcher` first matches in the one line at `begin..end`, as a file
+    /// offset: read in pieces that start again from the end of the one before,
+    /// so a line bigger than a window is never held whole. A piece after the
+    /// first starts in the middle of the line, so a `^` there can match where the
+    /// line does not begin.
+    fn locate(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> Option<u64> {
         let unit: u64 = if self.wide() { 2 } else { 1 };
         let step = WINDOW_BYTES - OVERLAP_BYTES;
         let mut at = begin;
         while at < end {
             if cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed) {
-                return false;
+                return None;
             }
             let to = (at + WINDOW_BYTES).min(end);
-            let Ok(bytes) = self.read_bytes(at, to) else { return false };
-            if matcher.is_match(&self.decode(&bytes)) {
-                return true;
+            let Ok(bytes) = self.read_bytes(at, to) else { return None };
+            let text = self.decode(&bytes);
+            if let Some(r) = matcher.ranges(&text).first() {
+                return Some(at + self.encoded_len(&text[..r.start]));
             }
             if to >= end {
                 break;
             }
             at += step / unit * unit;
         }
-        false
+        None
+    }
+
+    /// How many bytes of the file `text` takes up: the inverse of [`Self::decode`].
+    fn encoded_len(&self, text: &str) -> u64 {
+        match self.enc {
+            Enc::Utf8 => text.len() as u64,
+            Enc::Legacy(e) => e.encode(text).0.len() as u64,
+            _ => text.encode_utf16().count() as u64 * 2,
+        }
+    }
+
+    /// How many bytes line `line` takes up in the file, line end included.
+    pub fn line_bytes(&self, line: usize) -> u64 {
+        let g = self.inner.lock().unwrap();
+        let Some(&b) = g.starts.get(line) else { return 0 };
+        g.starts.get(line + 1).copied().unwrap_or(g.end) - b
+    }
+
+    /// A line too long for the screen, cut around where `matcher` first matches
+    /// in it instead of at its start; none when it is not that long or has no match.
+    fn snippet(&self, line: usize, matcher: &Matcher) -> Option<String> {
+        let (begin, end) = {
+            let g = self.inner.lock().unwrap();
+            let b = *g.starts.get(line)?;
+            (b, g.starts.get(line + 1).copied().unwrap_or(g.end))
+        };
+        if end - begin <= MAX_LINE_BYTES as u64 {
+            return None;
+        }
+        let off = self.locate(matcher, begin, end, &self.cancel)?;
+        let unit: u64 = if self.wide() { 2 } else { 1 };
+        // The lines are not wrapped, so the match is put near the left edge,
+        // with a little before it for context and the rest of the room after.
+        let before = SNIPPET_LEAD_BYTES;
+        let from = (off.saturating_sub(before).max(begin) - begin) / unit * unit + begin;
+        let to = (off + MAX_LINE_BYTES as u64 - before).min(end);
+        let text = clip(&self.decode(&self.read_bytes(from, to).ok()?));
+        Some(format!("{}{text}{}", if from > begin { "… " } else { "" }, if to < end { " …" } else { "" }))
     }
 }
 
@@ -530,6 +572,14 @@ pub struct LogView {
     found: Arc<Mutex<Found>>,
     matcher: Mutex<Option<Matcher>>,
     stop: Mutex<Arc<AtomicBool>>,
+    focus: Mutex<Option<Focus>>,
+}
+
+/// The line the find stepped to: when it is too long for the screen it is shown
+/// cut around the match (`snip`: not looked for yet, or the result).
+struct Focus {
+    line: usize,
+    snip: Option<Option<String>>,
 }
 
 #[derive(Default)]
@@ -571,6 +621,7 @@ impl LogView {
             found: Arc::new(Mutex::new(Found::default())),
             matcher: Mutex::new(None),
             stop: Mutex::new(Arc::new(AtomicBool::new(false))),
+            focus: Mutex::new(None),
         });
         let weak = Arc::downgrade(&view);
         std::thread::Builder::new()
@@ -582,7 +633,8 @@ impl LogView {
                     }
                     let Some(v) = weak.upgrade() else { return };
                     let first = want.0.saturating_sub(MARGIN);
-                    let lines = v.index.read(first, want.1 + 2 * MARGIN);
+                    let mut lines = v.index.read(first, want.1 + 2 * MARGIN);
+                    v.cut_focus(first, &mut lines);
                     *v.shown.lock().unwrap() = Shown { first, lines };
                     let ctx = v.ctx.lock().unwrap().clone();
                     if let Some(c) = ctx {
@@ -592,6 +644,26 @@ impl LogView {
             })
             .expect("spawn log view");
         view
+    }
+
+    /// Show line `line`, which the find stepped to, cut around its match if it
+    /// is too long for the screen. Read again at once, so the cut shows without a scroll.
+    pub fn focus(&self, line: usize) {
+        *self.focus.lock().unwrap() = Some(Focus { line, snip: None });
+        let _ = self.ask.send((line.saturating_sub(3), 60));
+    }
+
+    /// Swap the focused line, if `lines` (which begin at line `first`) holds it, for its cut.
+    fn cut_focus(&self, first: usize, lines: &mut [String]) {
+        let mut g = self.focus.lock().unwrap();
+        let Some(f) = g.as_mut().filter(|f| f.line >= first && f.line - first < lines.len()) else { return };
+        if f.snip.is_none() {
+            let m = self.matcher.lock().unwrap().clone();
+            f.snip = Some(m.and_then(|m| self.index.snippet(f.line, &m)));
+        }
+        if let Some(Some(s)) = &f.snip {
+            lines[f.line - first] = s.clone();
+        }
     }
 
     /// Note that lines `first..first + count` are about to be drawn, and give
@@ -611,6 +683,7 @@ impl LogView {
     /// result from [`Self::found`] as it grows.
     pub fn find(&self, query: &str, matcher: Matcher) {
         let stop = self.new_stop();
+        *self.focus.lock().unwrap() = None;
         *self.found.lock().unwrap() = Found { query: query.to_owned(), ..Default::default() };
         *self.matcher.lock().unwrap() = Some(matcher.clone());
         self.look(matcher, stop, 0, Vec::new());
@@ -710,6 +783,39 @@ mod tests {
 
     fn hits(i: &LogIndex, q: &str) -> Vec<u32> {
         i.find(&Matcher::new(q).unwrap(), &AtomicBool::new(false), &AtomicU64::new(0))
+    }
+
+    #[test]
+    fn a_long_line_is_cut_around_its_match() {
+        let long = format!("{}NEEDLE{}", "a".repeat(50_000), "b".repeat(50_000));
+        let i = index(
+            "li-snip",
+            format!(
+                "short
+{long}
+last
+"
+            )
+            .as_bytes(),
+        );
+        let m = Matcher::new("NEEDLE").unwrap();
+        let s = i.snippet(1, &m).unwrap();
+        assert!(s.starts_with("… aaa") && s.ends_with("b …"), "{}", s.len());
+        assert_eq!(s.find("NEEDLE"), Some("… ".len() + SNIPPET_LEAD_BYTES as usize));
+        assert!(s.len() <= MAX_LINE_BYTES + 8);
+        // Short lines and lines without a match are left as they are.
+        assert_eq!((i.snippet(0, &m), i.snippet(1, &Matcher::new("zzz").unwrap())), (None, None));
+        assert_eq!(i.line_bytes(1), long.len() as u64 + 1);
+        // A match near the start of a long line needs no leading mark.
+        let near = format!("xNEEDLE{}", "c".repeat(20_000));
+        let j = index("li-snip2", near.as_bytes());
+        let s = j.snippet(0, &m).unwrap();
+        assert!(s.starts_with("xNEEDLE") && s.ends_with(" …"));
+        // Shift_JIS: the cut still decodes.
+        let text = format!("{}接続{}", "あ".repeat(10_000), "い".repeat(10_000));
+        let (sj, _, _) = encoding_rs::SHIFT_JIS.encode(&text);
+        let k = index("li-snip3", &sj);
+        assert!(k.snippet(0, &Matcher::new("接続").unwrap()).unwrap().contains("あ接続い"));
     }
 
     #[test]
