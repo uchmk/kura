@@ -208,6 +208,10 @@ on = "<A-f>"
 run = "preview_follow"
 desc = "Follow the end of a huge log as it grows (tail -f)"
 [[mgr.keymap]]
+on = "<A-y>"
+run = "preview_copy_line"
+desc = "Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen"
+[[mgr.keymap]]
 on = "M"
 run = "toggle_render"
 desc = "Switch Markdown / HTML preview between rendered and source"

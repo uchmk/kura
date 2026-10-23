@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 708 件（TESTING.md の全 902 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 709 件（TESTING.md の全 903 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 109 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 110 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1050,3 +1050,4 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **61.10** Press `<A-/>`, then append matching lines while the search is on show or after it ends → The hit count grows by the new lines; hits are not counted twice 〔未訳〕
 - [ ] **61.11** In a huge log with one line over 8 KB (say 100 KB) holding a word deep inside it, search for the word and press `n` → The toast says `Long line (N KB): showing around the match`; the line is shown cut (`… ` before, ` …` after) with the word highlighted near the left edge. Other lines are as before 〔未訳〕
 - [ ] **61.12** In a huge log, scroll to a line over 8 KB (say 100 KB) without searching → A dim `⋯ +N K` badge sits at the right edge of that row (N = what is not shown); the position footer ends with `· 1 cut at 8.0 K`. Rows that fit show no badge, and nothing scrolls sideways 〔未訳〕
+- [ ] **61.13** In a huge log, step to a line over 8 KB with `<A-/>` and `n`, press `<A-y>`, then paste somewhere → The toast says `Copied line N (… K)`; the paste holds the whole line (its size matches the badge's `+N K` plus 8 K), not the first 8 KB 〔未訳〕

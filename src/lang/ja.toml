@@ -31,6 +31,7 @@
 "Show the image at 1:1" = "画像を等倍で出す"
 "Show or hide the preview's minimap" = "プレビューのミニマップを出す・隠す"
 "Follow the end of a huge log as it grows (tail -f)" = "巨大なログの末尾を、伸びるのに合わせて追う（tail -f）"
+"Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen" = "巨大なログの 1 行を丸ごとコピーする（飛んだ先の行、なければ先頭の行。画面で切れている行でも）"
 "Find in a huge log shown in the preview (n / N step through the hits)" = "プレビューに出している巨大なログの中を探す（n / N で一致を行き来）"
 "Switch Markdown / HTML preview between rendered and source" = "Markdown・HTML のプレビューを整形・元の文に切り替える"
 "Focus the preview's outline (functions / headings)" = "プレビューの目次（関数・見出し）へ"

@@ -289,7 +289,7 @@ Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `bac
 `hardlink`, `remove`, `create`, `rename`, `copy`, `shell`, `hidden`, `linemode`, `sort`, `find`,
 `find_arrow`, `filter`, `search`, `help`, `tasks_show`, `spot`, `noop`, plus `undo`, `redo`, `jump`,
 `bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `config_reload`, `palette`,
-`menu`, `extract`, `compress`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_find` (search a huge log in the preview; `--repeat [--prev]` steps, `<A-/>`; matches are marked, including ones spanning lines), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
+`menu`, `extract`, `compress`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview; `--repeat [--prev]` steps, `<A-/>`; matches are marked, including ones spanning lines), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
 `split`, `pane_focus`, `toggle_render`, `toggle_outline`, `usage`, `settings` and `bug-report` (the last
 three this project's own). `select` and `select_all` are accepted as `toggle --state=on` /
 `toggle_all --state=on`. In the `[input]` section: `close --submit` (and the `*_do` spellings),

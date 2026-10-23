@@ -4276,6 +4276,7 @@ impl App {
             Act::TermFind { prev, repeat } => self.term_search(prev, repeat),
             Act::PreviewFind { prev, repeat } => self.preview_search(prev, repeat),
             Act::PreviewFollow => self.preview_follow(),
+            Act::PreviewCopyLine => self.preview_copy_line(),
             Act::TermScroll(step) => self.term_scroll(step),
             Act::TermPrompt { prev } => self.term_prompt(prev),
             Act::TermCopyOutput => self.term_copy_output(),
@@ -4410,6 +4411,26 @@ impl App {
             _ => {}
         }
         Some(EVERY)
+    }
+
+    /// Copy the whole line the find stepped to (else the top line of the view):
+    /// the screen only shows the first 8 KB of a long one.
+    fn preview_copy_line(&mut self) {
+        let Some(view) = self.log_view() else {
+            return self.toast("Copy line works on a huge text file");
+        };
+        let tab = &self.tabs[self.active];
+        // The hit counts while it is still on screen; after a scroll away the top line does.
+        let top = tab.preview_offset;
+        let line = tab.find_at.filter(|l| (top..top + 30).contains(l)).unwrap_or(top);
+        match view.index.full_line(line) {
+            Ok(text) => match exec::set_clipboard(&text) {
+                Ok(()) => self.toast(format!("Copied line {} ({})", line + 1, crate::util::human_size(text.len() as u64))),
+                Err(err) => self.error(format!("Clipboard: {err}")),
+            },
+            Err(0) => self.error("Could not read the line"),
+            Err(n) => self.error(format!("Line {} is too long to copy ({})", line + 1, crate::util::human_size(n))),
+        }
     }
 
     /// Search the huge log in the preview, or step to the next match.

@@ -23,6 +23,9 @@ const CHUNK_BYTES: usize = 64 * 1024;
 const WINDOW_BYTES: u64 = 1024 * 1024;
 const OVERLAP_BYTES: u64 = 64 * 1024;
 /// How much of a line is shown before the match when it is cut around it.
+/// The longest line `full_line` hands over: a line of a log that is not a
+/// line (minified JSON, a dump) can be as big as the file.
+pub const COPY_LINE_BYTES: u64 = 64 * 1024 * 1024;
 const SNIPPET_LEAD_BYTES: u64 = 32;
 /// A line is cut to this many bytes when read for the screen.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
@@ -536,6 +539,21 @@ impl LogIndex {
         g.starts.get(line + 1).copied().unwrap_or(g.end) - b
     }
 
+    /// Line `line` whole, without its line end, for the clipboard. Fails past
+    /// `COPY_LINE_BYTES` (the error says how big the line is).
+    pub fn full_line(&self, line: usize) -> Result<String, u64> {
+        let (begin, end) = {
+            let g = self.inner.lock().unwrap();
+            let Some(&b) = g.starts.get(line) else { return Err(0) };
+            (b, g.starts.get(line + 1).copied().unwrap_or(g.end))
+        };
+        if end - begin > COPY_LINE_BYTES {
+            return Err(end - begin);
+        }
+        let bytes = self.read_bytes(begin, end).map_err(|_| 0u64)?;
+        Ok(self.decode(&bytes).trim_end_matches(['\n', '\r']).to_owned())
+    }
+
     /// A line too long for the screen, cut around where `matcher` first matches
     /// in it instead of at its start; none when it is not that long or has no match.
     fn snippet(&self, line: usize, matcher: &Matcher) -> Option<String> {
@@ -948,6 +966,17 @@ last
         assert_eq!((l[0].as_str(), l[1].len(), l[2].as_str(), l[3].as_str()), ("pad", MAX_LINE_BYTES, "after NEEDLE", "last"));
         assert_eq!(hits(&i, "NEEDLE"), vec![1, 2]);
         assert_eq!(hits(&i, "last"), vec![3]);
+    }
+
+    #[test]
+    fn a_whole_line_is_copied_without_its_end() {
+        let long = "z".repeat(MAX_LINE_BYTES * 3);
+        let text = format!("one\r\n{long}\r\nlast");
+        let i = index("li-full", text.as_bytes());
+        assert_eq!(i.full_line(0).unwrap(), "one");
+        assert_eq!(i.full_line(1).unwrap(), long);
+        assert_eq!(i.full_line(2).unwrap(), "last");
+        assert_eq!(i.full_line(3), Err(0));
     }
 
     #[test]
