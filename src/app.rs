@@ -44,19 +44,31 @@ pub use split::*;
 mod history;
 pub use history::*;
 mod undo;
+#[cfg(test)]
+use self::spot_panel::page_for;
+#[cfg(test)]
+use self::term_pane::{kura_command, no_osc7, program_label, same_file};
 pub use undo::*;
 mod bookmarks;
+mod compare;
+mod completion;
+mod disk_usage;
 mod dispatch;
 mod file_ops;
+mod in_archive;
 mod input;
+mod junctions_undo;
 mod keys;
 mod nav;
 mod panes;
 mod persist;
 mod preview_pane;
+mod renaming;
 mod scan;
+mod search;
 mod settings;
 mod spot_panel;
+mod term_pane;
 
 // ---------------------------------------------------------------------- app
 
@@ -882,85 +894,6 @@ fn spot_text_of(entries: &[Entry]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n\n")
-}
-
-/// What `<A-Up>` says when the shell has never reported its directory. The
-/// shell is named, because the hook goes in *that* shell's profile: Windows
-/// PowerShell 5.1 and PowerShell 7 read different ones, and someone running
-/// 5.1 was sent to the same README line again and again (#101). Where there
-/// is a hook for it, the command that adds it is the rest of the message
-/// (Q50); 5.1 is told it cannot have one rather than handed one that fails.
-fn no_osc7(shell: &str, kura: &str) -> String {
-    let who = if shell.is_empty() { "The shell".to_owned() } else { format!("`{shell}`") };
-    let name = shell.split(' ').next().unwrap_or("").to_ascii_lowercase();
-    let what = match name.trim_end_matches(".exe") {
-        "powershell" => {
-            return format!(
-                "{who} has not said where it is (no OSC 7), and cannot: the hook needs PowerShell 7 \
-                 (winget install Microsoft.PowerShell)"
-            )
-        }
-        "bash" => format!("{kura} shell-hook bash >> ~/.bashrc"),
-        "zsh" => format!("{kura} shell-hook zsh >> ~/.zshrc"),
-        "" | "pwsh" => format!("{kura} shell-hook | Add-Content $PROFILE"),
-        _ => return format!("{who} has not said where it is (no OSC 7). `kura shell-hook` has hooks for {}", crate::shellhook::SHELLS),
-    };
-    format!("{who} has not said where it is (no OSC 7). In that shell: {what}, then <C-S-t> and <C-t>")
-}
-
-/// How the pane's shell can run this kura: by name when that is what the
-/// `PATH` finds, by its full path when it is not (a zip unpacked anywhere).
-fn kura_command() -> String {
-    let Ok(me) = std::env::current_exe() else { return "kura".into() };
-    let name = if cfg!(windows) { "kura.exe" } else { "kura" };
-    let found = std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| same_file(&d.join(name), &me)));
-    if found {
-        "kura".into()
-    } else if cfg!(windows) {
-        format!("& '{}'", me.display())
-    } else {
-        format!("'{}'", me.display())
-    }
-}
-
-fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
-    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => false,
-    }
-}
-
-/// The web page behind one row of spot's Git section. `From branch` sat
-/// between two rows that opened and was the one that did nothing (#119); its
-/// page is built from the pull request's, which already carries the
-/// repository, so `<Enter>` asks git nothing on the UI thread.
-fn page_for(rows: &[(String, String)], key: &str) -> Option<String> {
-    let pr = rows.iter().find(|(k, _)| k == crate::spot::PR_ROW).map(|(_, v)| v.as_str())?;
-    match key {
-        "Came in via" => Some(pr.to_owned()),
-        k if k == crate::spot::PR_ROW => Some(pr.to_owned()),
-        "From branch" => {
-            let branch = rows.iter().find(|(k, _)| k == "From branch").map(|(_, v)| v.as_str())?;
-            let repo = &pr[..pr.rfind("/pull/")?];
-            Some(format!("{repo}/tree/{branch}"))
-        }
-        _ => None,
-    }
-}
-
-/// The console's default title is the shell's full path (`C:\...\pwsh.exe`); name the program by its file stem instead.
-fn program_label(title: &str) -> &str {
-    let t = title.trim();
-    if !t.contains(['/', '\\']) || t.contains(' ') && !t.to_ascii_lowercase().ends_with(".exe") {
-        return t;
-    }
-    let name = t.rsplit(['/', '\\']).next().unwrap_or(t);
-    let stem = name.strip_suffix(".exe").or_else(|| name.strip_suffix(".EXE")).unwrap_or(name);
-    if stem.is_empty() {
-        t
-    } else {
-        stem
-    }
 }
 
 #[cfg(test)]

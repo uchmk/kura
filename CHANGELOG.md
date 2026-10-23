@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.139.12] - 2026-10-23
+
+### 変更
+
+- `src/app/input.rs`（1,693 行）を領域ごとに分けた（`compare`・`renaming`・`junctions_undo`・`completion`・`term_pane`・`search`・`in_archive`・`disk_usage`）。`input.rs` は 451 行になった。`app.rs` の末尾にあった `no_osc7`・`kura_command`・`same_file`・`program_label` は `term_pane.rs` へ、`page_for` は `spot_panel.rs` へ移した。動作の変更はない。
+
 ## [0.139.11] - 2026-10-23
 
 ### 変更

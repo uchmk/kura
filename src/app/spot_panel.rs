@@ -336,3 +336,21 @@ impl App {
         None
     }
 }
+
+/// The web page behind one row of spot's Git section. `From branch` sat
+/// between two rows that opened and was the one that did nothing (#119); its
+/// page is built from the pull request's, which already carries the
+/// repository, so `<Enter>` asks git nothing on the UI thread.
+pub(super) fn page_for(rows: &[(String, String)], key: &str) -> Option<String> {
+    let pr = rows.iter().find(|(k, _)| k == crate::spot::PR_ROW).map(|(_, v)| v.as_str())?;
+    match key {
+        "Came in via" => Some(pr.to_owned()),
+        k if k == crate::spot::PR_ROW => Some(pr.to_owned()),
+        "From branch" => {
+            let branch = rows.iter().find(|(k, _)| k == "From branch").map(|(_, v)| v.as_str())?;
+            let repo = &pr[..pr.rfind("/pull/")?];
+            Some(format!("{repo}/tree/{branch}"))
+        }
+        _ => None,
+    }
+}
