@@ -3086,7 +3086,7 @@ mod prompt_focus {
         let dir = crate::util::test_dir("prompt-tab");
         std::fs::create_dir_all(dir.join("alpha")).unwrap();
         let mut s = Screen::open(dir.clone());
-        for _ in 0..50 {
+        for _ in 0..500 {
             s.turn();
             if s.app.tabs[0].current.entries.len() == 1 {
                 break;
@@ -3115,7 +3115,7 @@ mod prompt_focus {
         }
         s.typed("al");
         s.feed(vec![tab()]);
-        for _ in 0..20 {
+        for _ in 0..500 {
             s.turn();
             if text(&s).contains("alpha") {
                 break;

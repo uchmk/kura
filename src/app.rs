@@ -11843,7 +11843,8 @@ mod escape_and_max_preview {
         }
         assert!(!a.toasts.iter().any(|t| t.text.contains("not open")), "no refusal");
 
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        // Generous: a loaded machine took 8 s for pwsh to read its profiles.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
         // The rows joined before searching: the pane is 80 columns here, and
         // with a long `TEMP` the echoed path wraps, putting the name across
         // two rows. Looked for row by row, it was never found -- always, on a
