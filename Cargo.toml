@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.137.0"
+version = "0.137.1"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -38,49 +38,49 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # v0.93.10. Pinned to a commit, the same one for every ito crate; to take a
 # fix, move `rev` and run `cargo build` so Cargo.lock follows. Pure Rust, like
 # the rest.
-ito-pane = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", features = ["egui", "wgpu"] }
+ito-pane = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", features = ["egui", "wgpu"] }
 # The border above the terminal pane, dragged to change its height (Q94).
 # From the same commit as the pane; it depends on nothing but egui.
-ito-layout = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", features = ["egui"] }
-ito-keyscript = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-layout = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", features = ["egui"] }
+ito-keyscript = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # `kura mcp` (Q95, Q96): the per-user door into the running window (Unix
 # socket / named pipe) and the MCP server Claude Code talks to over stdio.
 # Hand-written on serde_json, no async runtime. The same commit as the pane.
-ito-ipc = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-ipc = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The rule a search query matches by (`f` `s` `S` `/` `?` `F`), shared with tsumugi; the same commit as the others.
-ito-match = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-match = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The clock at the status bar's right end and the `[clock]` / `language` of the
 # config shared by every uchmk app (common.toml); the same commit as the others.
-ito-common = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", features = ["clock", "egui", "dirwatch"] }
+ito-common = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", features = ["clock", "egui", "dirwatch"] }
 # The bug report link and its form (F12): version/OS lines, the context text and the shared issue form; the same commit as the others.
-ito-bugreport = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
-ito-mcp = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-bugreport = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
+ito-mcp = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The settings screen (Ctrl+,): the frame, side nav, search and the shared
 # Language / CLOCK rows every uchmk app draws alike, and the palette it paints
 # with. The same commit as the others; pure Rust on egui.
-ito-prefs = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-prefs = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The bundled monospace face (JetBrains Mono) and common.toml's `mono_font` (v0.128.0); the same commit as the others.
-ito-fonts = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", features = ["egui"] }
-ito-theme = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-fonts = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", features = ["egui"] }
+ito-theme = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # A toast from the OS when a long copy, move or delete ends behind another window (#345); the same commit as the others.
-ito-notify = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", default-features = false }
+ito-notify = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", default-features = false }
 # The key notation (parse, print, from egui, `display_seq`), shared with yagura; the same commit as the others.
-ito-i18n = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
-ito-keys = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373", features = ["egui"] }
+ito-i18n = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
+ito-keys = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa", features = ["egui"] }
 # keymap.toml: the layers folded over the defaults, resolved key by key, and the
 # warnings for keys that can never run (moved out of here into ito 0.32.0); the same commit as the others.
-ito-keymap = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-keymap = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # Mouse selection and copy of the preview pane's painted text (v0.112.0); the same commit as the others.
-ito-select = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-select = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # `kura.com` (src/bin/kura-com.rs) and the answers `say` writes (v0.114.0); the same commit as the others.
-ito-console = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-console = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The keys help panel: rows, drawing, hit test and the text for `C` (v0.122.0); the same commit as the others.
-ito-help = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-help = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # How an editor is told a line, and the `[line_args]` that overrides it (v0.123.0); the same commit as the others.
-ito-openin = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-openin = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 # The window's own title bar (drag, caption buttons, the palette box, the bell) and the list the bell opens (v0.131.0); the same commit as the others.
-ito-titlebar = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
-ito-notices = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-titlebar = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
+ito-notices = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 [dependencies.image]
 version = "0.25"
 default-features = false
@@ -105,7 +105,7 @@ default-features = false
 [dev-dependencies]
 # The checklists' generator behind examples/make-testcheck.rs and
 # make-keycheck.rs (v0.103.0); the same commit as the ito crates above.
-ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-testcheck = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }
 
 [profile.dev]
 opt-level = 1
@@ -128,4 +128,4 @@ windows = { version = "0.62", features = ["Wdk_System_SystemServices", "Win32_Fo
 # The host, not the target: compiling a Windows resource needs the SDK's rc.exe,
 # so this is only pulled in where it can actually run.
 [build-dependencies]
-ito-winres = { git = "https://github.com/uchmk/ito", rev = "3a76165e07afc4859ff93b1c01132611de894373" }
+ito-winres = { git = "https://github.com/uchmk/ito", rev = "43e0841c7878c5a552fa206b043e3054233443aa" }

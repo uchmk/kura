@@ -343,6 +343,12 @@ fn main() -> eframe::Result<()> {
             // What earlier runs unpacked from archives and left (a copy `l`
             // opened is kept while its editor may hold it).
             util::sweep_archive_scratch();
+            // Let the other uchmk apps find this exe (best effort, off the UI thread; never under `--keys`).
+            if cli.keys.is_empty() {
+                std::thread::spawn(|| {
+                    let _ = ito_common::apps::register("kura", env!("CARGO_PKG_VERSION"));
+                });
+            }
             // One question to GitHub per run; never under `--keys`.
             let update = (cfg.ui.check_updates && cli.keys.is_empty()).then(|| {
                 let ctx = cc.egui_ctx.clone();
