@@ -23,7 +23,7 @@ const CHUNK_BYTES: usize = 64 * 1024;
 const WINDOW_BYTES: u64 = 1024 * 1024;
 const OVERLAP_BYTES: u64 = 64 * 1024;
 /// How much of a line is shown before the match when it is cut around it.
-const SNIPPET_LEAD_BYTES: u64 = 64;
+const SNIPPET_LEAD_BYTES: u64 = 32;
 /// A line is cut to this many bytes when read for the screen.
 pub const MAX_LINE_BYTES: usize = 8 * 1024;
 /// How much of a line is read from the disk for the screen: room for a
@@ -515,6 +515,20 @@ impl LogIndex {
         }
     }
 
+    /// For `lines` (which begin at line `first`): the bytes of each that the
+    /// screen does not get, because the line is longer than `MAX_LINE_BYTES`.
+    fn unseen(&self, first: usize, lines: &[String]) -> Vec<u64> {
+        lines
+            .iter()
+            .enumerate()
+            .map(|(i, s)| match s.len() + 3 >= MAX_LINE_BYTES {
+                // The line end may add a byte or two to a line that just fits.
+                true => self.line_bytes(first + i).saturating_sub(MAX_LINE_BYTES as u64 + 2),
+                false => 0,
+            })
+            .collect()
+    }
+
     /// How many bytes line `line` takes up in the file, line end included.
     pub fn line_bytes(&self, line: usize) -> u64 {
         let g = self.inner.lock().unwrap();
@@ -586,6 +600,8 @@ struct Focus {
 struct Shown {
     first: usize,
     lines: Vec<String>,
+    /// Per line: the bytes of it that are not shown (0 when it is whole).
+    more: Vec<u64>,
 }
 
 /// The find in a big file: its lines (a line once per match started on it), and
@@ -635,7 +651,8 @@ impl LogView {
                     let first = want.0.saturating_sub(MARGIN);
                     let mut lines = v.index.read(first, want.1 + 2 * MARGIN);
                     v.cut_focus(first, &mut lines);
-                    *v.shown.lock().unwrap() = Shown { first, lines };
+                    let more = v.index.unseen(first, &lines);
+                    *v.shown.lock().unwrap() = Shown { first, lines, more };
                     let ctx = v.ctx.lock().unwrap().clone();
                     if let Some(c) = ctx {
                         c.request_repaint();
@@ -669,14 +686,14 @@ impl LogView {
     /// Note that lines `first..first + count` are about to be drawn, and give
     /// back the ones already read: `(first line, lines)`. Asks for a read when
     /// they do not cover the ask.
-    pub fn window(&self, first: usize, count: usize, ctx: &egui::Context) -> (usize, Vec<String>) {
+    pub fn window(&self, first: usize, count: usize, ctx: &egui::Context) -> (usize, Vec<String>, Vec<u64>) {
         let s = self.shown.lock().unwrap();
         let covered = first >= s.first && (first + count <= s.first + s.lines.len() || s.first + s.lines.len() >= self.index.lines());
         if !covered {
             *self.ctx.lock().unwrap() = Some(ctx.clone());
             let _ = self.ask.send((first, count));
         }
-        (s.first, s.lines.clone())
+        (s.first, s.lines.clone(), s.more.clone())
     }
 
     /// Look for `matcher` through the whole file on a thread; `n`/`N` read the
@@ -931,6 +948,18 @@ last
         assert_eq!((l[0].as_str(), l[1].len(), l[2].as_str(), l[3].as_str()), ("pad", MAX_LINE_BYTES, "after NEEDLE", "last"));
         assert_eq!(hits(&i, "NEEDLE"), vec![1, 2]);
         assert_eq!(hits(&i, "last"), vec![3]);
+    }
+
+    #[test]
+    fn a_cut_line_reports_the_bytes_not_shown() {
+        let mut text = String::from("short\r\n");
+        text.push_str(&"x".repeat(MAX_LINE_BYTES)); // exactly the limit: whole
+        text.push_str("\r\n");
+        text.push_str(&"y".repeat(MAX_LINE_BYTES + 1000));
+        text.push_str("\r\nlast\r\n");
+        let i = index("li-unseen", text.as_bytes());
+        let l = i.read(0, 4);
+        assert_eq!(i.unseen(0, &l), vec![0, 0, 1000, 0]);
     }
 
     #[test]

@@ -211,7 +211,7 @@ fn draw_pane(
             }
             Payload::Log { view } => {
                 let total = view.index.lines();
-                let (first, got) = view.window(offset, rows(rect, st), ui.ctx());
+                let (first, got, more) = view.window(offset, rows(rect, st), ui.ctx());
                 // Plain lines from `first` on; a scroll beyond what has been read draws nothing until the read lands.
                 let rel = offset.saturating_sub(first);
                 // A search across line ends is run over the lines on screen and a few around them.
@@ -226,14 +226,27 @@ fn draw_pane(
                 let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
                 if offset >= first && !spans.is_empty() {
                     text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), st);
+                    // A line cut at the length limit says how much is not shown, at the right edge (no sideways scroll).
+                    for (i, &n) in more.iter().skip(rel).take(rows(rect, st)).enumerate().filter(|(_, &n)| n > 0) {
+                        let label = format!("⋯ +{}", crate::util::human_size(n));
+                        let at = pos2(rect.right() - PAD, rect.top() + i as f32 * st.row_h);
+                        let g = painter.layout_no_wrap(label, st.font.clone(), st.theme.fg_dim);
+                        let r = Rect::from_min_size(at - Vec2::new(g.size().x, 0.0), g.size()).expand2(Vec2::new(4.0, 0.0));
+                        painter.rect_filled(r, CornerRadius::same(2), st.theme.bg);
+                        painter.galley(r.min + Vec2::new(4.0, 0.0), g, st.theme.fg_dim);
+                    }
                 } else {
                     painter.text(rect.left_top() + Vec2::new(PAD, 8.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
                 }
                 let pct = view.index.progress();
-                let note = match view.index.is_done() {
+                let mut note = match view.index.is_done() {
                     true => format!("line {} of {}", offset + 1, total),
                     false => format!("line {} · indexing {:.0}%", offset + 1, pct * 100.0),
                 };
+                let cut = more.iter().skip(rel).take(rows(rect, st)).filter(|&&n| n > 0).count();
+                if cut > 0 {
+                    note += &format!(" · {} cut at {}", cut, crate::util::human_size(crate::preview::logindex::MAX_LINE_BYTES as u64));
+                }
                 painter.text(pos2(rect.left() + PAD, rect.bottom() - st.row_h), Align2::LEFT_TOP, note, st.font.clone(), st.theme.fg_dim);
                 total
             }

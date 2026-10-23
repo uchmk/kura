@@ -1837,3 +1837,4 @@ A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and
 | 61.9 | Hover a log with one line of several MB | It shows the start of that line without freezing; `<A-/>` finds a word deep inside it |
 | 61.10 | Press `<A-/>`, then append matching lines while the search is on show or after it ends | The hit count grows by the new lines; hits are not counted twice |
 | 61.11 | In a huge log with one line over 8 KB (say 100 KB) holding a word deep inside it, search for the word and press `n` | The toast says `Long line (N KB): showing around the match`; the line is shown cut (`… ` before, ` …` after) with the word highlighted near the left edge. Other lines are as before |
+| 61.12 | In a huge log, scroll to a line over 8 KB (say 100 KB) without searching | A dim `⋯ +N K` badge sits at the right edge of that row (N = what is not shown); the position footer ends with `· 1 cut at 8.0 K`. Rows that fit show no badge, and nothing scrolls sideways |
