@@ -11783,6 +11783,27 @@ mod escape_and_max_preview {
         }
         let cmd: &[u8] = if cfg!(windows) { b"ping -n 60 127.0.0.1\r" } else { b"sleep 60\r" };
         t.send(cmd.to_vec());
+        // On Windows `ping` prints its first line at once (in the OS language,
+        // so the address is what is counted: once in the echoed command, once
+        // in that line), and that line is the proof the command is running, whatever a slow profile script
+        // does first (a loaded machine took 8 s to read its profiles, and a
+        // profile child standing in for the command failed this test).
+        if cfg!(windows) {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            let pinging = |a: &App| {
+                a.term.as_ref().is_some_and(|t| {
+                    t.with_grid(|g| {
+                        let rows = crate::terminal::cell_rows(g);
+                        rows.iter().flat_map(|row| row.iter().map(|c| c.c)).collect::<String>().matches("127.0.0.1").count() >= 2
+                    })
+                })
+            };
+            while !pinging(&a) {
+                assert!(std::time::Instant::now() < deadline, "ping never started under the shell");
+                a.pump_terminal();
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
         // Busy for a stretch, not for one look: the settling above gives up
         // after ten seconds, and on a loaded machine a profile script's child
         // was still about, so one glance saw it and went on before the command
