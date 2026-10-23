@@ -1,2 +1,9 @@
 # The one commit that ran `cargo fmt --all` over the whole tree.
 94ce3769a81b039ccc11ba8a29d3fce1ddc8ebcd
+
+# The app.rs split into src/app/ (tests, types, impl App, input.rs): code moved, nothing rewritten.
+57e94ead6e02c5650d42816f4216c038442cdc0b
+47d06de665a256f922264ba8b1bfbaae2aacc41d
+e0928c70379abf9d2c3b8a2427c9628cee5ea215
+76cec8e602f2d2abb7048e64021276bea5344fbe
+ff027740d6367f213737cdfa9c14787a31be12fd
