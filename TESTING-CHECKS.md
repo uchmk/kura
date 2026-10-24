@@ -978,10 +978,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 ## 55. HTML のプレビュー
 
-- [~] **55.1** 保存した Web ページ（`.html`）にカーソルを置く → 文章として読める。見出しは見出しの色、段落は空行で区切られ、リストは黒丸、リンクは下線。`<script>`・`<style>`・`<head>`・`<svg>` の中身は出ない — *Hover a saved web page (`.html`) → It reads as text: headings in the heading colours, paragraphs separated by a blank line, lists with bullets, links underlined. Nothing from `<script>`, `<style>`, `<head>` or `<svg>` shows*
+- [x] **55.1** 保存した Web ページ（`.html`）にカーソルを置く → 文章として読める。見出しは見出しの色、段落は空行で区切られ、リストは黒丸、リンクは下線。`<script>`・`<style>`・`<head>`・`<svg>` の中身は出ない — *Hover a saved web page (`.html`) → It reads as text: headings in the heading colours, paragraphs separated by a blank line, lists with bullets, links underlined. Nothing from `<script>`, `<style>`, `<head>` or `<svg>` shows*
 - [x] **55.2** そこで `M`、もう一度 `M` → 1 回目はハイライトされた HTML の元の文、2 回目は読む表示。位置は同じ — *`M` on it, then `M` again → The first press shows the highlighted HTML source, the second the reading view, at the same place*
 - [x] **55.3** `l` でアウトラインに入り、見出しを選ぶ → プレビューがその見出しまで動く — *`l` into its outline, pick a heading → The preview scrolls to that heading*
-- [~] **55.4** `<th>` のある `<table>` と `<pre><code class="language-rust">` を含む HTML にカーソルを置く → 表は見出しの罫線と揃った列で出て、コードは Rust として色が付く — *Hover an HTML file holding a `<table>` with `<th>` cells and a `<pre><code class="language-rust">` block → The table is drawn with a header rule and aligned columns; the code block is coloured as Rust*
+- [x] **55.4** `<th>` のある `<table>` と `<pre><code class="language-rust">` を含む HTML にカーソルを置く → 表は見出しの罫線と揃った列で出て、コードは Rust として色が付く — *Hover an HTML file holding a `<table>` with `<th>` cells and a `<pre><code class="language-rust">` block → The table is drawn with a header rule and aligned columns; the code block is coloured as Rust*
 - [x] **55.5** 表示したまま窓を狭め、広げる → 文がプレビューの幅で折り返し直される — *Narrow and widen the window while it is on show → The text re-wraps to the pane's width*
 - [x] **55.6** `render_markdown = false` にして再起動し、`.html` にカーソルを置く → 元の文で始まり、`M` で読む表示になる — *Set `render_markdown = false`, restart, hover an `.html` file → It starts as source; `M` brings the reading view*
 
