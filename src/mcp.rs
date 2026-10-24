@@ -175,7 +175,38 @@ pub type Ask = door::Ask<Request>;
 /// Opens the door on a thread of its own and hands each request to the UI
 /// thread through the returned channel, waking it with `ctx`.
 pub fn listen(ctx: egui::Context) -> Receiver<Ask> {
-    door().listen(move || ctx.request_repaint())
+    door().listen(move || {
+        // A minimized window gets no frames, so the request would sit
+        // unanswered until the caller gave up (61.14).
+        #[cfg(windows)]
+        restore_minimized();
+        ctx.request_repaint()
+    })
+}
+
+/// Brings this process's minimized top-level windows back without taking the
+/// focus; the frame that then runs answers the request (a reveal raises it).
+#[cfg(windows)]
+fn restore_minimized() {
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible, ShowWindow, GW_OWNER, SW_SHOWNOACTIVATE,
+    };
+    unsafe extern "system" fn each(hwnd: HWND, _: LPARAM) -> BOOL {
+        unsafe {
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            let owned = GetWindow(hwnd, GW_OWNER).is_ok_and(|o| !o.is_invalid());
+            if pid == std::process::id() && !owned && IsWindowVisible(hwnd).as_bool() && IsIconic(hwnd).as_bool() {
+                let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            }
+        }
+        true.into()
+    }
+    unsafe {
+        let _ = EnumWindows(Some(each), LPARAM(0));
+    }
 }
 
 /// Asks the running window, for `kura mcp`.
