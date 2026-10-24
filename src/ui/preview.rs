@@ -1100,7 +1100,7 @@ fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     Color32::from_rgb(lerp(a.r(), b.r()), lerp(a.g(), b.g()), lerp(a.b(), b.b()))
 }
 
-/// Syntect themes are written against their own background, and some scopes
+/// Colour themes are written against their own background, and some scopes
 /// lean on that: base16's `invalid` paints the background color as foreground
 /// on top of a red field. We only carry the foreground over, so such a span
 /// would come out invisible — a `.d` file's `C:\dev\…` loses every character

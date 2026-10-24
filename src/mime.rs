@@ -131,8 +131,8 @@ pub fn is_decodable_image(mime: &str) -> bool {
     )
 }
 
-/// Syntect language token for a mime / extension pair. The mime wins so that
-/// variants syntect doesn't know by extension (`mdx`, `jsonc`) still
+/// Language token for a mime / extension pair. The mime wins so that
+/// variants the highlighter doesn't know by extension (`mdx`, `jsonc`) still
 /// get their base language.
 pub fn syntax_hint(mime: &str, ext: Option<&str>) -> Option<String> {
     let by_mime = match mime {

@@ -100,7 +100,10 @@ pub struct MgrTheme {
     pub tab_inactive: RawStyle,
     #[serde(default)]
     pub border_style: RawStyle,
+    /// yazi's name for a syntect theme. Read so a yazi `theme.toml` loads,
+    /// and ignored: the preview is coloured from the app theme (v0.140.0).
     #[serde(default)]
+    #[allow(dead_code)]
     pub syntect_theme: Option<String>,
 }
 
@@ -339,8 +342,6 @@ pub struct Theme {
     pub git_untracked: Color32,
     pub git_conflict: Color32,
 
-    pub syntect_theme: String,
-
     pub filetypes: Vec<FileRule>,
     pub icon_globs: Vec<(String, Icon)>,
     pub icon_dirs: Vec<(String, Icon)>,
@@ -455,8 +456,6 @@ impl Theme {
             git_added: c.done,
             git_untracked: dim,
             git_conflict: c.err,
-
-            syntect_theme: if c.light { "base16-ocean.light" } else { "base16-ocean.dark" }.into(),
 
             filetypes: default_filetypes(c),
             icon_globs: Vec::new(),
@@ -573,13 +572,6 @@ impl Theme {
             // window's text sat on Nord's dark bar at 1.7:1. `[status]
             // overall` still sets its own below.
             self.status_bg = toward(self.bg_alt, self.fg, 0.03);
-            // The highlighter's text was chosen for the common theme's ground
-            // too (#c0c5ce on white, 1.6:1), so the built-in pair turn over
-            // with it; one the file named is left alone, and `[mgr]
-            // syntect_theme` below still names its own.
-            if matches!(self.syntect_theme.as_str(), "base16-ocean.dark" | "base16-ocean.light") {
-                self.syntect_theme = if light { "base16-ocean.light" } else { "base16-ocean.dark" }.into();
-            }
             // #321: the quiet text was the common theme's, and on a ground
             // of the file's own it can fade out (Nord's grey on white reads
             // at a contrast under 3). Then it is made again from this text and ground,
@@ -655,11 +647,6 @@ impl Theme {
         ] {
             if let Some(c) = raw.fg.as_deref().and_then(parse_color) {
                 *slot = c;
-            }
-        }
-        if let Some(s) = t.mgr.syntect_theme.as_deref() {
-            if !s.is_empty() {
-                self.syntect_theme = s.to_string();
             }
         }
 
@@ -1024,43 +1011,73 @@ mod tests {
     /// #396: a ground the file sets carries the status bar and the
     /// highlighter with it. On a white window over a dark common theme the
     /// bar stayed the theme's dark panel under text chosen for white, and the
-    /// preview kept `base16-ocean.dark`'s pale text; the other way round too.
+    /// preview kept the dark theme's pale text; the other way round too.
     #[test]
     fn the_status_bar_and_the_highlighter_follow_a_ground_the_file_sets() {
+        use crate::preview::hues::Hues;
         let named = |n: &str| ito_theme::builtin().into_iter().find(|t| t.name == n).expect(n).colors;
         for (common, toml, highlighter) in [
-            (default_colors(), "[app]\noverall = { bg = \"#ffffff\", fg = \"#222222\" }\n", "base16-ocean.light"),
-            (default_colors(), "[app]\noverall = { bg = \"#ffffff\" }\n", "base16-ocean.light"),
-            (named("Nord"), "[app]\noverall = { bg = \"#ffffff\", fg = \"#222222\" }\n", "base16-ocean.light"),
-            (named("tsumugi Light"), "[app]\noverall = { bg = \"#1e1e1e\" }\n", "base16-ocean.dark"),
-            (named("tsumugi Light"), "[app]\noverall = { bg = \"#1e1e1e\", fg = \"#d0d0d0\" }\n", "base16-ocean.dark"),
+            (
+                default_colors(),
+                "[app]
+overall = { bg = \"#ffffff\", fg = \"#222222\" }
+",
+                "tsumugi Light",
+            ),
+            (
+                default_colors(),
+                "[app]
+overall = { bg = \"#ffffff\" }
+",
+                "tsumugi Light",
+            ),
+            (
+                named("Nord"),
+                "[app]
+overall = { bg = \"#ffffff\", fg = \"#222222\" }
+",
+                "tsumugi Light",
+            ),
+            (
+                named("tsumugi Light"),
+                "[app]
+overall = { bg = \"#1e1e1e\" }
+",
+                "tsumugi Dark",
+            ),
+            (
+                named("tsumugi Light"),
+                "[app]
+overall = { bg = \"#1e1e1e\", fg = \"#d0d0d0\" }
+",
+                "tsumugi Dark",
+            ),
         ] {
             let t = Theme::layered(&common, vec![toml::from_str(toml).unwrap()]);
-            assert_eq!(t.syntect_theme, highlighter, "{toml}");
+            assert_eq!(Hues::new(&t), Hues::from_colors(&named(highlighter)), "{toml}");
             assert_eq!(is_light(t.status_bg), is_light(t.bg), "the bar is the window's kind: {toml}");
             assert!(contrast(t.fg, t.status_bg) >= 4.5, "the clock: {toml}");
             assert!(contrast(t.fg_dim, t.status_bg) >= 3.5, "the file's details: {toml}");
         }
+    }
 
-        // What the file names itself still wins over both.
-        let t = Theme::layered(
-            &named("Nord"),
-            vec![toml::from_str(
-                "[app]\noverall = { bg = \"#ffffff\" }\n[mgr]\nsyntect_theme = \"InspiredGitHub\"\n\
-                     [status]\noverall = { bg = \"#eeeeee\" }\n",
-            )
-            .unwrap()],
-        );
-        assert_eq!((t.syntect_theme.as_str(), t.status_bg), ("InspiredGitHub", Color32::from_rgb(0xee, 0xee, 0xee)));
-        // And a highlighter an earlier file chose is not swapped for ours.
-        let t = Theme::layered(
-            &named("Nord"),
-            vec![
-                toml::from_str("[mgr]\nsyntect_theme = \"Solarized (dark)\"\n").unwrap(),
-                toml::from_str("[app]\noverall = { bg = \"#ffffff\" }\n").unwrap(),
-            ],
-        );
-        assert_eq!(t.syntect_theme, "Solarized (dark)");
+    /// yazi's `[mgr] syntect_theme` is read without complaint and changes
+    /// nothing: the preview is coloured from the app theme (v0.140.0).
+    #[test]
+    fn syntect_theme_is_accepted_and_ignored() {
+        use crate::preview::hues::Hues;
+        let named = |n: &str| ito_theme::builtin().into_iter().find(|t| t.name == n).expect(n).colors;
+        let raw: ThemeToml = toml::from_str(
+            "[mgr]
+syntect_theme = \"InspiredGitHub\"
+",
+        )
+        .unwrap();
+        assert_eq!(raw.mgr.syntect_theme.as_deref(), Some("InspiredGitHub"));
+        let with = Theme::layered(&named("Nord"), vec![raw]);
+        let without = Theme::layered(&named("Nord"), vec![]);
+        assert_eq!(Hues::new(&with), Hues::new(&without));
+        assert_eq!(with.bg, without.bg);
     }
 
     /// Q93: on a light background the warning and a plain file's name turn
@@ -1126,7 +1143,6 @@ mod tests {
         assert_eq!(t.common, c);
         assert_eq!((t.bg, t.fg, t.border), (c.bg, c.fg, c.border));
         assert!(!t.light() && !t.overall);
-        assert_eq!(t.syntect_theme, "base16-ocean.dark");
     }
 
     /// theme.toml is drawn over the common theme, whichever it is, and stays
@@ -1139,7 +1155,6 @@ mod tests {
         let t = Theme::layered(&light, vec![toml::from_str(marker).unwrap()]);
         assert!(t.light() && !t.overall, "the window is still the common theme's");
         assert_eq!(t.marker_selected, Color32::from_rgb(255, 0, 0));
-        assert_eq!(t.syntect_theme, "base16-ocean.light");
 
         let mut back = t.with_common(&builtin[0].colors);
         assert!(!back.light());

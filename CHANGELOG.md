@@ -9,6 +9,19 @@
 
 ## [未リリース]
 
+## [0.140.0] - 2026-10-24
+
+### 変更
+
+- プレビュー（テキスト・Markdown のフェンス・HTML のソース）の構文の色とアウトラインを、syntect / two-face から uchmk/ito の `ito-syntax`（ito v0.105.0、`Stream::line_decls`）に移した。`syntect` と `two-face` への直接の依存は無くなった（kura#469）。
+- **設定の互換性**: yazi の `[mgr] syntect_theme` は読むが無視する（`theme.toml` は今までどおり読み込める）。プレビューの色はアプリのテーマ（明るい・暗い）から決まる。
+- Markdown のソース表示は `markup.*` の色を失った。見出し行は kura が太字と見出しの色にする。
+- 先頭行の `#!`・`<?xml`・`<?php` による言語の判定は kura 側で持つ。
+
+### 追加
+
+- 色とアウトライン（Rust・Python・TypeScript・Go・C・TOML）の単体テスト。TESTING.md に節 63（プレビューの色の見え方）。
+
 ## [0.139.22] - 2026-10-24
 
 ### 変更

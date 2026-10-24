@@ -15,6 +15,7 @@ mod csv;
 mod external;
 mod font_preview;
 mod html;
+pub mod hues;
 mod image_preview;
 pub mod logindex;
 mod markdown;
@@ -65,7 +66,8 @@ pub struct Request {
     /// A text file of at least this many bytes is shown as a [`Payload::Log`].
     pub big_bytes: u64,
     pub tab_size: u8,
-    pub syntect_theme: String,
+    /// The colors of syntax-colored text and Markdown, from the app theme.
+    pub hues: hues::Hues,
     /// Markdown is drawn laid out, so its colored source is not on screen: the
     /// first screen of a long one goes out before any of the source is colored.
     pub markdown_rendered: bool,
@@ -175,7 +177,7 @@ impl Doc {
 /// and what color it mostly is.
 ///
 /// Six bytes a line, so even a file at the read limit costs tens of kilobytes.
-/// The color stays `None` where syntect had nothing to say, so the theme —
+/// The color stays `None` where the grammar had nothing to say, so the theme —
 /// which `config_reload` can change under a preview already on screen — still
 /// gets to decide what the default is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -554,14 +556,14 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
         let cut = head.len() >= req.max_bytes;
         if mime == "text/csv" {
             let delim = csv::delimiter(req.ext.as_deref());
-            let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
+            let dim = Some(req.hues.comment);
             return csv::render(text.as_bytes(), delim, req.key.cols, dim, if cut { 0 } else { usize::MAX });
         }
         return text::render_cut(text.as_bytes(), cut, req, syntax);
     }
     if mime == "text/csv" {
         let delim = csv::delimiter(req.ext.as_deref());
-        let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
+        let dim = Some(req.hues.comment);
         return csv::render(&head, delim, req.key.cols, dim, req.max_bytes);
     }
     text::render(&head, req, syntax)
@@ -918,7 +920,7 @@ pub(crate) mod for_tests {
             max_bytes: 1 << 20,
             big_bytes: u64::MAX,
             tab_size: 4,
-            syntect_theme: "base16-ocean.dark".into(),
+            hues: Default::default(),
             markdown_rendered: true,
             preview: None,
         };

@@ -185,7 +185,7 @@ impl App {
             },
             big_bytes: self.cfg.ui.big_text_bytes,
             tab_size: self.cfg.yazi.preview.tab_size,
-            syntect_theme: self.cfg.theme.syntect_theme.clone(),
+            hues: preview::hues::Hues::new(&self.cfg.theme),
             markdown_rendered: self.render_markdown,
             preview: rule,
         });
