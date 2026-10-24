@@ -999,7 +999,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 ## 57. Shell card and `[term.env]` (v0.129.0)
 
 - [x] **57.1** `Ctrl+,` → kura のページの Shell カードで、シェルを選び、新しいターミナルのペインを開く → ペインがそのシェルを動かす。`config.toml` の `[term] shell` がそれを持ち、コメントはそのまま残る。「Automatic」にするとそのキーが消える — *`Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane → The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key*
-- [~] **57.2** Arguments に `-NoLogo` と打って Enter を押し、新しいターミナルを開く → シェルがそれ付きで始まり、`[term] args = ["-NoLogo"]` が書かれる — *Type `-NoLogo` in Arguments and press Enter, open a new terminal → The shell starts with it; `[term] args = ["-NoLogo"]` is written*
+- [x] **57.2** Arguments に `-NoLogo` と打って Enter を押し、新しいターミナルを開く → シェルがそれ付きで始まり、`[term] args = ["-NoLogo"]` が書かれる — *Type `-NoLogo` in Arguments and press Enter, open a new terminal → The shell starts with it; `[term] args = ["-NoLogo"]` is written*
 - [~] **57.3** Environment variables → Edit、`KURA_T` = `hello` を Add して Save し、新しいターミナルを開いて `$env:KURA_T` を表示する → `hello` が出て、`[term.env]` が `KURA_T = "hello"` を持つ。もう一度編集して消すとその行が消える — *Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` → It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line*
 - [x] **57.4** `[term.env]` に変数がある状態で `KURA_TERM_SHELL=cmd` を付けて kura を起動する → ペインは `cmd` を動かし、変数はそのまま設定されている — *Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable → The pane runs `cmd` and the variable is still set*
 
