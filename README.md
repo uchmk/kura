@@ -321,12 +321,12 @@ registered: the menu is read back out of the config every time it opens.
 top of the [common theme](#commontoml-the-clock) (`tsumugi Dark` when common.toml chooses none), and stay
 over it when another is chosen: what `theme.toml` sets keeps its colour, the rest takes the common
 theme's. Without a `theme.toml`, kura has the colours of tsumugi and yagura (v0.100.0). A light theme starts with `[app]` / `overall = { bg = "#ffffff", fg =
-"#222222" }`; the preview's text keeps its own colours, from `syntect_theme` below. On a light
+"#222222" }`; the preview's text takes its colours from the app theme (light or dark), see `syntect_theme` below. On a light
 background (by its relative luminance) the warning colour and a plain file's name turn dark amber
 and dark grey, and so does the text when `fg` is not given; the cursor's bar becomes a light tint
 of the background (v0.81.0). Colors may be ANSI names
-(`lightblue`, `darkgray`, `reset`) or hex (`#7ab8f5`). `syntect_theme` selects the preview's
-syntax theme.
+(`lightblue`, `darkgray`, `reset`) or hex (`#7ab8f5`). `syntect_theme` is accepted so a yazi `theme.toml` loads, and ignored (v0.140.0): the preview's
+syntax colours come from the app theme (`ito-syntax`, light and dark aware), not a named syntect theme.
 
 ### config.toml (GUI-only settings)
 
@@ -1091,7 +1091,7 @@ lines to know how tall the content is would cost the frame that virtualizing jus
         …                   ▏ ▟▓▓▓▓   ← where the pane is looking
 ```
 
-Each band is one rectangle spanning the widest line in it, colored by what syntect said, so a block
+Each band is one rectangle spanning the widest line in it, colored by what the syntax highlighter said, so a block
 of code reads as a block, a comment header as a lighter band, and a blank run as a gap. No glyphs
 are drawn: at two pixels a line a letter is a smudge, and laying out ten thousand of them is exactly
 the cost being avoided. The rows are summarised on the preview worker, six bytes a line.
@@ -1926,7 +1926,7 @@ src/
   fs/            entries, sorting, scan pool, file operations, watcher, archives, git status, undelete
   rename.rs      bulk-rename rules and the order a batch of renames has to happen in
   diff.rs        comparing two files line by line, and the worker that reads them
-  preview/       preview worker: text + syntect, Markdown layout, images, SVG, fonts, shell thumbnails, minimap rows
+  preview/       preview worker: text + ito-syntax, Markdown layout, images, SVG, fonts, shell thumbnails, minimap rows
   terminal.rs    the embedded shell, from the ito-pane crate shared with tsumugi
   ui/            painting: columns, preview pane, terminal pane, overlays
   spot.rs        the spot panel's providers (<Tab>)
@@ -2048,9 +2048,9 @@ requirements: `cargo about` or `cargo bundle-licenses` will generate the attribu
 
 Two of them also ship data rather than only code:
 
-- **syntect** and **two-face** embed syntax definitions collected by [bat], which are third-party
-  Sublime Text grammars under their own (mostly MIT) licenses. See two-face's acknowledgements for
-  the list.
+- **ito-syntax** (from uchmk/ito) embeds syntax definitions collected by [bat], which are third-party
+  Sublime Text grammars under their own (mostly MIT) licenses. See ito's and two-face's acknowledgements
+  for the list.
 - **resvg** brings its own font handling; the fonts kura draws with are the ones already installed
   on your system and are not redistributed here.
 

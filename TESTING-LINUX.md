@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 715 件（TESTING.md の全 909 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 719 件（TESTING.md の全 913 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1010,3 +1010,12 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **62.1** kura で何カ所かフォルダーを訪ね、検索（`s`）とシェルコマンド（`;`）を 1 回ずつ使って終了し、状態のフォルダーを見る → `history.toml`・`search-history.toml`・`shell-history.toml` があって TOML（`entries = [...]`）になっている。新しい `.txt` は書かれない — *Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder → `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written*
 - [ ] **62.2** kura を終了し、3 つの `.toml` を消して、状態のフォルダーに `history.txt`（1 行に `C:\dev<TAB>3<TAB>1700000000`）と `search-history.txt` / `shell-history.txt`（1 行に 1 つ）を置き、kura を起動して、最近のフォルダーの一覧と `s` のプロンプトの `<Up>` を見てから終了する → ジャンプの一覧と 2 つのプロンプトの履歴に `.txt` の中身が引き継がれ、3 つの `.toml` ができている。`.txt` は手つかず。もう一度起動すると `.toml` を読み、`.txt` は見ない — *Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit → The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt`*
 - [ ] **62.3** 履歴のファイルを全部（`.toml` も `.txt` も）消して kura を起動する → トーストもエラーも無く起動し、ジャンプの一覧は空、プロンプトの `<Up>` は何も呼び出さない — *Delete every history file (`.toml` and `.txt`) and start kura → It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing*
+
+## 63. ito-syntax によるプレビューの構文の色（v0.140.0）
+
+プレビューの色とアウトラインは `ito-syntax` とアプリのテーマから来る。yazi の `syntect_theme` は読むが無視する。見た目の判断が本題。
+
+- [ ] **63.1** 暗いテーマで `.rs`、フェンスの `rust` 入りの `.md`、`.html` の順に開く → キーワード・文字列・コメント・数がそれぞれの色で、暗い背景で読める。フェンスの中は Rust として色が付き、HTML のソースにも色が付く — *On the dark theme, open a `.rs` file, then a `.md` file with a fenced `rust` block, then an `.html` file → Keywords, strings, comments and numbers have their own colours and read well on the dark background; the fenced block is coloured as Rust; the HTML source is coloured*
+- [ ] **63.2** 明るいテーマ（`<C-,>`）に切り替えて同じ 3 つを見る → 同じ種類が濃い色になり、明るい背景で読める。見えなくなる色が無い — *Switch to a light theme (`<C-,>`) and look at the same three files → The same tokens are darker and readable on the light background; nothing is invisible*
+- [ ] **63.3** `theme.toml` の `[mgr]` に `syntect_theme = "InspiredGitHub"` を書いて起動する → 警告なしで起動し、プレビューの色は変わらない — *Put `syntect_theme = "InspiredGitHub"` under `[mgr]` in `theme.toml` and start kura → It starts without a warning; the preview colours do not change*
+- [ ] **63.4** `.rs`・`.py`・`.toml` を開いてアウトラインの列を見る → `struct`・`impl`・`fn`・`class`・`[table]` が並び、インデントで入れ子になる。Enter でその行へ飛ぶ — *Open a `.rs`, a `.py` and a `.toml` file and look at the outline column → Items (`struct`, `impl`, `fn`, `class`, `[table]`) are listed and nest by indentation; Enter on one jumps to its line*

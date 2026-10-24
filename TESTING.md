@@ -1852,3 +1852,14 @@ The jump history and the search and shell prompt histories are kept as TOML in t
 | 62.1 | Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder | `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written |
 | 62.2 | Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit | The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt` |
 | 62.3 | Delete every history file (`.toml` and `.txt`) and start kura | It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing |
+
+## 63. Preview syntax colours from ito-syntax (v0.140.0)
+
+Syntax colours in the preview and the outline come from `ito-syntax` and the app theme. yazi's `syntect_theme` is read and ignored.
+
+| # | Do | Expect |
+|---|----|--------|
+| 63.1 | On the dark theme, open a `.rs` file, then a `.md` file with a fenced `rust` block, then an `.html` file | Keywords, strings, comments and numbers have their own colours and read well on the dark background; the fenced block is coloured as Rust; the HTML source is coloured |
+| 63.2 | Switch to a light theme (`<C-,>`) and look at the same three files | The same tokens are darker and readable on the light background; nothing is invisible |
+| 63.3 | Put `syntect_theme = "InspiredGitHub"` under `[mgr]` in `theme.toml` and start kura | It starts without a warning; the preview colours do not change |
+| 63.4 | Open a `.rs`, a `.py` and a `.toml` file and look at the outline column | Items (`struct`, `impl`, `fn`, `class`, `[table]`) are listed and nest by indentation; Enter on one jumps to its line |

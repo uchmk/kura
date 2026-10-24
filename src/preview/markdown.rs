@@ -7,14 +7,12 @@
 
 use std::ops::Range;
 
+use ito_syntax::Stream;
 use pulldown_cmark::{Alignment, BlockQuoteKind, CodeBlockKind, Event, MetadataBlockKind, Options, Parser, Tag, TagEnd};
-use syntect::easy::HighlightLines;
-use syntect::highlighting::{Highlighter, Theme};
-use syntect::parsing::{Scope, SyntaxReference, SyntaxSet};
-use syntect::util::LinesWithEndings;
 use unicode_width::UnicodeWidthChar;
 
-use super::text::{fence_syntax, find_token, spans_from};
+use super::hues::Hues;
+use super::text::{fence_path, spans_of, token_path};
 use super::{Doc, DocLine, LineKind, Span, TocEntry};
 
 /// Rendered lines kept; the source view still has the whole file.
@@ -34,15 +32,15 @@ const NO_END: &str = "（〔［｛〈《「『【〘〖‘“([{";
 
 /// Lay out `text` for a pane `cols` cells wide. The flag is set when the
 /// document was cut short.
-pub fn render(text: &str, cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Doc, bool) {
+pub fn render(text: &str, cols: u16, hues: &Hues) -> (Doc, bool) {
     let events: Vec<_> = Parser::new_ext(text, options()).into_offset_iter().collect();
-    lay_out(text, &events, cols, theme, syntaxes)
+    lay_out(text, &events, cols, hues)
 }
 
 /// Lay out a document already read into Markdown's events, each with the
 /// byte range of `text` it came from. HTML is read into the same events
 /// (`html.rs`), so both look alike on screen.
-pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Doc, bool) {
+pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u16, hues: &Hues) -> (Doc, bool) {
     let cols = if cols == 0 { 80 } else { cols };
 
     // The outline's width decides how much room the body gets, so headings
@@ -55,7 +53,7 @@ pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u1
         if cols >= 80 && named >= 2 { super::outline_cols(labels.iter().map(|l| str_width(l)).max().unwrap_or(0), cols) } else { 0 };
     let body_cols = if toc_cols > 0 { cols - toc_cols - 3 } else { cols }.min(MAX_BODY);
 
-    let mut b = Builder::new(text, theme, syntaxes, body_cols as usize);
+    let mut b = Builder::new(text, hues, body_cols as usize);
     b.run(events);
 
     // Kept without a column too: a narrow pane shows it over the text when
@@ -109,7 +107,8 @@ fn outline(events: &[(Event<'_>, Range<usize>)]) -> Vec<(u8, String)> {
     out
 }
 
-/// Colors come from the syntax theme so the page matches the source view.
+/// Colors come from the app's theme (the same `Hues` the source view uses) so
+/// the page matches the source view.
 #[derive(Clone, Copy, Default)]
 struct Palette {
     heading: Option<[u8; 3]>,
@@ -123,31 +122,15 @@ struct Palette {
 }
 
 impl Palette {
-    fn new(theme: &Theme) -> Self {
-        let hl = Highlighter::new(theme);
-        let base = rgb(hl.get_default().foreground);
-        // A scope the theme leaves at the default foreground falls through to
-        // the next candidate.
-        let pick = |scopes: &[&str]| {
-            scopes.iter().find_map(|s| {
-                let style = hl.style_for_stack(&[Scope::new(s).ok()?]);
-                Some(rgb(style.foreground)).filter(|&c| c != base)
-            })
-        };
+    fn new(hues: &Hues) -> Self {
         Self {
-            heading: pick(&["markup.heading", "entity.name.function"]),
-            code: pick(&["markup.raw.inline", "markup.raw", "string"]),
-            link: pick(&["markup.underline.link", "support.function", "entity.name.function"]),
-            quote: pick(&["markup.quote", "comment"]),
-            marker: pick(&["punctuation.definition.list_item", "markup.list", "keyword"]),
-            dim: pick(&["comment"]),
-            alerts: [
-                pick(&["entity.name.function"]),
-                pick(&["markup.inserted", "string"]),
-                pick(&["keyword"]),
-                pick(&["constant.numeric"]),
-                pick(&["markup.deleted", "variable"]),
-            ],
+            heading: Some(hues.heading),
+            code: Some(hues.code),
+            link: Some(hues.link),
+            quote: Some(hues.comment),
+            marker: Some(hues.marker),
+            dim: Some(hues.comment),
+            alerts: hues.alerts.map(Some),
         }
     }
 
@@ -164,10 +147,6 @@ fn alert_index(kind: BlockQuoteKind) -> usize {
         BlockQuoteKind::Warning => 3,
         BlockQuoteKind::Caution => 4,
     }
-}
-
-fn rgb(c: syntect::highlighting::Color) -> [u8; 3] {
-    [c.r, c.g, c.b]
 }
 
 /// Something every line inside it is prefixed with.
@@ -187,9 +166,10 @@ impl Container {
     }
 }
 
-struct Code<'a> {
+struct Code {
     text: String,
-    syntax: Option<&'a SyntaxReference>,
+    /// A path `ito-syntax` knows the fence's language by.
+    syntax: Option<String>,
     /// Source line of the first line of code.
     src: usize,
 }
@@ -209,8 +189,7 @@ pub(super) struct Row {
 }
 
 struct Builder<'a> {
-    theme: &'a Theme,
-    syntaxes: &'a SyntaxSet,
+    hues: &'a Hues,
     pal: Palette,
     body: usize,
     line_starts: Vec<usize>,
@@ -241,17 +220,16 @@ struct Builder<'a> {
 
     /// Alt text and URL of an image being read.
     image: Option<(String, String)>,
-    code: Option<Code<'a>>,
+    code: Option<Code>,
     html: Option<(String, usize)>,
     table: Option<Table>,
 }
 
 impl<'a> Builder<'a> {
-    fn new(text: &str, theme: &'a Theme, syntaxes: &'a SyntaxSet, body: usize) -> Self {
+    fn new(text: &str, hues: &'a Hues, body: usize) -> Self {
         Self {
-            theme,
-            syntaxes,
-            pal: Palette::new(theme),
+            hues,
+            pal: Palette::new(hues),
             body,
             line_starts: std::iter::once(0).chain(text.match_indices('\n').map(|(i, _)| i + 1)).collect(),
             lines: Vec::new(),
@@ -338,7 +316,7 @@ impl<'a> Builder<'a> {
             Tag::CodeBlock(kind) => {
                 self.flush(LineKind::Text);
                 let (syntax, first) = match kind {
-                    CodeBlockKind::Fenced(info) => (fence_syntax(self.syntaxes, &info), src + 1),
+                    CodeBlockKind::Fenced(info) => (fence_path(&info), src + 1),
                     CodeBlockKind::Indented => (None, src),
                 };
                 self.code = Some(Code { text: String::new(), syntax, src: first });
@@ -349,7 +327,7 @@ impl<'a> Builder<'a> {
                     MetadataBlockKind::YamlStyle => "yaml",
                     MetadataBlockKind::PlusesStyle => "toml",
                 };
-                let syntax = find_token(self.syntaxes, lang);
+                let syntax = token_path(lang);
                 self.code = Some(Code { text: String::new(), syntax, src: src + 1 });
             }
             Tag::HtmlBlock => {
@@ -673,17 +651,17 @@ impl<'a> Builder<'a> {
         self.last_blank = false;
     }
 
-    fn code_block(&mut self, code: Code<'a>) {
+    fn code_block(&mut self, code: Code) {
         // One cell of padding inside the band on either side.
         let width = self.avail().saturating_sub(2).max(8);
-        let mut hl = code.syntax.map(|s| HighlightLines::new(s, self.theme));
-        for (i, line) in LinesWithEndings::from(&code.text).enumerate() {
+        let mut hl = code.syntax.as_deref().and_then(Stream::new);
+        for (i, line) in code.text.lines().enumerate() {
             if self.clipped {
                 break;
             }
-            let spans = match hl.as_mut().map(|h| h.highlight_line(line, self.syntaxes)) {
-                Some(Ok(regions)) => spans_from(regions),
-                _ => {
+            let spans = match hl.as_mut().map(|h| h.line(line)) {
+                Some(ink) => spans_of(line, &ink, self.hues),
+                None => {
                     let text = line.trim_end_matches(['\n', '\r']);
                     let span = Span { text: text.into(), color: self.pal.code, ..Default::default() };
                     if text.is_empty() {
@@ -734,12 +712,6 @@ fn cw(c: char) -> usize {
 
 fn is_wide(c: char) -> bool {
     cw(c) >= 2
-}
-
-/// The separator colour a table is drawn with, from the theme's own foreground.
-/// Exposed so a sibling previewer's table looks like Markdown's.
-pub(super) fn dim_of(theme: &Theme) -> Option<[u8; 3]> {
-    Palette::new(theme).dim
 }
 
 /// Lay a table out as lines: columns measured, padded to their alignment, joined
@@ -1176,8 +1148,7 @@ mod tests {
     use super::*;
 
     fn doc(src: &str, cols: u16) -> Doc {
-        let (syntaxes, themes) = super::super::text::sets();
-        render(src, cols, &themes.themes["base16-ocean.dark"], syntaxes).0
+        render(src, cols, &super::super::hues::Hues::default()).0
     }
 
     fn line_text(l: &DocLine) -> String {

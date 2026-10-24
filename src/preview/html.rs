@@ -12,11 +12,10 @@
 use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, LinkType, Tag, TagEnd};
-use syntect::highlighting::Theme;
-use syntect::parsing::SyntaxSet;
 
+use super::hues::Hues;
 use super::markdown::{decode_entities, lay_out};
-use super::text::find_token;
+use super::text::token_path;
 use super::Doc;
 
 /// A tag, or the attributes of one, longer than this is treated as text.
@@ -94,9 +93,9 @@ type Attrs = Vec<(String, Option<String>)>;
 type Events = Vec<(Event<'static>, Range<usize>)>;
 
 /// Lay out an HTML document for a pane `cols` cells wide.
-pub fn render(text: &str, cols: u16, theme: &Theme, syntaxes: &SyntaxSet) -> (Doc, bool) {
-    let events = events(text, &|l| find_token(syntaxes, l).is_some());
-    lay_out(text, &events, cols, theme, syntaxes)
+pub fn render(text: &str, cols: u16, hues: &Hues) -> (Doc, bool) {
+    let events = events(text, &|l| token_path(l).is_some());
+    lay_out(text, &events, cols, hues)
 }
 
 /// The document as Markdown's events. Each range is empty and marks where in
@@ -1198,12 +1197,9 @@ fn strip_prefix(word: &str) -> Option<&str> {
 mod tests {
     use super::*;
     use crate::preview::LineKind;
-    use syntect::highlighting::ThemeSet;
 
     fn doc_at(html: &str, cols: u16) -> Doc {
-        let theme = ThemeSet::load_defaults().themes.remove("base16-ocean.dark").unwrap();
-        let syntaxes = SyntaxSet::load_defaults_newlines();
-        render(html, cols, &theme, &syntaxes).0
+        render(html, cols, &Hues::default()).0
     }
 
     fn doc(html: &str) -> Doc {

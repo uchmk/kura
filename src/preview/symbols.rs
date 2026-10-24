@@ -1,14 +1,12 @@
-//! Declarations (functions, types, modules) picked out of the scopes the
-//! highlighter already computes, for the outline next to source previews.
+//! Declarations (functions, types, modules) taken from the names the grammar
+//! marks as declared, for the outline next to source previews.
 //!
-//! Sublime grammars name what a line declares with `entity.name.<kind>`, so
-//! one pass over the parse serves both the colors and the outline, for every
-//! language bat ships a grammar for.
+//! Sublime grammars name what a line declares with `entity.name.<kind>`;
+//! `ito-syntax` hands those names over with the same parse that gives the
+//! colours, so one pass serves both, for every language bat ships a grammar
+//! for.
 
-use std::sync::OnceLock;
-
-use syntect::easy::ScopeRegionIterator;
-use syntect::parsing::{Scope, ScopeStack, ScopeStackOp};
+use ito_syntax::Decl;
 
 use super::TocEntry;
 
@@ -18,38 +16,32 @@ const MAX_LEVEL: usize = 4;
 const MAX_NAME: usize = 80;
 /// Kinds shown with their kind in front; functions go bare.
 const TAGGED: [&str; 10] = ["class", "struct", "enum", "union", "trait", "interface", "impl", "namespace", "macro", "type"];
+/// Words in front of a name that say what it declares, for the grammars that
+/// scope every type name `entity.name.type` (TypeScript, Go, ...).
+const KEYWORDS: [(&str, &str); 9] = [
+    ("class", "class"),
+    ("struct", "struct"),
+    ("enum", "enum"),
+    ("union", "union"),
+    ("trait", "trait"),
+    ("interface", "interface"),
+    ("namespace", "namespace"),
+    ("module", "namespace"),
+    ("type", "type"),
+];
 
 /// Fed the parse of a file line by line; keeps the first declaration on each
 /// line, nested by how far it is indented.
 #[derive(Default)]
 pub struct Collector {
-    stack: ScopeStack,
     /// Indents of the enclosing entries, outermost first.
     indents: Vec<usize>,
     entries: Vec<TocEntry>,
 }
 
 impl Collector {
-    pub fn feed(&mut self, line_idx: usize, line: &str, ops: &[(usize, ScopeStackOp)]) {
-        let mut found = None;
-        for (piece, op) in ScopeRegionIterator::new(ops, line) {
-            // A bad pop only means the grammar and the stack disagree; the
-            // colors carry on regardless, and so does the outline.
-            let _ = self.stack.apply(op);
-            if found.is_none() && !piece.trim().is_empty() {
-                found = classify(self.stack.as_slice()).map(|kind| (kind, piece.trim()));
-            }
-        }
-        let Some((kind, name)) = found else { return };
-        let label = match kind {
-            Kind::Function => name.to_owned(),
-            Kind::Tagged(tag) => format!("{tag} {name}"),
-            // `[dependencies.serde]` comes in pieces; the line says it whole.
-            Kind::Table => {
-                let line = line.trim();
-                line.rfind(']').map_or(line, |end| &line[..=end]).to_owned()
-            }
-        };
+    pub fn feed(&mut self, line_idx: usize, line: &str, decls: &[Decl]) {
+        let Some(label) = decls.iter().find_map(|d| entry_label(line, d)) else { return };
 
         let indent = line.len() - line.trim_start().len();
         while self.indents.last().is_some_and(|&w| w >= indent) {
@@ -70,64 +62,38 @@ impl Collector {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Kind {
-    Function,
-    Tagged(&'static str),
-    /// A TOML table header.
-    Table,
-}
-
-struct Scopes {
-    entity: Scope,
-    call: Scope,
-    /// Where TypeScript names types it merely refers to.
-    type_refs: [Scope; 3],
-    /// Grammars that also use a bare `entity.name.type` for references.
-    typescript: [Scope; 2],
-}
-
-fn scopes() -> &'static Scopes {
-    static SCOPES: OnceLock<Scopes> = OnceLock::new();
-    SCOPES.get_or_init(|| {
-        let s = |name| Scope::new(name).expect("valid scope");
-        Scopes {
-            entity: s("entity.name"),
-            call: s("meta.function-call"),
-            type_refs: [s("meta.type.annotation"), s("meta.return.type"), s("meta.type.parameters")],
-            typescript: [s("source.ts"), s("source.tsx")],
-        }
-    })
-}
-
-/// What the innermost `entity.name` on the stack declares, if anything.
-fn classify(stack: &[Scope]) -> Option<Kind> {
-    let s = scopes();
-    let name = stack.iter().rev().find(|sc| s.entity.is_prefix_of(**sc))?;
-    let within = |p: &Scope| stack.iter().any(|sc| p.is_prefix_of(*sc));
-    let full = name.build_string();
-    let mut atoms = full.split('.').skip(2);
-    let tag = |t: &str| TAGGED.iter().find(|&&k| k == t).map(|&k| Kind::Tagged(k));
-    match atoms.next()? {
-        // TypeScript's and PHP's grammars name calls like definitions.
-        "function" => (!within(&s.call)).then_some(Kind::Function),
-        "table" => Some(Kind::Table),
-        "module" => Some(Kind::Tagged("mod")),
-        // `entity.name.type.class.ts`, `entity.name.type.go`, ...
-        "type" => {
-            if s.type_refs.iter().any(within) {
-                return None;
-            }
-            match atoms.next() {
-                Some("alias") => Some(Kind::Tagged("type")),
-                Some("module") => Some(Kind::Tagged("namespace")),
-                Some(sub) if tag(sub).is_some() => tag(sub),
-                _ if s.typescript.iter().any(within) => None,
-                _ => Some(Kind::Tagged("type")),
-            }
-        }
-        kind => tag(kind),
+/// What the outline says for a declaration, or `None` for one it leaves out.
+fn entry_label(line: &str, decl: &Decl) -> Option<String> {
+    let name = line.get(decl.range.clone())?.trim();
+    if name.is_empty() {
+        return None;
     }
+    match decl.kind.as_str() {
+        // `new Foo()` names the constructor it calls, not one it declares.
+        "function" if line[..decl.range.start].trim_end().ends_with("new") => None,
+        "function" => Some(name.to_owned()),
+        // `[dependencies.serde]` comes in pieces; the line says it whole.
+        "table" => {
+            let line = line.trim();
+            Some(line.rfind(']').map_or(line, |end| &line[..=end]).to_owned())
+        }
+        "module" => Some(format!("mod {name}")),
+        // `entity.name.type.class.ts`, `entity.name.type.go`, ...: told by the
+        // word in front. A type name with none is a reference
+        // (`let y: Map<string, Foo>`), not a declaration.
+        "type" => {
+            let tag = keyword_before(&line[..decl.range.start])?;
+            Some(format!("{tag} {name}"))
+        }
+        kind => TAGGED.iter().find(|&&k| k == kind).map(|k| format!("{k} {name}")),
+    }
+}
+
+/// The declaring word the text in front of a name ends with
+/// (`export class `, `type `), if it does.
+fn keyword_before(before: &str) -> Option<&'static str> {
+    let word = before.trim_end().rsplit(|c: char| !(c.is_alphanumeric() || c == '_')).next()?;
+    KEYWORDS.iter().find(|(k, _)| *k == word).map(|&(_, tag)| tag)
 }
 
 fn clip(s: &str) -> String {
@@ -139,21 +105,15 @@ fn clip(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use syntect::parsing::{ParseState, SyntaxSet};
-    use syntect::util::LinesWithEndings;
+    use ito_syntax::Stream;
 
     use super::*;
 
-    fn syntaxes() -> &'static SyntaxSet {
-        &super::super::text::sets().0
-    }
-
     fn outline(ext: &str, src: &str) -> Vec<(usize, u8, String)> {
-        let ss = syntaxes();
-        let mut ps = ParseState::new(ss.find_syntax_by_extension(ext).unwrap());
+        let mut stream = Stream::new(&format!("x.{ext}")).unwrap();
         let mut c = Collector::default();
-        for (i, line) in LinesWithEndings::from(src).enumerate() {
-            c.feed(i, line, &ps.parse_line(line, ss).unwrap());
+        for (i, line) in src.lines().enumerate() {
+            c.feed(i, line, &stream.line_decls(line).1);
         }
         let entries = c.finish();
         let lines = src.lines().count();
