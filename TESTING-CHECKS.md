@@ -1018,8 +1018,8 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **59.2** バーの空いたところをドラッグする → 窓が動く。ダブルクリックで最大化し、もう一度で戻る — *Drag the empty part of the bar → The window moves; double-click maximizes and restores it*
 - [ ] **59.3** 最小化、最大化、元に戻す、閉じるを順にクリックする → それぞれ名前どおりに動く。閉じると kura が終わり、窓の場所を保存する — *Click minimize, maximize, restore, then close → Each does what it says; close ends kura and saves the window's place*
 - [ ] **59.4** 窓の各辺と各隅をドラッグする → その辺から窓の大きさが変わる — *Drag each edge and corner of the window → The window resizes from that edge*
-- [ ] **59.5** パレットの箱をクリックし、続けて `Ctrl+Shift+P` を押す → どちらでもコマンド パレットが開く — *Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways*
-- [ ] **59.6** トーストの出ること（`y`）をして、ベルを見る → ベルに 1 のバッジが付く。トーストは消えるが、ベルの一覧には残る — *Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it*
+- [~] **59.5** パレットの箱をクリックし、続けて `Ctrl+Shift+P` を押す → どちらでもコマンド パレットが開く — *Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways*
+- [x] **59.6** トーストの出ること（`y`）をして、ベルを見る → ベルに 1 のバッジが付く。トーストは消えるが、ベルの一覧には残る — *Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it*
 - [ ] **59.7** ベルをクリックする → 下に一覧が下がり、新しい順で、未読は明るい。`Esc` か外のクリックで閉じ、Mark all read でバッジが消える — *Click the bell → A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge*
 - [ ] **59.8** エラーのトーストを出す（開けないファイルを開く）→ 読むまでバッジは赤い — *Cause an error toast (open a file that cannot open) → The badge is red until it is read*
 - [ ] **59.9** 設定で言語を日本語にする → バーのヒントと一覧の言葉が日本語になる — *Change the language to Japanese in Settings → The bar's hints and the list's words are Japanese*
