@@ -1005,12 +1005,12 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 ## 58. Advanced page: folders and Reset (v0.130.0)
 
-- [ ] **58.1** `Ctrl+,` → Advanced で Open settings folder を押す → 設定が閉じ、一覧が kura の設定のフォルダーを出す — *`Ctrl+,` → Advanced, press Open settings folder → Settings closes and the list shows kura's settings folder*
-- [ ] **58.2** Open data folder を押す → 設定が閉じ、一覧が kura のデータ（state）のフォルダーを出す — *Press Open data folder → Settings closes and the list shows kura's data (state) folder*
-- [ ] **58.3** Reset を 1 回だけ押して、待つ → 何も変わらない。ボタンは 2 回目の押下を求める — *Press Reset once, then wait → Nothing is changed; the button asks for a second press*
-- [ ] **58.4** Reset を 2 回押す → `config.toml` と `keymap.toml` が元の隣で `*.bak-<秒>` になり、既定がすぐ効き、残したファイルの数をトーストが言う。テーマと `common.toml` には触れない — *Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched*
-- [ ] **58.5** ファイルが無い状態でもう一度 Reset を押す → 戻すものが無かったとトーストが言う — *Press Reset again with no files → A toast says there was nothing to reset*
-- [ ] **58.6** 設定のサイドバーの並びを見る → General、Theme、config.toml、Keys、Notifications、Advanced、About — *Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About*
+- [x] **58.1** `Ctrl+,` → Advanced で Open settings folder を押す → 設定が閉じ、一覧が kura の設定のフォルダーを出す — *`Ctrl+,` → Advanced, press Open settings folder → Settings closes and the list shows kura's settings folder*
+- [x] **58.2** Open data folder を押す → 設定が閉じ、一覧が kura のデータ（state）のフォルダーを出す — *Press Open data folder → Settings closes and the list shows kura's data (state) folder*
+- [x] **58.3** Reset を 1 回だけ押して、待つ → 何も変わらない。ボタンは 2 回目の押下を求める — *Press Reset once, then wait → Nothing is changed; the button asks for a second press*
+- [~] **58.4** Reset を 2 回押す → `config.toml` と `keymap.toml` が元の隣で `*.bak-<秒>` になり、既定がすぐ効き、残したファイルの数をトーストが言う。テーマと `common.toml` には触れない — *Press Reset twice → `config.toml` and `keymap.toml` become `*.bak-<seconds>` beside the originals, the defaults apply at once, a toast says how many files were kept; the theme and `common.toml` are untouched*
+- [x] **58.5** ファイルが無い状態でもう一度 Reset を押す → 戻すものが無かったとトーストが言う — *Press Reset again with no files → A toast says there was nothing to reset*
+- [x] **58.6** 設定のサイドバーの並びを見る → General、Theme、config.toml、Keys、Notifications、Advanced、About — *Look at the sidebar order of Settings → General, Theme, config.toml, Keys, Notifications, Advanced, About*
 
 ## 59. Own title bar and the bell (v0.131.0)
 
