@@ -417,14 +417,9 @@ impl App {
         let Some(view) = self.log_view() else { return };
         let found = view.found();
         let tab = &self.tabs[self.active];
-        // From the last hit stepped to, or else from the top of the view.
-        let from = tab.find_at.unwrap_or(tab.preview_offset + 3);
-        let next = match prev {
-            true => found.lines.iter().rev().find(|&&l| (l as usize) < from),
-            false => found.lines.iter().find(|&&l| (l as usize) > from || (tab.find_at.is_none() && l as usize == from)),
-        };
+        let next = next_hit(&found.lines, tab.find_at, tab.preview_offset, prev);
         match next {
-            Some(&l) => {
+            Some(l) => {
                 self.tabs[self.active].find_at = Some(l as usize);
                 self.tabs[self.active].preview_offset = (l as usize).saturating_sub(3);
                 view.focus(l as usize);
@@ -715,5 +710,39 @@ impl App {
         if all || what.select {
             tab.clear_selection();
         }
+    }
+}
+
+/// The hit a log search steps to: from the last hit stepped to, or else from the
+/// top of the view (a hit on the first rows counts, so the first step is not
+/// skipped past a match that is already on screen).
+fn next_hit(lines: &[u32], find_at: Option<usize>, top: usize, prev: bool) -> Option<u32> {
+    let from = find_at.unwrap_or(top + 3);
+    match prev {
+        true => lines.iter().rev().copied().find(|&l| (l as usize) < from),
+        false => lines.iter().copied().find(|&l| (l as usize) > from || (find_at.is_none() && l as usize >= top)),
+    }
+}
+
+#[cfg(test)]
+mod next_hit_tests {
+    use super::next_hit;
+
+    #[test]
+    fn first_step_finds_a_hit_on_the_first_rows() {
+        assert_eq!(next_hit(&[0, 50], None, 0, false), Some(0));
+        assert_eq!(next_hit(&[1, 50], None, 0, false), Some(1));
+    }
+
+    #[test]
+    fn steps_on_from_the_last_hit() {
+        assert_eq!(next_hit(&[0, 50], Some(0), 0, false), Some(50));
+        assert_eq!(next_hit(&[0, 50], Some(50), 47, true), Some(0));
+        assert_eq!(next_hit(&[0, 50], Some(50), 47, false), None);
+    }
+
+    #[test]
+    fn first_step_skips_hits_above_the_view() {
+        assert_eq!(next_hit(&[2, 90], None, 40, false), Some(90));
     }
 }
