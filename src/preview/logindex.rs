@@ -456,7 +456,16 @@ impl LogIndex {
             at.clear();
             for w in starts.windows(2) {
                 at.push(text.len());
-                text.push_str(&self.decode(&bytes[(w[0] - a) as usize..((w[1] - a) as usize).min(bytes.len())]));
+                let line = self.decode(&bytes[(w[0] - a) as usize..((w[1] - a) as usize).min(bytes.len())]);
+                // A CRLF break joins the lines as a plain LF, so a query holding
+                // a newline in it finds a Windows log the way it finds a Unix one.
+                match line.strip_suffix("\r\n") {
+                    Some(l) => {
+                        text.push_str(l);
+                        text.push('\n');
+                    }
+                    None => text.push_str(&line),
+                }
             }
             // This window owns the lines whose start is not within the overlap of its end.
             let own_to = if last {
@@ -904,6 +913,13 @@ last
         let want: Vec<u32> = text.lines().enumerate().filter(|(_, l)| l.starts_with("hit")).map(|(n, _)| n as u32).collect();
         assert_eq!(hits(&i, "^hit"), want.to_vec(), "regex with ^ over plain lines");
         assert_eq!(hits(&i, "(?m)^hit"), want);
+    }
+
+    #[test]
+    fn a_query_with_a_newline_finds_a_crlf_log() {
+        let i = index("li-crlf-find", b"a\r\nerror\r\nretry\r\nz\r\n");
+        assert_eq!(hits(&i, r"error\nretry"), vec![1]);
+        assert_eq!(hits(&i, r"(?m)^error$"), vec![1]);
     }
 
     #[test]
