@@ -2423,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.139.29"
+version = "0.139.30"
 dependencies = [
  "ab_glyph",
  "arboard",

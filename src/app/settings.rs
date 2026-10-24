@@ -373,6 +373,11 @@ impl App {
     /// the defaults back. common.toml and the themes are left alone.
     pub fn settings_reset(&mut self) {
         let files: Vec<PathBuf> = self.own_config_in_force().into_iter().chain(Self::own_keymap()).collect();
+        // The watchers read the defaults back a moment later; their "Reloaded"
+        // toast would replace the one that says how many files were kept.
+        if files.iter().any(|f| f.exists()) {
+            self.kura_wrote = Some(Instant::now());
+        }
         let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
         std::thread::spawn(move || {
             let _ = tx.send(match move_aside(&files) {
