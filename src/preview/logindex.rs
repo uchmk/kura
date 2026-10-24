@@ -88,9 +88,14 @@ pub fn guess(head: &[u8]) -> (Enc, u64) {
         Err(e) if e.error_len().is_none() => return (Enc::Utf8, 0),
         _ => {}
     }
+    // A head cut in the middle of a two- or three-byte character is not an error
+    // either, so up to two bytes of the end may be left off.
+    let cuts = if head.len() >= SNIFF_BYTES { 0..=2 } else { 0..=0 };
     for enc in [encoding_rs::EUC_JP, encoding_rs::SHIFT_JIS] {
-        if enc.decode_without_bom_handling_and_without_replacement(whole).is_some() {
-            return (Enc::Legacy(enc), 0);
+        for cut in cuts.clone() {
+            if enc.decode_without_bom_handling_and_without_replacement(&head[..head.len() - cut]).is_some() {
+                return (Enc::Legacy(enc), 0);
+            }
         }
     }
     (Enc::Utf8, 0)
@@ -1128,6 +1133,16 @@ three needle
             assert_eq!(i.lines(), 60);
             assert_eq!(i.read(1, 1), vec!["エラー：接続できません"], "{}", enc.name());
             assert_eq!(hits(&i, "接続").len(), 20);
+        }
+        // A head of SNIFF_BYTES that ends inside a character still tells the encoding.
+        for cut in 0..2 {
+            let line = "行 日本語のログ ok
+";
+            let (one, _, _) = encoding_rs::SHIFT_JIS.encode(line);
+            let mut b: Vec<u8> = one.iter().copied().cycle().take(SNIFF_BYTES - 1 - cut).collect();
+            b.extend_from_slice(&one);
+            let (e, _) = guess(&b[..SNIFF_BYTES]);
+            assert!(matches!(e, Enc::Legacy(_)), "cut {cut}");
         }
         for be in [false, true] {
             let mut b = Vec::new();
