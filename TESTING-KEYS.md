@@ -58,9 +58,9 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-0>` — Fit the image to the pane · `zoom fit`
 - [x] `<A-1>` — Show the image at 1:1 · `zoom actual`
 - [x] `<A-n>` — Show or hide the preview's minimap · `minimap`
-- [ ] `<A-/>` — Find in a huge log shown in the preview (n / N step through the hits) · `preview_find`
-- [ ] `<A-f>` — Follow the end of a huge log as it grows (tail -f) · `preview_follow`
-- [ ] `<A-y>` — Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen · `preview_copy_line`
+- [x] `<A-/>` — Find in a huge log shown in the preview (n / N step through the hits) · `preview_find`
+- [x] `<A-f>` — Follow the end of a huge log as it grows (tail -f) · `preview_follow`
+- [x] `<A-y>` — Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen · `preview_copy_line`
 - [x] `M` — Switch Markdown / HTML preview between rendered and source · `toggle_render`
 - [x] `<BackTab>` — Focus the preview's outline (functions / headings) · `toggle_outline`
 - [x] `<Tab>` — Spot hovered file · `spot`
