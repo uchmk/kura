@@ -1,1 +1,3 @@
 # Known gaps against ito, kept visible on purpose: `<crate> <reason>`. Each line is a migration still to do, not a decision to stay.
+syntect migrate the preview highlighting (8 files under src/preview, src/mime.rs, src/config/theme.rs) to ito-syntax; needs the owner to OK a large move
+two-face same migration as syntect (ito-syntax carries bat's grammars)

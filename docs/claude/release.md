@@ -42,6 +42,8 @@ CLAUDE.md の「ブランチ・バージョン・変更ログ」から分けた�
     v0.64.2 は `mkdir assets` がリポジトリの `assets/` とぶつかって表が載らず、これで後から載せた）。
     **`rewrite` に印を付けると、表の上の本文も `release-body.sh` でコミットから書き直す**（v0.83.4。手で書き足した部分は消える）。
     上限を入れる前のリリース（v0.79.0）の本文を直すのに使う。
+  - **`release.yml` の成功で終わりにしない。** `bash scripts/release-check.sh vX.Y.Z` が `RELEASE OK`（成果物 6 つ・SHA-256 の表に 6 行・ノート）になるまでが完了。
+    表を見ていないまま「完了」と報告しない。見られなければ「未確認」と理由を書く。
   - **ARM64 の行は issue で押す**（v0.101.3）。`arm64-rows` ジョブが、TESTING-ARM64.md の行をチェックリストにした
     issue「ARM64 release rows: <タグ>」（ラベル `release-arm64`）を立て、前の版の開いた issue を not planned で閉じる。
     ARM64 のノート PC（`auto-wintest.ps1 -Lane arm`）は、この issue が開いている間だけ動き、押して閉じる。
