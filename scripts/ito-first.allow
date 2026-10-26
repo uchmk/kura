@@ -1,3 +1,3 @@
 # Known gaps against ito, kept visible on purpose: `<crate> <reason>`. Each line is a migration still to do, not a decision to stay.
-syntect migrate the preview highlighting (8 files under src/preview, src/mime.rs, src/config/theme.rs) to ito-syntax; needs the owner to OK a large move
-two-face same migration as syntect (ito-syntax carries bat's grammars)
+syntect named-theme colours (yazi syntect_theme: RGB + bold/italic/underline) need ito#37 (`themes` feature); symbols.rs can move to ito-syntax line_decls first
+two-face same as syntect (ito#37); ito-syntax carries the grammar set
