@@ -946,6 +946,9 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         format!("{}/{}", tab.current.cursor + 1, tab.current.view.len())
     };
     right.push(pos);
+    if let Some(p) = preview_position(app) {
+        right.push(p);
+    }
     // The clock sits at the very end, in the strongest text colour; the
     // other items end where it begins.
     let mut right_edge = rect.right() - 10.0;
@@ -971,6 +974,21 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         };
         painter.rect_filled(Rect::from_min_size(rect.left_bottom() - Vec2::new(0.0, 2.0), Vec2::new(w, 2.0)), CornerRadius::ZERO, color);
     }
+}
+
+/// Where the text preview is scrolled to: `L120/4350 3%`, the line at the top
+/// of the pane, the file's lines, and how far down the furthest scroll that is.
+/// Nothing for a preview that is not text.
+fn preview_position(app: &App) -> Option<String> {
+    let crate::app::PreviewState::Ready(crate::preview::Payload::Text { lines, extent, .. }) = &app.preview.state else { return None };
+    let total = extent.total.max(lines.len());
+    if total == 0 {
+        return None;
+    }
+    let top = app.tabs[app.active].preview_offset;
+    let max = app.preview.max_offset;
+    let pct = (top.min(max) * 100).checked_div(max).map_or(100, |p| p.min(100));
+    Some(format!("L{}/{} {}%", (top + 1).min(total), total, pct))
 }
 
 /// The job the status bar speaks for: the one being worked on, or the one
