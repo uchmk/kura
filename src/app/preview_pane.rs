@@ -460,6 +460,17 @@ impl App {
             return false;
         }
         match a {
+            // A page or half a page, and the `<A-j>` / `<A-k>` seek, scroll the
+            // text: stepping that many *entries* jumped through whole sections
+            // (half the list's rows is two dozen headings), and a seek left the
+            // cursor behind. The cursor follows to the entry being read.
+            Act::Arrow(step @ Step::Pct(_)) | Act::Seek(step @ (Step::Rel(_) | Step::Pct(_))) => {
+                let lines: Vec<usize> = entries.iter().map(|e| e.line).collect();
+                self.seek(*step);
+                let top = self.tabs[self.active].preview_offset;
+                self.preview.outline = Some(lines.iter().rposition(|&l| l <= top).unwrap_or(0));
+                true
+            }
             Act::Arrow(step) => {
                 let page = self.tabs[self.active].page_rows.max(1);
                 let k = step.apply(cursor.min(entries.len() - 1), entries.len(), page);

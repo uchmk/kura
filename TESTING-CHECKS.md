@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 716 件（TESTING.md の全 910 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 717 件（TESTING.md の全 911 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -396,6 +396,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **20.6** `[ui] minimap = false` にして `<C-F5>` → ミニマップが出なくなる — *`[ui] minimap = false`, `<C-F5>` → No minimap*
 - [x] **20.7** `keymap.toml` に `[[mgr.prepend_keymap]]` で `on = "<F8>"`、`run = 'cd C:\Windows\System32'`（コマンドの中に引用符なし）を書く（v0.59.0）→ `<F8>` で `C:\Windows\System32` に着く。v0.59.0 までは `\` が落ち、エラーが `C:WindowsSystem32` を挙げていた — *In `keymap.toml`, `[[mgr.prepend_keymap]]` `on = "<F8>"`, `run = 'cd C:\Windows\System32'` -- no quotes inside the command (v0.59.0) → `<F8>` lands in `C:\Windows\System32`. Until v0.59.0 the backslashes were dropped and the error named `C:WindowsSystem32`*
 - [ ] **20.8** プレビューで `.rs`・`.toml`・` ```rust ` のフェンス入りの `.md`・`.html` を開く。既定のテーマと、`theme.toml` の `syntect_theme` を yazi 互換の別の名前にした場合の両方 → 色づけは以前どおり（キーワード・文字列・コメント）。Markdown のフェンスは言語ごとの色になり、アウトライン（`<C-o>`）は関数を挙げ、テーマの名前でパレットが変わる。拡張子の無い `#!` 付きのスクリプトも色が付く — *Open a `.rs`, a `.toml`, a `.md` with a fenced ```` ```rust ```` block, and an `.html` file in the preview, with the default theme and again with `syntect_theme` set to another yazi-compatible name in `theme.toml` (v0.139.38: the colouring now comes from ito-syntax) → Keywords, strings and comments are coloured as before, fenced code in the Markdown has its own language colours, the outline (`<C-o>`) still lists the functions, and the theme name changes the palette. A script without an extension but with a `#!` line is coloured too*
+- [ ] **20.9** 描画した Markdown で Contents の列にキーを渡し（`<C-o>`）、`<C-d>`・`<C-u>`・`<A-j>`・`<A-k>` を押す → 本文が半ページ（`<C-d>`/`<C-u>`）か 5 行（`<A-j>`/`<A-k>`）動き、反転した見出しが今読んでいる見出しに追従する。見出しを何十個も飛ばさない — *In rendered Markdown, give the Contents column the keys (`<C-o>`), then press `<C-d>`, `<C-u>`, `<A-j>` and `<A-k>` (v0.139.40) → The text scrolls by half a page (`<C-d>`/`<C-u>`) or five lines (`<A-j>`/`<A-k>`) and the highlighted heading follows the one being read; it no longer jumps dozens of headings*
 
 ## 21. 書庫（zip / tar / 7z）
 

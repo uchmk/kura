@@ -45,3 +45,30 @@ fn it_stops_where_the_pane_does() {
     assert_eq!(a.preview.outline, Some(2));
     assert_eq!(a.tabs[a.active].preview_offset, 300, "no frame is drawn past the end");
 }
+
+/// A half page and `<A-j>` scroll the text and the cursor follows the entry
+/// being read; they used to step that many entries, or leave the cursor behind.
+#[test]
+fn a_page_scrolls_the_text_and_the_cursor_follows() {
+    let mut a = app();
+    let toc = |line: usize| TocEntry { level: 1, label: format!("h{line}"), line };
+    a.preview.state = PreviewState::Ready(Payload::Text {
+        lines: Vec::new(),
+        map: Vec::new(),
+        extent: crate::preview::Extent { truncated: false, total: 500, ..Default::default() },
+        outline: (0..50).map(|k| toc(k * 10)).collect(),
+    });
+    a.preview.max_offset = 400;
+    a.tabs[a.active].page_rows = 40;
+    a.preview.outline = Some(0);
+
+    assert!(a.outline_act(&Act::Arrow(Step::Pct(50))));
+    assert_eq!(a.tabs[a.active].preview_offset, 20, "half of 40 rows, not twenty entries");
+    assert_eq!(a.preview.outline, Some(2));
+
+    assert!(a.outline_act(&Act::Seek(Step::Rel(5))));
+    assert_eq!(a.tabs[a.active].preview_offset, 25);
+    assert_eq!(a.preview.outline, Some(2), "line 25 is still under the entry at 20");
+    assert!(a.outline_act(&Act::Seek(Step::Rel(-25))));
+    assert_eq!(a.preview.outline, Some(0));
+}

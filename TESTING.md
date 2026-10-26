@@ -671,6 +671,7 @@ was that a gentle turn moved nothing at all.
 | 20.6 | `[ui] minimap = false`, `<C-F5>` | No minimap |
 | 20.7 | In `keymap.toml`, `[[mgr.prepend_keymap]]` `on = "<F8>"`, `run = 'cd C:\Windows\System32'` -- no quotes inside the command (v0.59.0) | `<F8>` lands in `C:\Windows\System32`. Until v0.59.0 the backslashes were dropped and the error named `C:WindowsSystem32` |
 | 20.8 | Open a `.rs`, a `.toml`, a `.md` with a fenced ```` ```rust ```` block, and an `.html` file in the preview, with the default theme and again with `syntect_theme` set to another yazi-compatible name in `theme.toml` (v0.139.38: the colouring now comes from ito-syntax) | Keywords, strings and comments are coloured as before, fenced code in the Markdown has its own language colours, the outline (`<C-o>`) still lists the functions, and the theme name changes the palette. A script without an extension but with a `#!` line is coloured too |
+| 20.9 | In rendered Markdown, give the Contents column the keys (`<C-o>`), then press `<C-d>`, `<C-u>`, `<A-j>` and `<A-k>` (v0.139.40) | The text scrolls by half a page (`<C-d>`/`<C-u>`) or five lines (`<A-j>`/`<A-k>`) and the highlighted heading follows the one being read; it no longer jumps dozens of headings |
 
 ## 21. Archives (v0.2.0)
 
