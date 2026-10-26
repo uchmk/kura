@@ -953,7 +953,8 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     if let Some(s) = selection_summary(tab) {
         right.push(s);
     }
-    right.extend(preview_notes(app));
+    let (notes, crumb) = preview_parts(app);
+    right.extend(notes);
     // The clock sits at the very end, in the strongest text colour; the
     // other items end where it begins.
     let mut right_edge = rect.right() - 10.0;
@@ -967,6 +968,18 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         let hover = ui.interact(area, ui.id().with("status-clock"), egui::Sense::hover());
         hover.on_hover_text(ito_common::Clock::full(&now, &app.lang));
         ui.ctx().request_repaint_after(ito_common::Clock::next_minute(&now));
+    }
+    // The heading or function name gets a slot of its own, as wide as
+    // CRUMB_CHARS glyphs and anchored beside the clock, so its length never
+    // moves the items to its left. The slot is kept while the preview has an
+    // outline, even when nothing is above the top line yet.
+    if let Some(crumb) = crumb {
+        let slot = painter.layout_no_wrap("0".repeat(CRUMB_CHARS + 1), f.clone(), theme.fg_dim).size().x;
+        let area = Rect::from_min_max(egui::pos2(right_edge - slot, rect.top()), egui::pos2(right_edge, rect.bottom()));
+        if let Some(c) = crumb {
+            painter.with_clip_rect(area).text(egui::pos2(area.left(), cy), Align2::LEFT_CENTER, c, f.clone(), theme.fg_dim);
+        }
+        right_edge = area.left() - 16.0;
     }
     painter.text(egui::pos2(right_edge, cy), Align2::RIGHT_CENTER, right.join("   "), f.clone(), theme.fg_dim);
 
@@ -1028,6 +1041,9 @@ fn position_text(line: usize, total: usize, cut: bool, top: usize, max: usize) -
     format!("L{}/{}{} {}%", (line + 1).min(total), total, if cut { "+" } else { "" }, pct)
 }
 
+/// How many characters of the heading or function name the status bar shows.
+const CRUMB_CHARS: usize = 28;
+
 /// The last heading or declaration at or above the top line, trimmed of the
 /// outline's indent and cut to a length the status bar can spare.
 fn preview_crumb(entries: &[crate::preview::TocEntry], top: usize, at: impl Fn(&crate::preview::TocEntry) -> usize) -> Option<String> {
@@ -1036,8 +1052,8 @@ fn preview_crumb(entries: &[crate::preview::TocEntry], top: usize, at: impl Fn(&
     if label.is_empty() {
         return None;
     }
-    let mut s: String = label.chars().take(28).collect();
-    if label.chars().count() > 28 {
+    let mut s: String = label.chars().take(CRUMB_CHARS).collect();
+    if label.chars().count() > CRUMB_CHARS {
         s.push('…');
     }
     Some(s)
@@ -1045,9 +1061,18 @@ fn preview_crumb(entries: &[crate::preview::TocEntry], top: usize, at: impl Fn(&
 
 /// What the status bar says of the preview: where it is scrolled to, how the
 /// file is encoded, the picture's size, and the heading or function at the top.
+#[cfg(test)]
 fn preview_notes(app: &App) -> Vec<String> {
+    let (mut out, crumb) = preview_parts(app);
+    out.extend(crumb.flatten());
+    out
+}
+
+/// The notes, and the heading slot: `Some` when the preview has an outline
+/// (the slot is then reserved), holding the heading when there is one.
+fn preview_parts(app: &App) -> (Vec<String>, Option<Option<String>>) {
     use crate::preview::Payload;
-    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return Vec::new() };
+    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return (Vec::new(), None) };
     let tab = &app.tabs[app.active];
     let top = tab.preview_offset;
     let max = app.preview.max_offset;
@@ -1063,16 +1088,16 @@ fn preview_notes(app: &App) -> Vec<String> {
     let crumb = match payload {
         Payload::Text { lines, extent, outline, .. } => {
             text(top, extent.total.max(lines.len()), extent);
-            preview_crumb(outline, top, |e| e.line)
+            (!outline.is_empty()).then(|| preview_crumb(outline, top, |e| e.line))
         }
         Payload::Markdown { doc, source, extent, .. } => {
             let total = extent.total.max(source.len());
             if app.render_markdown {
                 text(doc.src_for_line(top), total, extent);
-                preview_crumb(&doc.toc, top, |e| e.line)
+                (!doc.toc.is_empty()).then(|| preview_crumb(&doc.toc, top, |e| e.line))
             } else {
                 text(top, total, extent);
-                preview_crumb(&doc.toc, top, |e| doc.src_for_line(e.line))
+                (!doc.toc.is_empty()).then(|| preview_crumb(&doc.toc, top, |e| doc.src_for_line(e.line)))
             }
         }
         Payload::Log { view } => {
@@ -1093,8 +1118,7 @@ fn preview_notes(app: &App) -> Vec<String> {
         }
         _ => None,
     };
-    out.extend(crumb);
-    out
+    (out, crumb)
 }
 
 /// The job the status bar speaks for: the one being worked on, or the one

@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 721 件（TESTING.md の全 915 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 722 件（TESTING.md の全 916 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -401,6 +401,7 @@ fsutil hardlink list <新しくできたパス>
 - [ ] **20.11** Markdown をプレビューし（描画、次に `M` でソース）スクロールする → ステータスバーに Markdown でも `L<行>/<全行数> <割合>%` が出る（描画では元のソースの行）。続けて文字コードと改行（`UTF-8 LF`）、ペインの上端にある見出しが出る — *Preview a Markdown file (rendered, then `M` for the source) and scroll it → The status bar shows `L<line>/<total> <percent>%` for Markdown too (the rendered view reports the source line it came from), then the encoding and line ending (`UTF-8 LF`), then the heading at the top of the pane*
 - [ ] **20.12** 関数のあるソース、Shift_JIS のファイル、CRLF のファイルをプレビューし、次に PNG と SVG をプレビューする → 上端の関数名・見出し名、`Shift_JIS` / `UTF-8 CRLF`、画像では `PNG 800×600` / `SVG 幅×高さ` が出る。途中までしか読まないテキストは `L1/5237+` になる — *Preview a source file with functions, a Shift_JIS file and a CRLF file; then a PNG and an SVG → The bar shows the function or heading name at the top, `Shift_JIS` / `UTF-8 CRLF`, and for pictures `PNG 800×600` / `SVG w×h`; a text file read only in part shows `L1/5237+`*
 - [ ] **20.13** git のリポジトリで変更のあるフォルダを開き、ファイルを 2 つ `<Space>` で選ぶ → ブランチの後に件数（`M3 +2 ?1`: 変更・ステージ済み・未追跡。`!` は衝突、`D` は削除）、フォルダのファイルの合計 `files <サイズ>`、選んだ分 `selected <サイズ>` が出る — *In a folder with changes in a git repository, mark two files with `<Space>` → The bar shows counts after the branch (`M3 +2 ?1`: modified, staged, untracked; `!` conflict, `D` deleted), `files <size>` for the folder's files and `selected <size>` for the marked ones*
+- [ ] **20.14** Markdown やソースを見出しをいくつか越えてスクロールし、アウトラインのないファイルも開く → 見出し・関数の名前は時計の隣の固定の幅に出て、名前の長さが変わっても左の項目（位置・サイズ・`L…`・文字コード）は動かない。アウトラインのないファイルでは枠が空く — *Scroll a Markdown or source file past several headings, then open a file with no outline → The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back*
 
 ## 21. 書庫（zip / tar / 7z）
 
