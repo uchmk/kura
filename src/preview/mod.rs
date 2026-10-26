@@ -554,14 +554,14 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
         let cut = head.len() >= req.max_bytes;
         if mime == "text/csv" {
             let delim = csv::delimiter(req.ext.as_deref());
-            let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
+            let dim = markdown::dim_of(&req.syntect_theme);
             return csv::render(text.as_bytes(), delim, req.key.cols, dim, if cut { 0 } else { usize::MAX });
         }
         return text::render_cut(text.as_bytes(), cut, req, syntax);
     }
     if mime == "text/csv" {
         let delim = csv::delimiter(req.ext.as_deref());
-        let dim = syntax.theme(&req.syntect_theme).map(markdown::dim_of).unwrap_or_default();
+        let dim = markdown::dim_of(&req.syntect_theme);
         return csv::render(&head, delim, req.key.cols, dim, req.max_bytes);
     }
     text::render(&head, req, syntax)

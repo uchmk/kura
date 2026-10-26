@@ -1,3 +1,1 @@
 # Known gaps against ito, kept visible on purpose: `<crate> <reason>`. Each line is a migration still to do, not a decision to stay.
-syntect named-theme colours (yazi syntect_theme: RGB + bold/italic/underline) need ito#37 (`themes` feature); symbols.rs can move to ito-syntax line_decls first
-two-face same as syntect (ito#37); ito-syntax carries the grammar set

@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 715 件（TESTING.md の全 909 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 716 件（TESTING.md の全 910 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -395,6 +395,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **20.5** `config.toml` に構文エラーを入れて `<C-F5>` → 問題を挙げたエラーのトーストが出て、**以前の設定がそのまま効き続ける**。**壊れたファイル自身が決めていた値も含めて**（v0.67.18、Q47。それまでは、その `[ui]` が既定値に戻っていた）。トーストの末尾は `(the last settings read from it stay in force until it parses again)` — *Put a syntax error in `config.toml`, `<C-F5>` → An error toast naming the problem; the old config stays in force -- **including what the broken file itself set** (v0.67.18, Q47: before, its `[ui]` fell back to the defaults), and the toast ends `(the last settings read from it stay in force until it parses again)`*
 - [x] **20.6** `[ui] minimap = false` にして `<C-F5>` → ミニマップが出なくなる — *`[ui] minimap = false`, `<C-F5>` → No minimap*
 - [x] **20.7** `keymap.toml` に `[[mgr.prepend_keymap]]` で `on = "<F8>"`、`run = 'cd C:\Windows\System32'`（コマンドの中に引用符なし）を書く（v0.59.0）→ `<F8>` で `C:\Windows\System32` に着く。v0.59.0 までは `\` が落ち、エラーが `C:WindowsSystem32` を挙げていた — *In `keymap.toml`, `[[mgr.prepend_keymap]]` `on = "<F8>"`, `run = 'cd C:\Windows\System32'` -- no quotes inside the command (v0.59.0) → `<F8>` lands in `C:\Windows\System32`. Until v0.59.0 the backslashes were dropped and the error named `C:WindowsSystem32`*
+- [ ] **20.8** プレビューで `.rs`・`.toml`・` ```rust ` のフェンス入りの `.md`・`.html` を開く。既定のテーマと、`theme.toml` の `syntect_theme` を yazi 互換の別の名前にした場合の両方 → 色づけは以前どおり（キーワード・文字列・コメント）。Markdown のフェンスは言語ごとの色になり、アウトライン（`<C-o>`）は関数を挙げ、テーマの名前でパレットが変わる。拡張子の無い `#!` 付きのスクリプトも色が付く — *Open a `.rs`, a `.toml`, a `.md` with a fenced ```` ```rust ```` block, and an `.html` file in the preview, with the default theme and again with `syntect_theme` set to another yazi-compatible name in `theme.toml` (v0.139.38: the colouring now comes from ito-syntax) → Keywords, strings and comments are coloured as before, fenced code in the Markdown has its own language colours, the outline (`<C-o>`) still lists the functions, and the theme name changes the palette. A script without an extension but with a `#!` line is coloured too*
 
 ## 21. 書庫（zip / tar / 7z）
 

@@ -51,7 +51,7 @@
 - [x] （v0.99.1。`keys::display_seq` が macOS で `<C-q>` を `⌘Q`、`<C-A-x>` を `⌥⌘X` と出し、ヘルプ・which-key・パレットの右端・キーを案内するトースト・オーバーレイの案内が使う。照合は今までの `render_seq`）macOS のヘルプのキーの名前を人の読む形（`⌘Q` など）にする。
   - [ ] 設定の画面の説明文に固定で書いた `Ctrl+=` `Ctrl+F5` `Ctrl+T` を、macOS では `⌘` で出す。macOS の目での確認は TESTING に積む【後】
 - [ ] 窓の位置と大きさを覚える処理を ito に寄せる（tsumugi と yagura にも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
-- [ ] プレビューの構文の色づけを ito-syntax に寄せる（`syntect` / `two-face` は `scripts/ito-first.allow` に載せてある）。ito 0.109.0（edce986）で必要な API が揃った。**8 ファイルの大きな移し替えなので、持ち主の了解を待つ**【人】
+- [x] プレビューの構文の色づけを ito-syntax に寄せる（v0.139.38 で済み。見た目の確認は TESTING 20.8）（`syntect` / `two-face` は `scripts/ito-first.allow` に載せてある）。ito 0.109.0（edce986）で必要な API が揃った。
   - 手順: `ito-syntax` を `rev` edce986・`features = ["themes"]` で足す → (1) `src/preview/symbols.rs` を `Stream::line_decls` に → (2) テキストを `Themed::new(path, theme_name)` に → (3) `markdown.rs` / `html.rs` の `&Theme, &SyntaxSet` 引数を `theme_name: &str` に替え、フェンスは `Themed::for_fence`、HTML の `find_token` は `knows_token`、Palette の pick は `scope_color`、既定の文字色は `foreground` → `syntect` / `two-face` の直接依存と `ito-first.allow` の 2 行を外す。
   - 使っている所: `src/preview/{html,markdown,mod,symbols,text}.rs`、`src/mime.rs`、`src/config/theme.rs`、`src/app/preview_pane.rs`。見た目が変わらないこと（yazi 互換の `syntect_theme`）を TESTING に積む。
 - [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は tsumugi と yagura が common.toml を読むようになってから確かめる【実機】

@@ -1,32 +1,13 @@
 //! Text previews, syntax-highlighted in the worker so the UI thread only ever
 //! paints already-colored spans.
 
-use std::sync::OnceLock;
-
-use syntect::easy::HighlightLines;
-use syntect::highlighting::{FontStyle, HighlightIterator, HighlightState, Highlighter as ThemeHighlighter, Style, Theme, ThemeSet};
-use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
-use syntect::util::LinesWithEndings;
+use ito_syntax::themed::{Spans, Themed};
 
 use super::symbols::Collector;
 use super::{Extent, Payload, Request, Span};
 
-/// Syntax and theme sets, loaded on first use — a few hundred milliseconds
-/// that would be wasted for someone who only ever previews images — and once
-/// per process. Every `App` starts a worker, and each loading its own copy
-/// made the test binary seven times slower: Windows CI timed out (v0.86.12).
-/// A grammar's regexes are compiled inside the set, so they are shared too.
-pub(super) fn sets() -> &'static (SyntaxSet, ThemeSet) {
-    static SETS: OnceLock<(SyntaxSet, ThemeSet)> = OnceLock::new();
-    // bat's collection: syntect's own bundle has no TOML, TypeScript,
-    // Dockerfile, Kotlin and so on.
-    SETS.get_or_init(|| (two_face::syntax::extra_newlines(), ThemeSet::load_defaults()))
-}
-
 #[derive(Default)]
 pub struct Highlighter {
-    theme_name: String,
-    theme: Option<Theme>,
     /// Handed the first screen of a long text before the rest is colored, then
     /// asked with `None` every few lines after, and answers whether to go on:
     /// coloring every line is what a first look at a big file waited for
@@ -48,39 +29,14 @@ impl Highlighter {
     /// after the first in a process.
     pub(super) fn warm(&mut self, idle: &dyn Fn() -> bool) -> bool {
         const SAMPLE: &str = include_str!("warm-up.md");
-        let (syntaxes, _) = sets();
-        let Some(md) = syntaxes.find_syntax_by_extension("md") else { return true };
-        let mut parse = ParseState::new(md);
-        for line in LinesWithEndings::from(SAMPLE) {
+        let Some(mut md) = Themed::new("x.md", "base16-ocean.dark") else { return true };
+        for line in SAMPLE.lines() {
             if !idle() {
                 return false;
             }
-            if parse.parse_line(line, syntaxes).is_err() {
-                return true;
-            }
+            md.line(line);
         }
         true
-    }
-
-    fn ensure(&mut self, theme_name: &str) {
-        if self.theme.is_none() || self.theme_name != theme_name {
-            let (_, themes) = sets();
-            let theme = themes
-                .themes
-                .get(theme_name)
-                .or_else(|| themes.themes.get("base16-ocean.dark"))
-                .or_else(|| themes.themes.values().next())
-                .cloned();
-            self.theme_name = theme_name.to_owned();
-            self.theme = theme;
-        }
-    }
-
-    /// The syntect theme, loaded if it is not already. For a previewer that does
-    /// no highlighting of its own but still wants the theme's own colours.
-    pub(super) fn theme(&mut self, theme_name: &str) -> Option<&Theme> {
-        self.ensure(theme_name);
-        self.theme.as_ref()
     }
 }
 
@@ -113,6 +69,17 @@ fn color_lines(req: &Request) -> usize {
 const HEAD_LINES: usize = 80;
 const MAX_LINE_CHARS: usize = 2000;
 
+/// Whether a file is Markdown: its fences are re-highlighted and it is laid out.
+fn is_markdown_file(req: &Request) -> bool {
+    req.mime == "text/markdown"
+        || matches!(req.ext.as_deref().map(str::to_ascii_lowercase).as_deref(), Some("md" | "markdown" | "mdx" | "mkd" | "mdown"))
+}
+
+/// The language of a file whose extension says none, from its `#!` line.
+fn shebang_token(first: &str) -> Option<&str> {
+    first.strip_prefix("#!")?.split_whitespace().rfind(|w| !w.starts_with('-') && *w != "env")?.rsplit('/').next()
+}
+
 pub fn render(bytes: &[u8], req: &Request, hl: &mut Highlighter) -> Payload {
     render_cut(bytes, bytes.len() >= req.max_bytes, req, hl)
 }
@@ -126,60 +93,48 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
     let total_lines = expanded.lines().count();
     let extent = Extent { truncated: total_lines > max_lines(req) || cut, total: total_lines, cut, rows: None };
 
-    hl.ensure(&req.syntect_theme);
-    let (syntaxes, _) = sets();
-    let Some(theme) = hl.theme.as_ref() else {
-        return plain_to(&expanded, extent, max_lines(req));
+    let theme = req.syntect_theme.as_str();
+    let hint = match req.ext.as_deref() {
+        // Cargo.lock, poetry.lock and friends are TOML; composer.lock
+        // and flake.lock are JSON.
+        Some("lock") if expanded.trim_start().starts_with('{') => Some("json".into()),
+        Some("lock") => Some("toml".into()),
+        ext => crate::mime::syntax_hint(req.mime, ext),
     };
+    let first = expanded.lines().next().unwrap_or("");
+    let by_ext = req.ext.as_deref().and_then(|e| Themed::new(&format!("x.{e}"), theme));
+    let syntax = by_ext
+        .or_else(|| hint.and_then(|h| Themed::for_token(&h, theme)))
+        .or_else(|| shebang_token(first).and_then(|t| Themed::for_token(t, theme)));
 
-    let syntax = req
-        .ext
-        .as_deref()
-        .and_then(|e| syntaxes.find_syntax_by_extension(e))
-        .or_else(|| {
-            let hint = match req.ext.as_deref() {
-                // Cargo.lock, poetry.lock and friends are TOML; composer.lock
-                // and flake.lock are JSON.
-                Some("lock") if expanded.trim_start().starts_with('{') => Some("json".into()),
-                Some("lock") => Some("toml".into()),
-                ext => crate::mime::syntax_hint(req.mime, ext),
-            };
-            hint.and_then(|h| find_token(syntaxes, &h))
-        })
-        .or_else(|| syntaxes.find_syntax_by_first_line(expanded.lines().next().unwrap_or("")));
-
-    let Some(syntax) = syntax else {
+    let Some(mut syntax) = syntax else {
         return plain_to(&expanded, extent, max_lines(req));
     };
 
     // The Markdown grammar paints fenced code as one flat color, so fence
     // bodies are re-highlighted with the language named after the fence.
-    let is_markdown = syntax.name == "Markdown";
+    let is_markdown = is_markdown_file(req);
     // HTML is laid out as a document too, from the same events.
     let is_html = req.mime == "text/html";
     let renders = is_markdown || is_html;
     let lay = |text: &str| {
         if is_html {
-            super::html::render(text, req.key.cols, theme, syntaxes)
+            super::html::render(text, req.key.cols, theme)
         } else {
-            super::markdown::render(text, req.key.cols, theme, syntaxes)
+            super::markdown::render(text, req.key.cols, theme)
         }
     };
-    // The parse is kept apart from the coloring so the outline can read the
-    // same scopes without parsing twice.
-    let highlighter = ThemeHighlighter::new(theme);
-    let mut parse = ParseState::new(syntax);
-    let mut state = HighlightState::new(&highlighter, ScopeStack::new());
+    // One parse gives the colors and the outline's declarations.
     let mut symbols = Collector::default();
-    let mut fence: Option<Fence<'_>> = None;
+    let mut fence: Option<Fence> = None;
     let mut lines: Vec<Vec<Span>> = Vec::with_capacity(total_lines.min(max_lines(req)));
     // Laid out once: the first screen of a long Markdown file carries all of
     // it, which is cheap next to coloring the source beside it.
     let mut doc = None;
     let head = if renders && req.markdown_rendered { 0 } else { HEAD_LINES };
-    for (i, line) in LinesWithEndings::from(&expanded).take(max_lines(req)).enumerate() {
+    for (i, line) in expanded.lines().take(max_lines(req)).enumerate() {
         if i >= color_lines(req) {
-            lines.extend(LinesWithEndings::from(&expanded).take(max_lines(req)).skip(i).map(plain_line));
+            lines.extend(expanded.lines().take(max_lines(req)).skip(i).map(plain_line));
             break;
         }
         // Past the first screen, a newer request stops the rest.
@@ -197,7 +152,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
                 // scroll range and the minimap's length do not change under
                 // the reader when the colors arrive.
                 let mut source = lines.clone();
-                source.extend(LinesWithEndings::from(&expanded).take(max_lines(req)).skip(i).map(plain_line));
+                source.extend(expanded.lines().take(max_lines(req)).skip(i).map(plain_line));
                 let map = super::minimap(&source);
                 let payload = if renders {
                     let (d, clipped) = doc.get_or_insert_with(|| lay(&expanded));
@@ -213,12 +168,10 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
             }
         }
         // Always fed, even when its output is discarded, to keep its state in sync.
-        let md = parse.parse_line(line, syntaxes).map(|ops| {
-            if !renders {
-                symbols.feed(i, line, &ops);
-            }
-            HighlightIterator::new(&mut state, &ops, line, &highlighter).collect::<Vec<_>>()
-        });
+        let (spans, decls) = syntax.line_decls(line);
+        if !renders {
+            symbols.feed(i, line, &decls);
+        }
 
         let mut heading = false;
         if is_markdown {
@@ -227,24 +180,18 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
                 if closes {
                     fence = None;
                 } else if let Some(sub) = active.hl.as_mut() {
-                    lines.push(match sub.highlight_line(line, syntaxes) {
-                        Ok(regions) => spans_from(regions),
-                        Err(_) => plain_line(line),
-                    });
+                    lines.push(spans_from(line, &sub.line(line)));
                     continue;
                 }
             } else if let Some((ch, len, info)) = fence_marker(line) {
-                let hl = fence_syntax(syntaxes, info).map(|s| HighlightLines::new(s, theme));
+                let hl = Themed::for_fence(info, theme);
                 fence = Some(Fence { ch, len, hl });
             } else {
                 heading = is_atx_heading(line);
             }
         }
 
-        let mut spans = match md {
-            Ok(regions) => spans_from(regions),
-            Err(_) => plain_line(line),
-        };
+        let mut spans = spans_from(line, &spans);
         // Bundled themes color headings but rarely embolden them.
         if heading {
             spans.iter_mut().for_each(|s| s.bold = true);
@@ -261,40 +208,10 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
     Payload::Text { lines, map, extent, outline: symbols.finish() }
 }
 
-/// Resolve a language name as people write it after a fence or in a hint.
-pub(super) fn find_token<'a>(syntaxes: &'a SyntaxSet, token: &str) -> Option<&'a SyntaxReference> {
-    let lower = token.to_ascii_lowercase();
-    let alias = match lower.as_str() {
-        "text" | "txt" | "plain" | "plaintext" | "none" | "output" => return None,
-        "shell" | "console" | "shellsession" | "sh-session" | "zsh" | "ksh" | "fish" => "bash",
-        "jsonc" | "json5" | "jsonl" | "ndjson" => "json",
-        "yml" => "yaml",
-        "jsx" | "mjs" | "cjs" | "node" => "js",
-        "docker" | "containerfile" => "dockerfile",
-        "c++" => "cpp",
-        "golang" => "go",
-        "rs" => "rust",
-        "py3" | "python3" => "python",
-        "hcl" | "tf" => "terraform",
-        "cmd" | "batch" => "bat",
-        "patch" => "diff",
-        "html5" | "xhtml" | "vue-html" => "html",
-        "cfg" | "conf" | "dosini" => "ini",
-        other => other,
-    };
-    syntaxes.find_syntax_by_token(alias).or_else(|| syntaxes.find_syntax_by_token(token))
-}
-
-/// Syntax for a fence's info string (`rust`, `rust,ignore`, `{.python}`).
-pub(super) fn fence_syntax<'a>(syntaxes: &'a SyntaxSet, info: &str) -> Option<&'a SyntaxReference> {
-    let lang = info.split(|c: char| c.is_whitespace() || c == ',' || c == '{' || c == '}').find(|s| !s.is_empty())?.trim_start_matches('.');
-    find_token(syntaxes, lang)
-}
-
-struct Fence<'a> {
+struct Fence {
     ch: char,
     len: usize,
-    hl: Option<HighlightLines<'a>>,
+    hl: Option<Themed>,
 }
 
 /// CommonMark fence line: up to 3 spaces, then 3+ backticks or tildes, then
@@ -328,11 +245,17 @@ fn is_atx_heading(line: &str) -> bool {
     (1..=6).contains(&hashes) && matches!(rest.as_bytes().get(hashes), None | Some(b' ' | b'\t'))
 }
 
-pub(super) fn spans_from(regions: Vec<(Style, &str)>) -> Vec<Span> {
+/// The coloured spans of `line` as the preview draws them. A line ito-syntax
+/// left alone (minified, too long to parse) comes out plain.
+pub(super) fn spans_from(line: &str, regions: &Spans) -> Vec<Span> {
+    let line = line.trim_end_matches(['\n', '\r']);
+    if regions.is_empty() {
+        return if line.is_empty() { Vec::new() } else { plain_line(line) };
+    }
     let mut spans = Vec::with_capacity(regions.len());
     let mut width = 0;
-    for (style, piece) in regions {
-        let piece = piece.trim_end_matches(['\n', '\r']);
+    for (range, style) in regions {
+        let Some(piece) = line.get(range.clone()) else { continue };
         if piece.is_empty() {
             continue;
         }
@@ -340,9 +263,10 @@ pub(super) fn spans_from(regions: Vec<(Style, &str)>) -> Vec<Span> {
         width += piece.chars().count();
         spans.push(Span {
             text: piece,
-            color: Some([style.foreground.r, style.foreground.g, style.foreground.b]),
-            bold: style.font_style.contains(FontStyle::BOLD),
-            italic: style.font_style.contains(FontStyle::ITALIC),
+            color: Some(style.rgb),
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
             ..Default::default()
         });
         if width >= MAX_LINE_CHARS {
@@ -531,35 +455,19 @@ mod tests {
     }
 
     #[test]
-    fn the_sets_are_loaded_once_per_process() {
-        // Each worker loading its own made the tests time out on Windows CI.
-        assert!(std::ptr::eq(sets(), sets()));
-        let a = std::thread::spawn(|| sets() as *const _ as usize).join().unwrap();
-        assert_eq!(a, sets() as *const _ as usize);
+    fn fence_languages_resolve() {
+        for info in ["rust", "rust,ignore", "{.python}", "ts", "tsx", "toml", "console", "sh", "jsonc", "yml", "Dockerfile", "kt"] {
+            assert!(Themed::for_fence(info, "base16-ocean.dark").is_some(), "fence {info:?}");
+        }
+        assert!(Themed::for_fence("text", "base16-ocean.dark").is_none());
+        assert!(Themed::for_fence("", "base16-ocean.dark").is_none());
     }
 
     #[test]
-    fn fence_languages_resolve() {
-        let (syntaxes, _) = sets();
-        for (info, name) in [
-            ("rust", "Rust"),
-            ("rust,ignore", "Rust"),
-            ("{.python}", "Python"),
-            ("ts", "TypeScript"),
-            ("tsx", "TypeScriptReact"),
-            ("toml", "TOML"),
-            ("console", "Bourne Again Shell (bash)"),
-            ("sh", "Bourne Again Shell (bash)"),
-            ("jsonc", "JSON"),
-            ("yml", "YAML"),
-            ("Dockerfile", "Dockerfile"),
-            ("kt", "Kotlin"),
-        ] {
-            let got = fence_syntax(syntaxes, info).map(|s| s.name.as_str());
-            assert_eq!(got, Some(name), "fence {info:?}");
-        }
-        assert!(fence_syntax(syntaxes, "text").is_none());
-        assert!(fence_syntax(syntaxes, "").is_none());
+    fn a_script_without_an_extension_is_known_by_its_shebang() {
+        assert_eq!(shebang_token("#!/usr/bin/env python3"), Some("python3"));
+        assert_eq!(shebang_token("#!/bin/bash -e"), Some("bash"));
+        assert_eq!(shebang_token("no shebang"), None);
     }
 
     fn colors(line: &[Span]) -> std::collections::HashSet<[u8; 3]> {
