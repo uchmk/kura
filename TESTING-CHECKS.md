@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 723 件（TESTING.md の全 917 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 724 件（TESTING.md の全 918 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -403,6 +403,7 @@ fsutil hardlink list <新しくできたパス>
 - [ ] **20.13** git のリポジトリで変更のあるフォルダを開き、ファイルを 2 つ `<Space>` で選ぶ → ブランチの後に件数（`M3 +2 ?1`: 変更・ステージ済み・未追跡。`!` は衝突、`D` は削除）、フォルダのファイルの合計 `files <サイズ>`、選んだ分 `selected <サイズ>` が出る — *In a folder with changes in a git repository, mark two files with `<Space>` → The bar shows counts after the branch (`M3 +2 ?1`: modified, staged, untracked; `!` conflict, `D` deleted), `files <size>` for the folder's files and `selected <size>` for the marked ones*
 - [ ] **20.14** Markdown やソースを見出しをいくつか越えてスクロールし、アウトラインのないファイルも開く → 見出し・関数の名前は時計の隣の固定の幅に出て、名前の長さが変わっても左の項目（位置・サイズ・`L…`・文字コード）は動かない。アウトラインのないファイルでは枠が空く — *Scroll a Markdown or source file past several headings, then open a file with no outline → The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back*
 - [ ] **20.15** Markdown を開いて `M` を押す。`config.toml` の `[ui]` に `status_hints = false` を書いて試す → バーの左（サイズと時刻の後）に切り替えのキーと行き先（`M source`、次に `M rendered`）が出る。設定を切る・Markdown 以外のファイルでは何も出ない。窓が狭ければ最初に消える — *Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` → The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first*
+- [ ] **20.16** 画像を開き、次に関数のあるソースと見出しのある Markdown を開く → 画像はズームのキー（`A-i zoom in   A-o out   A-0 fit`）、ソースと Markdown はアウトラインのキー（`BackTab outline`）が出る。アウトラインのないテキストでは何も出ない — *Open an image, then a source file with functions or a Markdown file with headings → The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing*
 
 ## 21. 書庫（zip / tar / 7z）
 

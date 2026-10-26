@@ -1051,16 +1051,30 @@ fn position_text(line: usize, total: usize, cut: bool, top: usize, max: usize) -
 }
 
 /// The keys worth naming for what the preview shows, as the keymap in force
-/// spells them (`M rendered/source`). Markdown has one view to toggle; a key
-/// the user has unbound is left out rather than guessed.
+/// spells them (`M source`): Markdown's view toggle, the outline of anything
+/// that has one, an image's zoom. At most three, and a key the user has
+/// unbound is left out rather than guessed.
 fn status_hint(app: &App) -> Option<String> {
+    use crate::config::cmd::{Act, ZoomTo};
     use crate::preview::Payload;
     if !app.cfg.ui.status_hints {
         return None;
     }
-    let crate::app::PreviewState::Ready(Payload::Markdown { .. }) = &app.preview.state else { return None };
-    let key = overlay::key_for(app, &crate::config::cmd::Act::ToggleRender)?;
-    Some(format!("{key} {}", if app.render_markdown { "source" } else { "rendered" }))
+    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return None };
+    let wants: Vec<(Act, &str)> = match payload {
+        Payload::Markdown { doc, .. } => {
+            let mut v = vec![(Act::ToggleRender, if app.render_markdown { "source" } else { "rendered" })];
+            if !doc.toc.is_empty() {
+                v.push((Act::ToggleOutline, "outline"));
+            }
+            v
+        }
+        Payload::Text { outline, .. } if !outline.is_empty() => vec![(Act::ToggleOutline, "outline")],
+        Payload::Image { .. } => vec![(Act::Zoom(ZoomTo::In), "zoom in"), (Act::Zoom(ZoomTo::Out), "out"), (Act::Zoom(ZoomTo::Fit), "fit")],
+        _ => Vec::new(),
+    };
+    let hints: Vec<String> = wants.iter().filter_map(|(a, what)| Some(format!("{} {what}", overlay::key_for(app, a)?))).collect();
+    (!hints.is_empty()).then(|| hints.join("   "))
 }
 
 /// How many characters of the heading or function name the status bar shows.
@@ -1411,11 +1425,34 @@ mod status_notes {
         s.app.preview.state = crate::app::PreviewState::Ready(md);
         s.app.render_markdown = true;
         let key = overlay::key_for(&s.app, &crate::config::cmd::Act::ToggleRender).expect("bound by default");
-        assert_eq!(status_hint(&s.app), Some(format!("{key} source")));
+        assert_eq!(status_hint(&s.app), Some(format!("{key} source")), "no headings, no outline hint");
         s.app.render_markdown = false;
         assert_eq!(status_hint(&s.app), Some(format!("{key} rendered")));
         s.app.cfg.ui.status_hints = false;
         assert_eq!(status_hint(&s.app), None, "the setting turns it off");
+    }
+
+    #[test]
+    fn an_image_names_its_zoom_keys_and_text_its_outline() {
+        let mut s = super::harness::Screen::open(crate::util::test_dir("status-hint-img"));
+        let image = Payload::Image {
+            width: 1,
+            height: 1,
+            source: (1, 1),
+            own: 1.0,
+            vector: false,
+            rgba: Default::default(),
+            caption: String::new(),
+        };
+        s.app.preview.state = crate::app::PreviewState::Ready(image);
+        let h = status_hint(&s.app).expect("an image has hints");
+        assert!(h.contains("zoom in") && h.contains("out") && h.contains("fit"), "{h}");
+
+        let text = |outline| Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Extent::default(), outline };
+        s.app.preview.state = crate::app::PreviewState::Ready(text(Vec::new()));
+        assert_eq!(status_hint(&s.app), None, "plain text has nothing to name");
+        s.app.preview.state = crate::app::PreviewState::Ready(text(vec![heading("fn main", 0)]));
+        assert!(status_hint(&s.app).is_some_and(|h| h.ends_with("outline")));
     }
 
     /// The Markdown preview showed no position at all: only plain text was asked.

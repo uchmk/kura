@@ -678,6 +678,7 @@ was that a gentle turn moved nothing at all.
 | 20.13 | In a folder with changes in a git repository, mark two files with `<Space>` | The bar shows counts after the branch (`M3 +2 ?1`: modified, staged, untracked; `!` conflict, `D` deleted), `files <size>` for the folder's files and `selected <size>` for the marked ones |
 | 20.14 | Scroll a Markdown or source file past several headings, then open a file with no outline | The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back |
 | 20.15 | Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` | The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first |
+| 20.16 | Open an image, then a source file with functions or a Markdown file with headings | The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing |
 
 ## 21. Archives (v0.2.0)
 
