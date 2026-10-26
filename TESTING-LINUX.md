@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 718 件（TESTING.md の全 912 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 721 件（TESTING.md の全 915 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -358,6 +358,9 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **20.8** プレビューで `.rs`・`.toml`・` ```rust ` のフェンス入りの `.md`・`.html` を開く。既定のテーマと、`theme.toml` の `syntect_theme` を yazi 互換の別の名前にした場合の両方 → 色づけは以前どおり（キーワード・文字列・コメント）。Markdown のフェンスは言語ごとの色になり、アウトライン（`<C-o>`）は関数を挙げ、テーマの名前でパレットが変わる。拡張子の無い `#!` 付きのスクリプトも色が付く — *Open a `.rs`, a `.toml`, a `.md` with a fenced ```` ```rust ```` block, and an `.html` file in the preview, with the default theme and again with `syntect_theme` set to another yazi-compatible name in `theme.toml` (v0.139.38: the colouring now comes from ito-syntax) → Keywords, strings and comments are coloured as before, fenced code in the Markdown has its own language colours, the outline (`<C-o>`) still lists the functions, and the theme name changes the palette. A script without an extension but with a `#!` line is coloured too*
 - [ ] **20.9** 描画した Markdown で Contents の列にキーを渡し（`<C-o>`）、`<C-d>`・`<C-u>`・`<A-j>`・`<A-k>` を押す → 本文が半ページ（`<C-d>`/`<C-u>`）か 5 行（`<A-j>`/`<A-k>`）動き、反転した見出しが今読んでいる見出しに追従する。見出しを何十個も飛ばさない — *In rendered Markdown, give the Contents column the keys (`<C-o>`), then press `<C-d>`, `<C-u>`, `<A-j>` and `<A-k>` (v0.139.40) → The text scrolls by half a page (`<C-d>`/`<C-u>`) or five lines (`<A-j>`/`<A-k>`) and the highlighted heading follows the one being read; it no longer jumps dozens of headings*
 - [ ] **20.10** 長いテキストをプレビューし、`<A-j>` / `<A-k>` でスクロールする → ステータスバーの右側にリストの位置と並んで `L<上端の行>/<全行数> <割合>%` が出て、スクロールに合わせて変わる。画像やディレクトリでは増えない — *Preview a long text file and scroll it with `<A-j>` / `<A-k>` (v0.139.41) → The right of the status bar shows `L<top line>/<total lines> <percent>%` beside the list position, and it changes as the text scrolls; nothing extra for an image or a directory*
+- [ ] **20.11** Markdown をプレビューし（描画、次に `M` でソース）スクロールする → ステータスバーに Markdown でも `L<行>/<全行数> <割合>%` が出る（描画では元のソースの行）。続けて文字コードと改行（`UTF-8 LF`）、ペインの上端にある見出しが出る — *Preview a Markdown file (rendered, then `M` for the source) and scroll it → The status bar shows `L<line>/<total> <percent>%` for Markdown too (the rendered view reports the source line it came from), then the encoding and line ending (`UTF-8 LF`), then the heading at the top of the pane*
+- [ ] **20.12** 関数のあるソース、Shift_JIS のファイル、CRLF のファイルをプレビューし、次に PNG と SVG をプレビューする → 上端の関数名・見出し名、`Shift_JIS` / `UTF-8 CRLF`、画像では `PNG 800×600` / `SVG 幅×高さ` が出る。途中までしか読まないテキストは `L1/5237+` になる — *Preview a source file with functions, a Shift_JIS file and a CRLF file; then a PNG and an SVG → The bar shows the function or heading name at the top, `Shift_JIS` / `UTF-8 CRLF`, and for pictures `PNG 800×600` / `SVG w×h`; a text file read only in part shows `L1/5237+`*
+- [ ] **20.13** git のリポジトリで変更のあるフォルダを開き、ファイルを 2 つ `<Space>` で選ぶ → ブランチの後に件数（`M3 +2 ?1`: 変更・ステージ済み・未追跡。`!` は衝突、`D` は削除）、フォルダのファイルの合計 `files <サイズ>`、選んだ分 `selected <サイズ>` が出る — *In a folder with changes in a git repository, mark two files with `<Space>` → The bar shows counts after the branch (`M3 +2 ?1`: modified, staged, untracked; `!` conflict, `D` deleted), `files <size>` for the folder's files and `selected <size>` for the marked ones*
 
 ## 21. 書庫（zip / tar / 7z）
 

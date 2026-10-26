@@ -922,7 +922,8 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     // The branch, when the directory is in a repository at all.
     if let Some(g) = app.git_status(&tab.cwd) {
         if !g.branch.is_empty() {
-            right.push(format!(" {} ", g.branch));
+            let counts = git_counts(g.states.values().copied());
+            right.push(if counts.is_empty() { format!(" {} ", g.branch) } else { format!(" {}  {counts} ", g.branch) });
         }
     }
     if let Some(fl) = &tab.current.filter {
@@ -946,9 +947,13 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         format!("{}/{}", tab.current.cursor + 1, tab.current.view.len())
     };
     right.push(pos);
-    if let Some(p) = preview_position(app) {
-        right.push(p);
+    if let Some(s) = folder_summary(&tab.current) {
+        right.push(s);
     }
+    if let Some(s) = selection_summary(tab) {
+        right.push(s);
+    }
+    right.extend(preview_notes(app));
     // The clock sits at the very end, in the strongest text colour; the
     // other items end where it begins.
     let mut right_edge = rect.right() - 10.0;
@@ -976,19 +981,120 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     }
 }
 
-/// Where the text preview is scrolled to: `L120/4350 3%`, the line at the top
-/// of the pane, the file's lines, and how far down the furthest scroll that is.
-/// Nothing for a preview that is not text.
-fn preview_position(app: &App) -> Option<String> {
-    let crate::app::PreviewState::Ready(crate::preview::Payload::Text { lines, extent, .. }) = &app.preview.state else { return None };
-    let total = extent.total.max(lines.len());
-    if total == 0 {
+/// `M3 +2 ?1`: how many rows of a repository's listing are in each state,
+/// worst first. Empty when nothing has changed.
+fn git_counts(states: impl Iterator<Item = crate::fs::git::State>) -> String {
+    use crate::fs::git::State;
+    let mut n = [0usize; 5];
+    for s in states {
+        match s {
+            State::Clean => {}
+            State::Conflict => n[0] += 1,
+            State::Modified => n[1] += 1,
+            State::Staged => n[2] += 1,
+            State::Deleted => n[3] += 1,
+            State::Untracked => n[4] += 1,
+        }
+    }
+    let marks = ['!', 'M', '+', 'D', '?'];
+    n.iter().zip(marks).filter(|(c, _)| **c > 0).map(|(c, m)| format!("{m}{c}")).collect::<Vec<_>>().join(" ")
+}
+
+/// `files 340 MB`: the size of what the folder lists (the hidden flag and the
+/// filter apply). The header already counts the rows; a folder's own size is
+/// not a file's, so only files add.
+fn folder_summary(folder: &crate::core::folder::Folder) -> Option<String> {
+    if folder.view.is_empty() {
         return None;
     }
-    let top = app.tabs[app.active].preview_offset;
-    let max = app.preview.max_offset;
+    let bytes: u64 = folder.view.iter().filter_map(|&i| folder.entries.get(i as usize)).filter(|e| !e.is_dir_like()).map(|e| e.len).sum();
+    Some(format!("files {}", util::human_size(bytes)))
+}
+
+/// `selected 12 MB`: the files among the marked rows of this folder. The header
+/// counts the rows.
+fn selection_summary(tab: &crate::core::tab::Tab) -> Option<String> {
+    if tab.selected.is_empty() {
+        return None;
+    }
+    let bytes: u64 = tab.current.entries.iter().filter(|e| !e.is_dir_like() && tab.selected.contains(&e.path)).map(|e| e.len).sum();
+    Some(format!("selected {}", util::human_size(bytes)))
+}
+
+/// `L120/4350 3%`: the line at the top of the pane, the file's lines (with a
+/// `+` when the read stopped short), and how far down the furthest scroll that is.
+fn position_text(line: usize, total: usize, cut: bool, top: usize, max: usize) -> String {
     let pct = (top.min(max) * 100).checked_div(max).map_or(100, |p| p.min(100));
-    Some(format!("L{}/{} {}%", (top + 1).min(total), total, pct))
+    format!("L{}/{}{} {}%", (line + 1).min(total), total, if cut { "+" } else { "" }, pct)
+}
+
+/// The last heading or declaration at or above the top line, trimmed of the
+/// outline's indent and cut to a length the status bar can spare.
+fn preview_crumb(entries: &[crate::preview::TocEntry], top: usize, at: impl Fn(&crate::preview::TocEntry) -> usize) -> Option<String> {
+    let e = entries.iter().rev().find(|e| at(e) <= top)?;
+    let label = e.label.trim();
+    if label.is_empty() {
+        return None;
+    }
+    let mut s: String = label.chars().take(28).collect();
+    if label.chars().count() > 28 {
+        s.push('…');
+    }
+    Some(s)
+}
+
+/// What the status bar says of the preview: where it is scrolled to, how the
+/// file is encoded, the picture's size, and the heading or function at the top.
+fn preview_notes(app: &App) -> Vec<String> {
+    use crate::preview::Payload;
+    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return Vec::new() };
+    let tab = &app.tabs[app.active];
+    let top = tab.preview_offset;
+    let max = app.preview.max_offset;
+    let mut out = Vec::new();
+    let mut text = |line: usize, total: usize, extent: &crate::preview::Extent| {
+        if total > 0 {
+            out.push(position_text(line, total, extent.cut, top, max));
+        }
+        if !extent.enc.is_empty() {
+            out.push(format!("{} {}", extent.enc, extent.eol.label()).trim_end().to_string());
+        }
+    };
+    let crumb = match payload {
+        Payload::Text { lines, extent, outline, .. } => {
+            text(top, extent.total.max(lines.len()), extent);
+            preview_crumb(outline, top, |e| e.line)
+        }
+        Payload::Markdown { doc, source, extent, .. } => {
+            let total = extent.total.max(source.len());
+            if app.render_markdown {
+                text(doc.src_for_line(top), total, extent);
+                preview_crumb(&doc.toc, top, |e| e.line)
+            } else {
+                text(top, total, extent);
+                preview_crumb(&doc.toc, top, |e| doc.src_for_line(e.line))
+            }
+        }
+        Payload::Log { view } => {
+            let total = view.index.lines();
+            if total > 0 {
+                out.push(position_text(top, total, false, top, max));
+            }
+            None
+        }
+        Payload::Image { source, vector, .. } => {
+            let ext = tab.current.hovered().and_then(|e| e.ext.as_deref()).map(str::to_ascii_uppercase);
+            let format = if *vector { Some("SVG".to_string()) } else { ext };
+            out.push(match format {
+                Some(f) => format!("{f} {}×{}", source.0, source.1),
+                None => format!("{}×{}", source.0, source.1),
+            });
+            None
+        }
+        _ => None,
+    };
+    out.extend(crumb);
+    out
 }
 
 /// The job the status bar speaks for: the one being worked on, or the one
@@ -1203,6 +1309,77 @@ mod breadcrumb_tests {
         let (dir, name) = breadcrumb(None, Path::new("anywhere"), None);
         assert_eq!(dir, "anywhere");
         assert_eq!(name, None);
+    }
+}
+
+#[cfg(test)]
+mod status_notes {
+    use super::*;
+    use crate::fs::git::State;
+    use crate::preview::{Doc, DocLine, Eol, Extent, Payload, TocEntry};
+
+    fn heading(label: &str, line: usize) -> TocEntry {
+        TocEntry { level: 1, label: label.into(), line }
+    }
+
+    #[test]
+    fn the_position_says_line_total_and_how_far_down() {
+        assert_eq!(position_text(119, 4350, false, 100, 4000), "L120/4350 2%");
+        assert_eq!(position_text(0, 7, false, 0, 0), "L1/7 100%", "nothing to scroll is all the way down");
+        assert_eq!(position_text(0, 5237, true, 0, 100), "L1/5237+ 0%", "a cut read is a floor");
+    }
+
+    #[test]
+    fn line_endings_are_told_apart() {
+        assert_eq!(Eol::of(b"a"), Eol::None);
+        assert_eq!(Eol::of(b"a\nb\n"), Eol::Lf);
+        assert_eq!(Eol::of(b"a\r\nb\r\n"), Eol::Crlf);
+        assert_eq!(Eol::of(b"a\rb\r"), Eol::Cr);
+        assert_eq!(Eol::of(b"a\r\nb\n"), Eol::Mixed);
+    }
+
+    #[test]
+    fn git_changes_are_counted_by_state() {
+        assert_eq!(git_counts([State::Clean, State::Clean].into_iter()), "");
+        let all = [State::Modified, State::Modified, State::Staged, State::Untracked, State::Conflict, State::Deleted];
+        assert_eq!(git_counts(all.into_iter()), "!1 M2 +1 D1 ?1");
+    }
+
+    #[test]
+    fn the_crumb_is_the_last_heading_at_or_above_the_top() {
+        let toc = [heading("  Intro", 0), heading("    Usage", 10), heading("  Notes", 30)];
+        assert_eq!(preview_crumb(&toc, 0, |e| e.line).as_deref(), Some("Intro"));
+        assert_eq!(preview_crumb(&toc, 29, |e| e.line).as_deref(), Some("Usage"));
+        assert_eq!(preview_crumb(&toc, 99, |e| e.line).as_deref(), Some("Notes"));
+        assert_eq!(preview_crumb(&[heading("x", 5)], 4, |e| e.line), None, "above the first heading there is none");
+        let long = [heading(&"w".repeat(40), 0)];
+        assert_eq!(preview_crumb(&long, 0, |e| e.line).unwrap().chars().count(), 29, "cut with an ellipsis");
+    }
+
+    /// The Markdown preview showed no position at all: only plain text was asked.
+    #[test]
+    fn a_markdown_preview_has_a_position_and_a_heading_too() {
+        let mut s = super::harness::Screen::open(crate::util::test_dir("status-md"));
+        // Rendered lines 0-2 come from source line 0, 3-5 from source line 4.
+        let line = |src| DocLine { spans: Vec::new(), kind: Default::default(), indent: 0, src, wrap: false };
+        let doc = Doc {
+            lines: vec![line(0), line(0), line(0), line(4), line(4), line(4)],
+            toc: vec![heading("Intro", 0), heading("Usage", 3)],
+            toc_cols: 0,
+            body_cols: 80,
+        };
+        let extent = Extent { total: 20, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
+        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent });
+        s.app.preview.max_offset = 4;
+
+        s.app.render_markdown = true;
+        let a = s.app.active;
+        s.app.tabs[a].preview_offset = 3;
+        assert_eq!(preview_notes(&s.app), ["L5/20 75%", "UTF-8 CRLF", "Usage"], "the source line under the rendered one");
+
+        s.app.render_markdown = false;
+        s.app.tabs[a].preview_offset = 2;
+        assert_eq!(preview_notes(&s.app), ["L3/20 50%", "UTF-8 CRLF", "Intro"], "the source view counts source lines");
     }
 }
 

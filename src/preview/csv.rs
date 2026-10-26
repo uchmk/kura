@@ -115,7 +115,7 @@ pub fn render(bytes: &[u8], delim: char, cols: u16, dim: Option<[u8; 3]>, max_by
     // The table's own cap is said as such: the rows past it are in the file,
     // and "truncated" alone read as the read having stopped (#205).
     let rows = capped.then_some(MAX_RECORDS);
-    let extent = Extent { truncated: capped || cut, total: total_lines, cut, rows };
+    let extent = Extent { truncated: capped || cut, total: total_lines, cut, rows, ..Default::default() };
     if records.is_empty() {
         return super::text::plain(text, extent);
     }

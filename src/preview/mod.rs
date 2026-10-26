@@ -306,6 +306,61 @@ pub struct Extent {
     pub cut: bool,
     /// A table that stopped at this many rows, however long the file.
     pub rows: Option<usize>,
+    /// The encoding the file was decoded from, as the status bar names it.
+    /// Empty when the payload is not a decoded text file.
+    pub enc: &'static str,
+    /// How the lines end.
+    pub eol: Eol,
+}
+
+/// The line endings a text file uses.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum Eol {
+    /// No line break at all, or not known.
+    #[default]
+    None,
+    Lf,
+    Crlf,
+    Cr,
+    Mixed,
+}
+
+impl Eol {
+    /// What the status bar says; empty when there is nothing to say.
+    pub fn label(self) -> &'static str {
+        match self {
+            Eol::None => "",
+            Eol::Lf => "LF",
+            Eol::Crlf => "CRLF",
+            Eol::Cr => "CR",
+            Eol::Mixed => "mixed EOL",
+        }
+    }
+
+    /// Which endings `bytes` uses.
+    pub fn of(bytes: &[u8]) -> Eol {
+        let (mut lf, mut crlf, mut cr) = (0usize, 0usize, 0usize);
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'\r' if bytes.get(i + 1) == Some(&b'\n') => {
+                    crlf += 1;
+                    i += 1;
+                }
+                b'\r' => cr += 1,
+                b'\n' => lf += 1,
+                _ => {}
+            }
+            i += 1;
+        }
+        match (lf > 0, crlf > 0, cr > 0) {
+            (false, false, false) => Eol::None,
+            (true, false, false) => Eol::Lf,
+            (false, true, false) => Eol::Crlf,
+            (false, false, true) => Eol::Cr,
+            _ => Eol::Mixed,
+        }
+    }
 }
 
 impl Extent {
@@ -538,7 +593,8 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
     // this order, called it text (#214).
     if let Some(text) = utf16_text(&head) {
         let cut = head.len() >= req.max_bytes;
-        return text::render_cut(text.as_bytes(), cut, req, syntax);
+        let enc = if head[1] == 0xfe { "UTF-16 LE" } else { "UTF-16 BE" };
+        return text::render_cut(text.as_bytes(), cut, enc, req, syntax);
     }
 
     if looks_binary(&head) {
@@ -550,14 +606,14 @@ fn render(req: &Request, syntax: &mut text::Highlighter) -> Payload {
 
     // Before the text fallback, and after `looks_binary` above: a binary blob
     // named `.csv` still hex-dumps, and `max_bytes` has already done its cutting.
-    if let Some((text, _)) = legacy_text(&head) {
+    if let Some((text, enc)) = legacy_text(&head) {
         let cut = head.len() >= req.max_bytes;
         if mime == "text/csv" {
             let delim = csv::delimiter(req.ext.as_deref());
             let dim = markdown::dim_of(&req.syntect_theme);
             return csv::render(text.as_bytes(), delim, req.key.cols, dim, if cut { 0 } else { usize::MAX });
         }
-        return text::render_cut(text.as_bytes(), cut, req, syntax);
+        return text::render_cut(text.as_bytes(), cut, enc, req, syntax);
     }
     if mime == "text/csv" {
         let delim = csv::delimiter(req.ext.as_deref());
@@ -672,7 +728,7 @@ fn office_text(doc: office::Read1, req: &Request, syntax: &mut text::Highlighter
 /// (16.11: a 4500-row workbook said nothing, and a longer one said `5000
 /// lines total`).
 fn office_extent(total: usize, stopped: bool) -> Extent {
-    Extent { truncated: stopped || total > text::MAX_LINES, total, cut: stopped, rows: None }
+    Extent { truncated: stopped || total > text::MAX_LINES, total, cut: stopped, ..Default::default() }
 }
 
 /// Draw a file with the command configured for it.

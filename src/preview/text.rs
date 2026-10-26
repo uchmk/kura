@@ -76,17 +76,19 @@ fn is_markdown_file(req: &Request) -> bool {
 }
 
 pub fn render(bytes: &[u8], req: &Request, hl: &mut Highlighter) -> Payload {
-    render_cut(bytes, bytes.len() >= req.max_bytes, req, hl)
+    let enc = if bytes.starts_with(&[0xef, 0xbb, 0xbf]) { "UTF-8 BOM" } else { "UTF-8" };
+    render_cut(bytes, bytes.len() >= req.max_bytes, enc, req, hl)
 }
 
 /// The same, told whether the read stopped short: for text decoded from
 /// another encoding, whose length no longer says so.
-pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) -> Payload {
+pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl: &mut Highlighter) -> Payload {
     let text = String::from_utf8_lossy(bytes);
     let text = strip_bom(&text);
     let expanded = expand_tabs(text, req.tab_size.max(1) as usize);
     let total_lines = expanded.lines().count();
-    let extent = Extent { truncated: total_lines > max_lines(req) || cut, total: total_lines, cut, rows: None };
+    let extent =
+        Extent { truncated: total_lines > max_lines(req) || cut, total: total_lines, cut, rows: None, enc, eol: super::Eol::of(bytes) };
 
     let theme = req.syntect_theme.as_str();
     let hint = match req.ext.as_deref() {
