@@ -75,11 +75,6 @@ fn is_markdown_file(req: &Request) -> bool {
         || matches!(req.ext.as_deref().map(str::to_ascii_lowercase).as_deref(), Some("md" | "markdown" | "mdx" | "mkd" | "mdown"))
 }
 
-/// The language of a file whose extension says none, from its `#!` line.
-fn shebang_token(first: &str) -> Option<&str> {
-    first.strip_prefix("#!")?.split_whitespace().rfind(|w| !w.starts_with('-') && *w != "env")?.rsplit('/').next()
-}
-
 pub fn render(bytes: &[u8], req: &Request, hl: &mut Highlighter) -> Payload {
     render_cut(bytes, bytes.len() >= req.max_bytes, req, hl)
 }
@@ -103,9 +98,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, req: &Request, hl: &mut Highlighter) 
     };
     let first = expanded.lines().next().unwrap_or("");
     let by_ext = req.ext.as_deref().and_then(|e| Themed::new(&format!("x.{e}"), theme));
-    let syntax = by_ext
-        .or_else(|| hint.and_then(|h| Themed::for_token(&h, theme)))
-        .or_else(|| shebang_token(first).and_then(|t| Themed::for_token(t, theme)));
+    let syntax = by_ext.or_else(|| hint.and_then(|h| Themed::for_token(&h, theme))).or_else(|| Themed::for_shebang(first, theme));
 
     let Some(mut syntax) = syntax else {
         return plain_to(&expanded, extent, max_lines(req));
@@ -461,13 +454,6 @@ mod tests {
         }
         assert!(Themed::for_fence("text", "base16-ocean.dark").is_none());
         assert!(Themed::for_fence("", "base16-ocean.dark").is_none());
-    }
-
-    #[test]
-    fn a_script_without_an_extension_is_known_by_its_shebang() {
-        assert_eq!(shebang_token("#!/usr/bin/env python3"), Some("python3"));
-        assert_eq!(shebang_token("#!/bin/bash -e"), Some("bash"));
-        assert_eq!(shebang_token("no shebang"), None);
     }
 
     fn colors(line: &[Span]) -> std::collections::HashSet<[u8; 3]> {
