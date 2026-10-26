@@ -677,6 +677,7 @@ was that a gentle turn moved nothing at all.
 | 20.12 | Preview a source file with functions, a Shift_JIS file and a CRLF file; then a PNG and an SVG | The bar shows the function or heading name at the top, `Shift_JIS` / `UTF-8 CRLF`, and for pictures `PNG 800×600` / `SVG w×h`; a text file read only in part shows `L1/5237+` |
 | 20.13 | In a folder with changes in a git repository, mark two files with `<Space>` | The bar shows counts after the branch (`M3 +2 ?1`: modified, staged, untracked; `!` conflict, `D` deleted), `files <size>` for the folder's files and `selected <size>` for the marked ones |
 | 20.14 | Scroll a Markdown or source file past several headings, then open a file with no outline | The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back |
+| 20.15 | Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` | The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first |
 
 ## 21. Archives (v0.2.0)
 

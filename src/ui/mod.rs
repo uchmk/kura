@@ -890,7 +890,8 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         }
         left.push_str(&util::fmt_time(e.modified, "%Y-%m-%d %H:%M"));
     }
-    painter.text(egui::pos2(x, cy), Align2::LEFT_CENTER, left, f.clone(), theme.fg_dim);
+    let left_w = painter.text(egui::pos2(x, cy), Align2::LEFT_CENTER, left, f.clone(), theme.fg_dim).width();
+    let hint_x = x + left_w + 24.0;
 
     // Right side: task progress, filter/find state, position.
     let mut right: Vec<String> = Vec::new();
@@ -981,7 +982,15 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         }
         right_edge = area.left() - 16.0;
     }
-    painter.text(egui::pos2(right_edge, cy), Align2::RIGHT_CENTER, right.join("   "), f.clone(), theme.fg_dim);
+    let right_g = painter.layout_no_wrap(right.join("   "), f.clone(), theme.fg_dim);
+    painter.galley(egui::pos2(right_edge - right_g.size().x, cy - right_g.size().y / 2.0), right_g.clone(), theme.fg_dim);
+    // Key hints take what the two sides leave; they go first when it is short.
+    if let Some(h) = status_hint(app) {
+        let g = painter.layout_no_wrap(h, f.clone(), theme.fg_dim);
+        if hint_x + g.size().x + 24.0 < right_edge - right_g.size().x {
+            painter.galley(egui::pos2(hint_x, cy - g.size().y / 2.0), g, theme.fg_dim);
+        }
+    }
 
     // A thin progress strip along the bottom while work is running.
     if let Some(t) = running_task(app) {
@@ -1039,6 +1048,19 @@ fn selection_summary(tab: &crate::core::tab::Tab) -> Option<String> {
 fn position_text(line: usize, total: usize, cut: bool, top: usize, max: usize) -> String {
     let pct = (top.min(max) * 100).checked_div(max).map_or(100, |p| p.min(100));
     format!("L{}/{}{} {}%", (line + 1).min(total), total, if cut { "+" } else { "" }, pct)
+}
+
+/// The keys worth naming for what the preview shows, as the keymap in force
+/// spells them (`M rendered/source`). Markdown has one view to toggle; a key
+/// the user has unbound is left out rather than guessed.
+fn status_hint(app: &App) -> Option<String> {
+    use crate::preview::Payload;
+    if !app.cfg.ui.status_hints {
+        return None;
+    }
+    let crate::app::PreviewState::Ready(Payload::Markdown { .. }) = &app.preview.state else { return None };
+    let key = overlay::key_for(app, &crate::config::cmd::Act::ToggleRender)?;
+    Some(format!("{key} {}", if app.render_markdown { "source" } else { "rendered" }))
 }
 
 /// How many characters of the heading or function name the status bar shows.
@@ -1378,6 +1400,22 @@ mod status_notes {
         assert_eq!(preview_crumb(&[heading("x", 5)], 4, |e| e.line), None, "above the first heading there is none");
         let long = [heading(&"w".repeat(40), 0)];
         assert_eq!(preview_crumb(&long, 0, |e| e.line).unwrap().chars().count(), 29, "cut with an ellipsis");
+    }
+
+    #[test]
+    fn markdown_names_the_toggle_key_the_keymap_gives_it() {
+        let mut s = super::harness::Screen::open(crate::util::test_dir("status-hint"));
+        assert_eq!(status_hint(&s.app), None, "no Markdown, no hint");
+        let doc = Doc { lines: Vec::new(), toc: Vec::new(), toc_cols: 0, body_cols: 80 };
+        let md = Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Extent::default() };
+        s.app.preview.state = crate::app::PreviewState::Ready(md);
+        s.app.render_markdown = true;
+        let key = overlay::key_for(&s.app, &crate::config::cmd::Act::ToggleRender).expect("bound by default");
+        assert_eq!(status_hint(&s.app), Some(format!("{key} source")));
+        s.app.render_markdown = false;
+        assert_eq!(status_hint(&s.app), Some(format!("{key} rendered")));
+        s.app.cfg.ui.status_hints = false;
+        assert_eq!(status_hint(&s.app), None, "the setting turns it off");
     }
 
     /// The Markdown preview showed no position at all: only plain text was asked.

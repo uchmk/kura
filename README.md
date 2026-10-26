@@ -341,6 +341,7 @@ row_padding = 4.0
 fonts = []                 # explicit font file paths, tried first
 bold_fonts = []            # explicit bold font file paths, tried first
 icons = "auto"             # auto | nerd | ascii | none
+status_hints = true         # name the keys that fit the preview (Markdown: `M`) in the status bar
 render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
 preview_debounce_ms = 40
 max_text_bytes = 262144

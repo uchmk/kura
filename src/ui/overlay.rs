@@ -445,7 +445,7 @@ impl HelpRow {
 /// Looked up rather than written down: the panel whose whole job is to say what
 /// the keys are is the last place a key should be hardcoded, since a reader who
 /// has rebound one is exactly the reader being told the wrong thing.
-fn key_for(app: &App, act: &Act) -> Option<String> {
+pub(super) fn key_for(app: &App, act: &Act) -> Option<String> {
     let one = std::slice::from_ref(act);
     let found = app.cfg.keymap.mgr.iter().find(|b| b.run.as_slice() == one)?;
     Some(crate::config::keys::display_seq(&found.on))

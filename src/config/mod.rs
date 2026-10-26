@@ -64,6 +64,9 @@ pub struct Ui {
     pub icons: String,
     /// Draw the shape of the whole file down the right of the text preview.
     pub minimap: bool,
+    /// Name the keys that matter for what the preview shows (such as `M`
+    /// for Markdown) in the status bar.
+    pub status_hints: bool,
     /// Milliseconds the cursor must rest before a preview is requested.
     pub preview_debounce_ms: u64,
     pub max_text_bytes: usize,
@@ -125,6 +128,7 @@ impl Default for Ui {
             render_markdown: true,
             icons: "auto".into(),
             minimap: true,
+            status_hints: true,
             preview_debounce_ms: 40,
             max_text_bytes: 256 * 1024,
             content_max_bytes: 64 * 1024 * 1024,
