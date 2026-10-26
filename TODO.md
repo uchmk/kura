@@ -51,6 +51,10 @@
 - [x] （v0.99.1。`keys::display_seq` が macOS で `<C-q>` を `⌘Q`、`<C-A-x>` を `⌥⌘X` と出し、ヘルプ・which-key・パレットの右端・キーを案内するトースト・オーバーレイの案内が使う。照合は今までの `render_seq`）macOS のヘルプのキーの名前を人の読む形（`⌘Q` など）にする。
   - [ ] 設定の画面の説明文に固定で書いた `Ctrl+=` `Ctrl+F5` `Ctrl+T` を、macOS では `⌘` で出す。macOS の目での確認は TESTING に積む【後】
 - [ ] 窓の位置と大きさを覚える処理を ito に寄せる（tsumugi と yagura にも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
+- [ ] プレビューの構文の色づけを ito-syntax に寄せる（`syntect` / `two-face` は `scripts/ito-first.allow` に載せてある）。ito-syntax は種類（Tok）だけで色は持たず、kura は yazi 互換の `syntect_theme`（base16-ocean などの名前付きテーマの RGB + bold/italic/underline）で塗るので、そのままでは置き換えられない【人】【後】
+  - 推奨: ito の crate-request（uchmk/ito#37、feature `themes`）が入るのを待ち、`Themed::new(path, theme_name)` に替えて yazi 互換を保つ。代案は `syntect_theme` を捨てて Tok をテーマに割り当てる（小さいが yazi 互換が壊れる）で、これは持ち主の判断。
+  - 先にできる: アウトライン（`src/preview/symbols.rs`）だけ ito-syntax（rev e6e046f 以降）の `Stream::line_decls` に替える。
+  - 使っている所: `src/preview/{html,markdown,mod,symbols,text}.rs`、`src/mime.rs`、`src/config/theme.rs`、`src/app/preview_pane.rs`。
 - [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は tsumugi と yagura が common.toml を読むようになってから確かめる【実機】
 
 ## 多言語対応（2026-10-10、持ち主の希望）
