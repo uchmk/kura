@@ -19,9 +19,9 @@ pub mod yazi;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use ito_notify::webhook::Place;
 use serde::Deserialize;
 
+pub use ito_prefs::NotifyCfg;
 pub use keymap::Keymap;
 pub use theme::Theme;
 pub use yazi::YaziToml;
@@ -158,121 +158,6 @@ impl Default for McpCfg {
 
 fn yes() -> bool {
     true
-}
-
-/// `[notify]`: how the end of a long job reaches you while the window is
-/// behind another (uchmk's common spec, Notifications). The events are
-/// [`NOTIFY_EVENTS`]; `system`, `sound` and `webhook_states` list the ones
-/// each way tells of. What is not known is warned of and set back
-/// ([`NotifyCfg::check`]).
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(default)]
-pub struct NotifyCfg {
-    /// The system's own notification.
-    pub system: Vec<String>,
-    /// A sound of the system's.
-    pub sound: Vec<String>,
-    /// The one webhook of before (`webhook`, `webhook_format`,
-    /// `webhook_states`): read as the first of [`NotifyCfg::places`].
-    pub webhook_states: Vec<String>,
-    /// The sound for a job that finished, one of `ito_notify::SOUNDS`.
-    pub sound_done: String,
-    /// The sound for a job that failed.
-    pub sound_failed: String,
-    /// Windows: no sound in focus mode or under a full-screen program.
-    pub focus_mode: bool,
-    /// Where to send it too; empty: nowhere. Kept when it is not http(s),
-    /// for the settings to show in red, but not sent to.
-    pub webhook: String,
-    /// One of `ito_notify::FORMATS`.
-    pub webhook_format: String,
-    /// `[[notify.webhooks]]`, as written.
-    pub webhooks: Vec<HookCfg>,
-    /// Where it is told of, in order: the one webhook of before, then
-    /// `webhooks`. Made by [`NotifyCfg::check`], not read.
-    #[serde(skip)]
-    pub places: Vec<Place>,
-}
-
-/// A `[[notify.webhooks]]` table: its `url`, `format` and the events sent
-/// there (`[]`: none).
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(default)]
-pub struct HookCfg {
-    pub url: String,
-    pub format: String,
-    pub states: Vec<String>,
-}
-
-impl Default for HookCfg {
-    fn default() -> Self {
-        Self { url: String::new(), format: "ntfy".into(), states: NOTIFY_EVENTS.map(str::to_owned).to_vec() }
-    }
-}
-
-/// What a long job can end as, for `[notify]`: it finished, or it failed.
-pub const NOTIFY_EVENTS: [&str; 2] = ["done", "failed"];
-
-impl Default for NotifyCfg {
-    fn default() -> Self {
-        let both = || NOTIFY_EVENTS.map(str::to_owned).to_vec();
-        Self {
-            system: both(),
-            sound: Vec::new(),
-            webhook_states: both(),
-            sound_done: "chime".into(),
-            sound_failed: "alert".into(),
-            focus_mode: true,
-            webhook: String::new(),
-            webhook_format: "ntfy".into(),
-            webhooks: Vec::new(),
-            places: Vec::new(),
-        }
-    }
-}
-
-impl NotifyCfg {
-    /// Warn of an event, a sound or a format kura does not know, and set it
-    /// back to the default; and of a webhook that is not http(s).
-    fn check(&mut self, path: &str, warnings: &mut Vec<String>) {
-        let d = Self::default();
-        for (key, list) in [("system", &mut self.system), ("sound", &mut self.sound), ("webhook_states", &mut self.webhook_states)] {
-            list.retain(|e| {
-                let known = NOTIFY_EVENTS.contains(&e.as_str());
-                if !known {
-                    warnings.push(format!("{path}: [notify] `{key}`: `{e}` is not {}", NOTIFY_EVENTS.join(" or ")));
-                }
-                known
-            });
-        }
-        for (key, now, was) in
-            [("sound_done", &mut self.sound_done, d.sound_done), ("sound_failed", &mut self.sound_failed, d.sound_failed)]
-        {
-            if !ito_notify::SOUNDS.contains(&now.as_str()) {
-                warnings.push(format!("{path}: [notify] `{key}` `{now}` is not {}", ito_notify::SOUNDS.join(", ")));
-                *now = was;
-            }
-        }
-        if !ito_notify::FORMATS.contains(&self.webhook_format.as_str()) {
-            warnings.push(format!("{path}: [notify] `webhook_format` `{}` is not {}", self.webhook_format, ito_notify::FORMATS.join(", ")));
-            self.webhook_format = d.webhook_format;
-        }
-        if !self.webhook.is_empty() && !ito_notify::is_http(&self.webhook) {
-            warnings.push(format!("{path}: [notify] `webhook` `{}` is not an http(s) address", self.webhook));
-        }
-        let mut list = Vec::new();
-        for (i, h) in self.webhooks.iter().enumerate() {
-            let mut p = Place { url: h.url.trim().to_owned(), format: h.format.clone(), states: h.states.clone() };
-            warnings.extend(p.problems(&NOTIFY_EVENTS).into_iter().map(|w| format!("{path}: [[notify.webhooks]] {}: {w}", i + 1)));
-            if !ito_notify::FORMATS.contains(&p.format.as_str()) {
-                p.format = "ntfy".into();
-            }
-            p.states.retain(|s| NOTIFY_EVENTS.contains(&s.as_str()));
-            list.push(p);
-        }
-        let old = Place { url: self.webhook.trim().to_owned(), format: self.webhook_format.clone(), states: self.webhook_states.clone() };
-        self.places = ito_notify::webhook::places(old, list);
-    }
 }
 
 /// `[term]`: what the terminal pane runs.
@@ -572,7 +457,7 @@ impl Config {
         let mut term = TermCfg::default();
         let mut preview: Vec<PreviewRule> = Vec::new();
         let mut mcp = McpCfg::default();
-        let mut notify = NotifyCfg::default();
+        let mut notify = NotifyCfg::new(&ito_prefs::DONE_FAILED);
         let mut line_args: HashMap<String, String> = HashMap::new();
 
         for dir in dirs {
@@ -631,7 +516,7 @@ impl Config {
                         preview = v.preview;
                         mcp = v.mcp;
                         notify = v.notify;
-                        notify.check(&at(dir, OWN_FILE), &mut warnings);
+                        notify.check(&ito_prefs::DONE_FAILED, &at(dir, OWN_FILE), &mut warnings);
                         for (name, template) in v.line_args {
                             if crate::exec::template_is_valid(&template) {
                                 line_args.insert(crate::exec::editor_key(&name), template);
@@ -1490,57 +1375,5 @@ mod reload_tests {
         assert!(cfg.warnings.is_empty(), "{:?}", cfg.warnings);
         assert_eq!(mgr_run(&cfg, "q").as_deref(), Some("quit"));
         assert_eq!(mgr_run(&cfg, "<F9>").as_deref(), Some("config_reload"));
-    }
-}
-
-#[cfg(test)]
-mod notify_from_the_config {
-    use super::*;
-
-    /// `[notify]` reads as the README writes it, and what kura does not know
-    /// is warned of and set back; a webhook that is not http(s) is kept for
-    /// the settings to show, with a warning.
-    #[test]
-    fn what_is_not_known_is_warned_of_and_set_back() {
-        let text = "system = [\"done\", \"finished\"]\nsound = [\"failed\"]\nsound_done = \"bell\"\nwebhook = \"ntfy.sh/x\"\nwebhook_format = \"xml\"\n";
-        let mut n: NotifyCfg = toml::from_str(text).unwrap();
-        let mut warnings = Vec::new();
-        n.check("config.toml", &mut warnings);
-        assert_eq!(n.system, ["done"]);
-        assert_eq!(n.sound, ["failed"]);
-        assert_eq!(n.webhook_states, ["done", "failed"], "the default when not written");
-        assert_eq!((n.sound_done.as_str(), n.webhook_format.as_str()), ("chime", "ntfy"));
-        assert_eq!(n.webhook, "ntfy.sh/x");
-        assert_eq!(warnings.len(), 4, "{warnings:?}");
-        assert!(warnings.iter().all(|w| w.starts_with("config.toml: [notify]")), "{warnings:?}");
-
-        let mut n: NotifyCfg = toml::from_str("webhook_format = \"discord\"\n").unwrap();
-        let mut warnings = Vec::new();
-        n.check("config.toml", &mut warnings);
-        assert_eq!((n.webhook_format.as_str(), warnings.len()), ("discord", 0), "{warnings:?}");
-    }
-
-    /// `[[notify.webhooks]]` come after the old `webhook`, a bad one is warned
-    /// of by its number, and `states = []` pauses one.
-    #[test]
-    fn the_webhook_tables_follow_the_old_address() {
-        let text = "[notify]
-webhook = \"https://a.example/x\"
-[[notify.webhooks]]
-url = \"https://b.example/y\"
-format = \"xml\"
-states = [\"finished\"]
-[[notify.webhooks]]
-url = \"https://c.example/z\"
-states = []
-";
-        let mut n: NotifyCfg = toml::from_str::<toml::Table>(text).unwrap()["notify"].clone().try_into().unwrap();
-        let mut warnings = Vec::new();
-        n.check("config.toml", &mut warnings);
-        assert_eq!(n.places.len(), 3, "{:?}", n.places);
-        assert_eq!(warnings.len(), 2, "{warnings:?}");
-        assert!(warnings.iter().all(|w| w.starts_with("config.toml: [[notify.webhooks]] 1: ")), "{warnings:?}");
-        assert_eq!(n.places[1].format, "ntfy");
-        assert!(n.places[2].states.is_empty(), "{:?}", n.places[2]);
     }
 }

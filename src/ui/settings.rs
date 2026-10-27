@@ -887,17 +887,17 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
             key_edits.extend(ito_prefs::keys_page(ui, l, kw, &table, keys_edit).unwrap_or_default());
         }
         NOTIFY => {
-            let mut n = notify.page();
+            let mut n = notify.page(&ito_prefs::DONE_FAILED);
             let ends = [
                 ito_prefs::End { name: k.notify_done, color: l.c.done, sound: k.notify_done_sound },
                 ito_prefs::End { name: k.notify_failed, color: l.c.err, sound: k.notify_failed_sound },
             ];
-            let defaults = crate::config::NotifyCfg::default().page();
+            let defaults = crate::config::NotifyCfg::new(&ito_prefs::DONE_FAILED).page(&ito_prefs::DONE_FAILED);
             if let Some(what) = ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
                 test = Some((what, n.clone()));
             }
-            webhooks = notify.webhooks_of(&n);
-            kura.extend(notify.edits(&n).into_iter().map(|(key, value)| KuraChange {
+            webhooks = notify.webhooks_of(&ito_prefs::DONE_FAILED, &n);
+            kura.extend(notify.edits(&ito_prefs::DONE_FAILED, &n).into_iter().map(|(key, value)| KuraChange {
                 table: "notify",
                 key: key.into(),
                 value: Some(value),
@@ -1217,9 +1217,9 @@ mod tests {
             assert!(f.says(text), "{text} is on the page");
         }
         let file = dir.join("config.toml");
-        let mut n = s.app.cfg.notify.page();
+        let mut n = s.app.cfg.notify.page(&ito_prefs::DONE_FAILED);
         n.sound[1] = true;
-        let edits = s.app.cfg.notify.edits(&n);
+        let edits = s.app.cfg.notify.edits(&ito_prefs::DONE_FAILED, &n);
         let changes = edits.into_iter().map(|(key, value)| KuraChange { table: "notify", key: key.into(), value: Some(value) }).collect();
         s.app.write_kura_to(file.clone(), vec![dir.clone()], changes);
         let mut text = String::new();
