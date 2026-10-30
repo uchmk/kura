@@ -891,7 +891,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         left.push_str(&util::fmt_time(e.modified, "%Y-%m-%d %H:%M"));
     }
     let left_w = painter.text(egui::pos2(x, cy), Align2::LEFT_CENTER, left, f.clone(), theme.fg_dim).width();
-    let hint_x = x + left_w + 24.0;
+    let hint_x = x + left_w + 12.0;
 
     // Right side: task progress, filter/find state, position.
     let mut right: Vec<String> = Vec::new();
@@ -985,11 +985,16 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     let right_g = painter.layout_no_wrap(right.join("   "), f.clone(), theme.fg_dim);
     painter.galley(egui::pos2(right_edge - right_g.size().x, cy - right_g.size().y / 2.0), right_g.clone(), theme.fg_dim);
     // Key hints take what the two sides leave; they go first when it is short.
-    if let Some(h) = status_hint(app) {
+    // Whole hints only, as many as fit: a cut-off key name is worse than none.
+    let mut at = hint_x;
+    for h in status_hints(app) {
         let g = painter.layout_no_wrap(h, f.clone(), theme.fg_dim);
-        if hint_x + g.size().x + 24.0 < right_edge - right_g.size().x {
-            painter.galley(egui::pos2(hint_x, cy - g.size().y / 2.0), g, theme.fg_dim);
+        if at + g.size().x + 12.0 >= right_edge - right_g.size().x {
+            break;
         }
+        let w = g.size().x;
+        painter.galley(egui::pos2(at, cy - g.size().y / 2.0), g, theme.fg_dim);
+        at += w + 16.0;
     }
 
     // A thin progress strip along the bottom while work is running.
@@ -1054,13 +1059,13 @@ fn position_text(line: usize, total: usize, cut: bool, top: usize, max: usize) -
 /// spells them (`M source`): Markdown's view toggle, the outline of anything
 /// that has one, an image's zoom. At most three, and a key the user has
 /// unbound is left out rather than guessed.
-fn status_hint(app: &App) -> Option<String> {
+fn status_hints(app: &App) -> Vec<String> {
     use crate::config::cmd::{Act, ZoomTo};
     use crate::preview::Payload;
     if !app.cfg.ui.status_hints {
-        return None;
+        return Vec::new();
     }
-    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return None };
+    let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return Vec::new() };
     let wants: Vec<(Act, &str)> = match payload {
         Payload::Markdown { doc, .. } => {
             let mut v = vec![(Act::ToggleRender, if app.render_markdown { "source" } else { "rendered" })];
@@ -1073,8 +1078,13 @@ fn status_hint(app: &App) -> Option<String> {
         Payload::Image { .. } => vec![(Act::Zoom(ZoomTo::In), "zoom in"), (Act::Zoom(ZoomTo::Out), "out"), (Act::Zoom(ZoomTo::Fit), "fit")],
         _ => Vec::new(),
     };
-    let hints: Vec<String> = wants.iter().filter_map(|(a, what)| Some(format!("{} {what}", overlay::key_for(app, a)?))).collect();
-    (!hints.is_empty()).then(|| hints.join("   "))
+    wants.iter().filter_map(|(a, what)| Some(format!("{} {what}", overlay::key_for(app, a)?))).collect()
+}
+
+#[cfg(test)]
+fn status_hint(app: &App) -> Option<String> {
+    let h = status_hints(app);
+    (!h.is_empty()).then(|| h.join("   "))
 }
 
 /// How many characters of the heading or function name the status bar shows.

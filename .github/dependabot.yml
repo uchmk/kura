@@ -16,6 +16,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+    # eframe moves together with egui and the ito crates (all on one egui
+    # version), so it is bumped by hand when ito moves, never by a lone PR.
+    ignore:
+      - dependency-name: "eframe"
     groups:
       cargo:
         patterns: ["*"]
