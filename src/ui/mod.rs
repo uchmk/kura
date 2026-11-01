@@ -1153,12 +1153,18 @@ fn preview_parts(app: &App) -> (Vec<String>, Option<Option<String>>) {
             }
             None
         }
-        Payload::Image { source, vector, .. } => {
+        Payload::Image { source, own, vector, .. } => {
             let ext = tab.current.hovered().and_then(|e| e.ext.as_deref()).map(str::to_ascii_uppercase);
             let format = if *vector { Some("SVG".to_string()) } else { ext };
+            // An SVG is laid out at a size of its own making (`svg_preview::vector_source`);
+            // the reader wants the size the file says, which `own` takes back out.
+            let (w, h) = match *vector {
+                true => ((source.0 as f32 / own).round() as u32, (source.1 as f32 / own).round() as u32),
+                false => *source,
+            };
             out.push(match format {
-                Some(f) => format!("{f} {}×{}", source.0, source.1),
-                None => format!("{}×{}", source.0, source.1),
+                Some(f) => format!("{f} {w}×{h}"),
+                None => format!("{w}×{h}"),
             });
             None
         }
