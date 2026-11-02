@@ -312,6 +312,8 @@ impl<'a> Builder<'a> {
             }
             Tag::BlockQuote(kind) => {
                 self.flush(LineKind::Text);
+                // The gap above a quote belongs outside its bar.
+                self.settle(src);
                 let color = kind.map_or(self.pal.quote, |k| self.pal.alert(k));
                 self.containers.push(Container::Quote(color));
                 if let Some(kind) = kind {
@@ -1263,6 +1265,12 @@ mod tests {
         let src = "> [!NOTE]\n> read this\n\n<p align=\"center\"><img alt=\"logo\" src=\"x.png\"> <b>kura</b></p>\n\n<!-- hidden -->\n\nA &amp; B<br>C\n";
         let d = doc(src, 80);
         assert_eq!(texts(&d), ["│ Note", "│ read this", "", "[image: logo] kura", "", "A & B", "C"]);
+    }
+
+    #[test]
+    fn the_gap_above_a_quote_is_outside_its_bar() {
+        let d = doc("1. first\n2. second\n\n> [!NOTE]\n> alert\n\n> plain\n", 80);
+        assert_eq!(texts(&d), ["1. first", "2. second", "", "│ Note", "│ alert", "", "│ plain"]);
     }
 
     #[test]

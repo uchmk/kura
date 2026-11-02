@@ -1332,7 +1332,7 @@ mod tests {
     #[test]
     fn definition_lists_and_quotes() {
         let d = doc("<dl><dt>term<dd>meaning</dl><blockquote><p>said</p></blockquote>");
-        assert_eq!(texts(&d), ["term", "", "meaning", "│", "│ said"]);
+        assert_eq!(texts(&d), ["term", "", "meaning", "", "│ said"]);
     }
 
     #[test]
