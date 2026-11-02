@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.139.52] - 2026-11-02
+
+### 変更
+
+- F1 のヘルプのキー一覧を、種類ごとの見出し（Navigation・Selection・Operations・Find / filter / search・Sorting・Goto・Tabs など）に分けた。
+  見出しは組み込みの keymap の `# --- … ---` の節をそのまま使う。自分の keymap で足したキーは、最後の「Other (your own keys)」にまとまる。
+
 ## [0.139.51] - 2026-11-02
 
 ### 修正

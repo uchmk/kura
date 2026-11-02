@@ -616,7 +616,7 @@ fn help_lines(app: &App) -> Vec<HelpRow> {
     } else {
         lines.push(HelpRow::heading("keys"));
     }
-    lines.extend(app.cfg.keymap.mgr.iter().map(row));
+    lines.extend(grouped(&app.cfg.keymap.mgr, &row));
     // The small layers after the list: the picker's cursor keys were in no
     // list at all, and `<F1>` pressed inside the picker is the picker's own
     // filter (#268). After, so the pane's keys stay as near the top as they were.
@@ -633,6 +633,65 @@ fn help_lines(app: &App) -> Vec<HelpRow> {
         lines.extend(bindings.iter().map(row));
     }
     lines
+}
+
+/// The section of the built-in keymap each `[mgr]` description sits under
+/// (`# --- Navigation ---` and so on), read from the defaults' own text so the
+/// file stays the one place that says what a key is for.
+fn genres() -> &'static std::collections::HashMap<String, String> {
+    static GENRES: std::sync::OnceLock<std::collections::HashMap<String, String>> = std::sync::OnceLock::new();
+    GENRES.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        let (mut section, mut layer) = (String::from("General"), "");
+        for line in crate::config::keymap::DEFAULT_KEYMAP.lines() {
+            if let Some(name) = line.strip_prefix("# --- ") {
+                section = name.trim_end_matches(['-', ' ']).to_owned();
+            } else if let Some(l) = line.strip_prefix("[[").and_then(|l| l.strip_suffix(".keymap]]")) {
+                layer = if l == "mgr" { "mgr" } else { "" };
+            } else if let Some(d) = line.strip_prefix("desc = \"").and_then(|d| d.strip_suffix('"')) {
+                if layer == "mgr" {
+                    map.entry(d.replace("\\\"", "\"").replace("\\\\", "\\")).or_insert_with(|| section.clone());
+                }
+            }
+        }
+        map
+    })
+}
+
+/// The list's keys under a heading for each kind of thing they do, in the
+/// order the defaults lay them out. Keys of a file of yours that the defaults
+/// have no description for go last, together.
+fn grouped(bindings: &[crate::config::keymap::Binding], row: &dyn Fn(&crate::config::keymap::Binding) -> HelpRow) -> Vec<HelpRow> {
+    let genres = genres();
+    let mut order: Vec<&str> = Vec::new();
+    for g in genres.values() {
+        if !order.contains(&g.as_str()) {
+            order.push(g);
+        }
+    }
+    // `values()` has no order; the file does.
+    let file: Vec<&str> = crate::config::keymap::DEFAULT_KEYMAP
+        .lines()
+        .filter_map(|l| l.strip_prefix("# --- "))
+        .map(|n| n.trim_end_matches(['-', ' ']))
+        .collect();
+    order.sort_by_key(|g| file.iter().position(|f| f == g).map_or(0, |i| i + 1));
+    let mut out = Vec::new();
+    let mut put = |title: &str, rows: Vec<&crate::config::keymap::Binding>| {
+        if rows.is_empty() {
+            return;
+        }
+        if !out.is_empty() {
+            out.push(HelpRow::blank());
+        }
+        out.push(HelpRow::heading(&format!("  {title}")));
+        out.extend(rows.into_iter().map(row));
+    };
+    for g in order {
+        put(g, bindings.iter().filter(|b| genres.get(&b.desc).is_some_and(|x| x == g)).collect());
+    }
+    put("Other (your own keys)", bindings.iter().filter(|b| !genres.contains_key(&b.desc)).collect());
+    out
 }
 
 /// The help panel as text, for `C` (Q48): a heading on a line of its own, then
@@ -1695,6 +1754,19 @@ mod diff_frame {
         s.typed("jj");
         let now = top_of_highlight(&mut s);
         assert!(now > first, "the highlight moved down: {first} then {now}");
+    }
+}
+
+#[cfg(test)]
+mod genres_tests {
+    use super::genres;
+
+    #[test]
+    fn every_built_in_list_key_has_a_genre() {
+        let (_, mgr) = crate::config::keymap::Keymap::built_in_layers().iter().find(|(n, _)| n == "mgr").expect("mgr layer").clone();
+        let lost: Vec<&str> = mgr.iter().filter(|b| !genres().contains_key(&b.desc)).map(|b| b.desc.as_str()).collect();
+        assert!(lost.is_empty(), "no `# --- section ---` above: {lost:?}");
+        assert_eq!(genres().get("Open help").map(String::as_str), Some("Panels"));
     }
 }
 
