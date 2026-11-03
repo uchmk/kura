@@ -113,6 +113,8 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 
 ## Sonnet の見張り（2026-10-05 まで）
 
+- [ ] （Sonnet の見張り）v0.139.52（`a5449e3`、F1 のヘルプのキー一覧を節ごとの見出しにした）と v0.139.53（`b04b65b`、`exec::at_line` が列も渡す）は動きが変わるのに、TESTING.md に行が無く、`scripts/testcheck-ja.toml` の訳も、`retest` の issue も無い（CLAUDE.md の作業ルール）。v0.139.51（Markdown の引用の前の隙間）も見た目が変わるが同じ。CI は緑。
+  TESTING.md の該当の節に行を足し（F1 に見出しが並ぶ・ユーザーの keymap のキーが最後に集まる／列を取るエディタで検索の当たりが列まで開く／引用の前の隙間）、訳を合わせ、`make-testcheck` で作り直し、`retest` の issue に積む
 - [x] （v0.139.15。TESTING.md の 62 節と訳を足し、移行と空の履歴の単体テストを書いた）（Sonnet の見張り）v0.131.6（`e1be4b2`）は履歴の保存を `history.toml` / `search-history.toml` / `shell-history.toml` に変えた（動きが変わる。`.txt` は初回だけ読む）が、TESTING.md に行が無く、`scripts/testcheck-ja.toml` の訳も、実機の再テストの issue も無い（CLAUDE.md の作業ルール）。CI は緑。
   TESTING.md に「履歴が `.toml` に保存され、`.txt` だけがある状態から起動すると引き継がれる」の行を足し、訳を合わせ、`make-testcheck` で作り直し、`retest` の issue に積む。`.txt`→`.toml` の移行と空の履歴の単体テストがあるかも見る
 - [x] （Sonnet の見張り）v0.79.4（`f3b0910`）は「Ended the shell」が同じシェルの `Started …` のトーストを差し替えるようにして 1.38 を外し、両レーンの再テストに積んだが、TESTING.md の 1.38 の行（と `scripts/testcheck-ja.toml` の訳）は前のままで、新しい期待（終えた後に `Started pwsh …` のトーストが残らず、**Ended the shell** だけが出る）は順番表の行にしか書かれていない。再テストが済んで順番表から消えると、行の文からはこの動きが読めず、戻っても次の回が気づかない。
