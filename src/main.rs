@@ -986,6 +986,7 @@ impl eframe::App for Kura {
             }
             Some(
                 p @ (keyscript::Press::Click { .. }
+                | keyscript::Press::DClick { .. }
                 | keyscript::Press::Hover { .. }
                 | keyscript::Press::Wheel { .. }
                 | keyscript::Press::Drag { .. }),
@@ -1066,6 +1067,8 @@ impl eframe::App for Kura {
             }
             // Taken before the wait above; `parse` puts a key after every one.
             Some(keyscript::Press::Now) | None => {}
+            // Steps that read the window's tree or the clipboard: kura does not take them yet.
+            Some(_) => self.script_at = (frame, std::time::Instant::now()),
         }
         self.note_progress();
     }

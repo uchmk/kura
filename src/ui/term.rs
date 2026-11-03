@@ -17,6 +17,7 @@ fn palette(theme: &Theme) -> ito_pane::Palette {
         fg: theme.fg,
         fg_dim: theme.fg_dim,
         selection: theme.common.selection(),
+        found: theme.common.wait,
         cursor: theme.cwd.fg.unwrap_or(theme.fg),
         on_cursor: theme.bg,
         ansi: None,

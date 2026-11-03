@@ -689,7 +689,7 @@ impl App {
 
     /// Open the targets; `line` (1-based) asks an editor to start there, and is
     /// only honored when the hovered file is the one being opened.
-    pub(super) fn open(&mut self, interactive: bool, line: Option<usize>) {
+    pub(super) fn open(&mut self, interactive: bool, line: Option<crate::exec::Pos>) {
         let paths = self.tabs[self.active].targets();
         if paths.is_empty() {
             return;

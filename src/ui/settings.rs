@@ -973,7 +973,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     if out.close {
         queued.push(Act::Settings);
     }
-    if out.open_file {
+    if out.open_file.is_some() {
         app.open_own_config();
     }
     app.settings_startup(toggled);

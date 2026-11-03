@@ -189,24 +189,24 @@ fn quote(p: &Path, suffix: &str) -> String {
 
 /// The opener's command line, at `line` when there is one and the editor
 /// takes it.
-pub fn command_line(run: &str, paths: &[PathBuf], line: Option<usize>, custom: &LineArgs) -> String {
-    line.and_then(|n| at_line(run, paths, n, custom)).unwrap_or_else(|| substitute(run, paths))
+pub fn command_line(run: &str, paths: &[PathBuf], at: Option<Pos>, custom: &LineArgs) -> String {
+    at.and_then(|p| at_line(run, paths, p, custom)).unwrap_or_else(|| substitute(run, paths))
 }
 
-pub use ito_openin::lines::{editor_key, template_is_valid, LineArgs};
+pub use ito_openin::lines::{editor_key, template_is_valid, LineArgs, Pos};
 
 /// The toast note for a line the opener cannot take; empty when no line was asked for or it is passed.
-pub fn no_line_note(run: &str, paths: &[PathBuf], line: Option<usize>, custom: &LineArgs) -> String {
-    match line {
-        Some(n) if at_line(run, paths, n, custom).is_none() => format!(" (line {n} not passed: this opener takes no line)"),
+pub fn no_line_note(run: &str, paths: &[PathBuf], at: Option<Pos>, custom: &LineArgs) -> String {
+    match at {
+        Some(p) if at_line(run, paths, p, custom).is_none() => format!(" (line {} not passed: this opener takes no line)", p.line),
         _ => String::new(),
     }
 }
 
-/// The opener's command line, opening `paths` at `line` (1-based) when the
+/// The opener's command line, opening `paths` at `at` (line 1-based, column optional) when the
 /// program is an editor known to take a line; `None` when it is not. A
 /// `[line_args]` template in `custom` is preferred over the built-in table.
-pub fn at_line(run: &str, paths: &[PathBuf], line: usize, custom: &LineArgs) -> Option<String> {
+pub fn at_line(run: &str, paths: &[PathBuf], at: Pos, custom: &LineArgs) -> Option<String> {
     let run = run.trim_start();
     // The program is the first token, quoted or not.
     let end = match run.strip_prefix('"') {
@@ -217,10 +217,11 @@ pub fn at_line(run: &str, paths: &[PathBuf], line: usize, custom: &LineArgs) -> 
     Path::new(program).file_name()?;
     let how = ito_openin::lines::line_arg(program, custom)?;
     let (head, tail) = run.split_at(end);
-    let before = how.before(line);
+    // A column is passed when the caller knows one; an editor that cannot take it gets the line alone.
+    let before = how.args(at.line, at.col).join(" ");
     let head = if before.is_empty() { head.to_owned() } else { format!("{head} {before}") };
     Some(substitute_render(&format!("{head}{tail}"), paths, &|p| {
-        format!("\"{}\"", how.path_token(line, &p.to_string_lossy().replace('"', "\\\"")))
+        format!("\"{}\"", how.token(at.line, at.col, &p.to_string_lossy().replace('"', "\\\"")))
     }))
 }
 
@@ -1092,7 +1093,7 @@ mod tests {
     fn opens_editors_at_a_line() {
         let s = sample("rs");
         let (p, pn) = (s.raw, format!("{}:12", s.raw));
-        let at = |run: &str| at_line(run, &s.paths, 12, &LineArgs::new());
+        let at = |run: &str| at_line(run, &s.paths, Pos::line(12), &LineArgs::new());
         assert_eq!(at("nvim %s").as_deref(), Some(format!(r#"nvim +12 "{p}""#).as_str()));
         assert_eq!(at("code %*").as_deref(), Some(format!(r#"code -g "{pn}""#).as_str()));
         assert_eq!(at(r#"hx "$@""#).as_deref(), Some(format!(r#"hx "{pn}""#).as_str()));
@@ -1108,10 +1109,27 @@ mod tests {
     #[test]
     fn notes_a_line_only_when_the_opener_cannot_take_it() {
         let s = sample("txt");
-        let note = |run: &str, line| no_line_note(run, &s.paths, line, &LineArgs::new());
+        let note = |run: &str, line: Option<usize>| no_line_note(run, &s.paths, line.map(Pos::line), &LineArgs::new());
         assert_eq!(note("winword %s", Some(7)), " (line 7 not passed: this opener takes no line)");
         assert_eq!(note("code -g %s", Some(7)), "");
         assert_eq!(note("winword %s", None), "");
+    }
+
+    #[test]
+    fn passes_a_column_when_there_is_one_and_the_editor_takes_it() {
+        let s = sample("txt");
+        let p = s.raw;
+        let col = Some(ito_openin::lines::Col::new(5, 7));
+        let at = |run: &str, col| at_line(run, &s.paths, Pos { line: 12, col }, &LineArgs::new());
+        // `code -g path:line:col` counts characters.
+        assert_eq!(at("code %s", col).as_deref(), Some(format!(r#"code -g "{p}:12:5""#).as_str()));
+        // No column known (an outline heading): the line alone, as before.
+        assert_eq!(at("code %s", None).as_deref(), Some(format!(r#"code -g "{p}:12""#).as_str()));
+        // A custom template with `{col}` and `{bcol}`.
+        let mut custom = LineArgs::new();
+        custom.insert("weft".into(), "+{line}:{col} {path}".into());
+        let line = at_line("weft %s", &s.paths, Pos { line: 12, col }, &custom);
+        assert_eq!(line.as_deref(), Some(format!(r#"weft +12:5 "{p}""#).as_str()));
     }
 
     /// The Windows editors' own flags. The programs only exist there, but the
@@ -1121,7 +1139,7 @@ mod tests {
     fn opens_windows_editors_at_a_line() {
         let s = sample("txt");
         let p = s.raw;
-        let at = |run: &str| at_line(run, &s.paths, 123, &LineArgs::new());
+        let at = |run: &str| at_line(run, &s.paths, Pos::line(123), &LineArgs::new());
         assert_eq!(at("hidemaru %s").as_deref(), Some(format!(r#"hidemaru /j123 "{p}""#).as_str()));
         assert_eq!(at("sakura %s").as_deref(), Some(format!(r#"sakura -Y=123 "{p}""#).as_str()));
         assert_eq!(at("emeditor %s").as_deref(), Some(format!(r#"emeditor /l 123 "{p}""#).as_str()));
@@ -1149,7 +1167,7 @@ mod tests {
         custom.insert("goto".into(), "--goto {path}@{line}".into());
         // A configured editor overrides the built-in table.
         custom.insert("sakura".into(), "/LINE={line} {path}".into());
-        let at = |run: &str| at_line(run, &s.paths, 123, &custom);
+        let at = |run: &str| at_line(run, &s.paths, Pos::line(123), &custom);
 
         assert_eq!(at("mikan %s").as_deref(), Some(format!(r#"mikan -l 123 "{p}""#).as_str()));
         assert_eq!(at("myedit %s").as_deref(), Some(format!(r#"myedit "{p}:123""#).as_str()));

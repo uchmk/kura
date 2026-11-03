@@ -133,7 +133,7 @@ pub enum PickAction {
     OpenWith {
         paths: Vec<PathBuf>,
         runs: Vec<(String, bool, bool)>,
-        line: Option<usize>,
+        line: Option<crate::exec::Pos>,
     },
     Jump {
         paths: Vec<PathBuf>,

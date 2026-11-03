@@ -492,7 +492,8 @@ impl App {
             // Already in the outline.
             Act::Enter => true,
             Act::Open { interactive, .. } => {
-                let line = self.outline_source_line(cursor.min(entries.len() - 1));
+                // A heading has no column: the line alone.
+                let line = self.outline_source_line(cursor.min(entries.len() - 1)).map(crate::exec::Pos::line);
                 self.preview.outline = None;
                 self.open(*interactive, line);
                 true
