@@ -1125,6 +1125,9 @@ mod tests {
         assert_eq!(at("code %s", col).as_deref(), Some(format!(r#"code -g "{p}:12:5""#).as_str()));
         // No column known (an outline heading): the line alone, as before.
         assert_eq!(at("code %s", None).as_deref(), Some(format!(r#"code -g "{p}:12""#).as_str()));
+        // weft is in ito's table: `+LINE:COL`, the column in characters.
+        assert_eq!(at("weft %s", col).as_deref(), Some(format!(r#"weft +12:5 "{p}""#).as_str()));
+        assert_eq!(at("weft %s", None).as_deref(), Some(format!(r#"weft +12 "{p}""#).as_str()));
         // A custom template with `{col}` and `{bcol}`.
         let mut custom = LineArgs::new();
         custom.insert("weft".into(), "+{line}:{col} {path}".into());
