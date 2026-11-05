@@ -114,7 +114,7 @@ The riskiest area: an embedded terminal is a lot of machinery and none of its
 drawing has been seen. `<C-t>` opens it.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 1.1 | `<C-t>` from the file list | A shell opens along the bottom, already in the directory the list is showing |
 | 1.2 | Type `dir` and press Enter | Output in the list's own font, columns lined up, no overlapping glyphs |
 | 1.3 | Look at the cursor | A block where the shell's cursor is, and it moves as you type |
@@ -189,7 +189,7 @@ the strip, and that a pane too narrow for them draws none. What is left below is
 everything about how the picture *looks* and how it answers the mouse.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 2.1 | Hover `long.rs` | A narrow strip down the right of the preview, made of short horizontal bars |
 | 2.2 | Look at the shape | Comment headers read as long bars, one every 40 lines, and indented blocks as bars starting further right. In `long.rs` the blank line every 40 sits just above a header and shares its band (one band holds about two lines, so a lone blank line cannot be a whole gap of its own; since v0.73.59), so it is not a separate band to look for. No other stripes: before v0.73.59 a one-pixel gap fell every 17-19 px from rounding, whatever the file held. It should look like the file |
 | 2.3 | Look at the colors | The bars carry syntax colors — strings and comments differ from code — not one flat color |
@@ -208,7 +208,7 @@ everything about how the picture *looks* and how it answers the mouse.
 `zoom-me.png` is 3200×2400 with an 8-pixel grid, so blur is obvious.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 3.1 | Hover `zoom-me.png` | It fits the pane. The caption reads `3200 × 2400 · fit NN%` |
 | 3.2 | `<A-1>` (1:1) | It fills far more than the pane, showing the middle. **The grid lines are crisp** — this is the re-decode working; if it is a blurred enlargement of the fitted copy, that is the bug this was built to avoid. At a display scale other than 100% too, one image pixel is one **physical** screen pixel (v0.73.62, Q65) |
 | 3.3 | Watch the moment it sharpens | The picture must **not jump or change size** when the sharper copy arrives. Only its sharpness changes |
@@ -239,7 +239,7 @@ one against, and none was kept. If one is ever wanted, `build.yml`'s artifact
 for commit `f2b30c5` is it, for as long as the 90 days last.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 4.1 | Hover an SVG with no text in it (an icon, a logo) | Drawn, scaled to fill the pane, sharp at any pane size |
 | 4.2 | An SVG containing **text** | The text is drawn, in the right place, at the right size — **not missing, not boxes, not overlapping** |
 | 4.3 | An SVG with **Japanese** text | Same. A font with kana and kanji is picked, rather than the text vanishing |
@@ -266,7 +266,7 @@ files. 5.9 was reworded to what the program has done since v0.43.0: two folders 
 comparison of section 45, and only a file and a folder together are refused (45.9).
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 5.1 | Compare the two | Two columns, a line down the middle, with line numbers on each side |
 | 5.2 | Find line 100 | The changed line sits **opposite** the line it replaced — not listed as a removal and an addition far apart |
 | 5.3 | Look at the colors | Removals tinted on the left, additions on the right, matching the git signs' colors |
@@ -299,7 +299,7 @@ refusals; and what becomes of the split when a tab is switched or closed. What i
 job's progress, its speed, and cancelling it from `w` all need a copy big enough to watch happen.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 6.1 | `<C-w>` once | Two panes side by side. The **parent column is gone**; the layout is pane, pane, preview, the same width as before |
 | 6.2 | `<C-w>` again, and again | The keys move between the panes. The same key both splits and switches |
 | 6.3 | Look at the two cursor rows | The pane without the keys is **dimmer**. That is the only thing saying where typing will land |
@@ -321,7 +321,7 @@ job's progress, its speed, and cancelling it from `w` all need a copy big enough
 ## 7. The config paths in the help panel (v0.25.0)
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 7.1 | `~` with no `config.toml` anywhere | **Both** directories are listed, the empty one marked `nothing here`. Before v0.25.0 only files that existed were shown |
 | 7.2 | Hover a path | The row lights up and the pointer becomes a hand |
 | 7.3 | Hover a key row | Nothing happens — it is not a link |
@@ -342,7 +342,7 @@ shell it started with, so a change to `[term]` takes a save, then `<C-S-t>` to e
 old shell, then `<C-t>`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 8.1 | `<C-t>` with no `[term]` in `config.toml`, then `$PSVersionTable.PSVersion` | `7.x` — `pwsh`, the default since v0.55.0 wherever it is installed (Q29). `5.1.x`, Windows PowerShell, only on a machine without `pwsh` |
 | 8.2 | With the pane open, add `[term]` / `shell = "powershell"` and save, without `<C-F5>`; then `<C-S-t>`, `<C-t>`, ask again (v0.67.17, v0.99.0) | Within about 2 seconds a toast ending `— the pane keeps its shell until <C-S-t> closes it`; after `<C-S-t>` `<C-t>`, `5.1.x` |
 | 8.3 | `$PROFILE` in each | Two different paths — `WindowsPowerShell\` for 5.1, `PowerShell\` for 7 |
@@ -366,7 +366,7 @@ press once per frame, and a repeat rate no test sets is exactly what made this v
 The key is `<BackTab>`, not the `<C-o>` 9.1 names — see QA-REPORT.md.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 9.1 | Focus the outline (`<C-o>` or `l` on the file), `G` or hold `↓` to the last entry | The preview stops at the end of the file. **No flicker, no half-drawn frames** |
 | 9.2 | Keep holding `↓` there for a few seconds | Nothing moves and nothing flashes. Until v0.23.1 this was one bad frame per repeat |
 | 9.3 | The same on a document whose last heading has plenty of text after it | Unchanged — it was always correct here |
@@ -385,7 +385,7 @@ beside a row is noticeable at all, which is not something a frame can be asked.
 10.10 (v0.57.3) is `app::said_out_loud`, which reads the toast.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 10.1 | `y` on a file with nothing selected | A **green** bar on the row, and `1 copied` in the header |
 | 10.2 | `<Space>` on that same file | The bar turns **yellow** — the selection's colour wins, by design — and the header reads `1 selected · 1 copied` |
 | 10.3 | `x` instead of `y` | A **red** bar, and `1 cut` |
@@ -412,7 +412,7 @@ where it sits, and that the prompt opens with its rule **selected**: it does not
 below has to be typed over a field the person clears first. That is in QA-REPORT.md.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 11.1 | Select the 12 `IMG_*.jpg`, press `R` | A prompt reading `{name}{ext}`, and a panel above it listing every file with `→` and its new name — unchanged, since that rule changes nothing |
 | 11.2 | Type `holiday-{n:2}{ext}` | The panel updates **as you type**, showing `holiday-01.jpg` … `holiday-12.jpg` |
 | 11.3 | Enter | All twelve renamed. A toast says how many |
@@ -442,7 +442,7 @@ and `U` makes them again) and 12.19 (the cursor follows a rename and a new name,
 `ui::cursor_follows_frame`) are automated alongside 12.8 in `ui::undo_frame`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 12.1 | `d` on a file in `many\` | It goes to the recycle bin |
 | 12.2 | `u` | It comes back, in its original place. A toast says so |
 | 12.3 | Check the task panel (`w`) during F2 | A `Restore` row appears and completes |
@@ -502,7 +502,7 @@ which has one link and therefore draws no Link section at all (13.15): nothing t
 machines do not have.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 13.1 | Look at a link's row | `->` after the name. With `m`+`p` the type column reads `l` |
 | 13.2 | `g`+`f` on a link to a **directory** | The list goes into the target |
 | 13.3 | `g`+`f` on a link to a **file** | The list goes to the target's directory with the file under the cursor; `<Enter>` then opens it |
@@ -531,7 +531,7 @@ The leftmost column. It draws files and directories the same way, so both have
 to answer a click.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 14.1 | Click a **directory** there | The list goes into it, as it always has |
 | 14.2 | Click a **file** there (v0.26.7) | The list goes up to where that file lives, **with the file under the cursor**. Until v0.26.7 nothing happened at all |
 | 14.3 | Then press `<Enter>` | It opens — the cursor really is on it, not merely near it |
@@ -545,7 +545,7 @@ Since v0.99.0 the scale is `scale` in `%APPDATA%\uchmk\common.toml`, shared by e
 (tsumugi and yagura follow it too). Have one of them open for 15.10 and 15.11.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 15.1 | `<C-->` with something yanked | **Only** the window shrinks. Until v0.32.0 it also made a hardlink — one press, two actions |
 | 15.2 | `<C-+>`, `<C-=>` and `<C-;>` | All three make it bigger. Which of them needs shift depends on the layout — on US `+` is shift+equals, on JIS `+` is shift+semicolon and `=` is shift+minus — and every spelling is bound so any reaches it (v0.45.6; `<C-;>` since v0.99.0) |
 | 15.3 | `<C-0>` | Back to 100%, and a toast says so |
@@ -565,7 +565,7 @@ Since v0.99.0 the scale is `scale` in `%APPDATA%\uchmk\common.toml`, shared by e
 **On a machine with no Office installed** — that is the case this is for.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 16.1 | Hover a `.docx` | Its text, paragraph by paragraph. Not a hex dump, not a metadata card |
 | 16.2 | A paragraph with mixed bold and plain in one sentence | **One line**, not one per run |
 | 16.3 | A document with Heading 1/2 styles, then `<S-Tab>`, and move through the outline | The headings are the outline, and the preview follows the cursor to each heading |
@@ -590,7 +590,7 @@ rules from the README in `config.toml`. **The end-to-end test runs `sh`, so it i
 skipped on Windows — this section is the only coverage of the `cmd` path.**
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 17.1 | Hover a multi-page PDF | Page one, with `page 1` under it |
 | 17.2 | `<A-j>` | Page two. `page 2` under it |
 | 17.3 | `<A-k>` | Back to page one |
@@ -621,7 +621,7 @@ pointer both need a hand on a mouse, and the first half of 18.11, which does not
 QA-REPORT.md.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 18.1 | `<F3>` on any file | A large panel over the panes, with the file's name at the top and "Esc to close" |
 | 18.2 | With it open, press `j` and `k` | **The list still moves**, and the panel follows down it. This is why it is not an overlay |
 | 18.3 | `<A-j>` / `<A-k>` with it open | The panel's content scrolls |
@@ -649,7 +649,7 @@ should move about three rows, and a slow turn should move *something* — the bu
 was that a gentle turn moved nothing at all.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 19.1 | Wheel over the **preview** of a long text file | It scrolls, one notch at a time, without spinning hard. This is the v0.26.5 fix |
 | 19.2 | Turn the wheel as slowly as you can over the preview | It still moves. Every fraction counts; nothing is discarded |
 | 19.3 | Wheel over the **file list** | The same, and with the split open, over each pane in turn |
@@ -662,7 +662,7 @@ was that a gentle turn moved nothing at all.
 ## 20. Configuration and theming
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 20.1 | With kura open, edit `theme.toml` (change `[mgr] cwd` to something loud) and press `<C-F5>` | The color changes without restarting |
 | 20.2 | Change `[ui] font_size` in `config.toml`, `<C-F5>` | The text resizes |
 | 20.3 | Add a `keymap.toml` binding, `<C-F5>` | The new key works, and `<F1>` lists it |
@@ -695,7 +695,7 @@ formats come out at all need the program running. 21.9 needs 7-Zip besides. QA-R
 row needs which. 21.6 says something other than what it says here, which is written up there too.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 21.1 | Hover `sample.zip` | The preview lists what is inside |
 | 21.2 | `e` on it | Unpacked into a `sample` folder beside it; progress in the task panel |
 | 21.3 | `e` again | The second one gets a different name; the first is not overwritten |
@@ -737,7 +737,7 @@ its own command line) shows the arguments kura hands it -- `/j42`, `-Y=42`, `/l 
 that is worth writing in the report. It is not a tick: each row is about the editor landing on the line.
 
 | # | Editor | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 22.1 | 秀丸エディタ | Opens at the outline entry's line |
 | 22.2 | サクラエディタ | Same |
 | 22.3 | EmEditor | Same |
@@ -749,7 +749,7 @@ that is worth writing in the report. It is not a tick: each row is about the edi
 ## 23. Network paths (needs a share)
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 23.1 | `g<Space>`, type `\\server\share` | It opens |
 | 23.2 | Copy a file to and from it | Works, with progress |
 | 23.3 | Unplug the network mid-listing, or point at a dead host | **The window keeps responding.** An error toast, and the tab goes back where it was |
@@ -777,7 +777,7 @@ the same `'` the fixture has. 24.5 needs the recycle bin. 24.7 is automated
 that share a start are cut so that each still shows what tells it apart.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 24.1 | The CJK names | Drawn correctly, columns lined up (they are two cells wide each) |
 | 24.2 | The very long name | Elided in the middle, with the extension still readable |
 | 24.3 | `UPPER.TXT` and `upper.txt`, in a case-sensitive folder: an ordinary NTFS folder holds only one of the two (`make-fixtures.ps1` says so, 24.6). Enable it with `fsutil file setCaseSensitiveInfo <folder> enable` from an elevated shell before making the fixtures, or skip | Both listed, both openable |
@@ -791,7 +791,7 @@ that share a start are cut so that each still shows what tells it apart.
 Run from a shell, not from inside the app.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 25.1 | `kura env` from PowerShell | The five sections print (Kura, Config, Last run, Tools, Variables). A release build is a GUI binary, so this is the same `CONOUT$` path `--version` uses — **text actually appears** |
 | 25.2 | The Config section | Both directories, each saying what is in it or `nothing here`, and `not here:` listing the rest |
 | 25.3 | With a deliberate typo in `keymap.toml` | The warning appears under `Warnings`, its several lines indented under the one key |
@@ -851,7 +851,7 @@ opening and its toast, what GitHub shows (26.2, 26.7), `c` and the clipboard (26
 shell receiving `<F12>` (26.9), and every comparison with Windows' own answers (26.3 to 26.6).
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 26.1 | `<F12>`, then `<Enter>` (or `o`) | `<F12>` first shows **Report a bug**: the version, the OS lines, the last keys, the last error, the rendering, the scale and the config files by name (v0.73.58, Q62). The box ends just below its buttons, with no empty band under them (v0.73.64, Q66), and the first button reads `[o] / <Enter> Open the form in your browser`: `<Enter>` picks it (v0.73.73, Q69). Nothing opens until `<Enter>`; then the default browser opens GitHub's new-issue form, and a toast says so |
 | 26.2 | Look at the form | Every heading is in English and Japanese (`What happened / 何が起きたか`, Q63). **kura version**, **OS and architecture**, **Steps that reproduce it** (`Last keys, oldest first: …`) and **What kura knew** (the panel's lines) are filled in; the rest is empty. No path with the user's name in it appears anywhere (Q64) -- also after an error that named one: open a folder under your home that is not there (`g<Space>` and a made-up name) first, and the form's `Last error` reads `~\…` (v0.74.6) |
 | 26.3 | Compare the filled version against `kura --version` in a terminal | The same string, architecture included |
@@ -886,7 +886,7 @@ second on its first look while the whole file was coloured, and now sends its fi
 before the rest.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 27.1 | Start kura cold, move to a text file as soon as the listing appears | The preview arrives **without touching anything else** |
 | 27.2 | Walk onto a file never opened in this session — a fresh clone, a folder you have not browsed | It appears. **This is the case that was broken: not cold starts, but anything not already cached** |
 | 27.3 | Walk off the file and back | Still fine (this always worked — it was the cache) |
@@ -903,7 +903,7 @@ cursor's row, so these are worth running on a real machine rather than trusting
 the unit tests alone.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 28.1 | Put the cursor on the **last** row, delete that file from Explorer | The row goes, the cursor lands on the new last row, **no crash** |
 | 28.2 | Cursor on the last row; delete several files at the end at once | Same |
 | 28.3 | Delete every file in the folder from outside | An empty listing, still responsive |
@@ -921,7 +921,7 @@ is in `$PROFILE` -- `kura shell-hook` prints it since v0.69.0, and the README sh
 the same lines -- so what is being tested here is mostly the instructions.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 29.1 | With **no** hook in `$PROFILE`, open the terminal (`<C-t>`), `cd` somewhere, press `<A-Up>` | A toast naming OSC 7 and the command that adds the hook, `kura shell-hook \| Add-Content $PROFILE, then <C-S-t> and <C-t>` (v0.69.0, Q50) — **not** silence, and not a wait. With the zip's `kura.exe` not on the `PATH`, `kura` is its full path: `& 'C:\…\kura.exe' shell-hook …` |
 | 29.2 | Paste the README hook into `$PROFILE`, open a new terminal, `cd C:\dev`, press `<A-Up>` | The file list moves to `C:\dev` |
 | 29.3 | Same with a directory whose name has a **space** and one with **Japanese** in it | Both arrive intact |
@@ -955,7 +955,7 @@ the same lines -- so what is being tested here is mostly the instructions.
 ## 30. Right-click paste in a prompt (v0.14.0)
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 30.1 | Copy a path in Explorer's address bar, press `c`+`d` (or whatever opens the `cd` prompt), right-click the field | The path appears; `<Enter>` goes there |
 | 30.2 | Type `abc`, click between `a` and `b` with the **right** button | The paste lands there, not at the end |
 | 30.3 | Select part of the text with a drag, then right-click **on the selection** | The selection is replaced |
@@ -978,7 +978,7 @@ Only testable against a real file server, and the interesting cases are the
 ones where it says no.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 31.1 | `g`+`<Space>`, type `\\<your server's address>`, `<Enter>` | The shares are listed, the same ones Explorer shows |
 | 31.2 | Same with a host **name** rather than an address, and with the `//` spelling | Both arrive; the path is shown back in the `\\host` spelling |
 | 31.3 | Walk into a share and back out with `h` | Into the share, then back to the host list |
@@ -1002,7 +1002,7 @@ The README's example config is the thing under test: if a step here fails, the
 instructions are wrong, which is worse than a missing feature.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 32.1 | Paste the README's `[opener]` / `[open]` example into `yazi.toml`, restart, `<S-Enter>` on a `.txt` | Neovim / VS Code / サクラエディタ / Open with the default app, in that order, by their descriptions rather than the command lines (the example's order since v0.71.11) |
 | 32.2 | `<Enter>` on the same file | Opens in the first entry, Neovim, in a console of its own (`block = true`; a new Windows Terminal tab when WT is the default terminal): a `nvim` process whose command line ends in the file's quoted path |
 | 32.3 | `<S-Enter>` on a `.pdf` | Edge and Chrome first, then the default-app entry |
@@ -1074,7 +1074,7 @@ apart), that it is legible on a light theme (33.6), the parse error's own wordin
 33.15, which needs the files really on disk, `kura env`, and a terminal pane that starts.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 33.1 | Start with a `keymap.toml` that binds one key twice to different commands (e.g. `'` to `plugin bookmarks jump` and to `quit`) | A **yellow** toast, not red: `Config: [mgr] \`'\` is bound more than once; only ... (<file>) runs, not ... (<file>)`. A key the defaults bind is an override, not a warning (v0.73.49, Q60; 33.19) |
 | 33.2 | With three or more such lines | The toast ends `(+2 more, see \`~\`)` |
 | 33.3 | Press `~` | The loaded config files, then every warning, all in the same yellow |
@@ -1120,7 +1120,7 @@ wheel speed, and the pointing-hand cursor over a config path — and that the te
 size the panel comes out.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 34.1 | `j` / `k`, then the arrows | One line each way |
 | 34.2 | `<A-j>` / `<A-k>` | Half the panel's height each way — not the file list's |
 | 34.3 | `<C-d>` / `<C-u>` | The same distance as 34.2 |
@@ -1176,7 +1176,7 @@ and half of 36.17: that `q` does not end the process is covered, but "Nothing ha
 with the code. See QA-REPORT.md.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 36.1 | Hover a text file, press `T` | The preview column takes the whole body. The tab bar and status bar are **unchanged**, the background is **not** dimmed, and there is no frame or file name across the top |
 | 36.2 | `T` again | The three columns come back at the `[mgr] ratio` widths |
 | 36.3 | With `T` up, `j` / `k` | The cursor still walks the list and the preview follows, even though the list column is squeezed to nothing |
@@ -1217,7 +1217,7 @@ title bar read `msedge C:\Users\…\x.pdf`, with no browser. Every opener beginn
 needs a machine is that the program really starts.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 37.1 | `<Enter>` on a `.pdf` with `browser = [{ run = 'start "" msedge %*' }]` first | **Edge opens the PDF.** No command prompt appears |
 | 37.2 | `<Enter>` on `.xlsx` / `.docx` / `.pptx` with `start "" excel %*` and friends | The Office app opens the file |
 | 37.3 | `<Enter>` on anything routed to `open = [{ run = 'start "" %*' }]` | The file's associated app opens it |
@@ -1250,7 +1250,7 @@ in code: a `theme.toml` that leaves `tab_active` out keeps the built-in `#7ab8f5
 is left for an eye: that `#7ab8f5` and `border` are distinguishable at one pixel.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 38.1 | `<C-t>` to open the terminal and give it the keys | The rule along the **top of the terminal** is accent-coloured (`#7ab8f5` by default), not grey |
 | 38.2 | `<C-t>` again to hand the keys back to the list | The same rule goes grey (`border`) |
 | 38.3 | Open a file with an outline, focus the Contents pane | Its vertical rule is accent — **the same colour** as 38.1, not a different one |
@@ -1269,7 +1269,7 @@ The binding and its direction are unit-tested; what needs a machine is that the
 scrollback really moves, and that the keys no longer reach the shell.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 39.1 | `<C-t>`, run something long (`dir /s` or `ls -R`), then `<A-k>` | The scrollback goes **up** five lines per press |
 | 39.2 | `<A-j>` | Back **down** five lines. Same direction as in the file list, where these scroll the preview |
 | 39.3 | Hold `<A-k>` to the top, then `<A-j>` back | Stops at each end without overshooting — no dead presses coming back |
@@ -1289,7 +1289,7 @@ premise the whole thing rests on — that screen really does have no scrollback.
 What needs a machine is the handover, in a real `nvim` and a real pager.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 40.1 | `<C-t>`, `nvim` a long file, `<A-j>` / `<A-k>` with `nnoremap <A-j> :m+1<CR>` bound | **nvim sees the key.** The v0.37.0 collision is gone |
 | 40.2 | In the same nvim, `<S-PageUp>` / `<S-PageDown>` / `<S-Home>` / `<S-End>` | All reach nvim. Every `term_scroll` key is handed over, not just the two |
 | 40.3 | In the same nvim, `<C-t>` | **Still kura's** — it leaves the pane, with nvim left running. Non-scrolling keys are never handed over |
@@ -1303,7 +1303,7 @@ What needs a machine is the handover, in a real `nvim` and a real pager.
 ### `Alt`+letter reaches the shell at all (v0.38.0)
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 40.10 | At a `bash`/`zsh` prompt in the pane, type a few words, then `Alt-b` / `Alt-f` | The cursor moves **by word**. Before v0.38.0 nothing happened — the key was dropped with no bytes behind it |
 | 40.11 | `Alt-d` at the same prompt | Deletes the word ahead |
 | 40.12 | PowerShell (PSReadLine) in the pane, after `Set-PSReadLineOption -EditMode Emacs`, `Alt-b` / `Alt-f` | Same word motions, as in bash. Under PSReadLine's default `EditMode Windows` there is no `Alt+b` / `Alt+f`, and a `b` is typed instead: that is PSReadLine, since kura sends the same bytes either way (`Alt-d` works in both) |
@@ -1321,7 +1321,7 @@ The parsing is unit-tested from bytes built by hand, so it reads the same on eve
 needs a machine is real files, and the panel's own geometry.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 41.1 | `<Tab>` on a `.zip` from the fixtures | An **Archive** section: format, entry and folder counts, unpacked size, ratio, `Encrypted: no` |
 | 41.2 | `<Tab>` on a zip made **encrypted by 7-Zip** | `Encrypted: yes (entries need a password)`, and the counts are still there. **Cannot be unit-tested — this build of `zip` has no AES writer, so no encrypted fixture can be made in-tree** |
 | 41.3 | `<Tab>` on a 7z made with "encrypt file names" | `Encrypted: yes (the listing itself)` and **no counts at all** (nothing below is known) |
@@ -1356,7 +1356,7 @@ Since v0.116.0 the card holds seven lines rather than one (42.14); 42.1 and 42.6
 changed.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 42.1 | Hover the strip on a long source file and **hold still** | After about 0.4 s, a card left of the strip: each row the line number, then that line in the body's own colours. The indent the card's lines share is left out (v0.73.67, #226); what one has beyond the others is kept (v0.116.0) |
 | 42.2 | Sweep the pointer along the strip | The card follows. It never crosses into the strip, and never leaves the pane at either end |
 | 42.3 | Click where the card points | The preview jumps to **that** line, centred — the card was a preview of the click |
@@ -1386,7 +1386,7 @@ by Excel) and 43.9's 50 MB. 43.11 does not match the program: with the table up 
 minimap at all — see QA-REPORT.md.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 43.1 | Hover a `.csv` saved by Excel | An aligned table: header, rule, rows. Numeric columns right-aligned |
 | 43.2 | Hover a `.tsv` | Split on tabs, not commas |
 | 43.3 | `M` on a `.csv` | The raw text, with syntax-free plain lines; `M` again goes back to the table |
@@ -1407,7 +1407,7 @@ The walk and the ordering are unit-tested on a small tree. What needs a machine 
 `node_modules`, a Windows drive root, a network share.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 44.1 | `gu` in a project with a `node_modules` | Children largest first, with bars; `node_modules` near the top with a total far bigger than its own entry |
 | 44.2 | `gu`, then `<Esc>` | Back in the directory, cursor where it was. The walk stops (no CPU after leaving) |
 | 44.3 | `gu` on a tree with 300k+ files | Finishes, and says the walk was cut short and the totals are floors |
@@ -1439,7 +1439,7 @@ reach the screen, the footer counts each kind with "too big to read" separate fr
 identical pair says so, and the highlight follows `j`. What is left is the real trees.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 45.1 | Select two folders, `<A-d>` | A list of paths with `<` `>` `~` `=` signs and a footer counting each |
 | 45.2 | `j` / `k` in that view | The **selection** moves (a highlighted row), not the scroll |
 | 45.3 | `n` / `N` | Walks between the rows that are not `=`, skipping matches. At the end it says so |
@@ -1505,7 +1505,7 @@ The listing's marks say what git *thinks of* a file now; this says what happened
 real repository with a history — this one will do.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 46.1 | `<Tab>` on a committed file | A **Git** section: `Last change` is a short hash and `YYYY-MM-DD HH:MM`, then `Subject` and `Author` |
 | 46.2 | Check it against `git log -1 -- <that file>` | The same commit. Not the repository's newest — **the newest that touched this path** |
 | 46.3 | `<Tab>` on a file changed by more than one commit | `Commits` appears with the count |
@@ -1540,7 +1540,7 @@ cause. Every expectation is a number from `Get-Process`. Read them with nothing 
 no prompt, no panel -- except where the row opens one itself (47.5).
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 47.1 | Open kura on a folder of files and subfolders, touch nothing for 10 s, then read `(Get-Process kura).CPU` twice, 10 s apart. Start it without `--keys`: during a `<Wait:>` it is the wait that gets measured | The two readings differ by **well under 1 s** (a few hundredths is normal) |
 | 47.2 | From the last subfolder, `j` onto the first file and at once `k` back onto the subfolder (inside the 40 ms debounce), then hands off; read the CPU twice, 10 s apart. Folders sort first by default (`sort_dir_first`), so a `j` from a file never reaches one | The same: **no rise**. Before v0.54.2 this was the sequence that left it drawing for ever |
 | 47.3 | The same as 47.2, then minimise the window | Still no rise while minimised |
@@ -1567,7 +1567,7 @@ The PE machine of a file, for 48.3:
 `$b = [IO.File]::ReadAllBytes($f); '{0:X4}' -f [BitConverter]::ToUInt16($b, [BitConverter]::ToInt32($b, 0x3C) + 4)`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 48.1 | `Get-ChildItem -Recurse` in each extracted folder | One folder, `kura-<tag>-windows-x64` (or `-arm64`), holding exactly five files: `kura.exe`, `kura.com` (v0.71.0), `conpty.dll`, `OpenConsole.exe` and `ConPTY-LICENSE.txt`. Nothing else, and nothing at the top level beside the folder |
 | 48.2 | `.\kura.exe --version` from each folder | `kura <version> (x86_64)` from the x64 zip and `kura <version> (aarch64)` from the ARM64 one, the version being the tag without its `v` |
 | 48.3 | The PE machine (above) of all four binaries in each zip (`kura.com` is one since v0.71.0) | `8664` for all four in the x64 zip, `AA64` for all four in the ARM64 one. A mixed zip is the bug this row exists for: the ARM64 build with an x64 ConPTY would start and then misbehave in the pane |
@@ -1589,7 +1589,7 @@ function prompt { $ok = $?; $e = [char]27; $c = if ($ok) { 0 } else { 1 }; "$e]1
 ```
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 49.1 | With the prompt above, run `dir`, `echo hi` and `Get-Date` (print 13 or more lines between the commands, e.g. `1..13`; the pane is 12 rows), then `<C-S-Up>` twice and `<C-S-Down>` once | Each press scrolls the view so a prompt is on its top row: the `echo hi` one, then the `dir` one, then `echo hi` again. With no prompt left above, the toast says `No prompt above this one` |
 | 49.2 | A fresh pane **without** the prompt above (plain `pwsh -NoProfile`), `<C-S-Up>`, then `<C-S-l>` | The toasts say `The shell does not mark its prompts (OSC 133), so there is none to jump to` and `No finished command to copy (the shell has to mark its prompts, OSC 133)`. Nothing is put on the clipboard |
 | 49.3 | With the prompt above, run `dir`, then `<C-S-l>`, then `Get-Clipboard` in another window | The toast reads `Copied the last command's output (N lines)` (`1 line` for one), and the clipboard holds `dir`'s listing alone -- no prompt line, no `dir` command line, no blank lines at the end |
@@ -1618,7 +1618,7 @@ to type into, 50.1 can be read from the `init` event of
 and its `tools` lists `mcp__kura__kura_state` and `mcp__kura__kura_reveal`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 50.1 | Start kura, go to a folder and put the cursor on a file; then in `claude`, `/mcp` | `kura` is listed as connected, with six tools: `kura_state`, `kura_reveal`, `kura_copy`, `kura_move`, `kura_rename` and `kura_trash` |
 | 50.2 | Select two files with `<Space>`, then ask Claude "which file is under the cursor in kura, and what is selected?" | Claude calls `kura_state` and answers with that folder, that file and the two selected paths, as full Windows paths (`C:\…`) |
 | 50.3 | Ask Claude "show me `C:\Windows\notepad.exe` in kura" | Claude calls `kura_reveal`; the window goes to `C:\Windows` with the cursor on `notepad.exe`, without being clicked first, and Claude reports `kura is showing …`. Asking for a path that does not exist gets `… does not exist` and the window does not move |
@@ -1640,7 +1640,7 @@ a query with no capital letter ignores case, one capital letter makes it exact. 
 `a.log`, `a.log.1`, `b.txt` holding the line `alpha 123`, `Report.TXT`, and `sub\c.log` holding `alpha beta`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 51.1 | In that folder, `s`, type `\.log$`, `<Enter>` | The list holds `a.log` and `c.log` only: not `a.log.1`, not `b.txt` |
 | 51.2 | `s`, type `awa`, `<Enter>` in a folder with `awake.txt` and `a-w-a.txt` | Only `awake.txt` (a substring; before v0.87.0 both matched, by letters in order) |
 | 51.3 | `s`, type `report`, `<Enter>`; then `s`, type `Report`, `<Enter>` | The first finds `Report.TXT` (no capital: case ignored). The second finds it too, and a folder holding only `report.txt` would not show for it (a capital: exact) |
@@ -1658,7 +1658,7 @@ section (binaries, highlight, `n` / `N`, the count line, `ext:`) arrive with the
 press these in: `src\main.rs`, `src\lib.rs`, `docs\domain-notes.md`, `a-w-a.txt`, `zzz.txt`.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 52.1 | `F`, type `srcmain`, `<Enter>` (v0.88.0) | The prompt is titled `Search fuzzily`. The list holds `src\main.rs`: the letters run across the folder and the file name |
 | 52.2 | `F`, type `awa`, `<Enter>` (v0.88.0) | `a-w-a.txt` is found (letters in order, not a substring); `s` with the same query finds nothing of it |
 | 52.3 | `F`, type `rs`, `<Enter>` (v0.88.0) | Both `.rs` files, and the cursor is on the best match at the top of the list once the search ends. The status bar showed `fuzzy searching rs…` while it ran |
@@ -1696,7 +1696,7 @@ The clock reads `[clock]` and `language` in the shared `uchmk/common.toml` (`%AP
 again within 2 seconds of the file changing, with no restart (v0.96.0); `<State:>`'s `clock:` line reads what is applied.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 53.1 | Start kura with no `common.toml` | The clock is the last thing on the status bar's right, after the position (`3/12`), in the same font as the bar and the strongest text colour (brighter than the dim items to its left). It matches the system date and time |
 | 53.2 | Rest the pointer on the clock | A tooltip gives the whole date: `Saturday, 10 October 2026` |
 | 53.3 | Watch the clock across a minute change, with no key pressed | It changes at the minute (within a second), without any input |
@@ -1716,7 +1716,7 @@ kura's colours start from (v0.100.0); Advanced shows the config folders and what
 reading them. `<State:>` reads `overlay: settings` while it is open. Have tsumugi or yagura at hand for 54.4 and 54.18.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 54.1 | Press `<C-,>` in the list, then `<C-,>` again | The screen covers the whole window: `Search settings`, `General`, `Theme`, `config.toml`, `Keys`, `Notifications` and `Advanced` on the left with **Open config.toml** at the bottom, the page on the right, in the common theme's colours (tsumugi Dark's with no `common.toml`). The second `<C-,>` closes it and the list is as it was. In the terminal pane (`<C-t>`), `<C-,>` sends nothing to the shell (v0.103.11, #334) and the screen stays shut |
 | 54.2 | Open it; `<C-Tab>` six times, `<C-S-Tab>`; `<C-PageDown>`, `<C-PageUp>` | The page goes Theme, config.toml, Keys, Notifications, Advanced, General (wrapping), Advanced (wrapping back); then General and Advanced. No key reaches the list behind it |
 | 54.3 | Open it; `<C-f>`, type `date`; `<Esc>`; `<Esc>` | The search box takes the keys, the nav keeps only the pages with a match, here General and config.toml ("Check for updates"), and the matching rows are lit. The first `<Esc>` leaves the box with the screen still open; the second closes the screen. `j` typed in the box is a letter, not a cursor move |
@@ -1749,7 +1749,7 @@ outline. No CSS, scripts or forms; images show their alt text. `M` switches to t
 (a rustdoc `index.html`, a saved article) and a small file of your own.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 55.1 | Hover a saved web page (`.html`) | It reads as text: headings in the heading colours, paragraphs separated by a blank line, lists with bullets, links underlined. Nothing from `<script>`, `<style>`, `<head>` or `<svg>` shows |
 | 55.2 | `M` on it, then `M` again | The first press shows the highlighted HTML source, the second the reading view, at the same place |
 | 55.3 | `l` into its outline, pick a heading | The preview scrolls to that heading |
@@ -1765,7 +1765,7 @@ can lose; the sign-in card writes the registry (`HKCU\...\Run`) and the backup c
 home folder.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 56.1 | General, Window card: turn "Remember window position" off, move and resize the window, close and start kura again (v0.124.0) | The window opens at its default place and size, and `window.json` in kura's state folder is not rewritten. Turning it back on and moving the window again keeps it across a restart |
 | 56.2 | Turn "Always on top" on, then focus another window (v0.124.0) | kura stays above it at once, with no restart; off, and it goes behind again |
 | 56.3 | "Forget saved position", close and start kura (v0.124.0) | A toast says it was forgotten and the next start is at the default place |
@@ -1780,7 +1780,7 @@ home folder.
 The Terminal section of Settings is ito's Shell card. Use a copy of `config.toml` you can lose.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 57.1 | `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane | The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key |
 | 57.2 | Type `-NoLogo` in Arguments and press Enter, open a new terminal | The shell starts with it; `[term] args = ["-NoLogo"]` is written |
 | 57.3 | Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` | It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line |
@@ -1791,7 +1791,7 @@ The Terminal section of Settings is ito's Shell card. Use a copy of `config.toml
 The Advanced page of Settings carries ito's card (Settings folder, Data folder, Reset). Use a copy of your config you can lose.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 58.1 | `Ctrl+,` → Advanced, press Open settings folder | Settings closes and the list shows kura's settings folder |
 | 58.2 | Press Open data folder | Settings closes and the list shows kura's data (state) folder |
 | 58.3 | Press Reset once, then wait | Nothing is changed; the button asks for a second press |
@@ -1804,7 +1804,7 @@ The Advanced page of Settings carries ito's card (Settings folder, Data folder, 
 The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a list of notices behind the bell (ito-notices).
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 59.1 | Start kura | A bar on top: `Kura: <cwd>` at the left, a palette box and a bell in the middle, minimize / maximize / close at the right |
 | 59.2 | Drag the empty part of the bar | The window moves; double-click maximizes and restores it |
 | 59.3 | Click minimize, maximize, restore, then close | Each does what it says; close ends kura and saves the window's place |
@@ -1822,7 +1822,7 @@ The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a li
 `S` reads each file in 64 KiB chunks and matches it line by line, so a log of any size is searched in constant memory.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 60.1 | Put a line `needle-7f3a` at the end of a 200 MB text file (no trailing newline) in a folder; press `S` there and type `needle-7f3a` | The file is listed; the UI stays responsive while it reads (if `content_max_bytes` is raised to `0`) |
 | 60.2 | With the default `content_max_bytes` (64 MiB), do the same on that file | It is not listed, and the toast says 1 large file was searched only in its first 64 MiB |
 | 60.3 | Start the search of 60.1 and press `Esc` while it reads | The search stops within a moment, the folder returns, and the CPU goes idle |
@@ -1834,7 +1834,7 @@ The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a li
 A text file of `big_text_bytes` (8 MiB) or more is indexed in the background and read window by window; `<A-/>` searches it.
 
 | # | Do | Expect |
-|---|----|--------|
+| --- | --- | --- |
 | 61.1 | Hover a 1-million-line log | The first lines show at once; the bottom note reads "indexing N%" and then "line N of M" |
 | 61.2 | Scroll to the end with `<A-j>` / the wheel | The last line is reachable; the UI stays responsive |
 | 61.3 | Press `<A-/>`, type `error\nretry` | Matches spanning two lines are found; `n` / `N` jump between them, and the matched words are highlighted in the window, on both lines of a match over a line break |
