@@ -356,7 +356,11 @@ fn main() -> eframe::Result<()> {
             });
             let mcp = cfg.mcp.enable.then(|| mcp::listen(cc.egui_ctx.clone()));
             let mut a = App::new(cfg, start, cc.egui_ctx.clone());
-            a.start_unproven(home);
+            // No path and no deliberate directory: pick up where the last run closed.
+            let restore = cli.path.is_none() && cli.keys.is_empty() && app::is_default_start(&home);
+            if !(restore && a.restore_last_session(&home)) {
+                a.start_unproven(home);
+            }
             a.load_common();
             a.bold_font = has_bold;
             a.start_scaled(std::env::var("KURA_SCALE").ok().as_deref());

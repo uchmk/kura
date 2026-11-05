@@ -62,6 +62,7 @@ mod keys;
 mod nav;
 mod panes;
 mod persist;
+pub use persist::is_default_start;
 mod preview_pane;
 mod renaming;
 mod scan;
@@ -999,6 +1000,10 @@ mod help_keys;
 #[cfg(test)]
 #[path = "app/tests/escape_and_max_preview.rs"]
 mod escape_and_max_preview;
+
+#[cfg(test)]
+#[path = "app/tests/session_restore.rs"]
+mod session_restore;
 
 #[cfg(test)]
 #[path = "app/tests/q_closes_the_panel_in_front.rs"]

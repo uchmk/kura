@@ -7,10 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 724 件（TESTING.md の全 918 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 728 件（TESTING.md の全 922 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
+
+未訳 4 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1067,3 +1069,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **62.1** kura で何カ所かフォルダーを訪ね、検索（`s`）とシェルコマンド（`;`）を 1 回ずつ使って終了し、状態のフォルダーを見る → `history.toml`・`search-history.toml`・`shell-history.toml` があって TOML（`entries = [...]`）になっている。新しい `.txt` は書かれない — *Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder → `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written*
 - [x] **62.2** kura を終了し、3 つの `.toml` を消して、状態のフォルダーに `history.txt`（1 行に `C:\dev<TAB>3<TAB>1700000000`）と `search-history.txt` / `shell-history.txt`（1 行に 1 つ）を置き、kura を起動して、最近のフォルダーの一覧と `s` のプロンプトの `<Up>` を見てから終了する → ジャンプの一覧と 2 つのプロンプトの履歴に `.txt` の中身が引き継がれ、3 つの `.toml` ができている。`.txt` は手つかず。もう一度起動すると `.toml` を読み、`.txt` は見ない — *Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit → The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt`*
 - [x] **62.3** 履歴のファイルを全部（`.toml` も `.txt` も）消して kura を起動する → トーストもエラーも無く起動し、ジャンプの一覧は空、プロンプトの `<Up>` は何も呼び出さない — *Delete every history file (`.toml` and `.txt`) and start kura → It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing*
+
+## 63. Restoring the tabs (v0.140.0)
+
+- [ ] **63.1** Open three tabs on different folders (`t`, `g` …), make the middle one the active tab, quit, and start kura from the Start menu or a shortcut → The same three tabs are open, the middle one in front, each on the folder it was on 〔未訳〕
+- [ ] **63.2** Quit as in 63.1, then run `kura` from a shell whose current folder is somewhere else, and `kura C:\Windows` → Both open on the folder they were told (the current folder, `C:\Windows`) with a single tab; the saved tabs are not used 〔未訳〕
+- [ ] **63.3** Quit as in 63.1, rename one of the three folders, and start kura from the Start menu → The other tabs are as before; the tab whose folder is gone shows an error toast and lands on home, without holding the window back 〔未訳〕
+- [ ] **63.4** Delete `session.toml` (or fill it with junk) and start kura from the Start menu → It opens on home with one tab, with no error 〔未訳〕

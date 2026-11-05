@@ -1861,3 +1861,14 @@ The jump history and the search and shell prompt histories are kept as TOML in t
 | 62.1 | Quit kura after visiting a few folders and running a search (`s`) and a shell command (`;`), then look in the state folder | `history.toml`, `search-history.toml` and `shell-history.toml` exist and are TOML (`entries = [...]`); no new `.txt` is written |
 | 62.2 | Quit kura, delete the three `.toml` files, put a `history.txt` (`C:\dev<TAB>3<TAB>1700000000` per line) and a `search-history.txt` / `shell-history.txt` (one entry per line) in the state folder, start kura, open the recent-folders list and press `<Up>` in the `s` prompt, then quit | The jump list and both prompt histories hold what the `.txt` files held; the three `.toml` files now exist; the `.txt` files are untouched. Starting again reads the `.toml` and ignores the `.txt` |
 | 62.3 | Delete every history file (`.toml` and `.txt`) and start kura | It starts without a toast or an error; the jump list is empty and `<Up>` in a prompt recalls nothing |
+
+## 63. Restoring the tabs (v0.140.0)
+
+On quit kura writes the folders of all its tabs, and which one was in front, to `session.toml` in the state folder. A start with no path, from home or the system folder (the Start menu, a shortcut), opens them again.
+
+| # | Do | Expect |
+|---|----|--------|
+| 63.1 | Open three tabs on different folders (`t`, `g` …), make the middle one the active tab, quit, and start kura from the Start menu or a shortcut | The same three tabs are open, the middle one in front, each on the folder it was on |
+| 63.2 | Quit as in 63.1, then run `kura` from a shell whose current folder is somewhere else, and `kura C:\Windows` | Both open on the folder they were told (the current folder, `C:\Windows`) with a single tab; the saved tabs are not used |
+| 63.3 | Quit as in 63.1, rename one of the three folders, and start kura from the Start menu | The other tabs are as before; the tab whose folder is gone shows an error toast and lands on home, without holding the window back |
+| 63.4 | Delete `session.toml` (or fill it with junk) and start kura from the Start menu | It opens on home with one tab, with no error |
