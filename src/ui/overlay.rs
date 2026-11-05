@@ -900,7 +900,7 @@ pub fn confirm(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, q
     let buttons_h = button_rows * (row_h + 8.0) - 4.0;
     let height = 24.0 + row_h + body_h + row_h * 0.5 + buttons_h;
     let rect = Rect::from_center_size(full.center(), Vec2::new(width, height));
-    let inner = modal_frame(ui, rect, &app.cfg.theme, &c.title, f, row_h);
+    let inner = modal_frame(ui, rect, &app.cfg.theme, &crate::i18n::tr_desc(&app.lang, &c.title), f, row_h);
     let theme = &app.cfg.theme;
     let painter = ui.painter_at(inner);
 
@@ -942,7 +942,7 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     dim(ui, full);
     let rect = modal_rect(full, 0.66, 0.6);
     let title = match &app.overlay {
-        Overlay::Pick(p) => p.title.clone(),
+        Overlay::Pick(p) => crate::i18n::tr_desc(&app.lang, &p.title),
         _ => return,
     };
     let inner = modal_frame(ui, rect, &app.cfg.theme, &title, f, row_h);
