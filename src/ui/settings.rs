@@ -943,8 +943,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         }
         ABOUT => {
             let system = ito_bugreport::os_line();
-            let about =
-                ito_prefs::About { version: env!("CARGO_PKG_VERSION"), commit: None, system: &system, license: Some(ito_fonts::LICENSE) };
+            // kura's own licence first (`Cargo.toml`), then the face's.
+            let license = format!("kura: {}\n\n{}", env!("CARGO_PKG_LICENSE"), ito_fonts::LICENSE);
+            let about = ito_prefs::About { version: env!("CARGO_PKG_VERSION"), commit: None, system: &system, license: Some(&license) };
             if ito_prefs::about_page(ui, l, mw, w, "kura", &about).contains(&ito_prefs::AboutAction::Report) {
                 queued.push(Act::BugReport);
             }
