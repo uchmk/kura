@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 731 件（TESTING.md の全 925 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 732 件（TESTING.md の全 926 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 7 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 8 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1031,3 +1031,4 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **63.5** Settings (Ctrl+,) → config.toml → START → "Restore last session": pick "Last folder", quit as in 63.1, start from the Start menu → One tab, on the folder that was in front 〔未訳〕
 - [ ] **63.6** Same, with "Off" → Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back 〔未訳〕
 - [ ] **63.7** Close the window with the title bar's x (not `q`) after opening three tabs, then start kura from the Start menu → The tabs come back as in 63.1; `session.toml` is in `%LOCALAPPDATA%/uchmk/kura` 〔未訳〕
+- [ ] **63.8** From a shell whose current folder is `C:\dev\kura`, run `kura --last` after a session with three tabs, then `kura` and `kura .` → `--last` brings the three tabs back; plain `kura` and `kura .` open the current folder in one tab 〔未訳〕

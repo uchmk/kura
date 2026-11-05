@@ -125,8 +125,13 @@ impl App {
     }
 
     /// Restore the last session from the state folder, if the file is there.
-    pub fn restore_last_session(&mut self, home: &Path) -> bool {
-        let mode = self.cfg.ui.restore_mode();
+    ///
+    /// `asked` is `--last`: it restores every tab even when `[ui] restore` says `off`.
+    pub fn restore_last_session(&mut self, home: &Path, asked: bool) -> bool {
+        let mut mode = self.cfg.ui.restore_mode();
+        if asked && mode == Restore::Off {
+            mode = Restore::Tabs;
+        }
         if mode == Restore::Off {
             return false;
         }

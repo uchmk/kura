@@ -38,6 +38,8 @@ struct Cli {
     path: Option<PathBuf>,
     cwd_file: Option<PathBuf>,
     chooser_file: Option<PathBuf>,
+    /// `--last` / `-r`: open the last session whatever folder kura was started in.
+    last: bool,
     /// `--keys`: pressed by kura itself once it has started (Q24).
     keys: Vec<keyscript::Step>,
 }
@@ -96,12 +98,13 @@ const ENV_OUT_WAIT: &str = "\n                     (kura.exe in a script: add | 
 const ENV_OUT_WAIT: &str = "";
 
 fn parse_cli() -> Cli {
-    let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, keys: Vec::new() };
+    let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--cwd-file" => cli.cwd_file = args.next().map(PathBuf::from),
             "--chooser-file" => cli.chooser_file = args.next().map(PathBuf::from),
+            "--last" | "-r" => cli.last = true,
             // Checked before any window opens: a script that cannot be typed
             // should say so on the command line, not do half of itself.
             "--keys" => {
@@ -117,9 +120,11 @@ fn parse_cli() -> Cli {
             "--help" | "-h" => {
                 say(&format!(
                     "kura — a yazi-flavored file manager\n\n\
-                     USAGE:\n    kura [PATH] [--cwd-file FILE] [--chooser-file FILE] [--keys KEYS]\n\n\
+                     USAGE:\n    kura [PATH] [--last] [--cwd-file FILE] [--chooser-file FILE] [--keys KEYS]\n\n\
                      OPTIONS:\n    -h, --help       this text\n    \
                      -V, --version    the version and the architecture\n    \
+                     -r, --last       open the tabs of the last session, wherever kura\n                     \
+                     is started from (a PATH still wins)\n    \
                      --keys KEYS      press these keys once started, in keymap notation:\n                     \
                      \"<Tab>C\" opens spot and copies it; <Wait:500> pauses\n                     \
                      500 ms; <Now> presses the next key without waiting\n                     \
@@ -357,8 +362,9 @@ fn main() -> eframe::Result<()> {
             let mcp = cfg.mcp.enable.then(|| mcp::listen(cc.egui_ctx.clone()));
             let mut a = App::new(cfg, start, cc.egui_ctx.clone());
             // No path and no deliberate directory: pick up where the last run closed.
-            let restore = cli.path.is_none() && cli.keys.is_empty() && app::is_default_start(&home);
-            if !(restore && a.restore_last_session(&home)) {
+            // `--last` asks for it whatever the folder is, and over `[ui] restore = "off"`.
+            let restore = cli.path.is_none() && cli.keys.is_empty() && (cli.last || app::is_default_start(&home));
+            if !(restore && a.restore_last_session(&home, cli.last)) {
                 a.start_unproven(home);
             }
             a.load_common();
@@ -2644,7 +2650,7 @@ mod tests {
     /// quietly taking the first one's place.
     #[test]
     fn a_second_path_is_refused() {
-        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, keys: Vec::new() };
+        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
         assert!(take_path(&mut cli, "awkward").is_ok());
         let why = take_path(&mut cli, "names").unwrap_err();
         assert!(why.contains("\"awkward\"") && why.contains("\"names\"") && why.contains("quotes"), "{why}");
@@ -2654,7 +2660,7 @@ mod tests {
     /// #194: a Windows path is named as typed, not with every `\` doubled.
     #[test]
     fn a_refused_path_keeps_its_backslashes() {
-        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, keys: Vec::new() };
+        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
         assert!(take_path(&mut cli, r"C:\dev").is_ok());
         let why = take_path(&mut cli, r"C:\Windows").unwrap_err();
         assert!(why.starts_with(r#"more than one path: "C:\dev" and "C:\Windows" ("#), "{why}");

@@ -1618,6 +1618,8 @@ a version to see whether it exists would launch your editor every time you asked
 
 ## Shell integration
 
+`kura --last` (`-r`) opens the tabs of the last session wherever it is started from; `kura .` always opens the current folder.
+
 `--cwd-file FILE` writes the final directory on exit, `--chooser-file FILE` writes the selection —
 the same contract yazi uses, so a `cd`-on-exit wrapper works:
 
