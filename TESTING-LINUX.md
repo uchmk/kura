@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 739 件（TESTING.md の全 933 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 741 件（TESTING.md の全 935 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 15 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 17 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1042,3 +1042,8 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **64.5** Press `~` in `T` → The help lists "keys while the preview is maximized" 〔未訳〕
 - [ ] **64.6** Save two bookmarks (`ba`, `bq`), press `bb`, then `q` → The list closes and the folder of `q` opens; no letter reaches the filter 〔未訳〕
 - [ ] **64.7** Press `bb`, then `/`, then type part of a path → The hint changes to "type to filter"; letters now filter the list (the `/` itself is not typed); `<Enter>` opens the chosen row 〔未訳〕
+
+## 65. One bookmark per folder (v0.144.0)
+
+- [ ] **65.1** In a folder press `ba`, then `bq` → A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` 〔未訳〕
+- [ ] **65.2** In the same folder press `bq` again → A toast says it is already bookmarked as `q`; nothing else changes 〔未訳〕

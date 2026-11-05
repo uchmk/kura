@@ -9,12 +9,17 @@ impl App {
         match op {
             BookmarkOp::Save => {
                 let path = self.tabs[self.active].cwd.clone();
-                let name = util::file_name(&path);
-                self.bookmarks.retain(|b| b.key != key);
-                self.bookmarks.push(Bookmark { key: key.clone(), path, name });
-                self.bookmarks.sort_by(|a, b| a.key.cmp(&b.key));
-                self.save_state();
-                self.toast(format!("Bookmark `{key}` saved"));
+                match put_bookmark(&mut self.bookmarks, &key, path) {
+                    Put::Same => self.toast(format!("Already bookmarked as `{key}`")),
+                    Put::Moved(from) => {
+                        self.save_state();
+                        self.toast(format!("Bookmark moved from `{from}` to `{key}`"));
+                    }
+                    Put::Saved => {
+                        self.save_state();
+                        self.toast(format!("Bookmark `{key}` saved"));
+                    }
+                }
             }
             BookmarkOp::Jump => match self.bookmarks.iter().find(|b| b.key == key).cloned() {
                 Some(b) => self.cd(b.path, true),
@@ -372,5 +377,60 @@ impl App {
                 }
             }
         }
+    }
+}
+
+/// What saving a bookmark did.
+#[derive(Debug, PartialEq)]
+enum Put {
+    /// The folder already had this very key: nothing changed.
+    Same,
+    /// The folder was under another key (the one named), which is now freed.
+    Moved(String),
+    Saved,
+}
+
+/// Save `path` under `key`: one bookmark per folder, so a folder that is
+/// already bookmarked under another key changes keys instead of appearing twice.
+fn put_bookmark(list: &mut Vec<Bookmark>, key: &str, path: PathBuf) -> Put {
+    if list.iter().any(|b| b.key == key && b.path == path) {
+        return Put::Same;
+    }
+    let old = list.iter().find(|b| b.path == path).map(|b| b.key.clone());
+    list.retain(|b| b.key != key && b.path != path);
+    let name = util::file_name(&path);
+    list.push(Bookmark { key: key.to_owned(), path, name });
+    list.sort_by(|a, b| a.key.cmp(&b.key));
+    match old {
+        Some(from) => Put::Moved(from),
+        None => Put::Saved,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn keys(l: &[Bookmark]) -> Vec<&str> {
+        l.iter().map(|b| b.key.as_str()).collect()
+    }
+
+    #[test]
+    fn a_folder_is_bookmarked_once() {
+        let mut l = Vec::new();
+        assert_eq!(put_bookmark(&mut l, "a", PathBuf::from("/x")), Put::Saved);
+        assert_eq!(put_bookmark(&mut l, "a", PathBuf::from("/x")), Put::Same);
+        assert_eq!(put_bookmark(&mut l, "q", PathBuf::from("/x")), Put::Moved("a".into()));
+        assert_eq!(keys(&l), ["q"]);
+    }
+
+    #[test]
+    fn a_key_taken_by_another_folder_is_replaced() {
+        let mut l = Vec::new();
+        put_bookmark(&mut l, "a", PathBuf::from("/x"));
+        put_bookmark(&mut l, "b", PathBuf::from("/y"));
+        assert_eq!(put_bookmark(&mut l, "a", PathBuf::from("/y")), Put::Moved("b".into()));
+        assert_eq!(keys(&l), ["a"]);
+        assert_eq!(l[0].path, PathBuf::from("/y"));
     }
 }
