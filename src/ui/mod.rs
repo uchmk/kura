@@ -4194,6 +4194,56 @@ mod outline_end_frame {
         assert!(f.texts.iter().any(|t| t == "7"), "the source numbers every line: {:?}", f.texts);
     }
 
+    /// 67.4: `/` and `:` in `T` on rendered Markdown. A hit is found in the
+    /// rendered text and the line number is the source's, in both views.
+    #[test]
+    fn find_and_go_to_a_line_in_rendered_markdown() {
+        let mut doc = String::from(
+            "# Title
+
+",
+        );
+        for i in 0..60 {
+            doc.push_str(&format!(
+                "paragraph {i}
+
+"
+            ));
+        }
+        doc.push_str(
+            "## Needle here
+
+end
+",
+        );
+        let mut s = on("max-md-find", &[("notes.md", &doc)]);
+        look_at(&mut s, "notes.md");
+        s.app.render_markdown = true;
+        s.typed("T");
+        s.draw();
+        s.typed("/");
+        s.typed("needle");
+        s.feed(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+        let f = s.draw();
+        assert!(s.app.tabs[s.app.active].preview_offset > 0, "scrolled to the hit");
+        assert!(f.texts.iter().any(|t| t.contains("Needle here")), "the hit is on screen: {:?}", f.texts);
+        s.typed(":");
+        s.typed("1");
+        s.feed(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+        assert_eq!(s.app.tabs[s.app.active].preview_offset, 0, "source line 1 is the top");
+        s.typed(":");
+        s.typed("21");
+        s.feed(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "21"), "source line 21 is at the top, numbered 21: {:?}", f.texts);
+        s.typed("M");
+        s.typed(":");
+        s.typed("21");
+        s.feed(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "21"), "and in the source view: {:?}", f.texts);
+    }
+
     /// 9.1 and 9.2: the last entry stops at the end of the file, and holding the
     /// key there changes nothing at all.
     ///
