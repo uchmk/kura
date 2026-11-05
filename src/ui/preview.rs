@@ -926,8 +926,18 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         // The first rendered row of a source line carries its number; wrapped
         // rows and a repeated source line (a table's rule) stay blank. A row
         // cut off at the top by scrolling still shows it.
-        if st.numbers && !line.wrap && (start + i == 0 || doc.lines[start + i - 1].src != line.src) {
-            let g = painter.layout_no_wrap((line.src + 1).to_string(), st.font.clone(), theme.fg_dim);
+        // A blank row is the gap between two blocks and shares the src of the
+        // line above (so a jump lands on content); it is numbered with the
+        // source line just before the next block, the blank that made it.
+        let blank = line.spans.iter().all(|s| s.text.trim().is_empty()) && !matches!(line.kind, LineKind::Code | LineKind::Rule);
+        let gap = blank.then(|| doc.lines.get(start + i + 1).map(|n| n.src).filter(|&n| n > line.src && start + i > 0)).flatten();
+        let number = match gap {
+            Some(next) => Some(next),
+            None if start + i == 0 || doc.lines[start + i - 1].src != line.src => Some(line.src + 1),
+            None => None,
+        };
+        if let Some(number) = number.filter(|_| st.numbers && !line.wrap) {
+            let g = painter.layout_no_wrap(number.to_string(), st.font.clone(), theme.fg_dim);
             let x = rect.left() + PAD + (MD_GUTTER_COLS - 1) as f32 * st.cell - g.size().x;
             painter.galley(pos2(x, y + lift), g, theme.fg_dim);
         }

@@ -4184,6 +4184,9 @@ mod outline_end_frame {
         let f = s.draw();
         assert!(f.texts.iter().any(|t| t == "5"), "`## Second` is on source line 5: {:?}", f.texts);
         assert!(f.texts.iter().any(|t| t == "1"), "and the title on line 1: {:?}", f.texts);
+        for blank in ["2", "4", "6"] {
+            assert!(f.texts.iter().any(|t| t == blank), "the blank source line {blank} is numbered too: {:?}", f.texts);
+        }
         s.typed("M");
         assert!(!s.app.render_markdown, "`M` switched `T` to the source");
         let f = s.draw();
