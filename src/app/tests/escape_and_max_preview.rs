@@ -346,7 +346,7 @@ fn the_help_panel_copies_as_text() {
     assert_eq!(run, Some(vec![Act::Copy(CopyWhat::All)]));
 
     let (text, keys) = crate::ui::overlay::help_text(&a);
-    assert_eq!(keys, km.mgr.len() + km.pick.len() + km.input.len() + km.confirm.len(), "one line per key shown");
+    assert_eq!(keys, km.preview.len() + km.mgr.len() + km.pick.len() + km.input.len() + km.confirm.len(), "one line per key shown");
     assert!(text.lines().any(|l| l == "keys"), "the heading on its own line");
     let b = &km.mgr[0];
     let want = format!("{}\t{}\t{}", render_seq(&b.on), if b.desc.is_empty() { &b.raw } else { &b.desc }, b.raw);
@@ -401,4 +401,33 @@ fn turning_it_on_unhides_the_parent() {
     assert!(!a.hide_parent);
     a.act(Act::MaxPreview);
     assert!(!a.max_preview && !a.hide_parent, "the parent stays back");
+}
+
+/// The list is invisible under `T`, so `j` / `k` scroll the preview there; in
+/// quick look (`<F3>`), where the list is in view, they still move the cursor.
+#[test]
+fn the_maximized_preview_scrolls_with_the_navigation_keys() {
+    let mut a = app();
+    a.preview.max_offset = 100;
+    a.max_preview = true;
+    for t in ["j", "j", "<C-d>"] {
+        a.feed_key(Key::parse(t).unwrap());
+    }
+    assert!(a.tabs[a.active].preview_offset >= 2, "j scrolled the preview: {}", a.tabs[a.active].preview_offset);
+    for t in ["g", "g"] {
+        a.feed_key(Key::parse(t).unwrap());
+    }
+    assert_eq!(a.tabs[a.active].preview_offset, 0, "gg is the top of the preview");
+    a.feed_key(Key::parse("G").unwrap());
+    assert_eq!(a.tabs[a.active].preview_offset, 100, "G is its end");
+
+    // Unbound there, so it falls through to `[mgr]`: `t` still opens a tab.
+    assert!(a.binds(&Key::parse("t").unwrap()), "keys the layer lacks reach [mgr]");
+
+    // Quick look keeps the list's keys: the layer is not consulted.
+    a.quick = true;
+    assert!(!a.preview_layer_active());
+    a.tabs[a.active].preview_offset = 0;
+    a.feed_key(Key::parse("j").unwrap());
+    assert_eq!(a.tabs[a.active].preview_offset, 0, "j moved the list, not the preview");
 }

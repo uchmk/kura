@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 732 件（TESTING.md の全 926 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 739 件（TESTING.md の全 933 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 8 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 15 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1080,3 +1080,13 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **63.6** Same, with "Off" → Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back 〔未訳〕
 - [ ] **63.7** Close the window with the title bar's x (not `q`) after opening three tabs, then start kura from the Start menu → The tabs come back as in 63.1; `session.toml` is in `%LOCALAPPDATA%/uchmk/kura` 〔未訳〕
 - [ ] **63.8** From a shell whose current folder is `C:\dev\kura`, run `kura --last` after a session with three tabs, then `kura` and `kura .` → `--last` brings the three tabs back; plain `kura` and `kura .` open the current folder in one tab 〔未訳〕
+
+## 64. The maximized preview's keys and line numbers (v0.143.0)
+
+- [ ] **64.1** On a long text file press `T`, then `j` `k` `<C-d>` `<C-u>` `<PageDown>` `gg` `G` → The content scrolls (a line, half a page, a page, to the top, to the end); the file does not change 〔未訳〕
+- [ ] **64.2** In `T` press `J` then `K` → The next / previous file in the list is previewed, from its top 〔未訳〕
+- [ ] **64.3** In `<F3>` press `j` → The list's cursor moves to the next file (the preview changes file); the layer is not used 〔未訳〕
+- [ ] **64.4** In `T` and in `<F3>`, look at the left edge of a text file; drag a selection from the first line to the last and copy → Line numbers in a dim right-aligned column, matching the lines (also after scrolling); the copy holds the text only, no numbers 〔未訳〕
+- [ ] **64.5** Press `~` in `T` → The help lists "keys while the preview is maximized" 〔未訳〕
+- [ ] **64.6** Save two bookmarks (`ba`, `bq`), press `bb`, then `q` → The list closes and the folder of `q` opens; no letter reaches the filter 〔未訳〕
+- [ ] **64.7** Press `bb`, then `/`, then type part of a path → The hint changes to "type to filter"; letters now filter the list (the `/` itself is not typed); `<Enter>` opens the chosen row 〔未訳〕

@@ -1876,3 +1876,17 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 63.6 | Same, with "Off" | Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back |
 | 63.7 | Close the window with the title bar's x (not `q`) after opening three tabs, then start kura from the Start menu | The tabs come back as in 63.1; `session.toml` is in `%LOCALAPPDATA%/uchmk/kura` |
 | 63.8 | From a shell whose current folder is `C:\dev\kura`, run `kura --last` after a session with three tabs, then `kura` and `kura .` | `--last` brings the three tabs back; plain `kura` and `kura .` open the current folder in one tab |
+
+## 64. The maximized preview's keys and line numbers (v0.143.0)
+
+`T` has a keymap layer of its own, `[preview]`: the list's navigation keys scroll the content, `J` / `K` change file. `<F3>` and `T` show line numbers in a gutter.
+
+| # | Do | Expect |
+|---|----|--------|
+| 64.1 | On a long text file press `T`, then `j` `k` `<C-d>` `<C-u>` `<PageDown>` `gg` `G` | The content scrolls (a line, half a page, a page, to the top, to the end); the file does not change |
+| 64.2 | In `T` press `J` then `K` | The next / previous file in the list is previewed, from its top |
+| 64.3 | In `<F3>` press `j` | The list's cursor moves to the next file (the preview changes file); the layer is not used |
+| 64.4 | In `T` and in `<F3>`, look at the left edge of a text file; drag a selection from the first line to the last and copy | Line numbers in a dim right-aligned column, matching the lines (also after scrolling); the copy holds the text only, no numbers |
+| 64.5 | Press `~` in `T` | The help lists "keys while the preview is maximized" |
+| 64.6 | Save two bookmarks (`ba`, `bq`), press `bb`, then `q` | The list closes and the folder of `q` opens; no letter reaches the filter |
+| 64.7 | Press `bb`, then `/`, then type part of a path | The hint changes to "type to filter"; letters now filter the list (the `/` itself is not typed); `<Enter>` opens the chosen row |

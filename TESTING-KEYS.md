@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-288 keys. How many are checked is not written here, so that two pull requests ticking
+304 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -207,6 +207,29 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<C-S-t>` — Close the terminal and end the shell · `terminal close`
 - [x] `<A-t>` — Type the selected paths into the terminal · `term_send`
 - [x] `<C-S-Enter>` — Give the terminal pane the window (the same key in the pane gives it back) · `term_max`
+
+## `[preview]`
+
+The maximized preview (`T`): scrolls the content; keys it does not bind go to `mgr`.
+
+### Maximized preview (`T`)
+
+- [ ] `k` — Scroll the preview up a line · `seek -1`
+- [ ] `j` — Scroll the preview down a line · `seek 1`
+- [ ] `<Up>` — Scroll the preview up a line · `seek -1`
+- [ ] `<Down>` — Scroll the preview down a line · `seek 1`
+- [ ] `<C-u>` — Scroll the preview up half a page · `seek -50%`
+- [ ] `<C-d>` — Scroll the preview down half a page · `seek 50%`
+- [ ] `<C-b>` — Scroll the preview up a page · `seek -100%`
+- [ ] `<C-f>` — Scroll the preview down a page · `seek 100%`
+- [ ] `<PageUp>` — Scroll the preview up a page · `seek -100%`
+- [ ] `<PageDown>` — Scroll the preview down a page · `seek 100%`
+- [ ] `g g` — Scroll the preview to its top · `seek top`
+- [ ] `G` — Scroll the preview to its end · `seek bot`
+- [ ] `<Home>` — Scroll the preview to its top · `seek top`
+- [ ] `<End>` — Scroll the preview to its end · `seek bot`
+- [ ] `K` — Previous file · `arrow -1`
+- [ ] `J` — Next file · `arrow 1`
 
 ## `[term]`
 

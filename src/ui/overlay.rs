@@ -621,6 +621,7 @@ fn help_lines(app: &App) -> Vec<HelpRow> {
     // list at all, and `<F1>` pressed inside the picker is the picker's own
     // filter (#268). After, so the pane's keys stay as near the top as they were.
     for (title, bindings) in [
+        ("keys while the preview is maximized (T; the list's keys otherwise)", &app.cfg.keymap.preview),
         ("keys in the picker (O, <S-Enter>, the palette)", &app.cfg.keymap.pick),
         ("keys in a prompt", &app.cfg.keymap.input),
         ("keys in a question", &app.cfg.keymap.confirm),
@@ -952,6 +953,48 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     let hl_bg = app.cfg.theme.find_keyword.bg.unwrap_or(egui::Color32::TRANSPARENT);
 
     let field = Rect::from_min_size(inner.min, Vec2::new(inner.width(), row_h + 4.0));
+
+    // The bookmark list: a typed key jumps to its bookmark; `/` starts the
+    // filter. The text is taken out of the frame's events so the field below
+    // never sees it.
+    let mut jump: Option<std::path::PathBuf> = None;
+    let mut hint = "type to filter · <Down>/<Up> or <C-n>/<C-p> choose · <Enter> open";
+    if let Overlay::Pick(p) = &mut app.overlay {
+        if let crate::app::PickAction::Bookmarks { paths, keys, filtering } = &mut p.action {
+            if !*filtering {
+                hint = "press a bookmark's key to go · / filters · <Down>/<Up> choose · <Enter> open";
+                let typed: String = ui.input_mut(|i| {
+                    let mut s = String::new();
+                    i.events.retain(|e| match e {
+                        egui::Event::Text(t) => {
+                            s.push_str(t);
+                            false
+                        }
+                        _ => true,
+                    });
+                    s
+                });
+                for c in typed.chars() {
+                    if c == '/' {
+                        *filtering = true;
+                        break;
+                    }
+                    if let Some(i) = keys.iter().position(|k| k.chars().eq(std::iter::once(c))) {
+                        jump = paths.get(i).cloned();
+                        break;
+                    }
+                }
+                if *filtering {
+                    hint = "type to filter · <Down>/<Up> or <C-n>/<C-p> choose · <Enter> open";
+                }
+            }
+        }
+    }
+    if let Some(path) = jump {
+        app.overlay = Overlay::None;
+        app.cd(path, true);
+        return;
+    }
     let Overlay::Pick(p) = &mut app.overlay else { return };
 
     let before = p.query.clone();
@@ -964,7 +1007,7 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
             .font(egui::FontSelection::FontId(f.clone()))
             .frame(egui::Frame::NONE)
             // `j` types into the filter here, so the arrows are named (#165).
-            .hint_text("type to filter · <Down>/<Up> or <C-n>/<C-p> choose · <Enter> open")
+            .hint_text(hint)
             .desired_width(field.width())
             .text_color(theme_fg),
     );

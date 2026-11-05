@@ -784,6 +784,78 @@ on = "<C-S-Enter>"
 run = "term_max"
 desc = "Give the terminal pane the window (the same key in the pane gives it back)"
 
+# --- Maximized preview (`T`) --------------------------------------------------
+# Tried before [mgr] while the preview is maximized by `T`, and only then (not in
+# `<F3>`, where the list is in view). A key not bound here falls through to [mgr].
+# The list is invisible under a maximized preview, so the list's navigation keys
+# scroll the content instead, as in `less`; `J` / `K` take over moving to the
+# next / previous file.
+
+[[preview.keymap]]
+on = "k"
+run = "seek -1"
+desc = "Scroll the preview up a line"
+[[preview.keymap]]
+on = "j"
+run = "seek 1"
+desc = "Scroll the preview down a line"
+[[preview.keymap]]
+on = "<Up>"
+run = "seek -1"
+desc = "Scroll the preview up a line"
+[[preview.keymap]]
+on = "<Down>"
+run = "seek 1"
+desc = "Scroll the preview down a line"
+[[preview.keymap]]
+on = "<C-u>"
+run = "seek -50%"
+desc = "Scroll the preview up half a page"
+[[preview.keymap]]
+on = "<C-d>"
+run = "seek 50%"
+desc = "Scroll the preview down half a page"
+[[preview.keymap]]
+on = "<C-b>"
+run = "seek -100%"
+desc = "Scroll the preview up a page"
+[[preview.keymap]]
+on = "<C-f>"
+run = "seek 100%"
+desc = "Scroll the preview down a page"
+[[preview.keymap]]
+on = "<PageUp>"
+run = "seek -100%"
+desc = "Scroll the preview up a page"
+[[preview.keymap]]
+on = "<PageDown>"
+run = "seek 100%"
+desc = "Scroll the preview down a page"
+[[preview.keymap]]
+on = [ "g", "g" ]
+run = "seek top"
+desc = "Scroll the preview to its top"
+[[preview.keymap]]
+on = "G"
+run = "seek bot"
+desc = "Scroll the preview to its end"
+[[preview.keymap]]
+on = "<Home>"
+run = "seek top"
+desc = "Scroll the preview to its top"
+[[preview.keymap]]
+on = "<End>"
+run = "seek bot"
+desc = "Scroll the preview to its end"
+[[preview.keymap]]
+on = "K"
+run = "arrow -1"
+desc = "Previous file"
+[[preview.keymap]]
+on = "J"
+run = "arrow 1"
+desc = "Next file"
+
 # --- Terminal pane ------------------------------------------------------------
 # Only what is bound here is kept; every other key goes to the shell, which is
 # what makes the pane a terminal rather than another set of bindings.

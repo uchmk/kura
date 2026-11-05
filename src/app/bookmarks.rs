@@ -99,10 +99,12 @@ impl App {
         let mut items = Vec::new();
         let mut details = Vec::new();
         let mut paths = Vec::new();
+        let mut keys = Vec::new();
         for b in &self.bookmarks {
             items.push(format!("[{}] {}", b.key, b.path.display()));
             details.push(b.name.clone());
             paths.push(b.path.clone());
+            keys.push(b.key.clone());
         }
         let mut pick = PickOverlay {
             title: "Bookmarks".into(),
@@ -111,7 +113,7 @@ impl App {
             query: String::new(),
             matches: Vec::new(),
             cursor: 0,
-            action: PickAction::Jump { paths },
+            action: PickAction::Bookmarks { paths, keys, filtering: false },
             focused: false,
         };
         pick.refilter();
@@ -180,7 +182,7 @@ impl App {
                 let line = exec::command_line(&run, &paths, line, &self.cfg.line_args);
                 self.launch(&line, &cwd, block, orphan, "Open failed", "");
             }
-            PickAction::Jump { paths } => {
+            PickAction::Jump { paths } | PickAction::Bookmarks { paths, .. } => {
                 if let Some(p) = paths.get(idx).cloned() {
                     self.cd(p, true);
                 }

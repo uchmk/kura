@@ -895,8 +895,11 @@ screen.
 `T` is the quieter version of the same idea, and yazi spells it
 `plugin toggle-pane max-preview`. It widens the preview *column* until it has the body to itself,
 so the tab bar, the status bar and the layout stay exactly as they were — no dimming, no frame, no
-file name across the top. It is not a panel and nothing is "open": `j` and `k` still walk the list
-that is now too narrow to see. `T`, `<Esc>` and `q` all put the columns back: with the list
+file name across the top. It is not a panel and nothing is "open". Its keys are the `[preview]` layer of the keymap,
+tried before `[mgr]`: `j` `k` `<Up>` `<Down>` `<C-u>` `<C-d>` `<C-b>` `<C-f>` `<PageUp>` `<PageDown>` `gg` `G`
+`<Home>` `<End>` scroll the content as in `less`, and `J` / `K` go to the next / previous file; any key the
+layer does not bind is `[mgr]`'s. `<F3>` keeps the list's keys, the list being in view there. Both show line
+numbers in a gutter at the left, which a selection skips. `T`, `<Esc>` and `q` all put the columns back: with the list
 invisible the screen reads as modal, so every way out of a panel works here too. Reach for `<F3>` to
 look at one file and `T` to keep reading while you walk the list.
 

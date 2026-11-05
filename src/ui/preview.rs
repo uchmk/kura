@@ -28,6 +28,9 @@ pub struct PreviewStyle<'a> {
     pub pan: Vec2,
     /// What a search (`S`, `F`) looks for: its matches in the lines are marked.
     pub find: Option<&'a Matcher>,
+    /// A column of line numbers at the left of source text (maximized preview
+    /// and quick look). Display only: it is never noted, so a selection skips it.
+    pub numbers: bool,
 }
 
 #[derive(Default)]
@@ -826,6 +829,21 @@ fn text_with(
 ) -> usize {
     let start = offset.min(lines.len().saturating_sub(1));
     let end = (start + rows(rect, st)).min(lines.len());
+    // The line-number gutter: drawn first, not noted (so not selectable), and
+    // the text moves right of it.
+    let rect = if st.numbers && !lines.is_empty() {
+        let digits = lines.len().to_string().len().max(3);
+        let gutter = (digits as f32 + 1.0) * st.cell + PAD;
+        for i in 0..end - start {
+            let n = (start + i + 1).to_string();
+            let g = painter.layout_no_wrap(n, st.font.clone(), st.theme.fg_dim);
+            let x = rect.left() + PAD + digits as f32 * st.cell - g.size().x;
+            painter.galley(pos2(x, rect.top() + i as f32 * st.row_h), g, st.theme.fg_dim);
+        }
+        Rect::from_min_max(pos2(rect.left() + gutter, rect.top()), rect.max)
+    } else {
+        rect
+    };
     let bold_dx = overstrike(ui, st);
     let (mark_fg, mark_bg) = (st.theme.find_keyword.fg, st.theme.find_keyword.bg);
     for (i, line) in lines[start..end].iter().enumerate() {
@@ -1178,6 +1196,7 @@ mod tests {
             zoom: None,
             pan: Vec2::ZERO,
             find: None,
+            numbers: false,
         };
         (rect, st)
     }

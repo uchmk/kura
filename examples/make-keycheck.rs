@@ -23,6 +23,7 @@ fn main() {
             ("input", "The one-line prompt — `cd`, rename, filter, search."),
             ("spot", "The details panel (`<Tab>`)."),
             ("term", "While the terminal pane holds the keys. Everything not listed here goes to the shell."),
+            ("preview", "The maximized preview (`T`): scrolls the content; keys it does not bind go to `mgr`."),
             ("diff", "The side-by-side comparison (`<A-d>`)."),
             ("tasks", "The task manager (`w`)."),
             ("pick", "A chooser — the command palette, the context menu."),

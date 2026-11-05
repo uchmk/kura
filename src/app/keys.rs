@@ -7,7 +7,15 @@ impl App {
     pub fn binds(&self, k: &Key) -> bool {
         let mut seq = self.pending.clone();
         seq.push(*k);
-        !matches!(keymap::resolve(&self.cfg.keymap.mgr, &seq), keymap::Match::None)
+        let in_preview = self.preview_layer_active() && !matches!(keymap::resolve(&self.cfg.keymap.preview, &seq), keymap::Match::None);
+        in_preview || !matches!(keymap::resolve(&self.cfg.keymap.mgr, &seq), keymap::Match::None)
+    }
+
+    /// Whether the `[preview]` layer is tried before `[mgr]`: the preview is
+    /// maximized by `T`. Quick look (`<F3>`) keeps the list's keys, the list
+    /// being in view there.
+    pub fn preview_layer_active(&self) -> bool {
+        self.max_preview && !self.quick
     }
 
     pub fn feed_key(&mut self, k: Key) {
@@ -26,7 +34,13 @@ impl App {
         }
 
         self.pending.push(k);
-        let bindings = &self.cfg.keymap.mgr;
+        // `[preview]` first while it is active; what it does not bind is `[mgr]`'s.
+        let bindings =
+            if self.preview_layer_active() && !matches!(keymap::resolve(&self.cfg.keymap.preview, &self.pending), keymap::Match::None) {
+                &self.cfg.keymap.preview
+            } else {
+                &self.cfg.keymap.mgr
+            };
         match keymap::resolve(bindings, &self.pending) {
             keymap::Match::Exact(b) => {
                 let acts = b.run.clone();

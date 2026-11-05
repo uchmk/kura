@@ -35,6 +35,9 @@ pub struct Keymap {
     /// The few keys the terminal pane keeps for itself; everything else it
     /// hears goes to the shell.
     pub term: Vec<Binding>,
+    /// The keys of the maximized preview (`T`), tried before `mgr`; a key it
+    /// does not bind falls through to `mgr`.
+    pub preview: Vec<Binding>,
     /// Commands that parsed but aren't implemented, for the help panel.
     pub unsupported: Vec<String>,
     /// A key of the built-in defaults that a user's file binds to something
@@ -60,6 +63,7 @@ pub(crate) const SPEC: ito_keymap::Spec = ito_keymap::Spec {
         ito_keymap::Layer::new("diff"),
         ito_keymap::Layer::new("settings"),
         ito_keymap::Layer::new("term"),
+        ito_keymap::Layer::new("preview"),
     ],
     ignored: &["cmp", "completion"],
     defaults: DEFAULT_KEYMAP,
@@ -104,6 +108,7 @@ impl Keymap {
             diff: take("diff"),
             settings: take("settings"),
             term: take("term"),
+            preview: take("preview"),
             unsupported: Vec::new(),
             overrides: loaded.overrides,
         };
@@ -125,6 +130,7 @@ impl Keymap {
             &self.diff,
             &self.settings,
             &self.term,
+            &self.preview,
         ];
         SPEC.layers.iter().zip(all).map(|(l, b)| (l.name.to_owned(), b.clone())).collect()
     }
@@ -302,7 +308,8 @@ run = "plugin bookmarks save"
     #[test]
     fn no_layer_binds_a_key_twice_or_swallows_its_own_chords() {
         let (km, _) = Keymap::load(&[]);
-        let layers: [(&str, &[Binding]); 10] = [
+        let layers: [(&str, &[Binding]); 11] = [
+            ("preview", &km.preview),
             ("mgr", &km.mgr),
             ("input", &km.input),
             ("confirm", &km.confirm),

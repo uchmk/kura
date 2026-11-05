@@ -138,6 +138,13 @@ pub enum PickAction {
     Jump {
         paths: Vec<PathBuf>,
     },
+    /// The bookmark list: a row's key jumps to it at once, `/` switches to
+    /// filtering (`filtering`), where letters type into the query.
+    Bookmarks {
+        paths: Vec<PathBuf>,
+        keys: Vec<String>,
+        filtering: bool,
+    },
     /// One keymap binding's command list per item.
     Command {
         runs: Vec<Vec<Act>>,

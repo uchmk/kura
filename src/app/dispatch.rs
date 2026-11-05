@@ -30,9 +30,9 @@ impl App {
             }
             Act::Escape(what) => self.escape(what),
             // Every panel that has a keymap layer of its own -- `help`, `tasks`,
-            // `spot` -- binds `q` to `close`. Quick look and a maximized preview
-            // deliberately have no layer, so that `j` and `k` keep walking the
-            // list underneath, which also meant `q` fell through to this arm and
+            // `spot` -- binds `q` to `close`. Quick look has no layer, and the
+            // maximized preview's `[preview]` layer falls through to `[mgr]`, so
+            // `q` reaches this arm and used to
             // quit the process with a panel still on screen. Peel the front layer
             // instead, through `escape` so the two keys cannot drift apart; a
             // second `q` quits, as it does in every panel.

@@ -510,6 +510,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 zoom: app.preview.zoom,
                 pan: app.preview.pan,
                 find: preview_find(app),
+                numbers: app.max_preview || app.quick,
             };
             // What the selection belongs to: the read (path, size, time,
             // width), or for an archive member's card, which has none, the
@@ -3103,8 +3104,9 @@ mod max_preview_frame {
 
         let f = s.draw();
         assert!(f.says("1/3"), "on the first row: {:?}", f.texts);
-        let f = s.typed("j");
-        assert_eq!(s.app.tab().current.cursor, 1, "`j` walked the squeezed list");
+        // `j` is the `[preview]` layer's (scrolls); `J` walks the squeezed list.
+        let f = s.typed("J");
+        assert_eq!(s.app.tab().current.cursor, 1, "`J` walked the squeezed list");
         assert!(f.says("2/3"), "and the position says so: {:?}", f.texts);
 
         // 36.4: `<A-j>` moves the preview, not the cursor.
