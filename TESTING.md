@@ -1872,3 +1872,5 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 63.2 | Quit as in 63.1, then run `kura` from a shell whose current folder is somewhere else, and `kura C:\Windows` | Both open on the folder they were told (the current folder, `C:\Windows`) with a single tab; the saved tabs are not used |
 | 63.3 | Quit as in 63.1, rename one of the three folders, and start kura from the Start menu | The other tabs are as before; the tab whose folder is gone shows an error toast and lands on home, without holding the window back |
 | 63.4 | Delete `session.toml` (or fill it with junk) and start kura from the Start menu | It opens on home with one tab, with no error |
+| 63.5 | Settings (Ctrl+,) → config.toml → START → "Restore last session": pick "Last folder", quit as in 63.1, start from the Start menu | One tab, on the folder that was in front |
+| 63.6 | Same, with "Off" | Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back |

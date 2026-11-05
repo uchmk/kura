@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 728 件（TESTING.md の全 922 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 730 件（TESTING.md の全 924 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 4 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 6 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1076,3 +1076,5 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **63.2** Quit as in 63.1, then run `kura` from a shell whose current folder is somewhere else, and `kura C:\Windows` → Both open on the folder they were told (the current folder, `C:\Windows`) with a single tab; the saved tabs are not used 〔未訳〕
 - [ ] **63.3** Quit as in 63.1, rename one of the three folders, and start kura from the Start menu → The other tabs are as before; the tab whose folder is gone shows an error toast and lands on home, without holding the window back 〔未訳〕
 - [ ] **63.4** Delete `session.toml` (or fill it with junk) and start kura from the Start menu → It opens on home with one tab, with no error 〔未訳〕
+- [ ] **63.5** Settings (Ctrl+,) → config.toml → START → "Restore last session": pick "Last folder", quit as in 63.1, start from the Start menu → One tab, on the folder that was in front 〔未訳〕
+- [ ] **63.6** Same, with "Off" → Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back 〔未訳〕

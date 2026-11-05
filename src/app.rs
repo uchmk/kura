@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::cmd::{Act, CopyWhat, EscapeWhat, RenameCursor, SearchVia, Step, Tri, ZoomTo};
 use crate::config::keys::{Code, Key};
-use crate::config::{keymap, Config};
+use crate::config::{keymap, Config, Restore};
 use crate::core::folder::{Filter, Folder, LoadState};
 use crate::core::fuzzy;
 use crate::core::tab::{CdFallout, Finder, PendingCd, Tab};

@@ -100,6 +100,12 @@ pub struct KuraWords {
     pub updates: &'static str,
     pub check_updates: &'static str,
     pub check_updates_note: &'static str,
+    pub start: &'static str,
+    pub session: &'static str,
+    pub restore_note: &'static str,
+    pub restore_tabs: &'static str,
+    pub restore_folder: &'static str,
+    pub restore_off: &'static str,
     /// The Shell card's note on the program: what Ctrl+T starts, and the same
     /// with the line saying `KURA_TERM_SHELL` is in force.
     pub shell_note: &'static str,
@@ -204,6 +210,12 @@ pub const EN: KuraWords = KuraWords {
     updates: "UPDATES",
     check_updates: "Check for updates",
     check_updates_note: "Asks GitHub once at start whether a newer kura is out (through curl) and says so in a toast. Read at start",
+    start: "START",
+    session: "Restore last session",
+    restore_note: "When kura starts with no path from home or the system folder: all tabs as they were, only the folder that was in front, or nothing. A folder you started it in is never replaced. Read at start",
+    restore_tabs: "All tabs",
+    restore_folder: "Last folder",
+    restore_off: "Off",
     shell_note: "What Ctrl+T starts. A pane already open keeps its own",
     shell_note_env: "What Ctrl+T starts. A pane already open keeps its own\nKURA_TERM_SHELL names the shell for this run",
     notify_lead: "How a file job of 10 seconds or more (copy, move, delete, extract...) that ends while kura's window is behind another is told. Written to config.toml's [notify].",
@@ -296,6 +308,12 @@ pub const JA: KuraWords = KuraWords {
     updates: "更新",
     check_updates: "更新を確かめる",
     check_updates_note: "起動時に 1 回、GitHub に新しい kura が出ているか聞き（curl を使う）、あればトーストで知らせる。起動時に読む",
+    start: "起動",
+    session: "前回の状態を復元",
+    restore_note: "パスなしで、ホームかシステムのフォルダーから起動したとき: 全タブをそのまま／手前にあったフォルダーだけ／何もしない。シェルなどで開いたフォルダーは置き換えない。起動時に読む",
+    restore_tabs: "全タブ",
+    restore_folder: "最後のフォルダー",
+    restore_off: "しない",
     shell_note: "Ctrl+T で起動するもの。開いているペインはそのまま",
     shell_note_env: "Ctrl+T で起動するもの。開いているペインはそのまま\nKURA_TERM_SHELL がこの回のシェルを決めている",
     notify_lead: "10 秒以上かかったファイルの作業（コピー・移動・削除・展開など）が、kura の窓が後ろにある間に終わったときの知らせ方。config.toml の [notify] に書く。",
@@ -388,6 +406,7 @@ struct KuraNow {
     backend: String,
     mcp: bool,
     check_updates: bool,
+    restore: &'static str,
     shell: String,
     shell_from_env: bool,
     shell_args: Vec<String>,
@@ -414,6 +433,11 @@ impl KuraNow {
             backend: u.backend_name().ok().flatten().unwrap_or("auto").to_owned(),
             mcp: app.cfg.mcp.enable,
             check_updates: u.check_updates,
+            restore: match u.restore_mode() {
+                crate::config::Restore::Off => "off",
+                crate::config::Restore::Folder => "folder",
+                crate::config::Restore::Tabs => "tabs",
+            },
             shell: app.cfg.term.shell.clone(),
             shell_from_env: app.cfg.term.from_env,
             shell_args: app.cfg.term.args.clone(),
@@ -493,7 +517,7 @@ fn backends() -> Vec<(&'static str, &'static str)> {
 
 /// The keys of the config.toml page's rows, `table.key`, for the search to
 /// find them by in any language (#388).
-const KURA_KEYS: [&str; 13] = [
+const KURA_KEYS: [&str; 14] = [
     "ui.font_size",
     "ui.row_padding",
     "ui.icons",
@@ -507,6 +531,7 @@ const KURA_KEYS: [&str; 13] = [
     "ui.backend",
     "mcp.enable",
     "ui.check_updates",
+    "ui.restore",
 ];
 
 /// The config.toml page: the main rows of `[ui]`, `[mcp]` and `[term]`.
@@ -591,6 +616,11 @@ fn kura_page(
         if keyed_row(ui, l, "mcp.enable", k.mcp, k.mcp_note, |ui| switch(ui, l, now.mcp)) {
             out.push(KuraChange { table: "mcp", key: "enable".into(), value: Some((!now.mcp).to_string()) });
         }
+    });
+    section(ui, l, k.start, |ui| {
+        let list = vec![("tabs", k.restore_tabs), ("folder", k.restore_folder), ("off", k.restore_off)];
+        let picked = keyed_row(ui, l, "ui.restore", k.session, k.restore_note, |ui| select(ui, "restore", now.restore, &list));
+        out.extend(picked.map(|v| set("restore", format!("\"{v}\""))));
     });
     section(ui, l, k.updates, |ui| {
         if keyed_row(ui, l, "ui.check_updates", k.check_updates, k.check_updates_note, |ui| switch(ui, l, now.check_updates)) {
@@ -803,6 +833,12 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (KURA, k.backend_note),
         (KURA, k.mcp),
         (KURA, k.mcp_note),
+        (KURA, k.start),
+        (KURA, k.session),
+        (KURA, k.restore_note),
+        (KURA, k.restore_tabs),
+        (KURA, k.restore_folder),
+        (KURA, k.restore_off),
         (KURA, k.updates),
         (KURA, k.check_updates),
         (KURA, k.check_updates_note),

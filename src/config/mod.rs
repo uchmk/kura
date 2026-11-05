@@ -85,6 +85,18 @@ pub struct Ui {
     pub backend: String,
     /// Ask GitHub once at start whether a newer release is out.
     pub check_updates: bool,
+    /// What a start with no path, from home or the system folder, brings back:
+    /// `tabs` (every tab as it was), `folder` (the folder of the tab that was in
+    /// front, in a single tab) or `off`. An unknown value counts as `tabs`.
+    pub restore: String,
+}
+
+/// What `[ui] restore` asks for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Restore {
+    Off,
+    Folder,
+    Tabs,
 }
 
 impl Ui {
@@ -118,6 +130,16 @@ impl Ui {
     }
 }
 
+impl Ui {
+    pub fn restore_mode(&self) -> Restore {
+        match self.restore.trim().to_ascii_lowercase().as_str() {
+            "off" | "none" | "false" => Restore::Off,
+            "folder" | "last" => Restore::Folder,
+            _ => Restore::Tabs,
+        }
+    }
+}
+
 impl Default for Ui {
     fn default() -> Self {
         Self {
@@ -138,6 +160,7 @@ impl Default for Ui {
             window_height: 800.0,
             backend: "auto".into(),
             check_updates: true,
+            restore: "tabs".into(),
         }
     }
 }

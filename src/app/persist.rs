@@ -89,13 +89,22 @@ impl App {
     /// folder that is gone, or a share that does not answer, falls back to `home`
     /// when its listing fails instead of holding the window back. Returns whether
     /// anything was restored.
-    pub fn restore_session(&mut self, text: &str, home: &Path) -> bool {
-        let Ok(f) = toml::from_str::<SessionFile>(text) else {
+    pub fn restore_session(&mut self, text: &str, home: &Path, mode: Restore) -> bool {
+        let Ok(mut f) = toml::from_str::<SessionFile>(text) else {
             return false;
         };
-        let dirs: Vec<PathBuf> = f.tabs.iter().filter(|t| !t.is_empty()).map(PathBuf::from).take(MAX_TABS).collect();
+        if mode == Restore::Off {
+            return false;
+        }
+        let mut dirs: Vec<PathBuf> = f.tabs.iter().filter(|t| !t.is_empty()).map(PathBuf::from).take(MAX_TABS).collect();
         if dirs.is_empty() {
             return false;
+        }
+        if mode == Restore::Folder {
+            // Only the folder that was in front, in the one tab.
+            let front = dirs.swap_remove(f.active.min(dirs.len() - 1));
+            dirs = vec![front];
+            f.active = 0;
         }
         let (sort, hidden, linemode) = (self.tabs[0].sort, self.tabs[0].show_hidden, self.tabs[0].linemode);
         self.tabs = dirs
@@ -117,7 +126,11 @@ impl App {
 
     /// Restore the last session from the state folder, if the file is there.
     pub fn restore_last_session(&mut self, home: &Path) -> bool {
-        std::fs::read_to_string(Self::state_file("session.toml")).map(|text| self.restore_session(&text, home)).unwrap_or(false)
+        let mode = self.cfg.ui.restore_mode();
+        if mode == Restore::Off {
+            return false;
+        }
+        std::fs::read_to_string(Self::state_file("session.toml")).map(|text| self.restore_session(&text, home, mode)).unwrap_or(false)
     }
 
     pub fn on_quit(&self) {

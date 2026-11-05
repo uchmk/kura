@@ -351,6 +351,7 @@ max_history = 200
 window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
 window_height = 800.0
 backend = "auto"           # auto | vulkan | dx12 | metal | gl; read at start
+restore = "tabs"           # tabs | folder | off; what a start with no path (from home) brings back; read at start
 check_updates = true       # ask GitHub once at start whether a newer kura is out (curl); a toast says so
 
 [term]                     # what `<C-t>` starts; omit for the default
