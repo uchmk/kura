@@ -133,7 +133,9 @@ impl App {
         std::fs::read_to_string(Self::state_file("session.toml")).map(|text| self.restore_session(&text, home, mode)).unwrap_or(false)
     }
 
-    pub fn on_quit(&self) {
+    /// What is kept when kura ends by any road, `q` or the window's x: bookmarks,
+    /// history and the session.
+    pub fn save_on_close(&self) {
         self.save_state();
         if let Some(text) = self.session_text() {
             let _ = std::fs::write(Self::state_file("session.toml"), text);
@@ -142,6 +144,11 @@ impl App {
         if let Ok(text) = toml::to_string(&self.history_file()) {
             let _ = self.kept.history.save_now(text);
         }
+    }
+
+    /// `q`: what is kept on any close, and the files `--cwd-file` and `--chooser-file` name.
+    pub fn on_quit(&self) {
+        self.save_on_close();
         if let Some(f) = &self.cwd_file {
             let _ = std::fs::write(f, self.tabs[self.active].cwd.display().to_string());
         }

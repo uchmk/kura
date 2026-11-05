@@ -1161,6 +1161,10 @@ impl eframe::App for Kura {
                 let _ = std::fs::write(done, state_report(&self.app) + &keyscript::closed_report(self.script.len()));
                 self.note_progress();
             }
+            // Closing the window keeps the session, bookmarks and history like `q` does.
+            if !self.app.quit {
+                self.app.save_on_close();
+            }
         }
 
         if self.app.quit {

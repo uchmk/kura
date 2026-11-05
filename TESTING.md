@@ -1874,3 +1874,4 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 63.4 | Delete `session.toml` (or fill it with junk) and start kura from the Start menu | It opens on home with one tab, with no error |
 | 63.5 | Settings (Ctrl+,) → config.toml → START → "Restore last session": pick "Last folder", quit as in 63.1, start from the Start menu | One tab, on the folder that was in front |
 | 63.6 | Same, with "Off" | Opens on home with one tab; with "All tabs" the three tabs of 63.1 come back |
+| 63.7 | Close the window with the title bar's x (not `q`) after opening three tabs, then start kura from the Start menu | The tabs come back as in 63.1; `session.toml` is in `%LOCALAPPDATA%/uchmk/kura` |
