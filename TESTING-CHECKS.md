@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 741 件（TESTING.md の全 935 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 745 件（TESTING.md の全 939 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 17 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 21 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1095,3 +1095,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 - [ ] **65.1** In a folder press `ba`, then `bq` → A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` 〔未訳〕
 - [ ] **65.2** In the same folder press `bq` again → A toast says it is already bookmarked as `q`; nothing else changes 〔未訳〕
+
+## 66. Line numbers in rendered Markdown (v0.145.0)
+
+- [ ] **66.1** Open a `.md` file rendered, press `T` → Source line numbers sit at the left, on the first rendered row of each source line; wrapped rows and a table's rule row are blank 〔未訳〕
+- [ ] **66.2** Drag-select across the rows in `T` → The numbers are not selected or copied 〔未訳〕
+- [ ] **66.3** Press `M` in `T`, then `M` again → Switches to the source (every line numbered) and back to the rendered view 〔未訳〕
+- [ ] **66.4** Open a long Markdown file in `<F3>`, light and dark theme → The numbers are dim, right-aligned, and do not touch the text or the Contents column 〔未訳〕

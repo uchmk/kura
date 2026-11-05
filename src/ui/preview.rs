@@ -894,11 +894,18 @@ fn text_with(
     lines.len()
 }
 
+/// Cells the source line numbers take at the left of rendered Markdown: four
+/// digits and a space. The width is fixed (the source's length is not known to
+/// the layout worker), and `preview.cols` is reduced by it.
+pub const MD_GUTTER_COLS: u16 = 5;
+
 /// Markdown laid out for reading, with the outline in a column on the right.
 fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> Drawn {
     let theme = st.theme;
     let rows = rows(rect, st);
-    let left = rect.left() + PAD;
+    // Source line numbers, right-aligned in their own cells: unnoted, so not selectable.
+    let gutter = if st.numbers { MD_GUTTER_COLS as f32 * st.cell } else { 0.0 };
+    let left = rect.left() + PAD + gutter;
     let right = left + doc.body_cols as f32 * st.cell;
     let x_at = |col: usize| left + col as f32 * st.cell;
     // Text sits in the middle of its row, so code bands and highlights frame it.
@@ -916,6 +923,14 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
     };
     for (i, line) in doc.lines[start..end].iter().enumerate() {
         let y = rect.top() + i as f32 * st.row_h;
+        // The first rendered row of a source line carries its number; wrapped
+        // rows and a repeated source line (a table's rule) stay blank. A row
+        // cut off at the top by scrolling still shows it.
+        if st.numbers && !line.wrap && (start + i == 0 || doc.lines[start + i - 1].src != line.src) {
+            let g = painter.layout_no_wrap((line.src + 1).to_string(), st.font.clone(), theme.fg_dim);
+            let x = rect.left() + PAD + (MD_GUTTER_COLS - 1) as f32 * st.cell - g.size().x;
+            painter.galley(pos2(x, y + lift), g, theme.fg_dim);
+        }
         let x0 = x_at(line.indent as usize);
         match line.kind {
             LineKind::Code => {

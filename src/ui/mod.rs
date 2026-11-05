@@ -496,7 +496,10 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
             // Rendered Markdown is laid out in the worker on a grid of
             // monospace cells, so it needs to know how many fit.
             let cell = ui.painter().layout_no_wrap("M".repeat(20), f.clone(), theme.fg).size().x / 20.0;
-            app.preview.cols = ((rect.width() - 24.0) / cell).max(0.0) as u16;
+            // The line-number gutter of rendered Markdown takes its cells off the width.
+            let numbers = app.max_preview || app.quick;
+            let gutter = if numbers { preview::MD_GUTTER_COLS as f32 * cell } else { 0.0 };
+            app.preview.cols = ((rect.width() - 24.0 - gutter) / cell).max(0.0) as u16;
             let st = preview::PreviewStyle {
                 theme: &theme,
                 font: f.clone(),
@@ -510,7 +513,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 zoom: app.preview.zoom,
                 pan: app.preview.pan,
                 find: preview_find(app),
-                numbers: app.max_preview || app.quick,
+                numbers,
             };
             // What the selection belongs to: the read (path, size, time,
             // width), or for an archive member's card, which has none, the
@@ -3117,6 +3120,18 @@ mod max_preview_frame {
         assert_eq!(s.app.tab().current.cursor, 1, "and left the cursor where it was");
     }
 
+    /// `T` and `<F3>` number the lines in a gutter at the left.
+    #[test]
+    fn the_maximized_preview_and_quick_look_number_the_lines() {
+        let mut s = one("max-numbers");
+        s.app.preview.state = long_text();
+        let f = s.draw();
+        assert!(!f.texts.iter().any(|t| t == "5"), "no gutter in the plain layout: {:?}", f.texts);
+        s.typed("T");
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "5"), "T numbers the lines: {:?}", f.texts);
+    }
+
     /// 36.5 and 36.5a: `<Esc>` and `q` each put the columns back, and `q` only
     /// quits once nothing is in front.
     ///
@@ -4153,6 +4168,26 @@ mod outline_end_frame {
 
     fn down() -> egui::Event {
         key(egui::Key::ArrowDown, egui::Modifiers::NONE)
+    }
+
+    /// Rendered Markdown shows its source line numbers where each line landed,
+    /// and `M` switches `T` to the source (which numbers every line) and back.
+    #[test]
+    fn rendered_markdown_in_the_maximized_preview_shows_source_line_numbers() {
+        let doc = "# Title\n\nsome text\n\n## Second\n\nend\n";
+        let mut s = on("max-md-numbers", &[("notes.md", doc)]);
+        look_at(&mut s, "notes.md");
+        s.app.render_markdown = true;
+        let f = s.draw();
+        assert!(!f.texts.iter().any(|t| t == "5"), "no gutter in the plain layout: {:?}", f.texts);
+        s.typed("T");
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "5"), "`## Second` is on source line 5: {:?}", f.texts);
+        assert!(f.texts.iter().any(|t| t == "1"), "and the title on line 1: {:?}", f.texts);
+        s.typed("M");
+        assert!(!s.app.render_markdown, "`M` switched `T` to the source");
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "7"), "the source numbers every line: {:?}", f.texts);
     }
 
     /// 9.1 and 9.2: the last entry stops at the end of the file, and holding the

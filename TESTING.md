@@ -1897,3 +1897,12 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 |---|----|--------|
 | 65.1 | In a folder press `ba`, then `bq` | A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` |
 | 65.2 | In the same folder press `bq` again | A toast says it is already bookmarked as `q`; nothing else changes |
+
+## 66. Line numbers in rendered Markdown (v0.145.0)
+
+| # | Do | Expect |
+|---|----|--------|
+| 66.1 | Open a `.md` file rendered, press `T` | Source line numbers sit at the left, on the first rendered row of each source line; wrapped rows and a table's rule row are blank |
+| 66.2 | Drag-select across the rows in `T` | The numbers are not selected or copied |
+| 66.3 | Press `M` in `T`, then `M` again | Switches to the source (every line numbered) and back to the rendered view |
+| 66.4 | Open a long Markdown file in `<F3>`, light and dark theme | The numbers are dim, right-aligned, and do not touch the text or the Contents column |
