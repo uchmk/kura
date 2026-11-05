@@ -848,6 +848,22 @@ on = "<End>"
 run = "seek bot"
 desc = "Scroll the preview to its end"
 [[preview.keymap]]
+on = "/"
+run = "preview_find"
+desc = "Find in the preview (n / N step through the hits)"
+[[preview.keymap]]
+on = "?"
+run = "preview_find"
+desc = "Find in the preview (n / N step through the hits)"
+[[preview.keymap]]
+on = ":"
+run = "preview_goto"
+desc = "Go to a line of the preview"
+[[preview.keymap]]
+on = "<C-g>"
+run = "preview_goto"
+desc = "Go to a line of the preview"
+[[preview.keymap]]
 on = "K"
 run = "arrow -1"
 desc = "Previous file"

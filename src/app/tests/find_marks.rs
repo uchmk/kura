@@ -438,3 +438,36 @@ fn a_name_search_still_steps_over_names() {
     assert!(!a.find_in_body(false));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `/` in the maximized preview finds in the text on show; `n` / `N` step
+/// through the hits and go round the ends. `:` scrolls to a line.
+#[test]
+fn the_maximized_preview_finds_and_goes_to_a_line() {
+    let dir = crate::util::test_dir("find-marks-preview");
+    let mut a = app_in(&dir);
+    let rows: Vec<String> = (0..40).map(|i| if i == 10 || i == 30 { format!("needle {i}") } else { format!("row {i}") }).collect();
+    let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
+    a.preview.state = text(&rows);
+
+    a.act(Act::PreviewFind { prev: false, repeat: false });
+    assert!(a.overlay.is_none(), "not in T, nothing to ask");
+    a.max_preview = true;
+    a.act(Act::PreviewFind { prev: false, repeat: false });
+    assert!(matches!(&a.overlay, Overlay::Input(ov) if matches!(ov.kind, InputKind::PreviewFind)));
+    a.overlay = Overlay::None;
+    a.preview_find_submit("needle");
+    assert_eq!(a.tabs[a.active].find_at, Some(10));
+    assert_eq!(a.tabs[a.active].preview_offset, 7);
+    a.find_arrow(false);
+    assert_eq!(a.tabs[a.active].find_at, Some(30));
+    a.find_arrow(false);
+    assert_eq!(a.tabs[a.active].find_at, Some(10), "past the last hit it goes round");
+    a.find_arrow(true);
+    assert_eq!(a.tabs[a.active].find_at, Some(30), "N goes back round the other end");
+
+    a.preview_goto_submit("21");
+    assert_eq!(a.tabs[a.active].preview_offset, 20, "line 21 is row 20");
+    a.preview_goto_submit("x");
+    assert_eq!(a.tabs[a.active].preview_offset, 20, "not a number: stays");
+    let _ = std::fs::remove_dir_all(&dir);
+}

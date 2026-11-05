@@ -54,6 +54,7 @@ fn preview_find(app: &App) -> Option<&ito_match::Matcher> {
     let body = app.tabs[app.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref());
     body.or(match app.preview.state {
         PreviewState::Ready(Payload::Log { .. }) => app.log_matcher.as_ref(),
+        PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }) if app.max_preview && !app.quick => app.log_matcher.as_ref(),
         _ => None,
     })
 }

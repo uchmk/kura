@@ -1906,3 +1906,13 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 66.2 | Drag-select across the rows in `T` | The numbers are not selected or copied |
 | 66.3 | Press `M` in `T`, then `M` again | Switches to the source (every line numbered) and back to the rendered view |
 | 66.4 | Open a long Markdown file in `<F3>`, light and dark theme | The numbers are dim, right-aligned, and do not touch the text or the Contents column |
+
+## 67. Find and go to a line in the maximized preview (v0.146.0)
+
+| # | Do | Expect |
+|---|----|--------|
+| 67.1 | Open a long text file, press `T`, then `/`, type a word, Enter | Jumps to the first hit a few rows down from the top; every hit is marked |
+| 67.2 | Press `n` repeatedly, then `N` | Steps through the hits; past the last it goes round and says "Search wrapped" |
+| 67.3 | Press `:` (or `<C-g>`), type a line number, Enter | The preview scrolls so that line is at the top; the gutter number matches |
+| 67.4 | Do 67.1 and 67.3 on a `.md` file rendered, then after `M` | Hits are marked in the rendered text; the line number is the source's, in both views |
+| 67.5 | Open a huge log, press `T`, then `/` and `:` | Find and go-to work as `<A-/>` does; no wrapping toast confusion |

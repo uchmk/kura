@@ -266,9 +266,14 @@ impl App {
     }
 
     pub fn body_matches(&self) -> Vec<usize> {
-        let Some(m) = self.tabs[self.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref()) else {
-            return Vec::new();
-        };
+        match self.tabs[self.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref()) {
+            Some(m) => self.preview_matches(m),
+            None => Vec::new(),
+        }
+    }
+
+    /// The rows of the text on show that `m` finds, top to bottom.
+    pub(super) fn preview_matches(&self, m: &ito_match::Matcher) -> Vec<usize> {
         // Markdown is searched where it is drawn: the rendered text has no
         // markup characters, the source view does.
         let lines: Vec<&Vec<crate::preview::Span>> = match &self.preview.state {

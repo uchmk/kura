@@ -21,6 +21,8 @@ pub enum InputKind {
     TermFind,
     /// A pattern to find in a huge log shown in the preview.
     PreviewFind,
+    /// A line number to scroll the maximized preview to.
+    PreviewGoto,
     /// The name of the archive to pack the selection into.
     Compress,
     Shell {

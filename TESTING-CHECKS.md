@@ -7,12 +7,12 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 745 件（TESTING.md の全 939 件のうち、`cargo test` が見ている 194 件は外してある）。
+押すものは 750 件（TESTING.md の全 944 件のうち、`cargo test` が見ている 194 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
 
-未訳 21 件は原文のまま `〔未訳〕` を付けて出している。
+未訳 26 件は原文のまま `〔未訳〕` を付けて出している。
 
 ## 使い方
 
@@ -1102,3 +1102,11 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **66.2** Drag-select across the rows in `T` → The numbers are not selected or copied 〔未訳〕
 - [ ] **66.3** Press `M` in `T`, then `M` again → Switches to the source (every line numbered) and back to the rendered view 〔未訳〕
 - [ ] **66.4** Open a long Markdown file in `<F3>`, light and dark theme → The numbers are dim, right-aligned, and do not touch the text or the Contents column 〔未訳〕
+
+## 67. Find and go to a line in the maximized preview (v0.146.0)
+
+- [ ] **67.1** Open a long text file, press `T`, then `/`, type a word, Enter → Jumps to the first hit a few rows down from the top; every hit is marked 〔未訳〕
+- [ ] **67.2** Press `n` repeatedly, then `N` → Steps through the hits; past the last it goes round and says "Search wrapped" 〔未訳〕
+- [ ] **67.3** Press `:` (or `<C-g>`), type a line number, Enter → The preview scrolls so that line is at the top; the gutter number matches 〔未訳〕
+- [ ] **67.4** Do 67.1 and 67.3 on a `.md` file rendered, then after `M` → Hits are marked in the rendered text; the line number is the source's, in both views 〔未訳〕
+- [ ] **67.5** Open a huge log, press `T`, then `/` and `:` → Find and go-to work as `<A-/>` does; no wrapping toast confusion 〔未訳〕

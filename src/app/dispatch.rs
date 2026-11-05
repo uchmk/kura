@@ -225,6 +225,7 @@ impl App {
             Act::TermCd => self.term_pull_cwd(),
             Act::TermFind { prev, repeat } => self.term_search(prev, repeat),
             Act::PreviewFind { prev, repeat } => self.preview_search(prev, repeat),
+            Act::PreviewGoto => self.preview_goto(),
             Act::PreviewFollow => self.preview_follow(),
             Act::PreviewCopyLine => self.preview_copy_line(),
             Act::TermScroll(step) => self.term_scroll(step),
@@ -385,8 +386,8 @@ impl App {
 
     /// Search the huge log in the preview, or step to the next match.
     pub(super) fn preview_search(&mut self, prev: bool, repeat: bool) {
-        if self.log_view().is_none() {
-            return self.toast("Preview find works on a huge text file");
+        if self.log_view().is_none() && !self.text_findable() {
+            return self.toast("Preview find works on a text file, or a huge one");
         }
         if repeat && !self.log_needle.is_empty() {
             return self.log_step(prev);
@@ -395,11 +396,33 @@ impl App {
         self.open_input(InputKind::PreviewFind, "Find in log", needle);
     }
 
+    /// Whether the maximized preview (`T`) shows text that `preview_find`
+    /// can search: plain text, or Markdown as source or rendered.
+    pub(super) fn text_findable(&self) -> bool {
+        self.max_preview
+            && !self.quick
+            && matches!(self.preview.state, PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }))
+    }
+
     pub(super) fn preview_find_submit(&mut self, text: &str) {
-        let Some(view) = self.log_view() else { return };
         if text.is_empty() {
             return;
         }
+        let Some(view) = self.log_view() else {
+            if !self.text_findable() {
+                return;
+            }
+            match ito_match::Matcher::new(text) {
+                Ok(m) => {
+                    self.log_needle = text.to_owned();
+                    self.log_matcher = Some(m);
+                    self.tabs[self.active].find_at = None;
+                    self.log_step(false);
+                }
+                Err(e) => self.toast(format!("Find: {e}")),
+            }
+            return;
+        };
         match ito_match::Matcher::new(text) {
             Ok(m) => {
                 self.log_needle = text.to_owned();
@@ -414,7 +437,7 @@ impl App {
 
     /// Jump to the next (or previous) hit of the log search.
     pub(super) fn log_step(&mut self, prev: bool) {
-        let Some(view) = self.log_view() else { return };
+        let Some(view) = self.log_view() else { return self.text_step(prev) };
         let found = view.found();
         let tab = &self.tabs[self.active];
         let next = next_hit(&found.lines, tab.find_at, tab.preview_offset, prev);
@@ -431,6 +454,61 @@ impl App {
             None if !found.done => self.toast(format!("Searching... {} hits so far", found.lines.len())),
             None => self.toast(format!("No more matches for {}", found.query)),
         }
+    }
+
+    /// Step to the next (or previous) row of the text on show that the find
+    /// matches, round the ends.
+    fn text_step(&mut self, prev: bool) {
+        let Some(m) = self.log_matcher.clone() else { return };
+        let hits = self.preview_matches(&m);
+        let at = self.tabs[self.active].find_at;
+        let next = if prev {
+            hits.iter().rev().find(|&&h| at.is_none_or(|a| h < a)).or(hits.last())
+        } else {
+            hits.iter().find(|&&h| at.is_none_or(|a| h > a)).or(hits.first())
+        };
+        match next.copied() {
+            Some(row) => {
+                let wrapped = at.is_some_and(|a| if prev { row >= a } else { row <= a });
+                let max = self.preview.max_offset;
+                let tab = &mut self.tabs[self.active];
+                tab.find_at = Some(row);
+                let top = row.saturating_sub(3);
+                tab.preview_offset = if max > 0 { top.min(max) } else { top };
+                if wrapped {
+                    self.toast("Search wrapped");
+                }
+            }
+            None => self.toast(format!("No matches for {}", self.log_needle)),
+        }
+    }
+
+    /// Ask for a line number to scroll the maximized preview to.
+    pub(super) fn preview_goto(&mut self) {
+        if self.log_view().is_none() && !self.text_findable() {
+            return self.toast("Go to line works on a text file in the maximized preview");
+        }
+        self.open_input(InputKind::PreviewGoto, "Go to line", String::new());
+    }
+
+    pub(super) fn preview_goto_submit(&mut self, text: &str) {
+        let Ok(n) = text.trim().parse::<usize>() else {
+            return self.toast("Go to line: enter a line number");
+        };
+        let line = n.saturating_sub(1);
+        if let Some(view) = self.log_view() {
+            let line = line.min(view.index.lines().saturating_sub(1));
+            self.tabs[self.active].preview_offset = line;
+            self.tabs[self.active].find_at = Some(line);
+            view.focus(line);
+            return;
+        }
+        let row = match &self.preview.state {
+            PreviewState::Ready(Payload::Markdown { doc, .. }) if self.render_markdown => doc.line_for_src(line),
+            _ => line,
+        };
+        let max = self.preview.max_offset;
+        self.tabs[self.active].preview_offset = if max > 0 { row.min(max) } else { row };
     }
 
     /// Search the terminal's scrollback, or step to the next match.

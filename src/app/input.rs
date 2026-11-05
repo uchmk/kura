@@ -157,6 +157,7 @@ impl App {
             InputKind::Compress => self.do_compress(&text),
             InputKind::TermFind => self.term_find(&text, true),
             InputKind::PreviewFind => self.preview_find_submit(&text),
+            InputKind::PreviewGoto => self.preview_goto_submit(&text),
             InputKind::Rename { from } => self.do_rename(&from, &text),
             InputKind::Bulk { paths } => self.do_bulk_rename(&paths, &text),
             InputKind::Filter => { /* already applied live */ }

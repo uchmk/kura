@@ -662,7 +662,7 @@ impl App {
     }
 
     pub(super) fn find_arrow(&mut self, prev: bool) {
-        if self.tabs[self.active].finder.is_none() && !self.log_needle.is_empty() && self.log_view().is_some() {
+        if self.tabs[self.active].finder.is_none() && !self.log_needle.is_empty() && (self.log_view().is_some() || self.text_findable()) {
             return self.log_step(prev);
         }
         if self.find_in_body(prev) {

@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-304 keys. How many are checked is not written here, so that two pull requests ticking
+308 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -228,6 +228,10 @@ The maximized preview (`T`): scrolls the content; keys it does not bind go to `m
 - [ ] `G` — Scroll the preview to its end · `seek bot`
 - [ ] `<Home>` — Scroll the preview to its top · `seek top`
 - [ ] `<End>` — Scroll the preview to its end · `seek bot`
+- [ ] `/` — Find in the preview (n / N step through the hits) · `preview_find`
+- [ ] `?` — Find in the preview (n / N step through the hits) · `preview_find`
+- [ ] `:` — Go to a line of the preview · `preview_goto`
+- [ ] `<C-g>` — Go to a line of the preview · `preview_goto`
 - [ ] `K` — Previous file · `arrow -1`
 - [ ] `J` — Next file · `arrow 1`
 
