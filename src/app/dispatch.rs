@@ -393,7 +393,7 @@ impl App {
             return self.log_step(prev);
         }
         let needle = self.log_needle.clone();
-        self.open_input(InputKind::PreviewFind, "Find in log", needle);
+        self.open_input(InputKind::PreviewFind, "Find in preview", needle);
     }
 
     /// Whether the maximized preview (`T`) shows text that `preview_find`

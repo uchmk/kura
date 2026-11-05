@@ -165,8 +165,9 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
     let said = slow.unwrap_or_else(|| "…".into());
     let gutter = if waiting { ui.painter().layout_no_wrap(said.clone(), f.clone(), accent).size().x + 12.0 } else { 0.0 };
 
+    let lang = app.lang.clone();
     let Overlay::Input(ov) = &mut app.overlay else { return };
-    let title = format!("{}:", ov.title);
+    let title = format!("{}:", crate::i18n::tr_desc(&lang, &ov.title));
     let g = ui.painter().layout_no_wrap(title, f.clone(), accent);
     let tw = g.size().x;
     ui.painter().galley(egui::pos2(rect.left() + 10.0, rect.center().y - g.size().y / 2.0), g, accent);
