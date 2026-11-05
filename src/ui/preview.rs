@@ -914,19 +914,28 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             _ => {}
         }
 
-        // Each span starts on its own column, so tables stay aligned even
-        // where a fallback font's glyphs are not exactly one or two cells.
+        // Each span of a table row, and each marker before the text, starts on
+        // its own column, so tables stay aligned even where a fallback font's
+        // glyphs are not exactly one or two cells. Running text follows on from
+        // the span before it instead: its CJK glyphs are narrower than their two
+        // cells, and snapping to the grid left a gap before a code chip or bold.
+        let tabular = line.spans.iter().enumerate().any(|(k, s)| s.text.contains('┼') || (k > 0 && s.text.contains('│')));
         let parts = split_marked(&line.spans, &found[i]);
         let mut col = 0;
         let mut prev_end = left;
+        let mut pen: Option<f32> = None;
         let mut first = true;
         for (k, span) in line.spans.iter().enumerate() {
             let w = cells(&span.text);
             if span.text.trim().is_empty() {
                 col += w;
+                if let Some(p) = pen.as_mut() {
+                    *p += w as f32 * st.cell;
+                }
                 continue;
             }
-            let x = prev_end.max(x_at(col));
+            let grid = prev_end.max(x_at(col));
+            let x = if tabular || col < line.indent as usize { grid } else { pen.unwrap_or(grid) };
             let color = span_color(span, st);
             let mut job = LayoutJob::default();
             for (_, part, marked) in parts.iter().filter(|(j, ..)| *j == k) {
@@ -957,6 +966,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             }
             body.galley(pos, galley, color);
             prev_end = x + size.x;
+            pen = (col >= line.indent as usize).then_some(prev_end);
             col += w;
         }
         if first {
