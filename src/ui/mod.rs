@@ -546,8 +546,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
             // narrower window re-wraps Markdown to more lines, a rescan brings
             // a shorter file — and nothing has asked to scroll when it does.
             let lines = drawn.lines;
-            let rows = ((rect.height() / row_h).floor() as usize).max(1);
-            let max = lines.saturating_sub(rows / 2);
+            let max = lines.saturating_sub(1);
             app.preview.max_offset = max;
             if app.tabs[app.active].preview_offset > max {
                 app.tabs[app.active].preview_offset = max;
@@ -4260,9 +4259,8 @@ end
         let max = s.app.preview.max_offset;
         let last = *entries.last().expect("the headings became an outline");
         assert!(
-            last > max,
-            "the fixture puts its last heading past the furthest scroll ({last} > {max}), \
-             which is the only case this section is about",
+            last <= max,
+            "the preview scrolls until the last line is the top one, so even the last heading can be reached ({last} <= {max})",
         );
 
         s.feed(vec![focus()]);
@@ -4270,7 +4268,7 @@ end
 
         let f = s.typed("G");
         assert_eq!(s.app.preview.outline, Some(entries.len() - 1), "`G` went to the last entry",);
-        assert_eq!(s.app.tab().preview_offset, max, "and the preview stopped at the end of the file rather than at line {last}",);
+        assert_eq!(s.app.tab().preview_offset, last, "and the heading is at the top of the preview, with its line under it",);
         assert!(f.says("one line under it"), "the last line is on screen: {:?}", f.texts);
 
         // 9.2: the same frame, over and over. A held key is a repeat of this,
@@ -4278,7 +4276,7 @@ end
         let steady = f.texts.clone();
         for i in 0..5 {
             let f = s.feed(vec![down()]);
-            assert_eq!(s.app.tab().preview_offset, max, "still at the end after {i} more");
+            assert_eq!(s.app.tab().preview_offset, last, "still on the last heading after {i} more");
             assert_eq!(f.texts, steady, "nothing moved on repeat {i}");
         }
     }
@@ -4286,7 +4284,7 @@ end
     /// 9.5: walking back up lands on each entry's own line again.
     ///
     /// The clamp is a ceiling, not a new home for the cursor: the two entries
-    /// above the last one are also past `max_offset` and also clamp to it, and
+    /// above the last one are close to the end and sit on their own lines, and
     /// the first one that is not has to go to its own line. A fix that had left
     /// the offset pinned would pass the test above and fail here.
     #[test]
