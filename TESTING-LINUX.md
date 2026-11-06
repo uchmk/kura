@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 756 件（TESTING.md の全 951 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 758 件（TESTING.md の全 953 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1049,6 +1049,8 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 
 - [ ] **65.1** In a folder press `ba`, then `bq` → A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` 〔未訳〕
 - [ ] **65.2** In the same folder press `bq` again → A toast says it is already bookmarked as `q`; nothing else changes 〔未訳〕
+- [ ] **65.3** `common.toml` に `language = "ja"` を書き、同じフォルダーで `ba`、`bq`、もう一度 `bq`、続けて `bd` と `q` を押す（v0.146.10）→ トーストが日本語で出る: `ブックマーク `a` を保存`、`ブックマークを `a` から `q` へ移動`、`すでに `q` にブックマーク済み`、`ブックマーク `q` を削除`。`language = "en"` なら従来の英語 — *With `language = "ja"` in `common.toml`, press `ba`, `bq` in the same folder, `bq` again, then `bd` and `q` (v0.146.10) → The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before*
+- [ ] **65.4** `language = "ja"` で `bD` を押し、`y` で答える（v0.146.10）→ 確認に答えると `ブックマークを全部削除` のトーストが出て、ブックマークの一覧が空になる — *With `language = "ja"`, press `bD`, then `y` (v0.146.10) → The confirm is answered and a toast says `ブックマークを全部削除`; the bookmark list is empty*
 
 ## 66. Line numbers in rendered Markdown (v0.145.0)
 

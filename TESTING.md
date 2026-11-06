@@ -1899,6 +1899,8 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 |---|----|--------|
 | 65.1 | In a folder press `ba`, then `bq` | A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` |
 | 65.2 | In the same folder press `bq` again | A toast says it is already bookmarked as `q`; nothing else changes |
+| 65.3 | With `language = "ja"` in `common.toml`, press `ba`, `bq` in the same folder, `bq` again, then `bd` and `q` (v0.146.10) | The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before |
+| 65.4 | With `language = "ja"`, press `bD`, then `y` (v0.146.10) | The confirm is answered and a toast says `ブックマークを全部削除`; the bookmark list is empty |
 
 ## 66. Line numbers in rendered Markdown (v0.145.0)
 
