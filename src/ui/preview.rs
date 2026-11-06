@@ -746,10 +746,11 @@ fn code(
         None => rect,
     };
     let lines = text(ui, &painter.with_clip_rect(body), body, lines, extent, offset, st);
+    let at_end = offset > 0 && offset + rows(rect, st) >= lines;
     let jump = match column {
-        Some(width) => outline(ui, painter, rect, entries, width, offset, false, st),
+        Some(width) => outline(ui, painter, rect, entries, width, (offset, at_end), false, st),
         None if st.outline_focus.is_some() && !entries.is_empty() => {
-            outline(ui, painter, rect, entries, overlay_cols(widest, cols), offset, true, st)
+            outline(ui, painter, rect, entries, overlay_cols(widest, cols), (offset, at_end), true, st)
         }
         None => None,
     };
@@ -1021,11 +1022,12 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         truncation_note(painter, rect, end - start, &extent, st);
     }
 
+    let at_end = start > 0 && end >= doc.lines.len();
     let jump = if doc.toc_cols > 0 && !doc.toc.is_empty() {
-        outline(ui, painter, rect, &doc.toc, doc.toc_cols, start, false, st)
+        outline(ui, painter, rect, &doc.toc, doc.toc_cols, (start, at_end), false, st)
     } else if st.outline_focus.is_some() && !doc.toc.is_empty() {
         let cols = overlay_cols(widest(&doc.toc), pane_cols(rect, st));
-        outline(ui, painter, rect, &doc.toc, cols, start, true, st)
+        outline(ui, painter, rect, &doc.toc, cols, (start, at_end), true, st)
     } else {
         None
     };
@@ -1043,7 +1045,7 @@ fn outline(
     rect: Rect,
     entries: &[TocEntry],
     cols: u16,
-    top_line: usize,
+    (top_line, at_end): (usize, bool),
     overlay: bool,
     st: &PreviewStyle<'_>,
 ) -> Option<(usize, usize)> {
@@ -1069,6 +1071,9 @@ fn outline(
     let top_level = entries.iter().map(|e| e.level).min().unwrap_or(1);
     let current = match st.outline_focus {
         Some(k) => Some(k.min(entries.len().saturating_sub(1))),
+        // Scrolled to the very end, the last entries can never reach the top
+        // row, so the last one is the one being read.
+        None if at_end => entries.len().checked_sub(1),
         None => entries.iter().rposition(|e| e.line <= top_line),
     };
     let slots = rows(rect, st).saturating_sub(1).max(1);

@@ -1916,3 +1916,12 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 67.3 | Press `:` (or `<C-g>`), type a line number, Enter | The preview scrolls so that line is at the top; the gutter number matches |
 | 67.4 | Do 67.1 and 67.3 on a `.md` file rendered, then after `M` | Hits are marked in the rendered text; the line number is the source's, in both views |
 | 67.5 | Open a huge log, press `T`, then `/` and `:` | Find and go-to work as `<A-/>` does; no wrapping toast confusion |
+
+## 68. Contents column at the end of a file (v0.146.6)
+
+| # | Do | Expect |
+|---|----|--------|
+| 68.1 | Open a Markdown file whose last headings are close together, rendered, press `T` and scroll to the very end (`G`) | The last entry of the Contents column is the highlighted one, not an earlier one |
+| 68.2 | Scroll back up a few rows | The highlight moves back to the heading being read |
+| 68.3 | Do 68.1 on a short file that fits on one screen | The first entry stays highlighted (nothing is scrolled) |
+| 68.4 | Do 68.1 on a source file with an outline (`M` or a code file) | Same as 68.1 |
