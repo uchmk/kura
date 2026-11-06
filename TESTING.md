@@ -640,7 +640,7 @@ QA-REPORT.md.
 | 18.10 | `<C-S-p>` | The palette, listing every binding; typing filters it |
 | 18.11 | `'` then a letter, having saved one with `B` | Jumps there. **`b` is the prefix bookmark *management* hangs off** (`bb` lists, `bs` saves, `bd` deletes), so `b` and a letter reaches nothing |
 | 18.11b | With a bookmark saved under the key `b`, press `bb` (v0.146.15) | The bookmark list opens and stays open; the cursor does not jump to the `b` bookmark. Pressing `b` again inside the list then jumps there |
-| 18.12 | `z` | The jump list: bookmarks first, then recent directories with "2h ago" beside them |
+| 18.12 | `z` | The jump list: bookmarks first, then recent directories with "2h ago" beside them. A bookmark's key (v0.146.16) goes to it, `/` starts the filter, as in `bb` |
 | 18.13 | On a long text file (`long.rs`, or a 3000-line one), `<A-G>` then `<A-g>` (v0.76.2, Q76) | `<A-G>` puts the preview's last line on screen (`preview top: N of N`), `<A-g>` its first (`preview top: 0 of N`). The list's cursor does not move. On a long workbook (16.11) `<A-G>` shows the note under the last line at once |
 
 ## 19. The wheel, over each pane (v0.26.5)

@@ -135,10 +135,13 @@ impl App {
         let mut items = Vec::new();
         let mut details = Vec::new();
         let mut paths = Vec::new();
+        // Only bookmarks have a key; the history rows get an empty one, which no typed character matches.
+        let mut keys = Vec::new();
         for b in &self.bookmarks {
             items.push(format!("[{}] {}", b.key, b.path.display()));
             details.push(b.name.clone());
             paths.push(b.path.clone());
+            keys.push(b.key.clone());
         }
         // Bookmarks were named on purpose, so they stay on top in their own
         // order. The rest is ranked: most used, least stale first.
@@ -155,6 +158,7 @@ impl App {
             items.push(v.path.display().to_string());
             details.push(ago(now.saturating_sub(v.at)));
             paths.push(v.path.clone());
+            keys.push(String::new());
         }
         if items.is_empty() {
             self.error("No bookmarks or history yet");
@@ -167,7 +171,7 @@ impl App {
             query: String::new(),
             matches: Vec::new(),
             cursor: 0,
-            action: PickAction::Jump { paths },
+            action: PickAction::Bookmarks { paths, keys, filtering: false },
             focused: false,
         };
         pick.refilter();
@@ -193,7 +197,7 @@ impl App {
                 let line = exec::command_line(&run, &paths, line, &self.cfg.line_args);
                 self.launch(&line, &cwd, block, orphan, "Open failed", "");
             }
-            PickAction::Jump { paths } | PickAction::Bookmarks { paths, .. } => {
+            PickAction::Bookmarks { paths, .. } => {
                 if let Some(p) = paths.get(idx).cloned() {
                     self.cd(p, true);
                 }

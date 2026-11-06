@@ -132,25 +132,12 @@ pub(super) fn paste_preview(text: &str) -> Vec<String> {
 #[derive(Clone, Debug)]
 pub enum PickAction {
     /// `line` (1-based) is handed to editors that take one.
-    OpenWith {
-        paths: Vec<PathBuf>,
-        runs: Vec<(String, bool, bool)>,
-        line: Option<crate::exec::Pos>,
-    },
-    Jump {
-        paths: Vec<PathBuf>,
-    },
+    OpenWith { paths: Vec<PathBuf>, runs: Vec<(String, bool, bool)>, line: Option<crate::exec::Pos> },
     /// The bookmark list: a row's key jumps to it at once, `/` switches to
     /// filtering (`filtering`), where letters type into the query.
-    Bookmarks {
-        paths: Vec<PathBuf>,
-        keys: Vec<String>,
-        filtering: bool,
-    },
+    Bookmarks { paths: Vec<PathBuf>, keys: Vec<String>, filtering: bool },
     /// One keymap binding's command list per item.
-    Command {
-        runs: Vec<Vec<Act>>,
-    },
+    Command { runs: Vec<Vec<Act>> },
 }
 
 pub struct PickOverlay {

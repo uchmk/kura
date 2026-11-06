@@ -250,7 +250,7 @@ fn a_picker_filtered_to_nothing_stays_open() {
         query: "zzz".into(),
         matches: Vec::new(),
         cursor: 0,
-        action: PickAction::Jump { paths: vec![zip] },
+        action: PickAction::Bookmarks { paths: vec![zip], keys: vec![String::new()], filtering: true },
         focused: false,
     };
     pick.refilter();

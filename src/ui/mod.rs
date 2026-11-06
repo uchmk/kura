@@ -3041,6 +3041,26 @@ line"
         assert_eq!(s.app.tab().cwd, marked, "the next frame's key navigates");
     }
 
+    #[test]
+    fn jump_list_goes_by_bookmark_key_and_filters_after_slash() {
+        let mut s = super::harness::Screen::without_state(crate::util::test_dir("jump-list-keys"));
+        let dir = s.app.tab().cwd.clone();
+        let marked = dir.join("marked");
+        std::fs::create_dir_all(&marked).unwrap();
+        s.app.bookmarks.push(crate::app::Bookmark { key: "m".into(), path: marked.clone(), name: "marked".into() });
+        s.typed("z");
+        assert!(matches!(&s.app.overlay, crate::app::Overlay::Pick(p) if p.title == "Jump to"));
+        s.typed("x");
+        assert!(matches!(&s.app.overlay, crate::app::Overlay::Pick(p) if p.query.is_empty()), "a letter is not typed into the filter");
+        s.typed("m");
+        assert!(matches!(s.app.overlay, crate::app::Overlay::None));
+        assert_eq!(s.app.tab().cwd, marked, "the bookmark's key navigates");
+        s.typed("z");
+        s.typed("/");
+        s.typed("q");
+        assert!(matches!(&s.app.overlay, crate::app::Overlay::Pick(p) if p.query == "q"), "after / letters filter");
+    }
+
     /// 18.11's second half, and 18.12: `'` and a letter jumps to the bookmark,
     /// and `z` lists the bookmarks above the recent directories.
     ///

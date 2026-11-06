@@ -2473,7 +2473,7 @@ mod tests {
             query: String::new(),
             matches: Vec::new(),
             cursor: 1,
-            action: app::PickAction::Jump { paths: Vec::new() },
+            action: app::PickAction::Bookmarks { paths: Vec::new(), keys: Vec::new(), filtering: false },
             focused: true,
         };
         ov.refilter();
