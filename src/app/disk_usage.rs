@@ -39,7 +39,9 @@ impl App {
         self.usage = Some(handle);
         self.usage_max = 0;
         self.usage_linemode = Some(tab.linemode);
-        tab.linemode = crate::fs::entry::Linemode::Usage;
+        if tab.linemode != crate::fs::entry::Linemode::All {
+            tab.linemode = crate::fs::entry::Linemode::Usage;
+        }
         self.preview.state = PreviewState::Empty;
         self.preview.key = None;
         self.toast("Measuring… <Esc> to leave");

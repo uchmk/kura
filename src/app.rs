@@ -299,6 +299,7 @@ pub struct App {
     /// not be read as numbers, and `linemode = "usage"` in the config made every
     /// ordinary folder read `0 B` instead.
     usage_linemode: Option<crate::fs::entry::Linemode>,
+    details_previous: Vec<Option<crate::fs::entry::Linemode>>,
     /// What `<A-t>` asked to type into a pane it had to open first, held until
     /// the shell has drawn something (Q35); see [`App::pump_terminal`].
     term_pending: Option<(Vec<u8>, Instant)>,
@@ -480,6 +481,7 @@ impl App {
             usage: None,
             usage_max: 0,
             usage_linemode: None,
+            details_previous: Vec::new(),
             usage_root: None,
             archive_view: None,
             archive_rx: None,

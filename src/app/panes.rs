@@ -20,6 +20,9 @@ impl App {
         let tab =
             Tab::new(target.clone(), self.tabs[self.active].sort, self.tabs[self.active].show_hidden, self.tabs[self.active].linemode);
         let at = self.active + 1;
+        self.details_previous.resize(self.tabs.len(), None);
+        let previous = self.details_previous[self.active];
+        self.details_previous.insert(at, previous);
         self.tabs.insert(at, tab);
         if let Some(sp) = self.split {
             // The other pane keeps its tab, which the insert may have moved.
@@ -43,6 +46,8 @@ impl App {
         if idx >= self.tabs.len() {
             return;
         }
+        self.details_previous.resize(self.tabs.len(), None);
+        self.details_previous.remove(idx);
         self.tabs.remove(idx);
         if let Some(sp) = self.split {
             self.split = split_after_remove(sp.other, idx).map(|other| Split { other, ..sp });
@@ -76,6 +81,9 @@ impl App {
                 }
             }
             let at = self.active + 1;
+            self.details_previous.resize(self.tabs.len(), None);
+            let previous = self.details_previous[self.active];
+            self.details_previous.insert(at, previous);
             self.tabs.insert(at, tab);
             at
         };

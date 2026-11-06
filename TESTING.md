@@ -1931,3 +1931,18 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 68.2 | Scroll back up a few rows | The highlight moves back to the heading being read |
 | 68.3 | Do 68.1 on a short file that fits on one screen | The first entry stays highlighted (nothing is scrolled) |
 | 68.4 | Do 68.1 on a source file with an outline (`M` or a code file) | Same as 68.1 |
+
+## 69. Details view, `m a` (v0.147.0)
+
+A Windows-Explorer-style table: no parent or preview column, a heading row, one column each for the name, modified, created, kind, size, permissions, extension and `gu`'s usage.
+
+| # | Do | Expect |
+|---|----|--------|
+| 69.1 | In a folder holding a `.json`, a `.png`, a folder and a file with no extension, press `m a` | The preview and parent columns go; the list fills the window under a heading row (Name, Date modified, Date created, Type, Size, Permissions, Extension, Usage). Kinds read `File folder`, `JSON file`, `PNG image`, `File` |
+| 69.2 | Press `m a` again | Back to the three columns with the preview, and the line mode that was set before |
+| 69.3 | From 69.1, press `m n` | Back to the three columns, no line mode |
+| 69.4 | From 69.1, press `<Esc>` | Back to the three columns. With a selection or a `/` filter open, the first `<Esc>` closes that and stays in details; the next one leaves |
+| 69.5 | In the details view, `gu` and wait | Stays in the table; the Usage column fills with bars and totals. `<Esc>` leaves the measuring and the table stays |
+| 69.6 | Narrow the window, then use a long Japanese file name | Columns drop from the right (Name, Date modified and Size stay); the name is cut inside its own column; the heading row stays when scrolling |
+| 69.7 | `language = "ja"`, `m a` | Headings read 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量; a folder reads `ファイル フォルダー`, `.json` reads `JSON ファイル` |
+| 69.8 | Light and dark themes in the details view | Heading row, rows and bars use the theme's colours; the cursor row is clear in both |

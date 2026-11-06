@@ -266,6 +266,8 @@ escape kept is `\"` inside double quotes. Elsewhere a backslash escapes the next
 POSIX shell (v0.59.0; before that a Windows path written without quotes lost its backslashes).
 Key notation is yazi's: `<C-a>`, `<A-S-Up>`, `<Enter>`, `<Space>`, `<F5>`, `<lt>`.
 
+`m a` toggles Details: a full-width table with metadata headings and no parent or preview column. `Esc` returns to the previous line mode after closing active searches or selections; `m n` returns with no line mode. `gu` keeps Details open and fills its Usage column.
+
 **Line mode** is yazi's name for the right-hand column of the file list — the one value shown
 beside every name. `m`+`s` shows the size, `m`+`t` the modified time, `m`+`b` the created time,
 `m`+`p` the permissions, `m`+`u` the totals `gu` measured (v0.57.5; the way back to them inside

@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-308 keys. How many are checked is not written here, so that two pull requests ticking
+309 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -153,6 +153,7 @@ The file list: what is in front of you unless an overlay is.
 
 ### Line mode
 
+- [ ] `m a` — Line mode: details (all columns) · `linemode all`
 - [x] `m s` — Line mode: size · `linemode size`
 - [x] `m t` — Line mode: modified time · `linemode mtime`
 - [x] `m b` — Line mode: created time · `linemode btime`

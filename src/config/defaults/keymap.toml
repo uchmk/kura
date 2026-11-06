@@ -582,6 +582,11 @@ run = "sort random --no-reverse"
 desc = "Sort randomly"
 
 # --- Line mode ----------------------------------------------------------------
+[[mgr.keymap]]
+on = ["m", "a"]
+run = "linemode all"
+desc = "Line mode: details (all columns)"
+
 
 [[mgr.keymap]]
 on = [ "m", "s" ]

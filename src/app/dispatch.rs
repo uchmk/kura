@@ -157,7 +157,7 @@ impl App {
             }
 
             Act::Hidden(state) => self.hidden(state),
-            Act::Linemode(m) => self.tabs[self.active].linemode = m,
+            Act::Linemode(m) => self.set_linemode(m),
             Act::Sort { by, reverse, dir_first } => self.sort(by, reverse, dir_first),
 
             Act::Find { prev, smart, insensitive } => {
@@ -598,6 +598,8 @@ impl App {
         let len = self.tabs.len() as i64;
         let from = self.active;
         let to = (self.active as i64 + n).rem_euclid(len) as usize;
+        self.details_previous.resize(self.tabs.len(), None);
+        self.details_previous.swap(from, to);
         self.tabs.swap(from, to);
         self.active = to;
         if let Some(sp) = self.split {
@@ -741,6 +743,29 @@ impl App {
         self.tabs[self.active].preview_offset = want.min(self.preview.max_offset);
     }
 
+    fn set_linemode(&mut self, mode: crate::fs::entry::Linemode) {
+        use crate::fs::entry::Linemode as L;
+        self.details_previous.resize(self.tabs.len(), None);
+        let tab = &mut self.tabs[self.active];
+        let was_details = tab.linemode == L::All;
+        tab.linemode = if mode == L::All && tab.linemode == L::All {
+            self.details_previous[self.active].take().unwrap_or(L::None)
+        } else {
+            if mode == L::All {
+                self.details_previous[self.active] = Some(tab.linemode);
+            } else {
+                self.details_previous[self.active] = None;
+            }
+            mode
+        };
+        if (was_details || mode == L::All) && self.usage_linemode.is_some() {
+            self.usage_linemode = Some(tab.linemode);
+        }
+        if was_details || mode == L::All {
+            self.request_preview(true);
+        }
+    }
+
     pub(super) fn escape(&mut self, what: EscapeWhat) {
         if !self.overlay.is_none() {
             self.cancel_input();
@@ -785,8 +810,11 @@ impl App {
         if (all || what.find || what.search) && tab.finder.take().is_some() {
             return;
         }
-        if all || what.select {
-            tab.clear_selection();
+        if (all || what.select) && tab.clear_selection() {
+            return;
+        }
+        if all && tab.linemode == crate::fs::entry::Linemode::All {
+            self.set_linemode(crate::fs::entry::Linemode::All);
         }
     }
 }

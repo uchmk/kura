@@ -400,6 +400,10 @@ fn draw_body(app: &mut App, ui: &mut Ui, body: Rect, f: &FontId, row_h: f32, que
         // as the list it sits next to.
         ratio[0] = ratio[1];
     }
+    if app.tabs[app.active].linemode == crate::fs::entry::Linemode::All {
+        ratio[0] = if app.split.is_some() { ratio[1] } else { 0 };
+        ratio[2] = 0;
+    }
     let gap = 6.0;
     let total: f32 = ratio.iter().map(|&v| v as f32).sum::<f32>().max(1.0);
     let usable = body.width() - gap * 2.0;
@@ -463,6 +467,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
         PreviewState::Dir(folder) => {
             let st = list::ListStyle {
                 theme: &theme,
+                lang: &app.lang,
                 font: f.clone(),
                 row_h,
                 active: false,
@@ -655,6 +660,7 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
     if let Some(parent) = &app.tabs[app.active].parent {
         let st = list::ListStyle {
             theme,
+            lang: &app.lang,
             font: f.clone(),
             row_h,
             active: false,
@@ -684,7 +690,8 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
 fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, ctx: &PaneCtx, queued: &mut Vec<Act>) {
     let PaneCtx { theme, font: f, row_h } = *ctx;
     let focused = idx == app.active;
-    let rows = ((rect.height() / row_h).floor() as usize).max(1);
+    let header_rows = usize::from(app.tabs[idx].linemode == crate::fs::entry::Linemode::All);
+    let rows = ((rect.height() / row_h).floor() as usize).saturating_sub(header_rows).max(1);
     app.set_page_rows(idx, rows);
     let scrolloff = app.cfg.yazi.mgr.scrolloff as usize;
     app.tabs[idx].current.clamp_offset(rows, scrolloff);
@@ -695,6 +702,7 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
     let linemode = app.tabs[idx].linemode;
     let st = list::ListStyle {
         theme,
+        lang: &app.lang,
         font: f.clone(),
         row_h,
         // The outline has the keys while it is focused; dim the cursor. The
@@ -5255,5 +5263,75 @@ mod name_hint {
 
         // Other prompts never say it.
         assert_eq!(typing(&mut s, InputKind::Create, "b.txt"), None);
+    }
+}
+
+#[cfg(test)]
+mod details_view_tests {
+    use super::harness::Screen;
+    use crate::fs::entry::Linemode as L;
+
+    #[test]
+    fn details_keys_restore_preview_and_prior_mode() {
+        let dir = crate::util::test_dir("details-keys");
+        std::fs::write(dir.join("example.json"), "{}").unwrap();
+        let mut s = Screen::without_state(dir);
+        s.app.lang = "en".into();
+        s.settle();
+        s.app.act(crate::config::cmd::Act::Linemode(L::Mtime));
+        for exit in ["ma", "mn", "escape"] {
+            s.typed("m");
+            s.typed("a");
+            let frame = s.draw();
+            assert_eq!(s.app.tab().linemode, L::All);
+            assert!(frame.says("Name") && frame.says("Date modified"));
+            assert!(s.app.preview.rect.is_none());
+            assert!(matches!(s.app.preview.state, crate::app::PreviewState::Empty));
+            if exit == "escape" {
+                s.feed(vec![super::panes::esc()]);
+            } else {
+                s.typed("m");
+                s.typed(if exit == "ma" { "a" } else { "n" });
+            }
+            s.settle();
+            assert!(s.app.preview.rect.is_some());
+            assert_ne!(s.app.tab().linemode, L::All);
+            if exit == "ma" {
+                assert_eq!(s.app.tab().linemode, L::Mtime);
+            }
+            if exit == "mn" {
+                assert_eq!(s.app.tab().linemode, L::None);
+            }
+        }
+    }
+
+    #[test]
+    fn usage_and_filter_escape_leave_details_open_first() {
+        let dir = crate::util::test_dir("details-usage");
+        std::fs::write(dir.join("example.json"), "{}").unwrap();
+        let mut s = Screen::without_state(dir);
+        s.app.lang = "en".into();
+        s.settle();
+        s.typed("m");
+        s.typed("a");
+        s.typed("g");
+        s.typed("u");
+        assert_eq!(s.app.tab().linemode, L::All);
+        for _ in 0..100 {
+            s.turn();
+            if s.app.tab().current.entries.iter().any(|e| e.usage.is_some()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(s.app.tab().current.entries.iter().any(|e| e.usage.is_some()));
+        assert!(s.draw().says("Usage"));
+        s.feed(vec![super::panes::esc()]);
+        assert_eq!(s.app.tab().linemode, L::All);
+        s.typed("f");
+        s.feed(vec![super::panes::esc()]);
+        assert_eq!(s.app.tab().linemode, L::All);
+        s.feed(vec![super::panes::esc()]);
+        assert_ne!(s.app.tab().linemode, L::All);
     }
 }

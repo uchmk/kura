@@ -40,6 +40,8 @@ impl Kind {
 pub enum Linemode {
     #[default]
     None,
+    #[serde(alias = "details")]
+    All,
     /// A file's length, and a directory's child count.
     Size,
     /// Everything under a folder, as the disk-usage view measured it.
@@ -63,6 +65,7 @@ impl Linemode {
     pub fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "none" => Self::None,
+            "all" | "details" => Self::All,
             "size" => Self::Size,
             "usage" => Self::Usage,
             "mtime" | "modified" => Self::Mtime,
@@ -80,7 +83,7 @@ impl Linemode {
     /// that shows nothing where a number belongs. It was a string comparison
     /// against `"size"` sitting a long way from the mode's own definition.
     pub fn wants_dir_size(self) -> bool {
-        matches!(self, Self::Size)
+        matches!(self, Self::Size | Self::All)
     }
 }
 

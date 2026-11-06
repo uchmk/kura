@@ -14,6 +14,7 @@ use crate::util;
 
 pub struct ListStyle<'a> {
     pub theme: &'a Theme,
+    pub lang: &'a str,
     pub font: FontId,
     pub row_h: f32,
     /// Dimmed columns (parent / preview) get a quieter cursor.
@@ -61,6 +62,28 @@ pub fn draw(
     find: Option<&ito_match::Matcher>,
 ) -> ListResult {
     let painter = ui.painter_at(rect);
+    let details = st.linemode == crate::fs::entry::Linemode::All;
+    let cell_width = painter.layout_no_wrap("M".into(), st.font.clone(), st.theme.fg).size().x;
+    let columns = if details { detail_columns(rect.width(), cell_width) } else { Vec::new() };
+    if details {
+        painter.text(
+            rect.left_center() + Vec2::new(8.0, -rect.height() / 2.0 + st.row_h / 2.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr(st.lang, "details.name"),
+            st.font.clone(),
+            st.theme.fg_dim,
+        );
+        for &(col, x, _) in &columns {
+            painter.text(
+                egui::pos2(rect.left() + x + 4.0, rect.top() + st.row_h / 2.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr(st.lang, DETAIL_KEYS[col]),
+                st.font.clone(),
+                st.theme.fg_dim,
+            );
+        }
+    }
+    let rect = if details { Rect::from_min_max(rect.min + Vec2::new(0.0, st.row_h), rect.max) } else { rect };
     let rows = ((rect.height() / st.row_h).floor() as usize).max(1);
     let mut out = ListResult {
         clicked: None,
@@ -143,10 +166,37 @@ pub fn draw(
         // Right-hand line mode text is laid out first so the name knows its budget.
         let right = linemode_text(entry, st.linemode);
         let mut right_w = 0.0;
+        if details {
+            for &(col, offset, width) in &columns {
+                let cell = Rect::from_min_size(egui::pos2(rect.left() + offset + 4.0, y), Vec2::new(width - 8.0, st.row_h));
+                let text = detail_text(entry, col, st.lang);
+                let cp = painter.with_clip_rect(cell);
+                cp.text(
+                    if col == 4 { cell.right_center() } else { cell.left_center() },
+                    if col == 4 { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER },
+                    text,
+                    st.font.clone(),
+                    st.theme.fg_dim,
+                );
+                if col == 7 && entry.usage.is_some() && st.usage_max > 0 {
+                    let track = Rect::from_min_size(cell.left_bottom() - Vec2::new(0.0, 3.0), Vec2::new(cell.width(), 2.0));
+                    cp.rect_filled(track, CornerRadius::ZERO, st.theme.border);
+                    cp.rect_filled(
+                        Rect::from_min_size(
+                            track.min,
+                            Vec2::new(track.width() * (entry.usage_bytes() as f32 / st.usage_max as f32).min(1.0), 2.0),
+                        ),
+                        CornerRadius::ZERO,
+                        st.theme.progress_fg,
+                    );
+                }
+            }
+            right_w = columns.first().map_or(0.0, |c| rect.width() - c.1);
+        }
         // The usage view's bar: the row's share of the biggest row, so the
         // largest folder fills it and the rest are read against that. Two
         // rectangles, the same pair the tasks panel draws its progress with.
-        if st.usage_max > 0 {
+        if st.usage_max > 0 && !details {
             let frac = entry.usage_bytes() as f32 / st.usage_max as f32;
             let w = 44.0;
             let track =
@@ -161,7 +211,7 @@ pub fn draw(
             }
             right_w = w + 12.0;
         }
-        if !right.is_empty() {
+        if !right.is_empty() && !details {
             let g = painter.layout_no_wrap(right.clone(), st.font.clone(), st.theme.fg_dim);
             let g_w = g.size().x + 10.0;
             painter.galley(
@@ -446,7 +496,7 @@ pub fn linemode_text(entry: &Entry, mode: crate::fs::entry::Linemode) -> String 
         L::Btime => util::fmt_time(entry.created, "%Y-%m-%d %H:%M"),
         L::Permissions => permissions(entry),
         // Asked for and not implemented -- see `Linemode::Owner`.
-        L::Owner | L::None => String::new(),
+        L::All | L::Owner | L::None => String::new(),
     }
 }
 
@@ -670,5 +720,95 @@ mod usage_column {
         assert_eq!(linemode_text(&note, Linemode::Usage), "1.0 K");
         big.usage = Some(2048);
         assert_eq!(linemode_text(&big, Linemode::Usage), "2.0 K", "measured, it shows");
+    }
+}
+
+const DETAIL_KEYS: [&str; 8] = [
+    "details.name",
+    "details.modified",
+    "details.created",
+    "details.type",
+    "details.size",
+    "details.permissions",
+    "details.extension",
+    "details.usage",
+];
+
+fn detail_columns(width: f32, cell: f32) -> Vec<(usize, f32, f32)> {
+    let widths = [0.0, 18.0, 18.0, 18.0, 10.0, 8.0, 10.0, 16.0];
+    let mut visible = vec![1, 2, 3, 4, 5, 6, 7];
+    for drop in [7, 6, 5, 3, 2] {
+        let used: f32 = visible.iter().map(|&i| widths[i] * cell).sum();
+        if used + 24.0 * cell <= width {
+            break;
+        }
+        visible.retain(|&i| i != drop);
+    }
+    let used: f32 = visible.iter().map(|&i| widths[i] * cell).sum();
+    let mut x = (width - used).max(0.0);
+    visible
+        .into_iter()
+        .map(|i| {
+            let w = widths[i] * cell;
+            let col = (i, x, w);
+            x += w;
+            col
+        })
+        .collect()
+}
+
+fn detail_type(entry: &Entry, lang: &str) -> String {
+    use crate::fs::Kind;
+    let ext = entry.ext.as_deref().unwrap_or("").to_lowercase();
+    let key = match entry.kind {
+        Kind::Dir => "details.folder",
+        Kind::Link { .. } => "details.link",
+        Kind::File => match ext.as_str() {
+            "" => "details.file",
+            "md" | "markdown" => "details.markdown",
+            "png" => "details.png",
+            "jpg" | "jpeg" => "details.jpeg",
+            _ => return crate::i18n::trf(lang, "details.ext_file", &[&ext.to_uppercase()]),
+        },
+    };
+    crate::i18n::tr(lang, key)
+}
+
+fn detail_text(entry: &Entry, col: usize, lang: &str) -> String {
+    use crate::fs::entry::Linemode as L;
+    match col {
+        1 => linemode_text(entry, L::Mtime),
+        2 => linemode_text(entry, L::Btime),
+        3 => detail_type(entry, lang),
+        4 => entry.display_size().unwrap_or_default(),
+        5 => permissions(entry),
+        6 => entry.ext.as_deref().unwrap_or("").to_lowercase(),
+        7 if entry.usage.is_some() => linemode_text(entry, L::Usage),
+        _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod details_tests {
+    use super::*;
+    #[test]
+    fn types_use_metadata_and_translated_extensions() {
+        let mut e = Entry { kind: crate::fs::Kind::Dir, ..Default::default() };
+        assert_eq!(detail_type(&e, "en"), "File folder");
+        e.kind = crate::fs::Kind::File;
+        assert_eq!(detail_type(&e, "en"), "File");
+        e.ext = Some("json".into());
+        assert_eq!(detail_type(&e, "en"), "JSON file");
+        assert_eq!(detail_type(&e, "ja"), "JSON ファイル");
+        e.ext = Some("unrecognized".into());
+        assert_eq!(detail_type(&e, "en"), "UNRECOGNIZED file");
+        e.kind = crate::fs::Kind::Link { to_dir: true, broken: false };
+        assert_eq!(detail_type(&e, "en"), "Link");
+    }
+    #[test]
+    fn narrow_tables_keep_name_modified_and_size() {
+        let cols = detail_columns(400.0, 8.0);
+        assert_eq!(cols.iter().map(|c| c.0).collect::<Vec<_>>(), vec![1, 4]);
+        assert!(cols[0].1 > 0.0);
     }
 }

@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 759 件（TESTING.md の全 954 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 767 件（TESTING.md の全 962 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1124,3 +1124,14 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **68.2** Scroll back up a few rows → The highlight moves back to the heading being read 〔未訳〕
 - [x] **68.3** Do 68.1 on a short file that fits on one screen → The first entry stays highlighted (nothing is scrolled) 〔未訳〕
 - [x] **68.4** Do 68.1 on a source file with an outline (`M` or a code file) → Same as 68.1 〔未訳〕
+
+## 69. Details view, `m a` (v0.147.0)
+
+- [ ] **69.1** `.json`・`.png`・フォルダー・拡張子なしのファイルがあるフォルダーで `m a` を押す → プレビューと親の列が消え、一覧が見出し行（名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量）の下で窓いっぱいに広がる。種類は `ファイル フォルダー`・`JSON ファイル`・`PNG 画像`・`ファイル`（`language = "en"` なら `File folder`・`JSON file`・`PNG image`・`File`） — *In a folder holding a `.json`, a `.png`, a folder and a file with no extension, press `m a` → The preview and parent columns go; the list fills the window under a heading row (Name, Date modified, Date created, Type, Size, Permissions, Extension, Usage). Kinds read `File folder`, `JSON file`, `PNG image`, `File`*
+- [ ] **69.2** `m a` をもう一度押す → プレビューのある 3 列に戻り、入る前の行の右の表示に戻る — *Press `m a` again → Back to the three columns with the preview, and the line mode that was set before*
+- [ ] **69.3** 69.1 の状態から `m n` → 3 列に戻り、行の右の表示は無し — *From 69.1, press `m n` → Back to the three columns, no line mode*
+- [ ] **69.4** 69.1 の状態から `<Esc>` → 3 列に戻る。選択や `/` の絞り込みが開いているときは、最初の `<Esc>` でそちらを閉じて詳細のまま。次の `<Esc>` で出る — *From 69.1, press `<Esc>` → Back to the three columns. With a selection or a `/` filter open, the first `<Esc>` closes that and stays in details; the next one leaves*
+- [ ] **69.5** 詳細ビューで `gu` を押して待つ → 表のまま、使用量の列に棒と合計が埋まる。`<Esc>` で計測を抜けても表は残る — *In the details view, `gu` and wait → Stays in the table; the Usage column fills with bars and totals. `<Esc>` leaves the measuring and the table stays*
+- [ ] **69.6** 窓を狭くし、長い日本語のファイル名を置く → 列は右から落ちる（名前・更新日時・サイズは残る）。名前は自分の列の中で切れ、スクロールしても見出し行は残る — *Narrow the window, then use a long Japanese file name → Columns drop from the right (Name, Date modified and Size stay); the name is cut inside its own column; the heading row stays when scrolling*
+- [ ] **69.7** `language = "ja"` で `m a` → 見出しが 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量 になり、フォルダーは `ファイル フォルダー`、`.json` は `JSON ファイル` — *`language = "ja"`, `m a` → Headings read 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量; a folder reads `ファイル フォルダー`, `.json` reads `JSON ファイル`*
+- [ ] **69.8** 詳細ビューをライトとダークで見る → 見出し行・行・棒はテーマの色で、カーソルの行がどちらでもはっきり分かる — *Light and dark themes in the details view → Heading row, rows and bars use the theme's colours; the cursor row is clear in both*

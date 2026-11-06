@@ -4,6 +4,14 @@ use super::*;
 
 impl App {
     pub fn request_preview(&mut self, force: bool) {
+        if self.tabs[self.active].linemode == crate::fs::entry::Linemode::All && !self.quick {
+            self.preview.state = PreviewState::Empty;
+            self.preview.key = None;
+            self.preview.texture = None;
+            self.preview.pending_since = None;
+            self.preview.in_flight = false;
+            return;
+        }
         // The debounce's timer, taken rather than read: every way out of this
         // function below leaves it cleared except the one that is still
         // waiting, which puts it back. `main` repaints every 16 ms while it is
