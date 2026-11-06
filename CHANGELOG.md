@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.146.9] - 2026-11-06
+
+### 変更
+
+- `.claude/skills/dev-orchestra-kura/` を足した。グローバルの `dev-orchestra`（指示役が仕様を書き、Orca の Codex ワーカーが実装し、`audit` と `verify` を経て指示役がコミットする流れ）に対する kura 用の決まり（Git Bash の絶対パス、R: へのビルド、ワーカーに版・CHANGELOG を触らせないこと、`push-main.sh`）。動きは変わらない（文書だけ）。
+
 ## [0.146.8] - 2026-11-06
 
 ### 変更
