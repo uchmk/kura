@@ -96,8 +96,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
 - [x] （v0.103.1。ito v0.8.0 で `lanes.sh` も共通にし、`files=` で一部を取れるようにした。tsumugi v0.94.0 は 8 本・issue の流れ・`lane-boot.ps1`・ARM64 の CI、
   yagura v0.42.0 は 4 本・質問の issue と票・ARM64 の CI）段階 6: tsumugi・yagura に展開する
-- [ ] tsumugi の checklists の生成（`make-testcheck`・`make-keycheck`）を ito の `ito-testcheck` に移すか決める。表の形（「act → expect」の行）が kura と違い、
-  今の `Config` には収まらない（tsumugi の TODO.md）【後】
 
 ## マージで止めている実機の PR
 
@@ -1130,9 +1128,6 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
   `<C-j>` / `<C-k>` を足し、4 つとも足の行とヘルプに出す（#264 の提案 2、#265 の提案 2。「キーは keymap 経由で動かす」）
 - [x] （v0.82.0、Q92 = 1。`exec::starts_default` の行とオープナー無しは開く前に引き、無ければ `No default app for .xyz` で開かない。16.13・16.13a）`start ""` の既定のアプリが何も開かないとき、走らせる前に `AssocQueryStringW(ASSOCSTR_EXECUTABLE)` で引いて言う（#256 の提案 2。
   #252 の提案 2 の項目と同じ問題を、開く前に見る形。どちらにするか合わせて決める）
-- [ ] （所見）ARM64 の持ち主のごみ箱に、前の run の scratch から来たものが 38 個（#256 の所見 1。#231 の x64 と同じ）。前の run の Chrome のタブも 1 枚
-  残っている（所見 2）。役割定義の後片付けが前の run の分に届いていない。v0.83.2 で `.claude/windows-role.md` に「前の run の残り物も片付ける」
-  （ごみ箱は元の場所が scratch の根の下のものだけ、Chrome は `file:///` が scratch か fixture の下のタブだけ）を足した。実機の run が 1 回片付けて数を報告したら済み【実機】
 
 ## 実機のセッションの報告（v0.78.15 で受けた分: #251 x64 と #252 ARM64 の書庫の中）
 
