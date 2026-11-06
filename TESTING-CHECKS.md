@@ -1114,7 +1114,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 ## 68. Contents column at the end of a file (v0.146.7)
 
-- [ ] **68.1** Open a Markdown file whose last headings are close together, rendered, press `T` and scroll to the very end (`G`) → The preview scrolls until the last line is at the top; the last entry of the Contents column is the highlighted one, not an earlier one 〔未訳〕
-- [ ] **68.2** Scroll back up a few rows → The highlight moves back to the heading being read 〔未訳〕
-- [ ] **68.3** Do 68.1 on a short file that fits on one screen → The first entry stays highlighted (nothing is scrolled) 〔未訳〕
-- [ ] **68.4** Do 68.1 on a source file with an outline (`M` or a code file) → Same as 68.1 〔未訳〕
+- [x] **68.1** Open a Markdown file whose last headings are close together, rendered, press `T` and scroll to the very end (`G`) → The preview scrolls until the last line is at the top; the last entry of the Contents column is the highlighted one, not an earlier one 〔未訳〕
+- [x] **68.2** Scroll back up a few rows → The highlight moves back to the heading being read 〔未訳〕
+- [x] **68.3** Do 68.1 on a short file that fits on one screen → The first entry stays highlighted (nothing is scrolled) 〔未訳〕
+- [x] **68.4** Do 68.1 on a source file with an outline (`M` or a code file) → Same as 68.1 〔未訳〕
