@@ -10,14 +10,19 @@ impl App {
             BookmarkOp::Save => {
                 let path = self.tabs[self.active].cwd.clone();
                 match put_bookmark(&mut self.bookmarks, &key, path) {
-                    Put::Same => self.toast(format!("Already bookmarked as `{key}`")),
+                    Put::Same => {
+                        let text = crate::i18n::trf(&self.lang, "toast.bookmark_already", &[&key]);
+                        self.toast(text);
+                    }
                     Put::Moved(from) => {
                         self.save_state();
-                        self.toast(format!("Bookmark moved from `{from}` to `{key}`"));
+                        let text = crate::i18n::trf(&self.lang, "toast.bookmark_moved", &[&from, &key]);
+                        self.toast(text);
                     }
                     Put::Saved => {
                         self.save_state();
-                        self.toast(format!("Bookmark `{key}` saved"));
+                        let text = crate::i18n::trf(&self.lang, "toast.bookmark_saved", &[&key]);
+                        self.toast(text);
                     }
                 }
             }
@@ -32,7 +37,8 @@ impl App {
                     self.error(format!("No bookmark `{key}`"));
                 } else {
                     self.save_state();
-                    self.toast(format!("Bookmark `{key}` deleted"));
+                    let text = crate::i18n::trf(&self.lang, "toast.bookmark_deleted", &[&key]);
+                    self.toast(text);
                 }
             }
         }
@@ -255,7 +261,8 @@ impl App {
         let ConfirmAction::Mcp { expired, .. } = &c.action else { return };
         if expired.load(std::sync::atomic::Ordering::Relaxed) {
             self.overlay = Overlay::None;
-            self.toast("The request from Claude timed out -- nothing was done");
+            let text = crate::i18n::tr(&self.lang, "toast.request_timed_out");
+            self.toast(text);
         }
     }
 
@@ -352,7 +359,10 @@ impl App {
                 'o' => self.open_report(url),
                 'c' => {
                     match exec::set_clipboard(&url) {
-                        Ok(()) => self.toast("Copied the bug report's link -- paste it into a browser"),
+                        Ok(()) => {
+                            let text = crate::i18n::tr(&self.lang, "toast.bug_report_link_copied");
+                            self.toast(text);
+                        }
                         Err(e) => self.error(format!("Clipboard: {e}")),
                     }
                     self.last_report = Some(url);
@@ -373,7 +383,8 @@ impl App {
                 if ch == 'y' {
                     self.bookmarks.clear();
                     self.save_state();
-                    self.toast("All bookmarks deleted");
+                    let text = crate::i18n::tr(&self.lang, "toast.bookmarks_all_deleted");
+                    self.toast(text);
                 }
             }
         }

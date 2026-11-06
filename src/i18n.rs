@@ -29,9 +29,45 @@ pub fn tr_desc(lang: &str, desc: &str) -> String {
     tables().iter().find(|(code, _)| *code == lang).map_or(desc, |(_, t)| t.tr_desc(desc)).to_owned()
 }
 
+/// The text for `key` in `lang`, falling back to English or the key itself.
+pub fn tr(lang: &str, key: &str) -> String {
+    tables()
+        .iter()
+        .find(|(code, _)| *code == lang)
+        .or_else(|| tables().iter().find(|(code, _)| *code == "en"))
+        .map_or(key, |(_, t)| t.tr(key))
+        .to_owned()
+}
+
+/// The translated text with `{0}`, `{1}` and later arguments replaced.
+pub fn trf(lang: &str, key: &str, args: &[&str]) -> String {
+    tables()
+        .iter()
+        .find(|(code, _)| *code == lang)
+        .or_else(|| tables().iter().find(|(code, _)| *code == "en"))
+        .map_or_else(|| key.to_owned(), |(_, t)| t.trf(key, args))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toast_text_uses_the_language_and_falls_back_to_english_or_the_key() {
+        assert_eq!(tr("ja", "toast.bookmarks_all_deleted"), "ブックマークを全部削除");
+        assert_eq!(tr("en", "toast.bookmarks_all_deleted"), "All bookmarks deleted");
+        assert_eq!(tr("xx", "toast.bookmarks_all_deleted"), "All bookmarks deleted");
+        assert_eq!(tr("ja", "toast.unknown"), "toast.unknown");
+        assert_eq!(tr("en", "toast.unknown"), "toast.unknown");
+    }
+
+    #[test]
+    fn formatted_toast_text_replaces_the_arguments() {
+        assert_eq!(trf("ja", "toast.bookmark_saved", &["a"]), "ブックマーク `a` を保存");
+        assert_eq!(trf("en", "toast.bookmark_moved", &["a", "b"]), "Bookmark moved from `a` to `b`");
+        assert_eq!(trf("xx", "toast.bookmark_saved", &["a"]), "Bookmark `a` saved");
+        assert_eq!(trf("ja", "toast.unknown", &["a"]), "toast.unknown");
+    }
 
     #[test]
     fn the_tables_agree_with_english() {

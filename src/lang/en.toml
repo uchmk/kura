@@ -1,2 +1,12 @@
-# English is the keymap's own text, so there is nothing to translate; this table
-# exists because ito-i18n lays a language over English.
+# English is the keymap's own text, so there is nothing to translate for the
+# key descriptions; the [toast] entries are the English source of the toasts.
+# ito-i18n lays a language over this table.
+
+[toast]
+bookmark_already = "Already bookmarked as `{0}`"
+bookmark_moved = "Bookmark moved from `{0}` to `{1}`"
+bookmark_saved = "Bookmark `{0}` saved"
+bookmark_deleted = "Bookmark `{0}` deleted"
+request_timed_out = "The request from Claude timed out -- nothing was done"
+bug_report_link_copied = "Copied the bug report's link -- paste it into a browser"
+bookmarks_all_deleted = "All bookmarks deleted"

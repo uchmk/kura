@@ -241,3 +241,12 @@
 "Search the settings" = "設定を探す"
 "Give the terminal pane the window (the same key in the pane gives it back)" = "ターミナルを窓いっぱいにする（ペインで同じキーで戻す）"
 "Open the pull request or branch on its rows; enter the directory elsewhere" = "プルリクエストかブランチを開く（ほかの行ではフォルダに入る）"
+
+[toast]
+bookmark_already = "すでに `{0}` にブックマーク済み"
+bookmark_moved = "ブックマークを `{0}` から `{1}` へ移動"
+bookmark_saved = "ブックマーク `{0}` を保存"
+bookmark_deleted = "ブックマーク `{0}` を削除"
+request_timed_out = "Claude からのリクエストが時間切れ -- 何も実行せず"
+bug_report_link_copied = "不具合報告のリンクをコピー -- ブラウザに貼り付け"
+bookmarks_all_deleted = "ブックマークを全部削除"
