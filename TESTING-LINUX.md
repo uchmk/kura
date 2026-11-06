@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 758 件（TESTING.md の全 953 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 759 件（TESTING.md の全 954 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -334,6 +334,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **18.7e** tsumugi を横に開いたまま、プレビューで文字をドラッグ、単語をダブルクリック、行をトリプルクリックし、その都度 `Ctrl+C` を押さずに別の場所へ貼る（v0.112.5）→ どれもマウスを離した時点でクリップボードに入っている（ターミナルペインと同じ）。色付きは tsumugi の選択と同じ色で、その上に文字が元の色で描かれる — *In the preview, drag over some text, then double-click a word and triple-click a line, pasting elsewhere after each (no `Ctrl+C`), with tsumugi open beside it (v0.112.5) → Each one is on the clipboard as soon as the mouse lets go, as in the terminal pane; the highlight is the same colour as tsumugi's selection, with the text drawn over it in its own colours*
 - [ ] **18.7f** 描画した Markdown で、フェンスのコードブロックと `inline code` のある行をドラッグ。どのプレビューでも URL の中をダブルクリックして貼る（v0.112.7）→ コードブロックの帯・インラインコードの下地の上でも色付きが見え、文字はその上（v0.112.7 より前は帯の下に隠れた）。ダブルクリックでアドレス全体が取れ（ドットやスラッシュの間だけではない）、すぐクリップボードに入る — *In a rendered Markdown file, drag over a fenced code block and over a line with `inline code`; double-click inside a URL in any preview and paste (v0.112.7) → The highlight shows over the code block's band and the inline code's chip, with the letters on top (until v0.112.7 it hid under the band); the double click takes the whole address, not the part between its dots or slashes, and is on the clipboard at once*
 - [ ] **18.11** `B` で保存しておいた場所へ、`'` に続けて文字を押す → そこへ飛ぶ。**`b` はブックマークの*管理*の前置キー**（`bb` 一覧、`bs` 保存、`bd` 削除）なので、`b` + 文字では何にも届かない — *`'` then a letter, having saved one with `B` → Jumps there. **`b` is the prefix bookmark *management* hangs off** (`bb` lists, `bs` saves, `bd` deletes), so `b` and a letter reaches nothing*
+- [ ] **18.11b** キー `b` のブックマークを保存した状態で `bb` を押す（v0.146.15）→ ブックマークの一覧が開いたままになり、`b` のブックマークへは飛ばない。そのあと一覧の中でもう一度 `b` を押すとそこへ飛ぶ — *With a bookmark saved under the key `b`, press `bb` (v0.146.15) → The bookmark list opens and stays open; the cursor does not jump to the `b` bookmark. Pressing `b` again inside the list then jumps there*
 - [ ] **18.12** `z` → ジャンプ一覧が出る。ブックマークが先、そのあと最近のディレクトリが「2h ago」付きで並ぶ — *`z` → The jump list: bookmarks first, then recent directories with "2h ago" beside them*
 - [ ] **18.13** 長いテキスト（`long.rs` か 3000 行のファイル）で `<A-G>`、次に `<A-g>`（v0.76.2、Q76）→ `<A-G>` でプレビューの最後の行が出て（`preview top: N of N`）、`<A-g>` で最初に戻る（`preview top: 0 of N`）。一覧のカーソルは動かない。長いブック（16.11）では `<A-G>` で末尾の注記がすぐ見える — *On a long text file (`long.rs`, or a 3000-line one), `<A-G>` then `<A-g>` (v0.76.2, Q76) → `<A-G>` puts the preview's last line on screen (`preview top: N of N`), `<A-g>` its first (`preview top: 0 of N`). The list's cursor does not move. On a long workbook (16.11) `<A-G>` shows the note under the last line at once*
 

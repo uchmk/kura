@@ -1728,6 +1728,14 @@ pub(crate) mod harness {
             Self { app, ctx, size: Vec2::new(1280.0, 800.0), time: 0.0 }
         }
 
+        /// An isolated app whose bookmarks are supplied by the test.
+        pub(crate) fn without_state(at: std::path::PathBuf) -> Self {
+            let ctx = egui::Context::default();
+            ctx.set_visuals(super::visuals(false));
+            let app = App::new_without_state(crate::config::Config::load(), at, ctx.clone());
+            Self { app, ctx, size: Vec2::new(1280.0, 800.0), time: 0.0 }
+        }
+
         /// A different window size -- narrow enough to drop the minimap, short
         /// enough to scroll.
         pub(crate) fn sized(mut self, w: f32, h: f32) -> Self {
@@ -3004,6 +3012,33 @@ line"
         let f = s.typed("zzzz");
         assert!(f.texts.len() < listed, "typing filtered the list: {} strings, was {listed}", f.texts.len(),);
         assert!(!s.app.quit, "and the letters went into the field, not the keymap");
+    }
+
+    #[test]
+    fn bookmark_list_ignores_opening_frame_text() {
+        let mut s = super::harness::Screen::without_state(crate::util::test_dir("bookmark-opening-frame"));
+        let dir = s.app.tab().cwd.clone();
+        let marked = dir.join("marked");
+        std::fs::create_dir_all(&marked).unwrap();
+        s.app.bookmarks.push(crate::app::Bookmark { key: "b".into(), path: marked, name: "marked".into() });
+        s.typed("b");
+        s.feed(vec![key(egui::Key::B, egui::Modifiers::NONE), egui::Event::Text("b".into())]);
+        assert!(matches!(&s.app.overlay, crate::app::Overlay::Pick(p) if p.title == "Bookmarks"), "the bookmark list stays open");
+        assert_eq!(s.app.tab().cwd, dir, "opening the list does not navigate");
+    }
+
+    #[test]
+    fn bookmark_list_accepts_key_on_next_frame() {
+        let mut s = super::harness::Screen::without_state(crate::util::test_dir("bookmark-next-frame"));
+        let marked = s.app.tab().cwd.join("marked");
+        std::fs::create_dir_all(&marked).unwrap();
+        s.app.bookmarks.push(crate::app::Bookmark { key: "b".into(), path: marked.clone(), name: "marked".into() });
+        s.typed("b");
+        s.feed(vec![key(egui::Key::B, egui::Modifiers::NONE), egui::Event::Text("b".into())]);
+        assert!(matches!(&s.app.overlay, crate::app::Overlay::Pick(p) if p.title == "Bookmarks"), "the list opens before the next frame");
+        s.typed("b");
+        assert!(matches!(s.app.overlay, crate::app::Overlay::None));
+        assert_eq!(s.app.tab().cwd, marked, "the next frame's key navigates");
     }
 
     /// 18.11's second half, and 18.12: `'` and a letter jumps to the bookmark,

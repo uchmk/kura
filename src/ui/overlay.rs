@@ -968,7 +968,11 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
                     let mut s = String::new();
                     i.events.retain(|e| match e {
                         egui::Event::Text(t) => {
-                            s.push_str(t);
+                            // The opening keystroke also emits text in this frame.
+                            // Consume it before the list starts accepting bookmark keys.
+                            if p.focused {
+                                s.push_str(t);
+                            }
                             false
                         }
                         _ => true,

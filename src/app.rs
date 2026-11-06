@@ -352,6 +352,16 @@ pub struct App {
 
 impl App {
     pub fn new(cfg: Config, start: PathBuf, ctx: egui::Context) -> Self {
+        Self::new_with_state(cfg, start, ctx, true)
+    }
+
+    /// Construct a UI test app without reading persisted bookmarks or history.
+    #[cfg(test)]
+    pub(crate) fn new_without_state(cfg: Config, start: PathBuf, ctx: egui::Context) -> Self {
+        Self::new_with_state(cfg, start, ctx, false)
+    }
+
+    fn new_with_state(cfg: Config, start: PathBuf, ctx: egui::Context, load_state: bool) -> Self {
         let wake = {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
@@ -497,7 +507,9 @@ impl App {
             help_scroll_rows: 0.0,
             last_action: Instant::now(),
         };
-        app.load_state();
+        if load_state {
+            app.load_state();
+        }
         app.kick_scans();
         // A config problem that nobody is told about is one the reader spends
         // the evening blaming the program for. The `~` panel lists them all;
