@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 753 件（TESTING.md の全 948 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 756 件（TESTING.md の全 951 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -661,6 +661,8 @@ fsutil hardlink list <新しくできたパス>
 
 - [x] **34.15** `C`（v0.67.16）→ トースト `Copied the help panel: N keys`。クリップボードにパネルが文字で入る: `config` とパス、続いて 1 行だけの `keys`、そのあと 1 キー 1 行の `キー<TAB>説明<TAB>コマンド`。`Get-Clipboard | Select-String "^j\t"` で `j<TAB>Move cursor down<TAB>arrow 1` が見つかる。パネルは開いたまま — *`C` (v0.67.16) → Toast `Copied the help panel: N keys`. The clipboard holds the panel as text: `config` and the paths, then `keys` on a line of its own, then one `keys<TAB>description<TAB>command` line per key -- `Get-Clipboard \| Select-String "^j\t"` finds `j<TAB>Move cursor down<TAB>arrow 1`. The panel stays open*
 - [x] **34.16** タスクのパネル、spot パネル（`<Tab>`）、差分を順に開き、それぞれの上で `<F1>`。もう一度押す（v0.99.0）→ どれでもキーの一覧がパネルの上に開き、2 回目の `<F1>` で閉じる — *Open the tasks panel, the spot panel (`<Tab>`) and a diff in turn, and press `<F1>` over each; press it again (v0.99.0) → Each time the key list opens over the panel, and the second `<F1>` closes it*
+- [ ] **34.17** 既定の keymap でファイル一覧の上で `<F1>` を開き、キー一覧をスクロールする（v0.139.52）→ キーは `Navigation`・`Selection`・`Operations`・`Find / filter / search`・`Sorting`・`Goto` などの見出しに分かれ、組み込み keymap の順に並ぶ — *Open `<F1>` over the file list with the default keymap and scroll through the keys (v0.139.52) → Keys are grouped under section headings such as `Navigation`, `Selection`, `Operations`, `Find / filter / search`, `Sorting` and `Goto`, in the order of the built-in keymap*
+- [ ] **34.18** 自分の `keymap.toml` に `[[mgr.prepend_keymap]]` と `on = "<F9>"`、`run = "hidden toggle"`、`desc = "My hidden toggle"` を足し、`<C-F5>` を押す。ファイル一覧の上で `<F1>` を押して末尾までスクロールする（v0.139.52）→ 組み込みの節のあと、最後の `Other (your own keys)` の見出しの下に `<F9>` と `My hidden toggle` が出る — *Add `[[mgr.prepend_keymap]]` with `on = "<F9>"`, `run = "hidden toggle"`, `desc = "My hidden toggle"` to your `keymap.toml`, press `<C-F5>`, then `<F1>` over the file list and scroll to the end (v0.139.52) → `<F9>` and `My hidden toggle` appear under the final `Other (your own keys)` heading, after the built-in sections*
 
 ## 35. 設定ファイルの探索場所（OS ごと）
 
@@ -1102,6 +1104,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **66.2** Drag-select across the rows in `T` → The numbers are not selected or copied 〔未訳〕
 - [ ] **66.3** Press `M` in `T`, then `M` again → Switches to the source (every line numbered) and back to the rendered view 〔未訳〕
 - [ ] **66.4** Open a long Markdown file in `<F3>`, light and dark theme → The numbers are dim, right-aligned, and do not touch the text or the Contents column 〔未訳〕
+- [ ] **66.5** `Before.`、空行、`> Quote.`、空行、`After.` の順に書いた Markdown ファイルを読む表示で開く（v0.139.51）→ `Before.` と引用の間に空行の余白がある。引用の縦線は `Quote.` の横から始まり、その上の余白には伸びない。`After.` は普通の段落になる — *Render a Markdown file containing `Before.`, a blank line, `> Quote.`, a blank line, then `After.` (v0.139.51) → A blank gap separates `Before.` from the quote; the quote bar starts beside `Quote.`, without extending into the gap above it, and `After.` is an ordinary paragraph*
 
 ## 67. Find and go to a line in the maximized preview (v0.146.0)
 

@@ -764,6 +764,8 @@ title = "HTML のプレビュー"
 "34.14" = '最下部に着けた状態で `<C-->` でフォントを小さくする → 最下部に着いたまま、パネルも埋まっている。行がより多く入るので、止まる位置が動いたということ'
 "34.15" = '`C`（v0.67.16）→ トースト `Copied the help panel: N keys`。クリップボードにパネルが文字で入る: `config` とパス、続いて 1 行だけの `keys`、そのあと 1 キー 1 行の `キー<TAB>説明<TAB>コマンド`。`Get-Clipboard | Select-String "^j\t"` で `j<TAB>Move cursor down<TAB>arrow 1` が見つかる。パネルは開いたまま'
 "34.16" = 'タスクのパネル、spot パネル（`<Tab>`）、差分を順に開き、それぞれの上で `<F1>`。もう一度押す（v0.99.0）→ どれでもキーの一覧がパネルの上に開き、2 回目の `<F1>` で閉じる'
+"34.17" = '既定の keymap でファイル一覧の上で `<F1>` を開き、キー一覧をスクロールする（v0.139.52）→ キーは `Navigation`・`Selection`・`Operations`・`Find / filter / search`・`Sorting`・`Goto` などの見出しに分かれ、組み込み keymap の順に並ぶ'
+"34.18" = '自分の `keymap.toml` に `[[mgr.prepend_keymap]]` と `on = "<F9>"`、`run = "hidden toggle"`、`desc = "My hidden toggle"` を足し、`<C-F5>` を押す。ファイル一覧の上で `<F1>` を押して末尾までスクロールする（v0.139.52）→ 組み込みの節のあと、最後の `Other (your own keys)` の見出しの下に `<F9>` と `My hidden toggle` が出る'
 
 # 35. 設定の探索場所（OS ごと）
 "35.1" = '[Windows] 両方の環境変数を未設定にして `kura env` → `%APPDATA%\yazi\config` と `%APPDATA%\uchmk\kura`。yazi のフォルダは **v0.34.0 から変わっていない。**kura 自身のものは v0.99.0 で `%APPDATA%\kura` から移った（35.11）'
@@ -1098,3 +1100,4 @@ title = "HTML のプレビュー"
 "62.1" = 'kura で何カ所かフォルダーを訪ね、検索（`s`）とシェルコマンド（`;`）を 1 回ずつ使って終了し、状態のフォルダーを見る → `history.toml`・`search-history.toml`・`shell-history.toml` があって TOML（`entries = [...]`）になっている。新しい `.txt` は書かれない'
 "62.2" = 'kura を終了し、3 つの `.toml` を消して、状態のフォルダーに `history.txt`（1 行に `C:\dev<TAB>3<TAB>1700000000`）と `search-history.txt` / `shell-history.txt`（1 行に 1 つ）を置き、kura を起動して、最近のフォルダーの一覧と `s` のプロンプトの `<Up>` を見てから終了する → ジャンプの一覧と 2 つのプロンプトの履歴に `.txt` の中身が引き継がれ、3 つの `.toml` ができている。`.txt` は手つかず。もう一度起動すると `.toml` を読み、`.txt` は見ない'
 "62.3" = '履歴のファイルを全部（`.toml` も `.txt` も）消して kura を起動する → トーストもエラーも無く起動し、ジャンプの一覧は空、プロンプトの `<Up>` は何も呼び出さない'
+"66.5" = '`Before.`、空行、`> Quote.`、空行、`After.` の順に書いた Markdown ファイルを読む表示で開く（v0.139.51）→ `Before.` と引用の間に空行の余白がある。引用の縦線は `Quote.` の横から始まり、その上の余白には伸びない。`After.` は普通の段落になる'

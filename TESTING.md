@@ -1137,6 +1137,8 @@ size the panel comes out.
 | 34.14 | Shrink the font with `<C-->` while parked at the bottom | Still parked at the bottom, panel full — more lines fit, so the stop moved |
 | 34.15 | `C` (v0.67.16) | Toast `Copied the help panel: N keys`. The clipboard holds the panel as text: `config` and the paths, then `keys` on a line of its own, then one `keys<TAB>description<TAB>command` line per key -- `Get-Clipboard \| Select-String "^j\t"` finds `j<TAB>Move cursor down<TAB>arrow 1`. The panel stays open |
 | 34.16 | Open the tasks panel, the spot panel (`<Tab>`) and a diff in turn, and press `<F1>` over each; press it again (v0.99.0) | Each time the key list opens over the panel, and the second `<F1>` closes it |
+| 34.17 | Open `<F1>` over the file list with the default keymap and scroll through the keys (v0.139.52) | Keys are grouped under section headings such as `Navigation`, `Selection`, `Operations`, `Find / filter / search`, `Sorting` and `Goto`, in the order of the built-in keymap |
+| 34.18 | Add `[[mgr.prepend_keymap]]` with `on = "<F9>"`, `run = "hidden toggle"`, `desc = "My hidden toggle"` to your `keymap.toml`, press `<C-F5>`, then `<F1>` over the file list and scroll to the end (v0.139.52) | `<F9>` and `My hidden toggle` appear under the final `Other (your own keys)` heading, after the built-in sections |
 
 ---
 
@@ -1906,6 +1908,7 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 66.2 | Drag-select across the rows in `T` | The numbers are not selected or copied |
 | 66.3 | Press `M` in `T`, then `M` again | Switches to the source (every line numbered) and back to the rendered view |
 | 66.4 | Open a long Markdown file in `<F3>`, light and dark theme | The numbers are dim, right-aligned, and do not touch the text or the Contents column |
+| 66.5 | Render a Markdown file containing `Before.`, a blank line, `> Quote.`, a blank line, then `After.` (v0.139.51) | A blank gap separates `Before.` from the quote; the quote bar starts beside `Quote.`, without extending into the gap above it, and `After.` is an ordinary paragraph |
 
 ## 67. Find and go to a line in the maximized preview (v0.146.0)
 
