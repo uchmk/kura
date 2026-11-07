@@ -20,9 +20,29 @@ impl App {
     /// The tab moves at once and the background scan has the last word —
     /// `Tab::cd_failed` decides what to do when the listing never arrives.
     pub(super) fn cd_inner(&mut self, target: PathBuf, push_history: bool, fallback: bool) {
+        self.cd_move(target, push_history, fallback, true);
+    }
+
+    /// `cd_inner`. `follow` says whether a tab in Details is measured again
+    /// where it lands; `remeasure` does that itself.
+    pub(super) fn cd_move(&mut self, target: PathBuf, push_history: bool, fallback: bool, follow: bool) {
         let target = util::normalize(&target);
         if self.tabs[self.active].cwd == target {
             return;
+        }
+        // The usage view belongs to the folder it measures, so a jump ends it
+        // before anything else refers to the listing. A tab in Details is
+        // measured again once it has landed (see `follow_usage`). The flag is
+        // down while the view ends, because that calls `kick_scans`. Only a
+        // tab that was being measured follows: Details set as the default
+        // linemode in yazi.toml lists folders without walking them. The usage
+        // view and an archive never meet: an archive opens from a real listing
+        // only, and the usage view will not start in any other view.
+        let details = self.tabs[self.active].linemode == crate::fs::entry::Linemode::All
+            && (self.in_usage_view() || self.usage_follow == Some(self.active));
+        self.usage_follow = None;
+        if self.in_usage_view() {
+            self.exit_search_view();
         }
         let from = self.tabs[self.active].cwd.clone();
         self.cd_refused = None;
@@ -43,6 +63,9 @@ impl App {
         let active = self.active;
         let pending = PendingCd { from, pushed: push_history, fallback, reveal: None };
         self.arrive(active, target.clone(), Some(pending));
+        if follow && details {
+            self.usage_follow = Some(active);
+        }
 
         self.remember_history(&target);
         self.kick_scans();
@@ -238,9 +261,15 @@ impl App {
             return;
         }
         let cwd = self.tabs[self.active].cwd.clone();
-        if self.in_usage_view() && self.usage_root.as_ref().is_some_and(|r| cwd.starts_with(r) && *r != cwd) {
-            if let Some(p) = util::parent_dir(&cwd) {
-                self.remeasure(p, Some(util::file_name(&cwd)));
+        if self.in_usage_view() {
+            // Details goes up from wherever it is; `gu` only back to where it
+            // started, and then `h` leaves the view.
+            let details = self.tabs[self.active].linemode == crate::fs::entry::Linemode::All;
+            let below = self.usage_root.as_ref().is_some_and(|r| cwd.starts_with(r) && *r != cwd);
+            if details || below {
+                if let Some(p) = util::parent_dir(&cwd) {
+                    self.remeasure(p, Some(util::file_name(&cwd)));
+                }
                 return;
             }
         }

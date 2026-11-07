@@ -14,6 +14,7 @@ impl App {
             self.error("Maximum number of tabs reached");
             return;
         }
+        self.leave_tab_usage();
         let base = self.tabs[self.active].cwd.clone();
         let (target, fallback) =
             new_tab_target(&base, current, path.as_deref(), self.tabs[self.active].current.hovered(), ito_common::home_dir());
@@ -46,6 +47,8 @@ impl App {
         if idx >= self.tabs.len() {
             return;
         }
+        // The walk belongs to the active tab, and closing any tab can move it.
+        self.leave_tab_usage();
         self.details_previous.resize(self.tabs.len(), None);
         self.details_previous.remove(idx);
         self.tabs.remove(idx);
@@ -117,6 +120,9 @@ impl App {
     }
 
     pub(super) fn switch_tab(&mut self, idx: usize) {
+        if idx < self.tabs.len() && idx != self.active {
+            self.leave_tab_usage();
+        }
         if idx >= self.tabs.len() || idx == self.active {
             self.active = idx.min(self.tabs.len() - 1);
         } else {
@@ -146,6 +152,12 @@ impl App {
         self.preview.state = PreviewState::Empty;
         self.preview.key = None;
         self.preview.texture = None;
+        // A tab put in Details with `m a` (which remembers the linemode to go
+        // back to) is measured when it comes up. Details set as the default
+        // linemode is not.
+        let measured = self.details_previous.get(self.active).is_some_and(Option::is_some);
+        self.usage_follow = (self.archive_view.is_none() && measured && self.tabs[self.active].linemode == crate::fs::entry::Linemode::All)
+            .then_some(self.active);
         self.kick_scans();
     }
 }

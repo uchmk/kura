@@ -31,7 +31,10 @@ const TICK: Duration = Duration::from_millis(50);
 /// A child and what is under it: bytes, the number of files counted, and
 /// whether the walk got to the end of it. A child the budget ran out in, or
 /// never reached, is a floor and not an answer (44.7, #109).
-pub type Child = (PathBuf, u64, u64, bool);
+///
+/// The `Entry` is built here, on the walker thread, so the UI thread never
+/// stats a child of a 68,000-entry folder.
+pub type Child = (crate::fs::Entry, u64, u64, bool);
 
 pub enum Msg {
     Sized(Vec<Child>),
@@ -84,7 +87,9 @@ pub fn spawn(root: &Path, wake: impl Fn() + Send + 'static) -> Handle {
                 }
                 let (bytes, files, whole) = measure(&child, &mut budget, &mut seen, &stop);
                 total += bytes;
-                batch.push((child, bytes, files, whole));
+                if let Ok(entry) = crate::fs::Entry::from_path(child) {
+                    batch.push((entry, bytes, files, whole));
+                }
                 if last.elapsed() >= TICK {
                     let _ = tx.send(Msg::Sized(std::mem::take(&mut batch)));
                     wake();
@@ -192,7 +197,7 @@ mod tests {
         let dir = tree();
         let (all, total, capped) = collect(&dir);
         assert!(!capped);
-        let by = |name: &str| all.iter().find(|(p, ..)| p.ends_with(name)).map_or(0, |t| t.1);
+        let by = |name: &str| all.iter().find(|(e, ..)| e.path.ends_with(name)).map_or(0, |t| t.1);
         assert_eq!(by("big"), 1000, "300 and 700, counted through the subfolder: {all:?}");
         assert_eq!(by("small"), 50);
         assert_eq!(by("loose"), 10, "a plain file is worth its own length");
@@ -206,7 +211,7 @@ mod tests {
     fn the_file_counts_come_back_too() {
         let dir = tree();
         let (all, ..) = collect(&dir);
-        let files = |name: &str| all.iter().find(|(p, ..)| p.ends_with(name)).map(|t| t.2);
+        let files = |name: &str| all.iter().find(|(e, ..)| e.path.ends_with(name)).map(|t| t.2);
         assert_eq!(files("big"), Some(2));
         assert_eq!(files("small"), Some(1));
         assert_eq!(files("loose"), Some(1));
@@ -246,7 +251,7 @@ mod tests {
         std::fs::write(dir.join("two").join("b"), vec![b'x'; 5]).unwrap();
         let (all, total, _) = collect(&dir);
         assert_eq!(total, 405, "400 once, and 5: {all:?}");
-        let by = |name: &str| all.iter().find(|(p, ..)| p.ends_with(name)).map_or(0, |t| t.1);
+        let by = |name: &str| all.iter().find(|(e, ..)| e.path.ends_with(name)).map_or(0, |t| t.1);
         assert!(matches!((by("one"), by("two")), (400, 5) | (0, 405)), "{all:?}");
     }
 

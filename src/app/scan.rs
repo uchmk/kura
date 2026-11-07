@@ -5,6 +5,7 @@ use super::*;
 impl App {
     /// Ask for any listing the current view needs and does not have.
     pub fn kick_scans(&mut self) {
+        self.follow_usage();
         let sort = self.tabs[self.active].sort;
         let cwd = self.tabs[self.active].cwd.clone();
         let parent = util::parent_dir(&cwd);

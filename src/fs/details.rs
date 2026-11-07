@@ -99,11 +99,7 @@ fn owner(path: &Path) -> String {
             {
                 let name = String::from_utf16_lossy(&name[..names as usize]);
                 let domain = String::from_utf16_lossy(&domain[..domains as usize]);
-                if domain.is_empty() {
-                    name
-                } else {
-                    format!("{domain}\\{name}")
-                }
+                account_label(&domain, &name, &std::env::var("COMPUTERNAME").unwrap_or_default())
             } else {
                 String::new()
             };
@@ -112,6 +108,23 @@ fn owner(path: &Path) -> String {
         });
         let _ = LocalFree(Some(HLOCAL(descriptor.0)));
         result
+    }
+}
+
+/// `DOMAIN\name` as the owner is shown. The computer's own name and the
+/// built-in authorities say nothing the reader does not know, and they take
+/// most of a narrow column, so a local account is just `name`. A real domain
+/// account keeps its domain.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn account_label(domain: &str, name: &str, computer: &str) -> String {
+    const LOCAL: [&str; 5] = ["BUILTIN", "NT AUTHORITY", "NT SERVICE", "Window Manager", "Font Driver Host"];
+    let local = domain.is_empty()
+        || (!computer.is_empty() && domain.eq_ignore_ascii_case(computer))
+        || LOCAL.iter().any(|l| domain.eq_ignore_ascii_case(l));
+    if local {
+        name.to_owned()
+    } else {
+        format!("{domain}\\{name}")
     }
 }
 
@@ -171,10 +184,9 @@ impl Worker {
                     if current.load(Ordering::Relaxed) != id {
                         break;
                     }
+                    // Sent even when a newer request arrived meanwhile: the read is
+                    // still right for its path, and the app drops it by generation.
                     let details = read(&entry);
-                    if current.load(Ordering::Relaxed) != id {
-                        break;
-                    }
                     if results.send((id, entry, details)).is_err() {
                         return;
                     }
@@ -208,6 +220,18 @@ mod tests {
         assert_eq!(read(&entry).dimensions, Some((3, 2)));
         std::fs::write(&path, b"broken").unwrap();
         assert_eq!(read(&entry).dimensions, None);
+    }
+    #[test]
+    fn a_local_account_loses_its_computer_name() {
+        assert_eq!(account_label("DESKTOP-7UBRVG9", "yuu06", "desktop-7ubrvg9"), "yuu06");
+        assert_eq!(account_label("NT AUTHORITY", "SYSTEM", "PC"), "SYSTEM");
+        assert_eq!(account_label("BUILTIN", "Administrators", "PC"), "Administrators");
+        assert_eq!(account_label("NT SERVICE", "TrustedInstaller", "PC"), "TrustedInstaller");
+        assert_eq!(account_label("Window Manager", "DWM-1", "PC"), "DWM-1");
+        assert_eq!(account_label("Font Driver Host", "UMFD-0", "PC"), "UMFD-0");
+        assert_eq!(account_label("", "alone", "PC"), "alone");
+        assert_eq!(account_label("CORP", "yuu06", "PC"), "CORP\\yuu06", "a domain account keeps its domain");
+        assert_eq!(account_label("CORP", "yuu06", ""), "CORP\\yuu06");
     }
     #[cfg(any(windows, unix))]
     #[test]

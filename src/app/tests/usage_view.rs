@@ -2,6 +2,7 @@
 //! whose path is not a real directory. These pin the parts that make that work.
 
 use super::*;
+use crate::fs::entry::Linemode;
 
 /// One directory per test. They run in parallel in one process, so a name
 /// built from the pid alone has them wiping each other's trees mid-walk.
@@ -515,5 +516,166 @@ fn it_refuses_to_start_from_another_synthetic_view() {
     let path = a.tabs[a.active].current.path.clone();
     a.start_usage();
     assert_eq!(a.tabs[a.active].current.path, path, "the view did not change");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn settle(a: &mut App) {
+    for _ in 0..2000 {
+        a.drain_usage();
+        if a.usage.is_none() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+/// The plain listing of `dir` arriving, and the frame that follows it.
+fn listed(a: &mut App, dir: &Path) {
+    let v: Vec<crate::fs::Entry> =
+        std::fs::read_dir(dir).unwrap().filter_map(|e| crate::fs::Entry::from_path(e.unwrap().path()).ok()).collect();
+    a.apply_listing(dir, Arc::new(v));
+    a.kick_scans();
+}
+
+fn rows(a: &App) -> Vec<(String, Option<u64>)> {
+    a.tabs[a.active].current.entries.iter().map(|e| (e.name.clone(), e.usage)).collect()
+}
+
+/// Details measures like `gu`, and `h` goes up from where it started rather
+/// than dropping the sizes.
+#[test]
+fn details_goes_up_past_where_it_started_and_stays_measured() {
+    let dir = tree();
+    let mut a = app_in(&dir.join("fat"));
+    a.act(Act::Linemode(Linemode::All));
+    settle(&mut a);
+    assert!(a.in_usage_view());
+    a.act(Act::Leave);
+    settle(&mut a);
+    assert!(a.in_usage_view(), "still in the usage view");
+    assert_eq!(a.tabs[a.active].cwd, dir);
+    assert_eq!(a.tabs[a.active].linemode, Linemode::All);
+    assert_eq!(a.tabs[a.active].current.hovered_name(), Some("fat"), "on the folder it came from");
+    let r = rows(&a);
+    assert_eq!(r.len(), 3, "{r:?}");
+    assert!(r.iter().all(|(_, u)| u.is_some()), "every row measured: {r:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A jump in Details lands, and the folder it lands on is measured. The old
+/// walk's rows do not follow it there.
+#[test]
+fn details_measures_the_folder_a_jump_lands_on() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.act(Act::Linemode(Linemode::All));
+    a.cd(dir.join("thin"), true);
+    assert!(!a.in_usage_view(), "the old view ended with the jump");
+    assert!(a.usage.is_none(), "and its walk with it");
+    listed(&mut a, &dir.join("thin"));
+    assert!(a.in_usage_view(), "measuring where it landed");
+    settle(&mut a);
+    assert_eq!(rows(&a), [("b".to_string(), Some(20))], "only this folder's children");
+    assert_eq!(a.tabs[a.active].linemode, Linemode::All);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Out of the `gu` view a jump is a plain move.
+#[test]
+fn a_jump_out_of_the_gu_view_leaves_it() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let before = a.tabs[a.active].linemode;
+    a.start_usage();
+    settle(&mut a);
+    a.cd(dir.join("thin"), true);
+    assert!(!a.in_usage_view());
+    assert!(a.usage.is_none(), "the walk is gone");
+    assert_eq!(a.tabs[a.active].linemode, before, "the linemode is back");
+    listed(&mut a, &dir.join("thin"));
+    assert!(a.usage.is_none() && !a.in_usage_view(), "nothing measures it");
+    assert_eq!(a.tabs[a.active].current.path, dir.join("thin"));
+    assert_eq!(rows(&a), [("b".to_string(), None)]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Leaving Details before the landing settles cancels the measurement.
+#[test]
+fn leaving_details_after_a_jump_measures_nothing() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.act(Act::Linemode(Linemode::All));
+    a.cd(dir.join("thin"), true);
+    a.act(Act::Linemode(Linemode::All));
+    assert_ne!(a.tabs[a.active].linemode, Linemode::All);
+    listed(&mut a, &dir.join("thin"));
+    assert!(a.usage.is_none() && !a.in_usage_view());
+    assert!(a.usage_follow.is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The walk is the app's, and `drain_usage` fills the active tab: changing
+/// tabs ends it first, so no tab gets rows that are another's.
+#[test]
+fn a_tab_change_during_a_walk_mixes_nothing() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.act(Act::Linemode(Linemode::All));
+    a.create_tab(true, None);
+    assert_eq!(a.active, 1);
+    assert!(a.usage.is_none(), "the first tab's walk ended");
+    assert!(a.tabs[0].current.path == dir && a.tabs[0].current.entries.iter().all(|e| e.usage.is_none()), "tab 0 is a plain listing");
+    a.drain_usage();
+    assert!(a.tabs[1].current.entries.is_empty(), "nothing leaked into the new tab");
+    listed(&mut a, &dir);
+    settle(&mut a);
+    let r = rows(&a);
+    assert_eq!(r.len(), 3, "{r:?}");
+    assert!(r.iter().all(|(_, u)| u.is_some()), "the new tab, in Details, is measured: {r:?}");
+    assert!(a.tabs[0].current.entries.iter().all(|e| e.usage.is_none()));
+
+    a.switch_tab(0);
+    assert!(a.tabs[1].current.entries.iter().all(|e| e.usage.is_none()), "tab 1 is plain again");
+    if !a.in_usage_view() {
+        listed(&mut a, &dir);
+    }
+    assert!(a.in_usage_view());
+    settle(&mut a);
+    assert!(rows(&a).iter().all(|(_, u)| u.is_some()), "and tab 0 is measured when it comes back");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Details as the default linemode (yazi.toml) is a plain listing: neither a
+/// jump nor coming back to the tab starts a walk.
+#[test]
+fn details_by_default_measures_nothing() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.tabs[a.active].linemode = Linemode::All;
+    listed(&mut a, &dir);
+    a.cd(dir.join("thin"), true);
+    listed(&mut a, &dir.join("thin"));
+    assert!(a.usage.is_none() && !a.in_usage_view(), "a jump does not measure");
+    a.create_tab(true, None);
+    a.switch_tab(0);
+    listed(&mut a, &dir.join("thin"));
+    assert!(a.usage.is_none() && !a.in_usage_view(), "a tab change does not measure");
+    assert_eq!(a.tabs[0].linemode, Linemode::All);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A second jump before the first one has landed still measures where the
+/// tab ends up.
+#[test]
+fn details_follows_a_jump_made_before_the_last_one_landed() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.act(Act::Linemode(Linemode::All));
+    a.cd(dir.join("thin"), true);
+    a.cd(dir.join("fat"), true);
+    listed(&mut a, &dir.join("fat"));
+    assert!(a.in_usage_view(), "measuring where it landed");
+    settle(&mut a);
+    assert_eq!(rows(&a), [("inner".to_string(), Some(900))]);
     let _ = std::fs::remove_dir_all(&dir);
 }

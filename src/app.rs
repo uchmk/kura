@@ -295,6 +295,9 @@ pub struct App {
     /// The folder `h` came up out of, put under the cursor once the parent's
     /// walk reports it.
     usage_want: Option<String>,
+    /// The tab that was in Details when a jump ended its usage view: it is
+    /// measured again once it has landed (see [`App::follow_usage`]).
+    usage_follow: Option<usize>,
     /// The tab's linemode from before `gu`, put back on the way out. The view
     /// shows sizes whatever the tab was showing (Q33): its bars alone could
     /// not be read as numbers, and `linemode = "usage"` in the config made every
@@ -490,6 +493,7 @@ impl App {
             archive_rx: None,
             archive_preview_rx: None,
             usage_want: None,
+            usage_follow: None,
             term_pending: None,
             ctx,
             scale: 1.0,

@@ -21,12 +21,47 @@ impl App {
     pub(super) fn remeasure(&mut self, dir: PathBuf, want: Option<String>) {
         let root = self.usage_root.clone();
         self.exit_search_view();
-        self.cd(dir, true);
+        self.cd_move(dir, true, false, false);
         self.usage_root = root;
         self.usage_want = want;
         // The level just left had its own total; it is not this one's.
         self.toasts.retain(|t| !t.text.contains(" in total"));
         self.measure_here();
+    }
+
+    /// Measure the folder a Details tab has landed on after a jump, once the
+    /// landing is settled: listed, not a file or a missing path, no search or
+    /// archive view in the way. Until then the flag waits.
+    pub(super) fn follow_usage(&mut self) {
+        let Some(idx) = self.usage_follow else { return };
+        let tab = &self.tabs[self.active];
+        if idx != self.active
+            || tab.linemode != crate::fs::entry::Linemode::All
+            || self.in_usage_view()
+            || self.archive_view.is_some()
+            || self.in_search_view()
+        {
+            self.usage_follow = None;
+            return;
+        }
+        if tab.current.state != LoadState::Ready || tab.pending_cd.is_some() {
+            return;
+        }
+        let want = tab.current.hovered_name().map(str::to_owned);
+        self.usage_follow = None;
+        self.start_usage();
+        if self.in_usage_view() {
+            self.usage_want = want;
+        }
+    }
+
+    /// End the usage view before the active tab changes: the walk is not the
+    /// tab's, it is the app's, and `drain_usage` fills whichever tab is active.
+    pub(super) fn leave_tab_usage(&mut self) {
+        self.usage_follow = None;
+        if self.in_usage_view() {
+            self.exit_search_view();
+        }
     }
 
     pub(super) fn measure_here(&mut self) {
@@ -68,12 +103,10 @@ impl App {
             let sort = self.tabs[self.active].sort;
             let f = &mut self.tabs[self.active].current;
             let entries = Arc::make_mut(&mut f.entries);
-            for (path, bytes, _files, whole) in batch {
-                if let Ok(mut e) = Entry::from_path(path) {
-                    e.usage = Some(bytes);
-                    e.usage_cut = !whole;
-                    entries.push(e);
-                }
+            for (mut e, bytes, _files, whole) in batch {
+                e.usage = Some(bytes);
+                e.usage_cut = !whole;
+                entries.push(e);
             }
             // Biggest first, which is the question being asked. Sorted here
             // rather than through `SortSpec` because the tab's own sort puts

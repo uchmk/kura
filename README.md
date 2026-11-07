@@ -290,8 +290,13 @@ Details (`m a`) shows name, modified/created/accessed time, type, size, image di
 owner, permissions, extension and usage, fitting as many columns as the window permits.
 It starts the same usage measurement as `gu`; `m a`, `m n` or Escape stops it and leaves
 this view (Escape clears filters and selections first). Usage stays visible at ordinary
-widths. Owner and image dimensions are loaded only for visible rows, on a worker; sorting
-by either first loads missing rows without blocking input. Image dimensions read headers
+widths. After `m a`, moving to another folder measures that folder too, and `h` goes up and
+measures the parent; switching tabs stops the measurement and coming back to the tab starts
+it again. Details set as the default linemode in `yazi.toml` lists folders without
+measuring them. Owner and image dimensions are loaded on a worker for the visible rows
+and about a page either side; sorting by either first loads missing rows without blocking
+input. On Windows the owner of a local account is shown without the computer name
+(`yuu06`, not `PC\yuu06`). Image dimensions read headers
 for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM and QOI; SVG is excluded.
 Author, title and audio duration require parser crates and are not provided.
 

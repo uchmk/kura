@@ -603,6 +603,9 @@ impl App {
         self.details_previous.swap(from, to);
         self.tabs.swap(from, to);
         self.active = to;
+        if self.usage_follow == Some(from) {
+            self.usage_follow = Some(to);
+        }
         if let Some(sp) = self.split {
             self.split = Some(Split { other: split_after_swap(sp.other, from, to), ..sp });
         }
@@ -761,6 +764,9 @@ impl App {
         };
         let now_details = tab.linemode == L::All;
         let next = tab.linemode;
+        if !now_details {
+            self.usage_follow = None;
+        }
         if was_details && !now_details && self.usage_linemode.is_some() {
             self.usage_linemode = Some(next);
             self.exit_search_view();
