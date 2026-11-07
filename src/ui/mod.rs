@@ -472,6 +472,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 row_h,
                 active: false,
                 linemode: crate::fs::entry::Linemode::None,
+                sort: None,
                 usage_max: 0,
                 search_root: None,
             };
@@ -665,6 +666,7 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
             row_h,
             active: false,
             linemode: crate::fs::entry::Linemode::None,
+            sort: None,
             usage_max: 0,
             search_root: None,
         };
@@ -709,6 +711,7 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
         // pane without the keys is dimmed for the same reason.
         active: focused && app.preview.outline.is_none(),
         linemode,
+        sort: Some(app.tabs[idx].sort),
         usage_max: app.usage_max,
         search_root: app.tabs[idx]
             .finder
@@ -5282,6 +5285,7 @@ mod details_view_tests {
         for exit in ["ma", "mn", "escape"] {
             s.typed("m");
             s.typed("a");
+            assert!(s.app.usage.is_some(), "ma starts measuring");
             let frame = s.draw();
             assert_eq!(s.app.tab().linemode, L::All);
             assert!(frame.says("Name") && frame.says("Date modified"));
@@ -5296,6 +5300,8 @@ mod details_view_tests {
             s.settle();
             assert!(s.app.preview.rect.is_some());
             assert_ne!(s.app.tab().linemode, L::All);
+            assert!(s.app.usage.is_none());
+            assert!(!s.app.in_usage_view());
             if exit == "ma" {
                 assert_eq!(s.app.tab().linemode, L::Mtime);
             }
@@ -5314,8 +5320,7 @@ mod details_view_tests {
         s.settle();
         s.typed("m");
         s.typed("a");
-        s.typed("g");
-        s.typed("u");
+        assert!(s.app.usage.is_some());
         assert_eq!(s.app.tab().linemode, L::All);
         for _ in 0..100 {
             s.turn();
@@ -5326,12 +5331,89 @@ mod details_view_tests {
         }
         assert!(s.app.tab().current.entries.iter().any(|e| e.usage.is_some()));
         assert!(s.draw().says("Usage"));
-        s.feed(vec![super::panes::esc()]);
-        assert_eq!(s.app.tab().linemode, L::All);
         s.typed("f");
         s.feed(vec![super::panes::esc()]);
         assert_eq!(s.app.tab().linemode, L::All);
         s.feed(vec![super::panes::esc()]);
         assert_ne!(s.app.tab().linemode, L::All);
+        assert!(s.app.usage.is_none());
+        assert!(!s.app.in_usage_view());
+    }
+    fn wait_for_usage(s: &mut Screen) {
+        for _ in 0..200 {
+            s.turn();
+            if s.app.usage.is_none() && !s.app.tab().current.entries.is_empty() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("usage did not finish");
+    }
+
+    #[test]
+    fn wide_details_show_new_headers_and_type_sort_keys_reorder_rows() {
+        let dir = crate::util::test_dir("details-headers");
+        image::RgbImage::new(2, 3).save(dir.join("a.png")).unwrap();
+        std::fs::write(dir.join("z.json"), "{}").unwrap();
+        let mut s = Screen::without_state(dir).sized(2200.0, 800.0);
+        s.app.lang = "en".into();
+        s.settle();
+        s.typed("ma");
+        wait_for_usage(&mut s);
+        let frame = s.draw();
+        for header in ["Date accessed", "Dimensions", "Owner", "Usage"] {
+            assert!(frame.says(header), "{header}");
+        }
+        s.typed(",t");
+        s.turn();
+        assert_eq!(s.app.tab().current.at(0).unwrap().name, "z.json");
+        assert!(s.draw().says("▲ Type"));
+        s.typed(",T");
+        assert_eq!(s.app.tab().current.at(0).unwrap().name, "a.png");
+        assert!(s.draw().says("▼ Type"));
+    }
+
+    #[test]
+    fn dimensions_sort_loads_missing_rows_before_reordering_and_owner_mode_loads() {
+        let dir = crate::util::test_dir("details-sort-loading");
+        image::RgbImage::new(9, 9).save(dir.join("a-large.png")).unwrap();
+        image::RgbImage::new(2, 3).save(dir.join("z-small.png")).unwrap();
+        std::fs::write(dir.join("b.txt"), "text").unwrap();
+        let mut s = Screen::without_state(dir);
+        s.settle();
+        let before: Vec<_> = s.app.tab().current.entries.iter().map(|e| e.name.clone()).collect();
+        s.typed(",d");
+        assert_eq!(s.app.tab().current.entries.iter().map(|e| e.name.clone()).collect::<Vec<_>>(), before);
+        for _ in 0..200 {
+            s.turn();
+            if s.app.tab().current.entries.iter().all(|e| e.details.is_some()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(s.app.tab().current.at(0).unwrap().name, "z-small.png");
+        assert_eq!(s.app.tab().current.at(2).unwrap().name, "b.txt");
+        s.typed(",D");
+        assert_eq!(s.app.tab().current.at(0).unwrap().name, "a-large.png");
+        assert_eq!(s.app.tab().current.at(2).unwrap().name, "b.txt");
+        s.typed("mo");
+        assert_eq!(s.app.tab().linemode, L::Owner);
+        #[cfg(any(windows, unix))]
+        assert!(s.app.tab().current.entries.iter().all(|e| e.details.as_ref().is_some_and(|d| !d.owner.is_empty())));
+    }
+
+    #[test]
+    fn entering_details_from_usage_restores_the_original_mode() {
+        let dir = crate::util::test_dir("details-from-usage");
+        std::fs::write(dir.join("file"), "text").unwrap();
+        let mut s = Screen::without_state(dir);
+        s.settle();
+        s.typed("mtgu");
+        assert_eq!(s.app.tab().linemode, L::Usage);
+        s.typed("ma");
+        assert_eq!(s.app.tab().linemode, L::All);
+        s.typed("ma");
+        assert_eq!(s.app.tab().linemode, L::Mtime);
+        assert!(!s.app.in_usage_view());
     }
 }

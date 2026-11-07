@@ -4,6 +4,9 @@ use super::*;
 
 impl App {
     pub(super) fn start_usage(&mut self) {
+        if self.usage_linemode.is_some() {
+            return;
+        }
         if self.in_search_view() {
             self.error("Usage: leave this view first");
             return;
@@ -61,6 +64,8 @@ impl App {
             }
         }
         if !batch.is_empty() {
+            let details = self.tabs[self.active].linemode == crate::fs::entry::Linemode::All;
+            let sort = self.tabs[self.active].sort;
             let f = &mut self.tabs[self.active].current;
             let entries = Arc::make_mut(&mut f.entries);
             for (path, bytes, _files, whole) in batch {
@@ -74,8 +79,16 @@ impl App {
             // rather than through `SortSpec` because the tab's own sort puts
             // every directory above every file, and a usage list that does that
             // cannot be read.
-            entries.sort_by(|a, b| b.usage_bytes().cmp(&a.usage_bytes()).then(a.name.cmp(&b.name)));
-            self.usage_max = entries.first().map_or(0, Entry::usage_bytes);
+            if details {
+                if !matches!(sort.by, crate::fs::SortBy::Owner | crate::fs::SortBy::Dimensions)
+                    || entries.iter().all(|e| e.details.is_some())
+                {
+                    sort.apply(entries);
+                }
+            } else {
+                entries.sort_by(|a, b| b.usage_bytes().cmp(&a.usage_bytes()).then(a.name.cmp(&b.name)));
+            }
+            self.usage_max = entries.iter().map(Entry::usage_bytes).max().unwrap_or(0);
             f.rebuild(true);
             if let Some(name) = self.usage_want.take() {
                 if !f.select_name(&name) {

@@ -752,14 +752,23 @@ impl App {
             self.details_previous[self.active].take().unwrap_or(L::None)
         } else {
             if mode == L::All {
-                self.details_previous[self.active] = Some(tab.linemode);
+                self.details_previous[self.active] = Some(self.usage_linemode.unwrap_or(tab.linemode));
             } else {
                 self.details_previous[self.active] = None;
             }
             mode
         };
-        if (was_details || mode == L::All) && self.usage_linemode.is_some() {
-            self.usage_linemode = Some(tab.linemode);
+        let now_details = tab.linemode == L::All;
+        let next = tab.linemode;
+        if was_details && !now_details && self.usage_linemode.is_some() {
+            self.usage_linemode = Some(next);
+            self.exit_search_view();
+        } else if !was_details && now_details {
+            if self.usage_linemode.is_some() {
+                self.usage_linemode = Some(L::All);
+            } else {
+                self.start_usage();
+            }
         }
         if was_details || mode == L::All {
             self.request_preview(true);
@@ -793,7 +802,7 @@ impl App {
         if all && self.abandon_cd() {
             return;
         }
-        if (all || what.search) && self.in_search_view() {
+        if (all || what.search) && self.in_search_view() && self.tabs[self.active].linemode != crate::fs::entry::Linemode::All {
             self.exit_search_view();
             return;
         }
@@ -815,6 +824,8 @@ impl App {
         }
         if all && tab.linemode == crate::fs::entry::Linemode::All {
             self.set_linemode(crate::fs::entry::Linemode::All);
+        } else if (all || what.search) && self.in_search_view() {
+            self.exit_search_view();
         }
     }
 }

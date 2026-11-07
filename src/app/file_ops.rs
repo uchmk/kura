@@ -645,6 +645,9 @@ impl App {
         }
         let sort = tab.sort;
         let show = tab.show_hidden;
+        if self.defer_detail_sort() {
+            return;
+        }
         // The usage view counted hidden files and lists them whatever the tab
         // shows; a re-sort that filtered them out left rows missing from the
         // total it still printed (#109).

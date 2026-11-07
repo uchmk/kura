@@ -51,10 +51,7 @@ pub enum Linemode {
     #[serde(alias = "created")]
     Btime,
     Permissions,
-    /// yazi shows a file's owner here; nothing reads it yet, so the column is
-    /// blank. Kept as a variant all the same -- a blank column that was asked
-    /// for is not the same thing as a typo, and this is what lets the loader
-    /// tell them apart.
+    /// The account that owns the file, read on the details worker.
     Owner,
 }
 
@@ -117,6 +114,10 @@ pub struct Entry {
     /// floor: shown as `≥` when something was counted and `?` when nothing was
     /// -- never as a plain `0 B`, which reads as empty (44.7).
     pub usage_cut: bool,
+    /// None until the details worker has answered, including failed reads.
+    pub details: Option<super::details::Details>,
+    /// Localized type used by the current UI sort, with an English fallback on scans.
+    pub sort_type: Option<String>,
 }
 
 impl Entry {

@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 767 件（TESTING.md の全 962 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 771 件（TESTING.md の全 966 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1087,3 +1087,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **69.6** 窓を狭くし、長い日本語のファイル名を置く → 列は右から落ちる（名前・更新日時・サイズは残る）。名前は自分の列の中で切れ、スクロールしても見出し行は残る — *Narrow the window, then use a long Japanese file name → Columns drop from the right (Name, Date modified and Size stay); the name is cut inside its own column; the heading row stays when scrolling*
 - [ ] **69.7** `language = "ja"` で `m a` → 見出しが 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量 になり、フォルダーは `ファイル フォルダー`、`.json` は `JSON ファイル` — *`language = "ja"`, `m a` → Headings read 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量; a folder reads `ファイル フォルダー`, `.json` reads `JSON ファイル`*
 - [ ] **69.8** 詳細ビューをライトとダークで見る → 見出し行・行・棒はテーマの色で、カーソルの行がどちらでもはっきり分かる — *Light and dark themes in the details view → Heading row, rows and bars use the theme's colours; the cursor row is clear in both*
+- [ ] **69.9** （v0.148.0）数百ファイルのフォルダーで、幅 1200 px 前後の窓で `m a` → `gu` が自動で始まって使用量の列が埋まる。名前・更新日時・作成日時・アクセス日時・種類・サイズ・使用量が、使用量を先に落とさずに見える。`<Esc>` か `m a` で計測を止めて表を出る — *(v0.148.0) In a folder of a few hundred files in a window about 1200 px wide, press `m a` → `gu` starts by itself and the Usage column fills; Name, Date modified, Date created, Date accessed, Type, Size, Usage are visible without dropping Usage first; `<Esc>` or `m a` stops the measuring and leaves the table*
+- [ ] **69.10** （v0.148.0）窓を広げる → 画像の大きさ・所有者・権限・拡張子が出る。`.png` / `.jpg` は少し待つと `1920 × 1080` のように出て、SVG やテキストは空。所有者はアカウント名（Windows は `DOMAIN\user`、Linux / macOS はユーザー名） — *(v0.148.0) Widen the window → Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: `DOMAIN\user`; Linux/macOS: the user name)*
+- [ ] **69.11** （v0.148.0）詳細ビューで `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` → 種類・権限・測った使用量・所有者・画像のピクセル数・アクセス日時の順に並び替わる。値のない行は昇順でも降順でも最後。見出しの並べた列に ▲ か ▼。何千ファイルのフォルダーでも UI が固まらない — *(v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view → The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files*
+- [ ] **69.12** （v0.148.0）`m o` → 各行の右の値が所有者になる — *(v0.148.0) `m o` → The right-hand value of every row is the owner*

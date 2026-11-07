@@ -275,8 +275,7 @@ the usage view after another `m` key), and `m`+`n` turns the column off. `[mgr] 
 the one you start with.
 
 The names are `none`, `size`, `usage`, `mtime` (or `modified`), `btime` (or `created`),
-`permissions` and `owner` — `owner` is accepted and shows nothing, because kura does not read it
-yet. Anything else is **refused rather than ignored**: a misspelling in `yazi.toml` is a warning
+`permissions` and `owner` — `m o` displays the owner, resolved on a worker. Anything else is **refused rather than ignored**: a misspelling in `yazi.toml` is a warning
 about that file, and one in a `linemode` binding is listed as an unsupported command in the help
 panel and says so when the key is pressed. It used to leave the column silently blank, which looked
 the same as asking for no column at all.
@@ -284,6 +283,17 @@ the same as asking for no column at all.
 > If `m` on its own does something — saves a bookmark, say — none of these run: the bookmark
 > plugins for yazi bind `m`, and a `prepend_keymap` line goes in front of every chord that starts
 > with it. Kura reports this on startup and lists it under `~`.
+
+`sort` also accepts `type`, `permissions`, `usage`, `owner`, `dimensions` and `atime` (`accessed`); owner and image headers are read on a worker before sorting. Unmeasured usage and non-images sort last in both directions.
+
+Details (`m a`) shows name, modified/created/accessed time, type, size, image dimensions,
+owner, permissions, extension and usage, fitting as many columns as the window permits.
+It starts the same usage measurement as `gu`; `m a`, `m n` or Escape stops it and leaves
+this view (Escape clears filters and selections first). Usage stays visible at ordinary
+widths. Owner and image dimensions are loaded only for visible rows, on a worker; sorting
+by either first loads missing rows without blocking input. Image dimensions read headers
+for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM and QOI; SVG is excluded.
+Author, title and audio duration require parser crates and are not provided.
 
 Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `back`, `forward`,
 `cd`, `reveal`, `follow`, `refresh`, `seek`/`peek`, `tab_create`, `tab_close`, `tab_switch`,
@@ -1250,6 +1260,8 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `b``b` | list the bookmarks and pick one |
 | `b``s` `b``d` `b``D` | set one / delete one (then press its letter) / delete them all |
 | `.` `,…` `m…` | hidden files / sort menu / line mode: what the right column of each row shows |
+| `,t` / `,T` · `,p` / `,P` · `,u` / `,U` | type / permissions / measured usage, ascending / descending |
+| `,o` / `,O` · `,d` / `,D` · `,l` / `,L` | owner / image pixel count / access time, ascending / descending |
 | `t` `1`–`9` `[` `]` `{` `}` `<C-c>` | new tab / switch / previous / next / move it left / right / close it (quits on the last) |
 | `<C-=>` `<C-->` `<C-0>` | make everything bigger / smaller / back to normal; `<C-+>` and `<C-;>` are bigger too, for the keyboards where `=` is not the key beside `-`. The scale goes into common.toml, so every uchmk app open follows it |
 | `<F5>` `<C-F5>` | re-read the current directory / re-read the config files |

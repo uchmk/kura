@@ -357,7 +357,7 @@ run = "plugin bookmarks save"
         let w = about_m[0];
         assert!(w.contains("plugin bookmarks save"), "must name what took the key: {w}");
         assert!(w.contains("`ms`"), "must name a key that was lost: {w}");
-        assert!(w.contains('7'), "must count them: {w}");
+        assert!(w.contains('8'), "must count them: {w}");
     }
 
     /// The same key twice is the other way a line goes missing, and it reads
@@ -428,5 +428,31 @@ run = "plugin bookmarks save"
         let w = warnings.iter().find(|w| w.contains("`T`")).unwrap_or_else(|| panic!("{warnings:?}"));
         assert!(w.contains(&format!("({BUILT_IN}) runs, not `quit` (/cfg/kura/keymap.toml)")), "{w}");
         assert!(km.overrides.is_empty(), "{:?}", km.overrides);
+    }
+    #[test]
+    fn detail_sort_chords_set_explicit_directions_and_owner_mode() {
+        let (km, warnings) = Keymap::load(&[]);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        for (key, name) in [("t", "type"), ("p", "permissions"), ("u", "usage"), ("o", "owner"), ("d", "dimensions"), ("l", "atime")] {
+            for reverse in [false, true] {
+                let key = if reverse { key.to_uppercase() } else { key.to_owned() };
+                let keys = [Key::parse(",").unwrap(), Key::parse(&key).unwrap()];
+                let Match::Exact(binding) = resolve(&km.mgr, &keys) else {
+                    panic!("missing ,{key}");
+                };
+                assert_eq!(binding.run, vec![Act::Sort { by: crate::fs::SortBy::parse(name), reverse: Some(reverse), dir_first: None }]);
+                assert!(!binding.desc.is_empty());
+            }
+        }
+        let keys = [Key::parse("m").unwrap(), Key::parse("o").unwrap()];
+        let Match::Exact(binding) = resolve(&km.mgr, &keys) else {
+            panic!("missing mo");
+        };
+        assert_eq!(binding.run, vec![Act::Linemode(crate::fs::entry::Linemode::Owner)]);
+        let keys = [Key::parse(",").unwrap(), Key::parse("a").unwrap()];
+        let Match::Exact(binding) = resolve(&km.mgr, &keys) else {
+            panic!("missing ,a");
+        };
+        assert!(matches!(binding.run[0], Act::Sort { by: Some(crate::fs::SortBy::Alphabetical), .. }));
     }
 }

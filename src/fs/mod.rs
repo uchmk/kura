@@ -1,4 +1,5 @@
 pub mod archive;
+pub mod details;
 pub mod entry;
 pub mod git;
 pub mod ops;

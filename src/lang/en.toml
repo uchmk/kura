@@ -12,6 +12,10 @@ bug_report_link_copied = "Copied the bug report's link -- paste it into a browse
 bookmarks_all_deleted = "All bookmarks deleted"
 
 [details]
+accessed = "Date accessed"
+dimensions = "Dimensions"
+owner = "Owner"
+
 name = "Name"
 modified = "Date modified"
 created = "Date created"

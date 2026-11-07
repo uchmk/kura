@@ -20,6 +20,7 @@ pub struct ListStyle<'a> {
     /// Dimmed columns (parent / preview) get a quieter cursor.
     pub active: bool,
     pub linemode: crate::fs::entry::Linemode,
+    pub sort: Option<crate::fs::SortSpec>,
     /// The largest total in the disk-usage view, which every row's bar is drawn
     /// against. Zero everywhere else, and no bar is drawn.
     pub usage_max: u64,
@@ -66,21 +67,33 @@ pub fn draw(
     let cell_width = painter.layout_no_wrap("M".into(), st.font.clone(), st.theme.fg).size().x;
     let columns = if details { detail_columns(rect.width(), cell_width) } else { Vec::new() };
     if details {
-        painter.text(
-            rect.left_center() + Vec2::new(8.0, -rect.height() / 2.0 + st.row_h / 2.0),
-            Align2::LEFT_CENTER,
-            crate::i18n::tr(st.lang, "details.name"),
-            st.font.clone(),
-            st.theme.fg_dim,
-        );
-        for &(col, x, _) in &columns {
-            painter.text(
-                egui::pos2(rect.left() + x + 4.0, rect.top() + st.row_h / 2.0),
-                Align2::LEFT_CENTER,
-                crate::i18n::tr(st.lang, DETAIL_KEYS[col]),
-                st.font.clone(),
-                st.theme.fg_dim,
-            );
+        let name_width = columns.first().map_or(rect.width(), |c| c.1);
+        let header = |col: usize| {
+            use crate::fs::SortBy as S;
+            let active = st.sort.is_some_and(|s| match col {
+                0 => matches!(s.by, S::Alphabetical | S::Natural),
+                1 => s.by == S::Mtime,
+                2 => s.by == S::Btime,
+                3 => s.by == S::Atime,
+                4 => s.by == S::Type,
+                5 => s.by == S::Size,
+                6 => s.by == S::Dimensions,
+                7 => s.by == S::Owner,
+                8 => s.by == S::Permissions,
+                9 => s.by == S::Extension,
+                10 => s.by == S::Usage,
+                _ => false,
+            });
+            let text = crate::i18n::tr(st.lang, DETAIL_KEYS[col]);
+            if active {
+                format!("{} {text}", if st.sort.is_some_and(|s| s.reverse) { "▼" } else { "▲" })
+            } else {
+                text
+            }
+        };
+        for (col, x, width) in std::iter::once((0, 0.0, name_width)).chain(columns.iter().copied()) {
+            let cell = Rect::from_min_size(egui::pos2(rect.left() + x + 4.0, rect.top()), Vec2::new((width - 8.0).max(0.0), st.row_h));
+            painter.with_clip_rect(cell).text(cell.left_center(), Align2::LEFT_CENTER, header(col), st.font.clone(), st.theme.fg_dim);
         }
     }
     let rect = if details { Rect::from_min_max(rect.min + Vec2::new(0.0, st.row_h), rect.max) } else { rect };
@@ -172,13 +185,13 @@ pub fn draw(
                 let text = detail_text(entry, col, st.lang);
                 let cp = painter.with_clip_rect(cell);
                 cp.text(
-                    if col == 4 { cell.right_center() } else { cell.left_center() },
-                    if col == 4 { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER },
+                    if col == 5 { cell.right_center() } else { cell.left_center() },
+                    if col == 5 { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER },
                     text,
                     st.font.clone(),
                     st.theme.fg_dim,
                 );
-                if col == 7 && entry.usage.is_some() && st.usage_max > 0 {
+                if col == 10 && entry.usage.is_some() && st.usage_max > 0 {
                     let track = Rect::from_min_size(cell.left_bottom() - Vec2::new(0.0, 3.0), Vec2::new(cell.width(), 2.0));
                     cp.rect_filled(track, CornerRadius::ZERO, st.theme.border);
                     cp.rect_filled(
@@ -232,7 +245,7 @@ pub fn draw(
             right_w += w + 8.0;
         }
 
-        let avail = (row_rect.right() - right_w - x - 6.0).max(16.0);
+        let avail = (row_rect.right() - right_w - x - 6.0).max(if details { 0.0 } else { 16.0 });
         // The filter's hits are worked out when the list is built; `/`, `?`
         // and the search views mark what they look for as the row is drawn.
         let found;
@@ -267,7 +280,8 @@ pub fn draw(
         out.shown.push(name.clone());
         let job = name_job(&name, &positions, &st.font, base_color, &style, st.theme, avail);
         let galley = painter.layout_job(job);
-        painter.galley(egui::pos2(x, y + (st.row_h - galley.size().y) / 2.0), galley, base_color);
+        let name_rect = Rect::from_min_max(row_rect.min, egui::pos2((row_rect.right() - right_w).max(row_rect.left()), row_rect.bottom()));
+        painter.with_clip_rect(name_rect).galley(egui::pos2(x, y + (st.row_h - galley.size().y) / 2.0), galley, base_color);
     }
 
     // Scrollbar hint when the list overflows.
@@ -495,25 +509,12 @@ pub fn linemode_text(entry: &Entry, mode: crate::fs::entry::Linemode) -> String 
         L::Mtime => util::fmt_time(entry.modified, "%Y-%m-%d %H:%M"),
         L::Btime => util::fmt_time(entry.created, "%Y-%m-%d %H:%M"),
         L::Permissions => permissions(entry),
-        // Asked for and not implemented -- see `Linemode::Owner`.
-        L::All | L::Owner | L::None => String::new(),
+        L::Owner => entry.details.as_ref().map(|d| d.owner.clone()).unwrap_or_default(),
+        L::All | L::None => String::new(),
     }
 }
 
-pub fn permissions(entry: &Entry) -> String {
-    let mut s = String::new();
-    s.push(match entry.kind {
-        crate::fs::Kind::Dir => 'd',
-        crate::fs::Kind::Link { .. } => 'l',
-        crate::fs::Kind::File => '-',
-    });
-    s.push('r');
-    s.push(if entry.readonly { '-' } else { 'w' });
-    if entry.hidden {
-        s.push('h');
-    }
-    s
-}
+pub use crate::fs::details::permissions;
 
 /// The icon column, which is the one part of a row that has no words in it.
 ///
@@ -723,23 +724,27 @@ mod usage_column {
     }
 }
 
-const DETAIL_KEYS: [&str; 8] = [
+const DETAIL_KEYS: [&str; 11] = [
     "details.name",
     "details.modified",
     "details.created",
+    "details.accessed",
     "details.type",
     "details.size",
+    "details.dimensions",
+    "details.owner",
     "details.permissions",
     "details.extension",
     "details.usage",
 ];
 
 fn detail_columns(width: f32, cell: f32) -> Vec<(usize, f32, f32)> {
-    let widths = [0.0, 18.0, 18.0, 18.0, 10.0, 8.0, 10.0, 16.0];
-    let mut visible = vec![1, 2, 3, 4, 5, 6, 7];
-    for drop in [7, 6, 5, 3, 2] {
+    let widths = [0.0, 17.0, 17.0, 17.0, 16.0, 9.0, 15.0, 16.0, 12.0, 10.0, 14.0];
+    let mut visible: Vec<usize> = (1..11).collect();
+    // Preserve the name, modified time, size and usage until the narrow fallback.
+    for drop in [3, 7, 6, 2, 8, 9, 4, 1, 5, 10] {
         let used: f32 = visible.iter().map(|&i| widths[i] * cell).sum();
-        if used + 24.0 * cell <= width {
+        if used + 18.0 * cell <= width {
             break;
         }
         visible.retain(|&i| i != drop);
@@ -757,33 +762,21 @@ fn detail_columns(width: f32, cell: f32) -> Vec<(usize, f32, f32)> {
         .collect()
 }
 
-fn detail_type(entry: &Entry, lang: &str) -> String {
-    use crate::fs::Kind;
-    let ext = entry.ext.as_deref().unwrap_or("").to_lowercase();
-    let key = match entry.kind {
-        Kind::Dir => "details.folder",
-        Kind::Link { .. } => "details.link",
-        Kind::File => match ext.as_str() {
-            "" => "details.file",
-            "md" | "markdown" => "details.markdown",
-            "png" => "details.png",
-            "jpg" | "jpeg" => "details.jpeg",
-            _ => return crate::i18n::trf(lang, "details.ext_file", &[&ext.to_uppercase()]),
-        },
-    };
-    crate::i18n::tr(lang, key)
-}
+use crate::fs::details::detail_type;
 
 fn detail_text(entry: &Entry, col: usize, lang: &str) -> String {
     use crate::fs::entry::Linemode as L;
     match col {
         1 => linemode_text(entry, L::Mtime),
         2 => linemode_text(entry, L::Btime),
-        3 => detail_type(entry, lang),
-        4 => entry.display_size().unwrap_or_default(),
-        5 => permissions(entry),
-        6 => entry.ext.as_deref().unwrap_or("").to_lowercase(),
-        7 if entry.usage.is_some() => linemode_text(entry, L::Usage),
+        3 => util::fmt_time(entry.accessed, "%Y-%m-%d %H:%M"),
+        4 => detail_type(entry, lang),
+        5 => entry.display_size().unwrap_or_default(),
+        6 => entry.details.as_ref().and_then(|d| d.dimensions).map(|(w, h)| format!("{w} × {h}")).unwrap_or_default(),
+        7 => linemode_text(entry, L::Owner),
+        8 => permissions(entry),
+        9 => entry.ext.as_deref().unwrap_or("").to_lowercase(),
+        10 if entry.usage.is_some() => linemode_text(entry, L::Usage),
         _ => String::new(),
     }
 }
@@ -806,9 +799,45 @@ mod details_tests {
         assert_eq!(detail_type(&e, "en"), "Link");
     }
     #[test]
-    fn narrow_tables_keep_name_modified_and_size() {
+    fn narrow_tables_keep_size_and_usage_without_overlap() {
         let cols = detail_columns(400.0, 8.0);
-        assert_eq!(cols.iter().map(|c| c.0).collect::<Vec<_>>(), vec![1, 4]);
+        assert_eq!(cols.iter().map(|c| c.0).collect::<Vec<_>>(), vec![5, 10]);
         assert!(cols[0].1 > 0.0);
+    }
+    #[test]
+    fn ordinary_tables_retain_all_eight_original_columns() {
+        for cell in [8.0, 9.0] {
+            let cols = detail_columns(1200.0, cell);
+            for required in [1, 2, 4, 5, 8, 9, 10] {
+                assert!(cols.iter().any(|c| c.0 == required), "missing {required} with cell {cell}");
+            }
+            assert!(!cols.iter().any(|c| c.0 == 3));
+        }
+    }
+    #[test]
+    fn wide_tables_show_every_column_and_tiny_tables_do_not_overlap() {
+        let cols = detail_columns(1800.0, 8.0);
+        assert_eq!(cols.iter().map(|c| c.0).collect::<Vec<_>>(), (1..11).collect::<Vec<_>>());
+        for width in [0.0, 8.0, 80.0, 240.0, 400.0, 640.0, 1200.0, 1800.0] {
+            let cols = detail_columns(width, 8.0);
+            let mut previous_end = 0.0;
+            for (_, x, w) in cols {
+                assert!(x >= previous_end && x + w <= width);
+                previous_end = x + w;
+            }
+        }
+    }
+    #[test]
+    fn unmeasured_usage_and_missing_metadata_are_blank() {
+        let e = Entry::default();
+        assert_eq!(detail_text(&e, 10, "en"), "");
+        assert_eq!(detail_text(&e, 6, "en"), "");
+        assert_eq!(detail_text(&e, 7, "en"), "");
+        let e = Entry {
+            details: Some(crate::fs::details::Details { owner: "person".into(), dimensions: Some((1920, 1080)) }),
+            ..Default::default()
+        };
+        assert_eq!(detail_text(&e, 6, "en"), "1920 × 1080");
+        assert_eq!(linemode_text(&e, crate::fs::entry::Linemode::Owner), "person");
     }
 }

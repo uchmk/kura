@@ -38,6 +38,7 @@ impl App {
                 self.tabs[idx].current.scan_id = Some(id);
             }
         }
+        self.pump_details();
         self.ensure_dir_sizes();
         self.sync_watcher();
     }

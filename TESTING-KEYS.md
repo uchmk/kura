@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-309 keys. How many are checked is not written here, so that two pull requests ticking
+322 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -150,6 +150,18 @@ The file list: what is in front of you unless an overlay is.
 - [x] `, s` — Sort by size (largest first) · `sort size --reverse`
 - [x] `, S` — Sort by size (smallest first) · `sort size --no-reverse`
 - [x] `, r` — Sort randomly · `sort random --no-reverse`
+- [ ] `, t` — Sort by type · `sort type --no-reverse`
+- [ ] `, T` — Sort by type (reverse) · `sort type --reverse`
+- [ ] `, p` — Sort by permissions · `sort permissions --no-reverse`
+- [ ] `, P` — Sort by permissions (reverse) · `sort permissions --reverse`
+- [ ] `, u` — Sort by usage · `sort usage --no-reverse`
+- [ ] `, U` — Sort by usage (reverse) · `sort usage --reverse`
+- [ ] `, o` — Sort by owner · `sort owner --no-reverse`
+- [ ] `, O` — Sort by owner (reverse) · `sort owner --reverse`
+- [ ] `, d` — Sort by dimensions · `sort dimensions --no-reverse`
+- [ ] `, D` — Sort by dimensions (reverse) · `sort dimensions --reverse`
+- [ ] `, l` — Sort by accessed time (oldest first) · `sort atime --no-reverse`
+- [ ] `, L` — Sort by accessed time (newest first) · `sort atime --reverse`
 
 ### Line mode
 
@@ -158,6 +170,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `m t` — Line mode: modified time · `linemode mtime`
 - [x] `m b` — Line mode: created time · `linemode btime`
 - [x] `m p` — Line mode: permissions · `linemode permissions`
+- [ ] `m o` — Line mode: owner · `linemode owner`
 - [x] `m u` — Line mode: disk usage (gu) · `linemode usage`
 - [x] `m n` — Line mode: none · `linemode none`
 

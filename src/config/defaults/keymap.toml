@@ -581,6 +581,56 @@ on = [ ",", "r" ]
 run = "sort random --no-reverse"
 desc = "Sort randomly"
 
+[[mgr.keymap]]
+on = [ ",", "t" ]
+run = "sort type --no-reverse"
+desc = "Sort by type"
+[[mgr.keymap]]
+on = [ ",", "T" ]
+run = "sort type --reverse"
+desc = "Sort by type (reverse)"
+[[mgr.keymap]]
+on = [ ",", "p" ]
+run = "sort permissions --no-reverse"
+desc = "Sort by permissions"
+[[mgr.keymap]]
+on = [ ",", "P" ]
+run = "sort permissions --reverse"
+desc = "Sort by permissions (reverse)"
+[[mgr.keymap]]
+on = [ ",", "u" ]
+run = "sort usage --no-reverse"
+desc = "Sort by usage"
+[[mgr.keymap]]
+on = [ ",", "U" ]
+run = "sort usage --reverse"
+desc = "Sort by usage (reverse)"
+[[mgr.keymap]]
+on = [ ",", "o" ]
+run = "sort owner --no-reverse"
+desc = "Sort by owner"
+[[mgr.keymap]]
+on = [ ",", "O" ]
+run = "sort owner --reverse"
+desc = "Sort by owner (reverse)"
+[[mgr.keymap]]
+on = [ ",", "d" ]
+run = "sort dimensions --no-reverse"
+desc = "Sort by dimensions"
+[[mgr.keymap]]
+on = [ ",", "D" ]
+run = "sort dimensions --reverse"
+desc = "Sort by dimensions (reverse)"
+
+[[mgr.keymap]]
+on = [ ",", "l" ]
+run = "sort atime --no-reverse"
+desc = "Sort by accessed time (oldest first)"
+[[mgr.keymap]]
+on = [ ",", "L" ]
+run = "sort atime --reverse"
+desc = "Sort by accessed time (newest first)"
+
 # --- Line mode ----------------------------------------------------------------
 [[mgr.keymap]]
 on = ["m", "a"]
@@ -604,6 +654,10 @@ desc = "Line mode: created time"
 on = [ "m", "p" ]
 run = "linemode permissions"
 desc = "Line mode: permissions"
+[[mgr.keymap]]
+on = [ "m", "o" ]
+run = "linemode owner"
+desc = "Line mode: owner"
 # Not in yazi, which has no `usage` mode. Inside `gu`'s view, after another
 # `m` key, this is the way back to the numbers without walking again (Q36).
 [[mgr.keymap]]
