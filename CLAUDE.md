@@ -23,7 +23,8 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
   - 未完了の項目の末尾の `【人】` `【QA】` `【実機】` `【後】` `【pane】` は開発のセッションが進めない印。「次の項目」を探すときは飛ばす。
     `【pane】` はターミナルペイン: コードは uchmk/ito の `ito-pane` にあり、kura は `Cargo.toml` の `rev` で固定して読む
     （直すときは tsumugi 側で直し、`rev` を上げて `cargo build` で `Cargo.lock` を合わせる）。
-  - 節の項目が全部済んだら、その節を [TODO-DONE.md](TODO-DONE.md) の末尾に移す。
+  - 済んだ項目はその場で [TODO-DONE.md](TODO-DONE.md) に移す（コミットの前に `python scripts/archive-done.py`）。
+  - TODO-DONE.md・TESTING-CHECKS.md・TESTING-LINUX.md・CHANGELOG.md は全部を読まない。Grep（`^- \[ \]`、`^- \[ \] \*\*` など）か、Read の `offset`・`limit` で引く。
 - **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`retest` の issue を立てる
   （題 `Re-test: vX.Y.Z`、本文は行 ID のチェックリストと何が変わったか。フォーム `.github/ISSUE_TEMPLATE/retest.yml`）。
   x64 のレーンがいちばん古いものから押す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。

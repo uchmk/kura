@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.150.2] - 2026-11-07
+
+### 変更
+
+- 開発の手順: 済んだ TODO の項目はその場で TODO-DONE.md に移す（`scripts/archive-done.py`）。大きな記録ファイル（TODO-DONE・TESTING-CHECKS・TESTING-LINUX・CHANGELOG）は全部を読まず、Grep か Read の範囲指定で引く。TODO.md は 120 KB から 27 KB になった。実機テストを測るサブエージェント `wintest` を追加した。
+
 ## [0.150.1] - 2026-11-07
 
 ### 変更

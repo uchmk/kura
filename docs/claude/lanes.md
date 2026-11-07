@@ -20,6 +20,8 @@ CLAUDE.md から分けた（2026-10-07）。QA や実機のセッションを立
   実行の間に main が文言を変えた行は印を落とし、PR にそう書く。
 - それでもぶつかったとき（同じ行に両方が印を付けたなど）は、マージの Routine が PR のブランチに `origin/main` を merge コミットで
   取り込んで push し、ワークフローが CI の緑を待ってマージする（`merge-role.md` の 3）。
+- **済んだ項目は TODO.md から TODO-DONE.md へその場で移す**（コミットの前に `python scripts/archive-done.py`）。
+- **TODO-DONE.md・TESTING-CHECKS.md・TESTING-LINUX.md・CHANGELOG.md は全部を読まない。**Grep（`^- \[ \]`、`^- \[ \] \*\*` など）か、Read の `offset`・`limit` で引く。
 
 ## QA セッション（テスト専任）
 
