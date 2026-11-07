@@ -34,6 +34,11 @@ So everything below has been written from the source and never once run:
 row down as an appearance row, look for something that can be *read* in its
 place. Most rows that sound like looks have one:
 
+*The rules shared with the short-lived `wintest` subagent (isolated `keys.ps1`
+runs, the desktop lock, scratch-only writes, what counts as evidence) are summarised
+in [docs/claude/wintest-measure.md](../docs/claude/wintest-measure.md); this file
+stays the detailed source.*
+
 **`scripts\keys.ps1` runs one of these for you** (`scripts\keys.ps1 -Dir <dir> -Keys '<Tab>C<State:spot><Quit>' [-Out <dir>] [-Launches]`): own `KURA_KEYS_DONE` folder, waits on kura's own id (`-Launches` for a run that starts a program), warns when the done file is not `keys: done` (and exits 1; 2 for a timeout), prints it and every `<State:>` file. Use it instead of rewriting the `Start-Process` lines.
 
 **Start with `--keys`.** Since v0.54.0 kura presses keys itself: `kura <dir> --keys "<Tab>C"`
@@ -112,6 +117,10 @@ could not carry the claim.** "It is visual" on its own is not a reason any more.
 ## Ticking TESTING-CHECKS.md
 
 This is the part that separates you from the cloud sessions, so read it twice.
+The one canonical statement of what `[x]` / `[~]` mean and who may tick is
+[docs/claude/lanes.md](../docs/claude/lanes.md#x-の規則正); what follows is the detail
+behind it. A `wintest` subagent never ticks: you tick a row it measured only after
+reading its evidence for that row.
 
 A `[x]` in TESTING-CHECKS.md means **"this was verified on a real machine."** A
 cloud session can never honestly write one. **You can** -- you are the real
@@ -119,7 +128,8 @@ machine. That is a genuine privilege and it is easy to spend badly.
 
 Tick a row only when **all** of these hold:
 
-1. You actually performed the action, on the real `kura.exe`, in this session.
+1. The action was actually performed on the real `kura.exe` in this session -- by you, or by a `wintest`
+   run whose evidence for this row you have read yourself.
 2. The row's expectation is **text you read, or a file state you inspected** --
    not something you looked at and formed an opinion about.
 3. You can show the evidence: the command you ran and what came back.

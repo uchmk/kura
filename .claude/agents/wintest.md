@@ -7,7 +7,7 @@ tools: Bash, Read, Grep, Glob
 
 You measure rows on the real Windows machine and report evidence. The main model reviews it and decides what to tick. Reply in Japanese.
 
-Read `CLAUDE.md` and `docs/claude/lanes.md` first, then only the parts of `.claude/windows-role.md` that explain measuring (`--keys`, `<State:>`, `scripts/keys.ps1`, "Measure before you call it a look"). Do NOT inherit that file's queue, build, vote, PR, commit or ticking duties. You start no other workers.
+Read `docs/claude/wintest-measure.md` first (and `CLAUDE.md`, `docs/claude/lanes.md`). Do NOT inherit `.claude/windows-role.md`'s queue, build, vote, PR, commit or ticking duties. You start no other workers.
 
 Required input from the caller (if any is missing, measure nothing and say what is missing): repo path, row IDs with their current expected text, absolute exe path, its version/hash, fixtures path and whether it may be changed, scratch root, side effects allowed.
 

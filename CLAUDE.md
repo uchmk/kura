@@ -28,7 +28,9 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 - **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`retest` の issue を立てる
   （題 `Re-test: vX.Y.Z`、本文は行 ID のチェックリストと何が変わったか。フォーム `.github/ISSUE_TEMPLATE/retest.yml`）。
   x64 のレーンがいちばん古いものから押す。自分でも Xvfb で `--keys` と `KURA_KEYS_DONE` を使って先に確かめる。
-- **実機でしか確かめられないことは [TESTING.md](TESTING.md) に積む**（チェック項目を足してから完了にする）。`[x]` を付けてよいのは実機のセッションと持ち主だけ。
+  （`[x]` の規則は [docs/claude/lanes.md](docs/claude/lanes.md#x-の規則正)）
+- **実機でしか確かめられないことは [TESTING.md](TESTING.md) に積む**（チェック項目を足してから完了にする）。`[x]` を付けてよいのは実機のセッションと持ち主だけ
+  （subagent は付けない。規則の正は [docs/claude/lanes.md](docs/claude/lanes.md#x-の規則正)、測り方は [docs/claude/wintest-measure.md](docs/claude/wintest-measure.md)）。
 
 ## 版・変更ログ・push
 

@@ -97,6 +97,17 @@ git fetch origin main; git checkout -B test/win-25 origin/main
 claude "$(Get-Content -Raw .claude\windows-role.md)"
 ```
 
+### `[x]` の規則（正）
+
+チェックの意味と付ける人の規則は、ここを正とする（`CLAUDE.md` と `.claude/windows-role.md` はここへリンクする。下の個別の規則は、これを削らずに詳しく書いたもの）。
+測り方は [wintest-measure.md](wintest-measure.md)。
+
+- `[x]` = **実機で、測って確かめた**。`[~]` = 見ただけ（画像で判断）。`[~]` を `[x]` にするのは持ち主だけ。
+- subagent（`wintest` を含む）は**絶対に付けない**。`PASS` / `FAIL` / `CANNOT-MEASURE` / `BLOCKED` と証拠を返すだけ。
+- 実機のセッション（持ち主の PC の main モデル）が付けてよいのは、その行の `wintest` の証拠を**自分で読み**、期待値のすべてに観測が合い、**未確認が残っていない**ときだけ。
+  `CANNOT-MEASURE` と `BLOCKED` の行は付けない。`wintest` を使わず自分で測った行は、下の 3 条件（操作した／読めるテキストかファイルの状態／根拠を示せる）で付ける。
+- 動きが変わった行は `[x]` を外して `retest` の issue を立てる。立てるかは main が判断する（持ち主に聞かない）。
+
 - **TESTING-CHECKS.md にチェックを入れてよいのは、このセッションだけ。**`[x]` は「実機で
   確かめた」印で、クラウドのセッションは正直には書けない。**実機そのものだから書ける。**
   ただし条件が 3 つある（実際に操作した／期待値が**読めるテキストかファイルの状態**である／
