@@ -233,6 +233,7 @@ impl App {
             Act::TermCopyOutput => self.term_copy_output(),
             Act::Extract => self.do_extract(),
             Act::Compress => self.ask_compress(),
+            Act::Convert(format) => self.convert_images(format),
             Act::SendPane { cut } => self.send_to_pane(cut),
             Act::ToggleOutline => self.toggle_outline(),
             Act::ToggleRender => self.toggle_render(),

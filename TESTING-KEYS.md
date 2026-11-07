@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-322 keys. How many are checked is not written here, so that two pull requests ticking
+323 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -96,6 +96,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-c>` — Copy the selection to the other pane · `send_pane`
 - [x] `<A-m>` — Move the selection to the other pane · `send_pane --cut`
 - [x] `e` — Extract the selected archives · `extract`
+- [ ] `c i` — Convert selected images · `convert`
 - [x] `E` — Compress the selection into an archive · `compress`
 - [x] `d` — Move the files to the recycle bin · `remove`
 - [x] `D` — Permanently delete the files · `remove --permanently`

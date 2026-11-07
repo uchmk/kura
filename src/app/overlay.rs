@@ -301,6 +301,7 @@ pub(super) fn acts_on_file(a: &Act) -> bool {
             | Act::Shell { .. }
             | Act::Extract
             | Act::Compress
+            | Act::Convert(_)
             | Act::SendPane { .. }
             | Act::TermSend
             | Act::Spot

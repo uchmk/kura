@@ -3,6 +3,7 @@
 # ito-i18n lays a language over this table.
 
 [toast]
+convert_done = "{0} image(s) converted: {1} → {2} ({3}); {4} skipped"
 bookmark_already = "Already bookmarked as `{0}`"
 bookmark_moved = "Bookmark moved from `{0}` to `{1}`"
 bookmark_saved = "Bookmark `{0}` saved"
@@ -31,3 +32,15 @@ ext_file = "{0} file"
 markdown = "Markdown file"
 png = "PNG image"
 jpeg = "JPEG image"
+
+[convert]
+title = "Convert images"
+quality = "JPEG quality"
+compression = "PNG compression"
+background = "Alpha background"
+background_note = "Flatten transparent pixels onto this colour for JPEG (#RRGGBB)."
+invalid_background = "Alpha background must be #RRGGBB"
+delete = "Delete originals"
+delete_note = "Move each original to the trash after its output is saved."
+lossless = "Always lossless; no quality setting"
+webp = "WebP (lossless)"

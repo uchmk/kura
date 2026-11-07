@@ -1950,3 +1950,18 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.10 | (v0.148.0) Widen the window | Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: `DOMAIN\user`; Linux/macOS: the user name) |
 | 69.11 | (v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view | The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files |
 | 69.12 | (v0.148.0) `m o` | The right-hand value of every row is the owner |
+
+## 70. Convert images, `c i` (v0.149.0)
+
+Convert the selected images to JPEG, PNG or lossless WebP next to the originals. Pure Rust; EXIF orientation is baked in, metadata/ICC is not carried over, animations keep the first frame.
+
+| # | Do | Expect |
+|---|----|--------|
+| 70.1 | Select a few `.png` and `.jpg` files (one with transparency), press `c i`, pick `JPEG` | A job runs; `.jpg` files appear beside the originals (the `.jpg` sources are skipped); the toast reads `N converted: A → B (−x%)` with the skipped count; the originals stay |
+| 70.2 | Repeat 70.1 with `PNG` and `WebP (lossless)`, then open the results in another viewer | They open and look the same size; the transparent PNG shows the `alpha_background` colour in the JPEG |
+| 70.3 | Convert again so the output name already exists | The usual conflict dialog (overwrite / skip / rename / cancel) appears; cancelling leaves the old output intact and no `.kura-convert-*.tmp` is left in the folder |
+| 70.4 | Select a text file and an image, `c i`, `JPEG` | The text file is skipped and counted; the image converts; a file you cannot read (open it exclusively elsewhere) is listed as an error in the task list and the rest still convert |
+| 70.5 | Convert a very large photo (tens of megapixels) and a folder of many images | The UI stays responsive; the task list shows progress; `x` cancels between files |
+| 70.6 | Settings (`<C-,>`) → Convert: change JPEG quality, PNG compression, background colour, "move originals to the trash" | Values save to `config.toml` `[convert]`; a bad colour is refused; with the trash option on, the original goes to the trash only after its output is written |
+| 70.7 | Use a Japanese file name, a network drive and a read-only folder | Names are kept; the read-only folder gives an error row, not a crash |
+| 70.8 | Inside an archive, press `c i`; also right-click an image | Inside an archive it is refused; the right-click menu lists Convert |

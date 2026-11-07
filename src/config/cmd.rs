@@ -186,6 +186,7 @@ pub enum Act {
     /// Pack the selection into one archive; the name typed at the prompt
     /// decides the format.
     Compress,
+    Convert(Option<crate::fs::imgcodec::ImageFormat>),
 
     Hidden(Tri),
     Linemode(crate::fs::entry::Linemode),
@@ -523,6 +524,13 @@ pub fn parse(line: &str) -> Act {
         "hardlink" => Act::Hardlink,
         "extract" => Act::Extract,
         "compress" => Act::Compress,
+        "convert" => Act::Convert(match a.first() {
+            Some("jpeg" | "jpg") => Some(crate::fs::imgcodec::ImageFormat::Jpeg),
+            Some("png") => Some(crate::fs::imgcodec::ImageFormat::Png),
+            Some("webp") => Some(crate::fs::imgcodec::ImageFormat::WebP),
+            None => None,
+            _ => return Act::Unsupported(line.to_owned()),
+        }),
         "send_pane" => Act::SendPane { cut: a.has("cut") },
         "remove" => Act::Remove { permanently: a.has("permanently"), force: a.has("force"), hovered: a.has("hovered") },
         "create" => Act::Create { dir: a.has("dir"), force: a.has("force") },

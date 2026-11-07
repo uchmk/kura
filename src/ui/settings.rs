@@ -395,6 +395,7 @@ pub fn page_name(page: usize) -> &'static str {
 /// What the config.toml page shows: the settings in force, read before the
 /// screen takes the overlay.
 struct KuraNow {
+    convert: crate::config::ConvertCfg,
     font_size: String,
     row_padding: String,
     icons: String,
@@ -422,6 +423,7 @@ impl KuraNow {
     fn of(app: &App) -> Self {
         let u = &app.cfg.ui;
         Self {
+            convert: app.cfg.convert.clone(),
             font_size: u.font_size.to_string(),
             row_padding: u.row_padding.to_string(),
             icons: u.icons.trim().to_ascii_lowercase(),
@@ -519,7 +521,11 @@ fn backends() -> Vec<(&'static str, &'static str)> {
 
 /// The keys of the config.toml page's rows, `table.key`, for the search to
 /// find them by in any language (#388).
-const KURA_KEYS: [&str; 14] = [
+const KURA_KEYS: [&str; 18] = [
+    "convert.jpeg_quality",
+    "convert.png_compression",
+    "convert.alpha_background",
+    "convert.delete_original",
     "ui.font_size",
     "ui.row_padding",
     "ui.icons",
@@ -572,6 +578,46 @@ fn kura_page(
         if keyed_row(ui, l, "ui.minimap", k.minimap, k.minimap_note, |ui| switch(ui, l, now.minimap)) {
             out.push(set("minimap", (!now.minimap).to_string()));
         }
+    });
+    let tr = |key: &str| crate::i18n::tr(lang, &format!("convert.{key}"));
+    let change = |key: &'static str, value: String| KuraChange { table: "convert", key: key.into(), value: Some(value) };
+    section(ui, l, &tr("title"), |ui| {
+        if let Some(text) = keyed_row(ui, l, "convert.jpeg_quality", &tr("quality"), "1–100", |ui| {
+            field(ui, drafts, "convert.jpeg_quality", &now.convert.jpeg_quality.to_string(), "", 110.0)
+        }) {
+            match text.trim().parse::<i64>() {
+                Ok(n) => out.push(change("jpeg_quality", n.clamp(1, 100).to_string())),
+                Err(_) => *bad = Some((k.not_a_number)(&tr("quality"), &text, 1.0, 100.0)),
+            }
+        }
+        sep(ui, l);
+        let current = match now.convert.png_compression {
+            crate::fs::imgcodec::PngLevel::Fast => "fast",
+            crate::fs::imgcodec::PngLevel::Default => "default",
+            crate::fs::imgcodec::PngLevel::Best => "best",
+        };
+        let list = [("fast", "fast"), ("default", "default"), ("best", "best")];
+        if let Some(value) = keyed_row(ui, l, "convert.png_compression", &tr("compression"), "PNG", |ui| {
+            select(ui, "convert.png_compression", current, &list)
+        }) {
+            out.push(change("png_compression", format!("\"{value}\"")));
+        }
+        sep(ui, l);
+        if let Some(text) = keyed_row(ui, l, "convert.alpha_background", &tr("background"), &tr("background_note"), |ui| {
+            field(ui, drafts, "convert.alpha_background", &now.convert.alpha_background, "#ffffff", 110.0)
+        }) {
+            if text.len() == 7 && text.starts_with('#') && text[1..].bytes().all(|b| b.is_ascii_hexdigit()) {
+                out.push(change("alpha_background", toml::Value::String(text).to_string()));
+            } else {
+                *bad = Some(tr("invalid_background"));
+            }
+        }
+        sep(ui, l);
+        if keyed_row(ui, l, "convert.delete_original", &tr("delete"), &tr("delete_note"), |ui| switch(ui, l, now.convert.delete_original)) {
+            out.push(change("delete_original", (!now.convert.delete_original).to_string()));
+        }
+        sep(ui, l);
+        row(ui, l, "WebP", &tr("lossless"), |_ui| {});
     });
     section(ui, l, k.preview, |ui| {
         if keyed_row(ui, l, "ui.render_markdown", k.render_markdown, k.render_markdown_note, |ui| switch(ui, l, now.render_markdown)) {
@@ -856,6 +902,12 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::mono_font_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
+    let convert_words: Vec<String> =
+        ["title", "quality", "compression", "background", "background_note", "delete", "delete_note", "lossless"]
+            .into_iter()
+            .map(|key| crate::i18n::tr(&lang, &format!("convert.{key}")))
+            .collect();
+    index.extend(convert_words.iter().map(|text| (KURA, text.as_str())));
     index.extend(KURA_KEYS.map(|key| (KURA, key)));
     let sw = ito_prefs::ShellWords::of(&lang);
     index.extend(ito_prefs::shell_index(sw).into_iter().map(|t| (KURA, t)));

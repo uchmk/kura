@@ -295,13 +295,27 @@ by either first loads missing rows without blocking input. Image dimensions read
 for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM and QOI; SVG is excluded.
 Author, title and audio duration require parser crates and are not provided.
 
+Press `ci` to convert selected images to JPEG, PNG, or lossless WebP (also in the
+command palette and right-click menu). `convert jpeg`, `convert png`, and `convert webp`
+choose the format directly. A selection is processed sequentially as one background job;
+non-images and images already in that format are skipped, and a failed image does not
+stop the rest. Output goes beside each original with the new extension; existing names
+use the normal conflict dialog. Originals remain unless `[convert].delete_original` is
+on. The toast and task row show total input/output sizes, signed percentage change, and
+the skipped count; individual failures remain in the task's errors.
+
+EXIF orientation is baked into the pixels. Metadata and ICC profiles are not copied;
+wide-gamut images may change colour. Animated images use only their first frame. WebP
+is always lossless and has no quality setting. PNG retains 16-bit channels; JPEG and WebP
+use 8-bit channels. Decoding is limited to 80 million pixels, as in the image preview.
+
 Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `back`, `forward`,
 `cd`, `reveal`, `follow`, `refresh`, `seek`/`peek`, `tab_create`, `tab_close`, `tab_switch`,
 `tab_swap`, `toggle`, `toggle_all`, `visual_mode`, `open`, `yank`, `unyank`, `paste`, `link`,
 `hardlink`, `remove`, `create`, `rename`, `copy`, `shell`, `hidden`, `linemode`, `sort`, `find`,
 `find_arrow`, `filter`, `search`, `help`, `tasks_show`, `spot`, `noop`, plus `undo`, `redo`, `jump`,
 `bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `config_reload`, `palette`,
-`menu`, `extract`, `compress`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`; in rendered Markdown it is the source line), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
+`menu`, `extract`, `compress`, `convert [webp|png|jpeg]`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`; in rendered Markdown it is the source line), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
 `split`, `pane_focus`, `toggle_render`, `toggle_outline`, `usage`, `settings` and `bug-report` (the last
 three this project's own). `select` and `select_all` are accepted as `toggle --state=on` /
 `toggle_all --state=on`. In the `[input]` section: `close --submit` (and the `*_do` spellings),
@@ -372,6 +386,12 @@ check_updates = true       # ask GitHub once at start whether a newer kura is ou
 
 [mcp]
 enable = true              # false: `kura mcp` cannot reach this window; read at start
+
+[convert]
+jpeg_quality = 85          # clamped to 1–100
+png_compression = "default" # "fast", "default", or "best"
+alpha_background = "#ffffff" # JPEG transparency background (#RRGGBB)
+delete_original = false   # true: trash the original only after saving the output
 
 [notify]                   # how a long job's end is told while the window is behind (v0.110.0)
 system = ["done", "failed"]          # the system's own notification, with kura's icon
@@ -1248,6 +1268,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `<A-d>` | compare two files side by side |
 | `<F3>` | quick look: the hovered file, big, over the panes |
 | `T` | maximize the preview column, or put it back. In it: `/` finds (`n` / `N` step, round the ends), `:` or `<C-g>` goes to a line |
+| `ci` | Convert selected images (JPEG / PNG / lossless WebP) |
 | `e` `E` | extract the selected archives / compress the selection |
 | `<A-c>` `<A-m>` | copy / move the selection to the other pane |
 | `g…` | `gh` home, `gd` Downloads, `gD` Documents, `gc` kura's config, `gy` yazi's config, `gt` temp, `g<Space>` type a path, `gf` follow the link |

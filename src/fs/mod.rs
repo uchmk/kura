@@ -2,6 +2,7 @@ pub mod archive;
 pub mod details;
 pub mod entry;
 pub mod git;
+pub mod imgcodec;
 pub mod ops;
 pub mod restore;
 pub mod scan;

@@ -95,6 +95,9 @@
 "Copy the selection to the other pane" = "選んだものを隣のペインへコピー"
 "Move the selection to the other pane" = "選んだものを隣のペインへ移動"
 "Extract the selected archives" = "選んだ書庫を展開"
+"Convert selected images" = "選んだ画像を変換"
+"Convert images" = "画像を変換"
+"WebP (lossless)" = "WebP（ロスレス）"
 "Compress the selection into an archive" = "選んだものを書庫に圧縮"
 "Move the files to the recycle bin" = "ごみ箱へ移す"
 "Permanently delete the files" = "完全に削除"
@@ -257,6 +260,7 @@
 "Open the pull request or branch on its rows; enter the directory elsewhere" = "プルリクエストかブランチを開く（ほかの行ではフォルダに入る）"
 
 [toast]
+convert_done = "{0} 件変換: {1} → {2}（{3}）、{4} 件スキップ"
 bookmark_already = "すでに `{0}` にブックマーク済み"
 bookmark_moved = "ブックマークを `{0}` から `{1}` へ移動"
 bookmark_saved = "ブックマーク `{0}` を保存"
@@ -285,3 +289,15 @@ ext_file = "{0} ファイル"
 markdown = "Markdown ファイル"
 png = "PNG 画像"
 jpeg = "JPEG 画像"
+
+[convert]
+title = "画像を変換"
+quality = "JPEG 品質"
+compression = "PNG 圧縮"
+background = "透過部分の背景色"
+background_note = "JPEG の透過部分をこの色に合成（#RRGGBB）。"
+invalid_background = "背景色は #RRGGBB で指定してください"
+delete = "元ファイルを削除"
+delete_note = "出力の保存後、元ファイルをゴミ箱へ移す。"
+lossless = "常にロスレス（品質設定なし）"
+webp = "WebP（ロスレス）"

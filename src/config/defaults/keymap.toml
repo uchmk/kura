@@ -369,6 +369,10 @@ on = "e"
 run = "extract"
 desc = "Extract the selected archives"
 [[mgr.keymap]]
+on = ["c", "i"]
+run = "convert"
+desc = "Convert selected images"
+[[mgr.keymap]]
 on = "E"
 run = "compress"
 desc = "Compress the selection into an archive"

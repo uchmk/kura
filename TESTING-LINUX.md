@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 771 件（TESTING.md の全 966 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 779 件（TESTING.md の全 974 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1091,3 +1091,14 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **69.10** （v0.148.0）窓を広げる → 画像の大きさ・所有者・権限・拡張子が出る。`.png` / `.jpg` は少し待つと `1920 × 1080` のように出て、SVG やテキストは空。所有者はアカウント名（Windows は `DOMAIN\user`、Linux / macOS はユーザー名） — *(v0.148.0) Widen the window → Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: `DOMAIN\user`; Linux/macOS: the user name)*
 - [ ] **69.11** （v0.148.0）詳細ビューで `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` → 種類・権限・測った使用量・所有者・画像のピクセル数・アクセス日時の順に並び替わる。値のない行は昇順でも降順でも最後。見出しの並べた列に ▲ か ▼。何千ファイルのフォルダーでも UI が固まらない — *(v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view → The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files*
 - [ ] **69.12** （v0.148.0）`m o` → 各行の右の値が所有者になる — *(v0.148.0) `m o` → The right-hand value of every row is the owner*
+
+## 70. Convert images, `c i` (v0.149.0)
+
+- [ ] **70.1** 透明部分のある画像を含む `.png` と `.jpg` を何枚か選んで `c i` → `JPEG` を選ぶ → ジョブが走り、元のファイルの横に `.jpg` ができる（元が `.jpg` のものは飛ばす）。トーストは `N 件変換: A → B (−x%)` と飛ばした件数。元のファイルは残る — *Select a few `.png` and `.jpg` files (one with transparency), press `c i`, pick `JPEG` → A job runs; `.jpg` files appear beside the originals (the `.jpg` sources are skipped); the toast reads `N converted: A → B (−x%)` with the skipped count; the originals stay*
+- [ ] **70.2** 70.1 を `PNG` と `WebP (lossless)` でも行い、結果を別のビューアーで開く → 開けて、同じ大きさに見える。透明な PNG は JPEG で `alpha_background` の色になる — *Repeat 70.1 with `PNG` and `WebP (lossless)`, then open the results in another viewer → They open and look the same size; the transparent PNG shows the `alpha_background` colour in the JPEG*
+- [ ] **70.3** 出力の名前がすでにあるところでもう一度変換する → いつもの衝突ダイアログ（上書き・スキップ・名前を変える・中止）が出る。中止しても古い出力は無事で、`.kura-convert-*.tmp` がフォルダーに残らない — *Convert again so the output name already exists → The usual conflict dialog (overwrite / skip / rename / cancel) appears; cancelling leaves the old output intact and no `.kura-convert-*.tmp` is left in the folder*
+- [ ] **70.4** テキストファイルと画像を選んで `c i` → `JPEG` → テキストは飛ばして数え、画像は変換される。読めないファイル（別のところで排他的に開く）はタスク一覧にエラーとして出て、残りは変換される — *Select a text file and an image, `c i`, `JPEG` → The text file is skipped and counted; the image converts; a file you cannot read (open it exclusively elsewhere) is listed as an error in the task list and the rest still convert*
+- [ ] **70.5** 数千万画素の大きな写真と、画像の多いフォルダーを変換する → UI は固まらず、タスク一覧に進み具合が出る。`x` でファイルの切れ目で止まる — *Convert a very large photo (tens of megapixels) and a folder of many images → The UI stays responsive; the task list shows progress; `x` cancels between files*
+- [ ] **70.6** 設定（`<C-,>`）の Convert で JPEG の品質・PNG の圧縮・背景色・「元をゴミ箱へ」を変える → 値が `config.toml` の `[convert]` に保存される。不正な色は断られる。ゴミ箱をオンにすると、出力を書き終えたあとにだけ元がゴミ箱へ行く — *Settings (`<C-,>`) → Convert: change JPEG quality, PNG compression, background colour, "move originals to the trash" → Values save to `config.toml` `[convert]`; a bad colour is refused; with the trash option on, the original goes to the trash only after its output is written*
+- [ ] **70.7** 日本語のファイル名、ネットワークドライブ、読み取り専用のフォルダーで試す → 名前はそのまま。読み取り専用のフォルダーはクラッシュせずエラーの行になる — *Use a Japanese file name, a network drive and a read-only folder → Names are kept; the read-only folder gives an error row, not a crash*
+- [ ] **70.8** アーカイブの中で `c i` を押す。画像を右クリックする → アーカイブの中では断られる。右クリックのメニューに Convert が並ぶ — *Inside an archive, press `c i`; also right-click an image → Inside an archive it is refused; the right-click menu lists Convert*

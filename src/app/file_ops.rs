@@ -198,6 +198,27 @@ impl App {
         self.tabs[self.active].clear_selection();
     }
 
+    /// Convert the selection, or offer the three output formats.
+    pub(super) fn convert_images(&mut self, format: Option<crate::fs::imgcodec::ImageFormat>) {
+        use crate::fs::imgcodec::ImageFormat;
+        let Some(format) = format else {
+            self.open_pick(
+                crate::i18n::tr(&self.lang, "convert.title"),
+                vec!["JPEG".into(), "PNG".into(), crate::i18n::tr(&self.lang, "convert.webp")],
+                vec!["".into(), "".into(), "".into()],
+                [ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::WebP].into_iter().map(|f| vec![Act::Convert(Some(f))]).collect(),
+            );
+            return;
+        };
+        let paths = self.tabs[self.active].targets();
+        if paths.is_empty() {
+            return;
+        }
+        let cwd = self.tabs[self.active].cwd.clone();
+        self.submit_op(OpKind::Convert { format, opts: self.cfg.convert.opts() }, paths, cwd, false);
+        self.tabs[self.active].clear_selection();
+    }
+
     /// Ask what the archive should be called. The extension picks the format,
     /// so one prompt covers zip, tar and tar.gz without a second menu.
     pub(super) fn ask_compress(&mut self) {
@@ -334,6 +355,25 @@ impl App {
 
     pub(super) fn on_op_event(&mut self, ev: ops::OpEvent) {
         match ev {
+            ops::OpEvent::Converted { id, sizes, skipped } => {
+                let before: u64 = sizes.iter().map(|p| p.0).sum();
+                let after: u64 = sizes.iter().map(|p| p.1).sum();
+                let text = crate::i18n::trf(
+                    &self.lang,
+                    "toast.convert_done",
+                    &[
+                        &sizes.len().to_string(),
+                        &util::human_size(before),
+                        &util::human_size(after),
+                        &crate::fs::imgcodec::percent_change(before, after),
+                        &skipped.to_string(),
+                    ],
+                );
+                if let Some(t) = self.tasks.iter_mut().find(|t| t.id == id) {
+                    t.label = text.clone();
+                }
+                self.toast(text);
+            }
             ops::OpEvent::Started { id, files, bytes } => {
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == id) {
                     t.files = files;

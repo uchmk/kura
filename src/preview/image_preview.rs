@@ -1,32 +1,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use image::{DynamicImage, ImageDecoder, RgbaImage};
+use image::{DynamicImage, RgbaImage};
 
 use super::Payload;
 
-/// Refuse to decode anything that would balloon in memory; a 100 MP image is
-/// 400 MB of RGBA.
-const MAX_PIXELS: u64 = 80_000_000;
-
 pub fn render(path: &Path, box_size: (u32, u32)) -> Result<Payload, String> {
-    let mut decoder = image::ImageReader::open(path)
-        .map_err(|e| e.to_string())?
-        .with_guessed_format()
-        .map_err(|e| e.to_string())?
-        .into_decoder()
-        .map_err(|e| e.to_string())?;
-
-    let (sw, sh) = decoder.dimensions();
-    if u64::from(sw) * u64::from(sh) > MAX_PIXELS {
-        return Err(format!("image too large to preview ({sw}x{sh})"));
-    }
-    // Phone photos are stored sideways and tagged; show them the way they were taken.
-    let orientation = decoder.orientation().map_err(|e| e.to_string())?;
-    let mut img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
-    img.apply_orientation(orientation);
-
-    let (cw, ch) = shown_size(sw, sh, orientation);
+    let img = crate::fs::imgcodec::decode(path)?;
+    let (cw, ch) = (img.width(), img.height());
     let (width, height, rgba) = finish(fit(img, box_size).to_rgba8());
     Ok(Payload::Image { width, height, source: (cw, ch), own: 1.0, vector: false, rgba, caption: format!("{cw} × {ch}") })
 }
@@ -60,15 +41,6 @@ pub fn finish(mut img: RgbaImage) -> (u32, u32, Arc<Vec<u8>>) {
         }
     }
     (img.width(), img.height(), Arc::new(img.into_raw()))
-}
-
-/// Source dimensions as displayed, after any quarter turn.
-fn shown_size(w: u32, h: u32, o: image::metadata::Orientation) -> (u32, u32) {
-    use image::metadata::Orientation::*;
-    match o {
-        Rotate90 | Rotate270 | Rotate90FlipH | Rotate270FlipH => (h, w),
-        _ => (w, h),
-    }
 }
 
 #[cfg(test)]

@@ -5417,3 +5417,49 @@ mod details_view_tests {
         assert!(!s.app.in_usage_view());
     }
 }
+
+#[cfg(test)]
+mod convert_tests {
+    use super::harness::Screen;
+
+    #[test]
+    fn convert_key_opens_picker_and_job_reports_output_sizes() {
+        let dir = crate::util::test_dir("convert-ui");
+        let source = dir.join("alpha.png");
+        image::RgbaImage::from_pixel(20, 10, image::Rgba([100, 50, 20, 128])).save(&source).unwrap();
+        let mut s = Screen::without_state(dir.clone());
+        s.app.lang = "en".into();
+        let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(source.clone()).unwrap()]);
+        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
+        s.draw();
+        s.typed("c");
+        let frame = s.typed("i");
+        assert!(frame.says("Convert images"), "{:?}", frame.texts);
+        assert!(frame.says("WebP (lossless)"));
+        assert!(s.app.tasks.is_empty());
+        s.draw();
+        s.feed(vec![egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        assert_eq!(s.app.tasks.len(), 1);
+        for _ in 0..1000 {
+            s.turn();
+            if s.app.tasks[0].finished.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(s.app.tasks[0].finished.is_some());
+        assert!(s.app.tasks[0].errors.is_empty(), "{:?}", s.app.tasks[0].errors);
+        assert!(dir.join("alpha.jpg").exists());
+        assert!(source.exists());
+        assert!(s.app.tasks[0].label.contains("1 image(s) converted:") && s.app.tasks[0].label.contains('→'));
+        let frame = s.draw();
+        assert!(frame.says("1 image(s) converted:"), "{:?}", frame.texts);
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 2);
+    }
+}

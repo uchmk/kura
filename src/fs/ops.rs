@@ -35,6 +35,10 @@ pub enum OpKind {
     TakeOut,
     /// Pack the sources into the one archive `dest_file` names.
     Compress(archive::Format),
+    Convert {
+        format: super::imgcodec::ImageFormat,
+        opts: super::imgcodec::EncodeOpts,
+    },
 }
 
 impl OpKind {
@@ -50,6 +54,7 @@ impl OpKind {
             Self::Extract => "Extract",
             Self::TakeOut => "Take out",
             Self::Compress(_) => "Compress",
+            Self::Convert { .. } => "Convert",
         }
     }
 }
@@ -68,6 +73,11 @@ pub struct OpRequest {
 
 #[derive(Debug)]
 pub enum OpEvent {
+    Converted {
+        id: u64,
+        sizes: Vec<(u64, u64)>,
+        skipped: usize,
+    },
     Started {
         id: u64,
         files: u64,
@@ -306,12 +316,16 @@ impl Ctx<'_> {
             // Extract counts each archive as one unit: what is inside is only
             // known by reading it, and reading it twice to fill a progress bar
             // is not worth it. The name of each entry still goes past.
+            OpKind::Convert { .. } => {
+                (req.srcs.len() as u64, req.srcs.iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum())
+            }
             OpKind::Copy | OpKind::Move | OpKind::Compress(_) | OpKind::Extract => measure(&req.srcs),
         };
         let _ = self.ev.send(OpEvent::Started { id: self.id, files, bytes });
         (self.wake)();
 
         match req.kind {
+            OpKind::Convert { format, opts } => self.convert(req, format, opts),
             // One call for the whole selection, because the shell batches it
             // and that is what puts a single step in the Recycle Bin's own
             // undo. The catch is the reporting: a batch that goes wrong comes
@@ -542,6 +556,94 @@ impl Ctx<'_> {
             self.report(&src.to_string_lossy());
         }
         let _ = std::fs::remove_dir_all(&staging);
+    }
+
+    /// Process images individually so one failure does not stop the selection.
+    fn convert(&mut self, req: &OpRequest, format: super::imgcodec::ImageFormat, opts: super::imgcodec::EncodeOpts) {
+        use super::imgcodec;
+        let mut sizes = Vec::new();
+        let mut skipped = 0;
+        for src in &req.srcs {
+            self.pump();
+            if self.cancelled {
+                break;
+            }
+            self.report_entry(&src.to_string_lossy());
+            let source_bytes = std::fs::metadata(src).map(|m| m.len()).unwrap_or(0);
+            let source_format = match imgcodec::source_format(src) {
+                Ok(Some(f)) => f,
+                Ok(None) => {
+                    skipped += 1;
+                    self.files_done += 1;
+                    self.bytes_done += source_bytes;
+                    continue;
+                }
+                Err(e) => {
+                    self.errors.push(format!("{}: {e}", short(src)));
+                    self.files_done += 1;
+                    self.bytes_done += source_bytes;
+                    continue;
+                }
+            };
+            if format.matches(source_format) {
+                skipped += 1;
+                self.files_done += 1;
+                self.bytes_done += source_bytes;
+                continue;
+            }
+            let mut dest = src.with_extension(format.extension());
+            let resolved = loop {
+                let Some(next) = self.resolve_dest(src, dest.clone()) else { break None };
+                if next == dest || !exists(&next) {
+                    break Some(next);
+                }
+                dest = next;
+            };
+            let Some(dest) = resolved else {
+                skipped += 1;
+                self.files_done += 1;
+                self.bytes_done += source_bytes;
+                continue;
+            };
+            if req.srcs.iter().any(|p| {
+                same_path(p, &dest) || matches!((std::fs::canonicalize(p), std::fs::canonicalize(&dest)), (Ok(a), Ok(b)) if a == b)
+            }) {
+                self.errors.push(format!("{}: output is a source file", short(src)));
+                self.files_done += 1;
+                self.bytes_done += source_bytes;
+                continue;
+            }
+            let result = (|| {
+                let before = std::fs::metadata(src).map_err(|e| e.to_string())?.len();
+                let img = imgcodec::decode(src)?;
+                let after = imgcodec::write_image(&img, format, &opts, &dest, || {
+                    self.pump();
+                    self.cancelled
+                })?;
+                if let Some(after) = after {
+                    sizes.push((before, after));
+                    self.made.push(dest.clone());
+                    if opts.delete_original {
+                        trash::delete(src).map_err(|e| e.to_string())?;
+                    }
+                }
+                Ok::<_, String>(())
+            })();
+            if let Err(e) = result {
+                self.errors.push(format!("{}: {e}", short(src)));
+            }
+            self.files_done += 1;
+            self.bytes_done += source_bytes;
+            self.report_entry(&src.to_string_lossy());
+        }
+        let _ = self.ev.send(OpEvent::Progress {
+            id: self.id,
+            files_done: self.files_done,
+            bytes_done: self.bytes_done,
+            current: String::new(),
+        });
+        let _ = self.ev.send(OpEvent::Converted { id: self.id, sizes, skipped });
+        (self.wake)();
     }
 
     /// One archive from everything selected, named relative to the directory
@@ -1174,5 +1276,126 @@ mod trash_message {
         assert!(said.ends_with("Use D to delete permanently"), "{said}");
         let other = trash::Error::Unknown { description: "Some operations were aborted".into() };
         assert_eq!(trash_error(&other), other.to_string());
+    }
+}
+
+#[cfg(test)]
+mod convert_tests {
+    use super::super::imgcodec::{EncodeOpts, ImageFormat};
+    use super::*;
+
+    fn png(path: &Path) {
+        image::RgbaImage::from_pixel(16, 12, image::Rgba([100, 50, 25, 128])).save(path).unwrap();
+    }
+
+    fn run(srcs: Vec<PathBuf>, format: ImageFormat, resolution: Resolution) -> (Vec<String>, Vec<(u64, u64)>, usize, bool) {
+        let runner = Runner::new(|| {});
+        runner.submit(OpRequest {
+            id: 1,
+            kind: OpKind::Convert { format, opts: EncodeOpts::default() },
+            dest_dir: srcs[0].parent().unwrap().to_path_buf(),
+            srcs,
+            dest_file: None,
+            force: false,
+        });
+        let mut sizes = Vec::new();
+        let mut skipped = 0;
+        loop {
+            match runner.rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap() {
+                OpEvent::Conflict { reply, .. } => reply.send(resolution.clone()).unwrap(),
+                OpEvent::Converted { sizes: got, skipped: count, .. } => {
+                    sizes = got;
+                    skipped = count;
+                }
+                OpEvent::Finished { errors, cancelled, .. } => return (errors, sizes, skipped, cancelled),
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn convert_skips_same_format_and_non_images_and_continues_after_errors() {
+        let dir = crate::util::test_dir("convert-batch");
+        let source = dir.join("image.png");
+        png(&source);
+        let text = dir.join("text.txt");
+        std::fs::write(&text, b"not an image").unwrap();
+        let (errors, sizes, skipped, _) = run(vec![source.clone(), text.clone()], ImageFormat::Png, Resolution::Skip);
+        assert!(errors.is_empty() && sizes.is_empty());
+        assert_eq!(skipped, 2);
+        let bad = dir.join("broken.png");
+        std::fs::write(&bad, b"\x89PNG\r\n\x1a\ninvalid").unwrap();
+        let (errors, sizes, skipped, _) = run(vec![bad, text, source.clone()], ImageFormat::WebP, Resolution::Skip);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("broken.png"));
+        assert_eq!(sizes.len(), 1);
+        assert_eq!(skipped, 1);
+        assert!(source.exists());
+        assert_eq!(image::open(dir.join("image.webp")).unwrap().width(), 16);
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn convert_conflicts_skip_overwrite_rename_and_cancel_without_temp_files() {
+        for (label, resolution, output, cancelled) in [
+            ("skip", Resolution::Skip, None, false),
+            ("overwrite", Resolution::Overwrite, Some("image.jpg"), false),
+            ("rename", Resolution::Rename("other.jpg".into()), Some("other.jpg"), false),
+            ("cancel", Resolution::Cancel, None, true),
+        ] {
+            let dir = crate::util::test_dir(&format!("convert-conflict-{label}"));
+            let source = dir.join("image.png");
+            png(&source);
+            let dest = dir.join("image.jpg");
+            std::fs::write(&dest, b"existing").unwrap();
+            let (errors, sizes, _, stopped) = run(vec![source.clone()], ImageFormat::Jpeg, resolution);
+            assert!(errors.is_empty(), "{errors:?}");
+            assert_eq!(stopped, cancelled);
+            assert_eq!(sizes.len(), usize::from(output.is_some()));
+            if let Some(output) = output {
+                assert!(image::open(dir.join(output)).is_ok());
+            }
+            if label != "overwrite" {
+                assert_eq!(std::fs::read(&dest).unwrap(), b"existing");
+            }
+            assert!(source.exists());
+            assert!(!std::fs::read_dir(dir).unwrap().any(|p| p.unwrap().file_name().to_string_lossy().starts_with(".kura-convert-")));
+        }
+    }
+
+    #[test]
+    fn convert_refuses_a_conflict_rename_over_the_source() {
+        let dir = crate::util::test_dir("convert-protect-source");
+        let source = dir.join("image.png");
+        png(&source);
+        let original = std::fs::read(&source).unwrap();
+        std::fs::write(dir.join("image.jpg"), b"existing").unwrap();
+        // Rename to the source, then explicitly approve that conflict. It still cannot be written.
+        let runner = Runner::new(|| {});
+        runner.submit(OpRequest {
+            id: 1,
+            kind: OpKind::Convert { format: ImageFormat::Jpeg, opts: EncodeOpts::default() },
+            srcs: vec![source.clone()],
+            dest_dir: dir.clone(),
+            dest_file: None,
+            force: false,
+        });
+        let mut conflicts = 0;
+        loop {
+            match runner.rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap() {
+                OpEvent::Conflict { reply, .. } => {
+                    conflicts += 1;
+                    reply.send(if conflicts == 1 { Resolution::Rename("image.png".into()) } else { Resolution::Overwrite }).unwrap();
+                }
+                OpEvent::Finished { errors, .. } => {
+                    assert_eq!(errors.len(), 1);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(conflicts, 2);
+        assert_eq!(std::fs::read(source).unwrap(), original);
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 2);
     }
 }

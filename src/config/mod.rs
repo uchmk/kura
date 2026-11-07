@@ -322,8 +322,41 @@ impl PreviewRule {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct ConvertCfg {
+    pub jpeg_quality: i64,
+    pub png_compression: crate::fs::imgcodec::PngLevel,
+    pub alpha_background: String,
+    pub delete_original: bool,
+}
+impl Default for ConvertCfg {
+    fn default() -> Self {
+        Self { jpeg_quality: 85, png_compression: Default::default(), alpha_background: "#ffffff".into(), delete_original: false }
+    }
+}
+impl ConvertCfg {
+    pub fn opts(&self) -> crate::fs::imgcodec::EncodeOpts {
+        let mut alpha_bg = [255; 3];
+        if let Some(hex) = self.alpha_background.strip_prefix('#').filter(|h| h.len() == 6 && h.is_ascii()) {
+            let parsed: Option<Vec<u8>> = (0..3).map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()).collect();
+            if let Some(p) = parsed {
+                alpha_bg.copy_from_slice(&p);
+            }
+        }
+        crate::fs::imgcodec::EncodeOpts {
+            jpeg_quality: self.jpeg_quality.clamp(1, 100) as u8,
+            png_level: self.png_compression,
+            alpha_bg,
+            delete_original: self.delete_original,
+        }
+    }
+}
+
 #[derive(Deserialize, Debug, Default)]
 struct KuraToml {
+    #[serde(default)]
+    convert: ConvertCfg,
     #[serde(default)]
     ui: Ui,
     #[serde(default)]
@@ -341,6 +374,7 @@ struct KuraToml {
 }
 
 pub struct Config {
+    pub convert: ConvertCfg,
     pub yazi: YaziToml,
     pub keymap: Keymap,
     /// What the terminal pane runs; empty `shell` means the platform default.
@@ -454,6 +488,7 @@ impl Config {
             cfg.theme = prev.theme.clone();
         }
         if broken.kura {
+            cfg.convert = take(&mut prev.convert);
             cfg.ui = take(&mut prev.ui);
             cfg.term = take(&mut prev.term);
             cfg.preview = take(&mut prev.preview);
@@ -476,6 +511,7 @@ impl Config {
         let mut yazi_cfg = YaziToml::default();
         let mut keymap_texts: Vec<(String, String)> = Vec::new();
         let mut themes: Vec<theme::ThemeToml> = Vec::new();
+        let mut convert = ConvertCfg::default();
         let mut ui = Ui::default();
         let mut term = TermCfg::default();
         let mut preview: Vec<PreviewRule> = Vec::new();
@@ -534,6 +570,8 @@ impl Config {
                         if let Err(e) = v.ui.backend_name() {
                             warnings.push(format!("{}: {e}", at(dir, OWN_FILE)));
                         }
+                        convert = v.convert;
+                        convert.jpeg_quality = convert.jpeg_quality.clamp(1, 100);
                         ui = v.ui;
                         term = v.term;
                         preview = v.preview;
@@ -574,7 +612,7 @@ impl Config {
         // Over the default common theme; the window lays them over the one
         // common.toml chooses ([`Theme::with_common`]).
         let theme = std::sync::Arc::new(Theme::layered(&theme::default_colors(), themes));
-        (Self { yazi: yazi_cfg, keymap, theme, ui, term, preview, mcp, notify, line_args, loaded, unread, warnings }, broken)
+        (Self { convert, yazi: yazi_cfg, keymap, theme, ui, term, preview, mcp, notify, line_args, loaded, unread, warnings }, broken)
     }
 
     /// `KURA_STATE_HOME`, else uchmk's state folder (`%LOCALAPPDATA%\uchmk\kura`
@@ -789,7 +827,7 @@ impl Misplaced {
         let Ok(table) = text.parse::<toml::Table>() else { return Self::default() };
 
         let foreign: &[&str] = match file {
-            ConfigFile::Yazi => &["ui", "term", "mcp", "notify", "line_args"],
+            ConfigFile::Yazi => &["ui", "term", "mcp", "notify", "convert", "line_args"],
             ConfigFile::Kura => &["mgr", "manager", "opener", "open", "tasks"],
         };
         let mut out = Self::default();
@@ -1398,5 +1436,29 @@ mod reload_tests {
         assert!(cfg.warnings.is_empty(), "{:?}", cfg.warnings);
         assert_eq!(mgr_run(&cfg, "q").as_deref(), Some("quit"));
         assert_eq!(mgr_run(&cfg, "<F9>").as_deref(), Some("config_reload"));
+    }
+}
+
+#[cfg(test)]
+mod convert_tests {
+    use super::*;
+    #[test]
+    fn conversion_settings_have_defaults_and_clamp_quality() {
+        let cfg: KuraToml = toml::from_str("").unwrap();
+        assert_eq!(cfg.convert.opts(), crate::fs::imgcodec::EncodeOpts::default());
+        for (value, expected) in [(-5, 1), (0, 1), (85, 85), (101, 100), (999, 100)] {
+            let cfg: KuraToml = toml::from_str(&format!(
+                "[convert]\njpeg_quality = {value}\nalpha_background = \"#1234ab\"\npng_compression = \"best\"\ndelete_original = true"
+            ))
+            .unwrap();
+            let opts = cfg.convert.opts();
+            assert_eq!(opts.jpeg_quality, expected);
+            assert_eq!(opts.alpha_bg, [0x12, 0x34, 0xab]);
+            assert_eq!(opts.png_level, crate::fs::imgcodec::PngLevel::Best);
+            assert!(opts.delete_original);
+        }
+        for invalid in ["bad", "#zzzzzz", "#あいう"] {
+            assert_eq!(ConvertCfg { alpha_background: invalid.into(), ..Default::default() }.opts().alpha_bg, [255; 3]);
+        }
     }
 }

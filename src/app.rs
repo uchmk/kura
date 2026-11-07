@@ -633,6 +633,7 @@ fn changes_files(a: &Act) -> bool {
             | Act::BulkRename
             | Act::Extract
             | Act::Compress
+            | Act::Convert(_)
             | Act::SendPane { .. }
     )
 }
