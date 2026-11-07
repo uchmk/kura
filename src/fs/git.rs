@@ -426,9 +426,12 @@ fn run(dir: &Path, args: &[&str]) -> Option<String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        // Without this the child flashes a console window on every listing.
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        // Without a console the child neither flashes a window nor starts a
+        // `conhost.exe` of its own (CREATE_NO_WINDOW hides the window but
+        // still spawns one conhost per `git.exe`). Its output goes to pipes,
+        // so it needs no console. The two flags cannot be combined.
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        cmd.creation_flags(DETACHED_PROCESS);
     }
     let out = cmd.output().ok()?;
     if !out.status.success() {

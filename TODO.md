@@ -606,7 +606,7 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
   ARM64 の `git.exe` で x64 と同じ（印は x64 のもの）。両方 703 / 0
 - [x] （v0.78.29。キーは keymap の `compress` から読む。21.6a）`e` をフォルダの上で押すと「ファイルが書庫ではない」と言う（#262 の提案 1）。`inner\ is a folder -- e unpacks an archive …; to pack it, press E` にする
 - [x] （v0.78.51。`preview lines: N`、切られたときは `N+`）状態ファイルにプレビューの行数を出す（#262 の提案 2: `preview top: 0 of 14` は最後の先頭位置で、30 行のファイルの行数が読めない）
-- [ ] `git` などの出力を読むだけの子プロセスを `DETACHED_PROCESS` で起こす（#263 の提案 1。`CREATE_NO_WINDOW` は窓を隠すだけで、`git.exe` ごとに `conhost.exe` が 1 つ立つ。
+- [ ] （v0.150.1 で `src/fs/git.rs` の `git.exe` 直起こしは `DETACHED_PROCESS` にした。残りは `cmd` 経由の外部プレビューなど。46.11a を実機で）`git` などの出力を読むだけの子プロセスを `DETACHED_PROCESS` で起こす（#263 の提案 1。`CREATE_NO_WINDOW` は窓を隠すだけで、`git.exe` ごとに `conhost.exe` が 1 つ立つ。
   spot を 6 回開いて `conhost` が 21 個）。`src/fs/git.rs`、`exec.rs`、`fs/ops.rs`、`preview/external.rs` の 4 か所。`cmd /S /C` の外部プレビューはコンソールが要らないかを確かめる【実機】（`cmd` を `DETACHED_PROCESS` で起こすと、その子の console アプリが新しい窓を作って
   ちらつくおそれがある。`git.exe` 直起こしだけなら足せるが、Linux では測れず、`conhost` の数と窓のちらつきは Windows でしか見えない）
 - [x] （v0.78.184。子の 2 つで済んでいる。残る `rev-parse` と `merge-base` の 2 回ずつは引数が別の問い）spot の Git の節の `git` 呼び出しを減らす（#263 の提案 2: 1 回で 8 回。`rev-parse` と `merge-base` が 2 回ずつ、`remote.origin.url` は毎回）。リポジトリの根ごとに、
