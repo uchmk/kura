@@ -1742,6 +1742,7 @@ one run. The name is letters, digits, `-` and `_`. `<Shot:name@preview>` saves o
 `<State:name>` writes what the `KURA_KEYS_DONE` file would say at that point to `name.txt` in the
 same folder (v0.73.74). That file is written when the script ends, so a script ending in `q` reports
 `overlay: none`; `--keys "<F12><State:panel><Esc>q"` reads the open box and still quits by itself.
+The file ends with a `settled: yes` or `settled: no` line: whether what the last key started had landed.
 
 `<PaneText:name>` writes what the terminal pane shows, as text with the blanks at the end of each row
 cut, to `name.pane.txt` beside the `KURA_KEYS_DONE` file (v0.78.63), so a full-screen program's footer
@@ -1854,6 +1855,20 @@ ends `keys: quit` and `left: N not pressed`. A script refused before the window 
 space, a key that cannot be typed) writes `keys: refused` and `why: …`, the same reason the command
 line gets -- which a run started detached never sees. A window closed from outside (the title bar's ×) while the
 script runs writes `quit: window closed` before `keys: done`, or `keys: closed` and `left: N not pressed` (v0.78.161).
+
+A run that did not do what the script said does not end `keys: done`, and exits with code 3:
+
+- `keys: failed`, with `step:`, `why:` and `left: N not pressed`. A step kura's `--keys` does not carry out yet
+  (`<Assert:>`, `<Click:text>`, `<Clipboard:>`, `<Is:>`, `<Tree:>` and the like) is refused before the window opens,
+  the same way, with `step i of n` in `why:`. While the script runs, a `<State:>`, `<PaneText:>` or `<PreviewText:>`
+  file or a `<Shot:>` picture that cannot be written, or a picture that does not arrive in 5 seconds, ends it so
+  (the window closes). The `why:` names the path. The same lines go to standard error.
+- `keys: unsettled`, after lines naming the steps that went in after 5 seconds with the screen still not settled,
+  and whether the script ended that way. The keys all went in, but not on the state the script assumed.
+  Without `<Quit>` the window stays open as before, and kura exits 3 when it is closed.
+
+Without `KURA_KEYS_DONE` the exit code is the only report. A `keys: quit` or `keys: closed` run exits 3 too if a step
+before it went in unsettled.
 
 ## Platform Support (Roadmap)
 

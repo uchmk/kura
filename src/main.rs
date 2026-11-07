@@ -17,6 +17,7 @@ mod notify;
 mod preview;
 mod rename;
 mod runinfo;
+mod script_run;
 use runinfo::KuraRun as _;
 mod search;
 mod shellhook;
@@ -112,7 +113,17 @@ fn parse_cli() -> Cli {
                 match keyscript::parse(&script) {
                     Ok(keys) => match keys.iter().find(|k| keyscript::press(k).is_none()) {
                         Some(k) => refuse_keys(&format!("{k:?} cannot be typed")),
-                        None => cli.keys = keys,
+                        None => {
+                            // A step kura does not carry out would be skipped, and the run
+                            // would still read as a success: refuse it here, as failed.
+                            let n = keys.len();
+                            for (i, k) in keys.iter().enumerate() {
+                                if keyscript::press(k).as_ref().is_some_and(|p| script_run::unsupported(p).is_some()) {
+                                    script_run::refuse_unsupported(&keyscript::label(k), i + 1, n);
+                                }
+                            }
+                            cli.keys = keys;
+                        }
                     },
                     Err(why) => refuse_keys(&why),
                 }
@@ -307,7 +318,11 @@ fn main() -> eframe::Result<()> {
     let wgpu_options = wgpu_options(&mut cfg);
     let options = eframe::NativeOptions { viewport, wgpu_options, ..Default::default() };
 
-    eframe::run_native(
+    // Set by the `--keys` player (and its watchdog) when the run did not succeed;
+    // read once the window is gone, to turn into the exit code.
+    let keys_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let keys_failed_in = keys_failed.clone();
+    let result = eframe::run_native(
         "Kura",
         options,
         Box::new(move |cc| {
@@ -380,18 +395,12 @@ fn main() -> eframe::Result<()> {
             if let Some(done) = &script_done {
                 keyscript::install_panic_report(done.clone());
             }
-            let script: std::collections::VecDeque<_> = cli.keys.iter().filter_map(keyscript::press).collect();
-            let script_watch = script_done.as_ref().map(|done| {
-                let watch = Arc::new(Mutex::new(ScriptWatch {
-                    left: script.len(),
-                    at: std::time::Instant::now(),
-                    due: Duration::ZERO,
-                    finished: false,
-                }));
-                let labels = cli.keys.iter().filter(|s| keyscript::press(s).is_some()).map(keyscript::label).collect();
-                watch_script(watch.clone(), labels, done.clone(), cc.egui_ctx.clone());
-                watch
-            });
+            let shot_dir = std::env::var_os("KURA_KEYS_DONE")
+                .and_then(|p| PathBuf::from(p).parent().map(std::path::Path::to_path_buf))
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let mut script = script_run::ScriptRun::new(&cli.keys, script_done, shot_dir, keys_failed_in);
+            script.start_watch(&cc.egui_ctx);
             Ok(Box::new(Kura {
                 app: a,
                 title: String::new(),
@@ -402,20 +411,16 @@ fn main() -> eframe::Result<()> {
                 on_top: prefs.always_on_top,
                 update,
                 script,
-                script_at: (0, std::time::Instant::now()),
-                script_now: false,
-                cursor_icon: egui::CursorIcon::Default,
-                script_shot: None,
-                shot_dir: std::env::var_os("KURA_KEYS_DONE")
-                    .and_then(|p| PathBuf::from(p).parent().map(std::path::Path::to_path_buf))
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or_else(|| PathBuf::from(".")),
-                script_done,
-                script_watch,
                 mcp,
             }))
         }),
-    )
+    );
+    // A `--keys` run that did not succeed exits with the code a script can tell
+    // from a crash, whatever the window did on its way out.
+    if keys_failed.load(std::sync::atomic::Ordering::SeqCst) {
+        std::process::exit(keyscript::FAILED_EXIT);
+    }
+    result
 }
 
 /// A `--keys` script that cannot be pressed: said on the command line, and
@@ -683,29 +688,8 @@ struct Kura {
     on_top: bool,
     /// The start-up check for a newer release, until it has answered.
     update: Option<std::sync::mpsc::Receiver<ito_common::update::Update>>,
-    /// `--keys`, as the events each press arrives as, still to be pressed.
-    script: std::collections::VecDeque<keyscript::Press>,
-    /// The frame and the moment the last scripted key went in.
-    script_at: (u64, std::time::Instant),
-    /// `<Now>` was read: the next key goes in a frame after the last, without
-    /// the settled wait.
-    script_now: bool,
-    /// The shape the window asked of the mouse cursor in the last frame, for `<State:>` (a hover row, 1.44).
-    cursor_icon: egui::CursorIcon,
-    /// `<Shot:name>`: asked for in the frame loop (`Some(name, false)`), then
-    /// sent and waited on (`true`) until the picture is on disk.
-    script_shot: Option<(String, bool)>,
-    /// Where `<Shot:name>` saves: beside `KURA_KEYS_DONE`, else the folder
-    /// kura was started from.
-    shot_dir: PathBuf,
-    /// `KURA_KEYS_DONE`: a file to write once the last scripted key has been
-    /// pressed and what it started has landed. A script that drives kura
-    /// from outside (`scripts/xrun.sh`) waits for it instead of guessing how
-    /// long the keys take -- a guess that read half-pressed results (#134).
-    script_done: Option<PathBuf>,
-    /// What the watchdog reads (`watch_script`). `None` without a script or
-    /// without `KURA_KEYS_DONE`, where there is nobody to tell.
-    script_watch: Option<Arc<Mutex<ScriptWatch>>>,
+    /// The `--keys` player (`script_run`); with no script it has nothing to do.
+    script: script_run::ScriptRun,
     /// What `kura mcp` asks through the door (`mcp::listen`); `None` with
     /// `[mcp] enable = false`.
     mcp: Option<std::sync::mpsc::Receiver<mcp::Ask>>,
@@ -729,7 +713,13 @@ struct ScriptWatch {
 /// second, and if nothing is pressed for [`keyscript::STALL`] past any wait due,
 /// writes `KURA_KEYS_DONE` with where the script stopped. A script that then
 /// finishes after all overwrites it with the usual report.
-fn watch_script(watch: Arc<Mutex<ScriptWatch>>, labels: Vec<String>, done: PathBuf, ctx: egui::Context) {
+fn watch_script(
+    watch: Arc<Mutex<ScriptWatch>>,
+    labels: Vec<String>,
+    done: PathBuf,
+    ctx: egui::Context,
+    failed: Arc<std::sync::atomic::AtomicBool>,
+) {
     std::thread::spawn(move || {
         let mut told = false;
         loop {
@@ -743,7 +733,8 @@ fn watch_script(watch: Arc<Mutex<ScriptWatch>>, labels: Vec<String>, done: PathB
             if !told && quiet > w.due + keyscript::STALL {
                 told = true;
                 let report = keyscript::stalled_report(&labels, w.left, quiet);
-                let _ = std::fs::write(&done, &report);
+                // A report that cannot be written reads as no report: say so, and fail the run.
+                script_run::write_report(&done, &report, &failed);
                 use std::io::Write;
                 // Not `eprintln!`: started from `kura.com`, this is a pipe
                 // nobody reads once the window is up, and that would panic.
@@ -754,71 +745,13 @@ fn watch_script(watch: Arc<Mutex<ScriptWatch>>, labels: Vec<String>, done: PathB
 }
 
 impl Kura {
-    /// Tell the watchdog the script has moved.
-    fn note_progress(&self) {
-        let Some(watch) = &self.script_watch else { return };
-        if let Ok(mut w) = watch.lock() {
-            w.left = self.script.len();
-            w.at = self.script_at.1;
-            w.due = match self.script.front() {
-                Some(keyscript::Press::Wait(d)) => *d,
-                _ => Duration::ZERO,
-            };
-            w.finished = self.script_done.is_none();
+    /// What the frame loop does with how the `--keys` player left the run.
+    fn after_script(&mut self, ctx: &egui::Context, outcome: script_run::Outcome) {
+        match outcome {
+            // The window goes: the report is written, and the flag decides the exit code.
+            script_run::Outcome::Failed => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            script_run::Outcome::Unsettled | script_run::Outcome::Continue => {}
         }
-    }
-
-    /// `<Shot:name>`: ask for the picture, then save it when it arrives.
-    fn take_shot(&mut self, ctx: &egui::Context) {
-        let Some((name, sent)) = self.script_shot.clone() else { return };
-        if !sent {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(name.clone())));
-            self.script_shot = Some((name, true));
-            ctx.request_repaint();
-            return;
-        }
-        let image = ctx.input(|i| {
-            i.raw.events.iter().find_map(|e| match e {
-                egui::Event::Screenshot { user_data, image, .. }
-                    if user_data.data.as_ref().and_then(|d| d.downcast_ref::<String>()) == Some(&name) =>
-                {
-                    Some(image.clone())
-                }
-                _ => None,
-            })
-        });
-        let Some(image) = image else {
-            ctx.request_repaint();
-            return;
-        };
-        let [w, h] = image.size;
-        let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
-        // `name@preview` is the preview pane's rectangle, in the picture's pixels.
-        let (file, crop) = match name.strip_suffix(keyscript::SHOT_PREVIEW) {
-            Some(file) => (file, true),
-            None => (name.as_str(), false),
-        };
-        let path = self.shot_dir.join(format!("{file}.png"));
-        let saved = image::RgbaImage::from_raw(w as u32, h as u32, rgba)
-            .ok_or_else(|| "the picture had the wrong size".to_owned())
-            .and_then(|img| {
-                if !crop {
-                    return Ok(img);
-                }
-                let r = self.app.preview.rect.ok_or_else(|| "no preview pane is on screen".to_owned())?;
-                let k = w as f32 / ctx.content_rect().width().max(1.0);
-                let (x0, y0) = ((r.min.x * k).max(0.0) as u32, (r.min.y * k).max(0.0) as u32);
-                let (x1, y1) = (((r.max.x * k).ceil() as u32).min(w as u32), ((r.max.y * k).ceil() as u32).min(h as u32));
-                if x1 <= x0 || y1 <= y0 {
-                    return Err("the preview pane is off the picture".to_owned());
-                }
-                Ok(image::imageops::crop_imm(&img, x0, y0, x1 - x0, y1 - y0).to_image())
-            })
-            .and_then(|img| img.save(&path).map_err(|e| e.to_string()));
-        if let Err(e) = saved {
-            self.app.error(format!("Shot {name}: {e}"));
-        }
-        self.script_shot = None;
     }
 
     /// What `kura mcp` asked through the door, answered from the state in
@@ -919,168 +852,10 @@ impl eframe::App for Kura {
     /// key opened has been drawn once; and never more than five seconds behind,
     /// so a thing that never settles delays the script rather than stopping it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        if self.script.is_empty() && self.script_done.is_none() {
-            return;
-        }
         let frame = ctx.cumulative_frame_nr();
-        let (last_frame, last_at) = self.script_at;
-        // Inside a `<Wait:N>` once the key before it has been drawn and has
-        // settled: sleep out the rest instead of drawing frames that change
-        // nothing. Repainting through the wait cost about 1 CPU second in 10
-        // on every backend (#287, proposal 1), which is what 47.1 measures.
-        if let Some(keyscript::Press::Wait(d)) = self.script.front() {
-            let left = d.saturating_sub(last_at.elapsed());
-            if !left.is_zero() && self.script_shot.is_none() && frame >= last_frame + 2 && self.app.settled() {
-                ctx.request_repaint_after(left);
-                return;
-            }
-        }
-        ctx.request_repaint();
-        let waited_long = last_at.elapsed() > Duration::from_secs(5);
-        // A picture being taken holds the next key until it is saved, or for
-        // five seconds if it never comes.
-        if self.script_shot.is_some() {
-            if !waited_long {
-                return;
-            }
-            self.script_shot = None;
-        }
-        if self.script.front() == Some(&keyscript::Press::Now) {
-            self.script.pop_front();
-            self.script_now = true;
-        }
-        // `<Now>`: one frame after the last key is enough -- it has been
-        // handed to the app, which is all the next one needs.
-        let ready = if self.script_now { frame > last_frame } else { frame >= last_frame + 2 && (self.app.settled() || waited_long) };
-        if !ready {
-            return;
-        }
-        // The same wait as before a key: the last one has been drawn and has
-        // settled, so what is on screen now is its result.
-        if self.script.is_empty() {
-            if let Some(done) = self.script_done.take() {
-                // `keys: done` against the watchdog's `keys: stalled`.
-                let _ = std::fs::write(done, state_report(&self.app) + "keys: done\n");
-                self.note_progress();
-            }
-            return;
-        }
-        match self.script.pop_front() {
-            // Counted from the key before it: the next key goes in at least
-            // this long after that one, and still only once things settle.
-            Some(keyscript::Press::Wait(d)) => {
-                let left = d.saturating_sub(last_at.elapsed());
-                if left.is_zero() {
-                    self.script_at = (frame, std::time::Instant::now());
-                } else {
-                    self.script.push_front(keyscript::Press::Wait(d));
-                    ctx.request_repaint_after(left);
-                }
-            }
-            Some(keyscript::Press::Events(events)) => {
-                raw_input.events.extend(events);
-                self.script_at = (frame, std::time::Instant::now());
-                self.script_now = false;
-            }
-            // Read as it goes in, not when the script was parsed: an earlier
-            // key of the script may have put something on the clipboard.
-            Some(keyscript::Press::Paste) => {
-                raw_input.events.push(keyscript::paste_event());
-                self.script_at = (frame, std::time::Instant::now());
-                self.script_now = false;
-            }
-            Some(keyscript::Press::PasteText(text)) => {
-                raw_input.events.push(keyscript::paste_text_event(&text));
-                self.script_at = (frame, std::time::Instant::now());
-                self.script_now = false;
-            }
-            Some(
-                p @ (keyscript::Press::Click { .. }
-                | keyscript::Press::DClick { .. }
-                | keyscript::Press::Hover { .. }
-                | keyscript::Press::Wheel { .. }
-                | keyscript::Press::Drag { .. }),
-            ) => {
-                let rect = ctx.input(|i| i.viewport_rect());
-                let mut events = keyscript::pointer_events(&p, rect);
-                // A drag one event per frame: in one frame egui never sees the
-                // button held while the pointer moves, so nothing starts to
-                // drag (#283, #284). The first goes in now, the rest follow
-                // as steps of their own, each after the frame has settled.
-                if matches!(p, keyscript::Press::Drag { .. }) && events.len() > 1 {
-                    let rest = events.split_off(1);
-                    for e in rest.into_iter().rev() {
-                        self.script.push_front(keyscript::Press::Events(vec![e]));
-                    }
-                }
-                raw_input.events.extend(events);
-                self.script_at = (frame, std::time::Instant::now());
-                self.script_now = false;
-            }
-            // Written now: the wait above is the one a key gets, so this is
-            // the state the key before it left (#230).
-            Some(keyscript::Press::State(name)) => {
-                let path = self.shot_dir.join(format!("{name}.txt"));
-                if let Err(e) = std::fs::write(&path, state_report(&self.app) + &format!("cursor icon: {:?}\n", self.cursor_icon)) {
-                    self.app.error(format!("State {name}: {e}"));
-                }
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // The readings kura adds to the common script (`keyscript::DIALECT`).
-            Some(keyscript::Press::Read { tag, name }) => {
-                match tag.as_str() {
-                    // The pane's own text, beside the state: `name.pane.txt`, so a
-                    // `<State:name>` of the same name does not take its place (#229).
-                    "PaneText" => {
-                        let path = self.shot_dir.join(format!("{name}.pane.txt"));
-                        let text = self.app.term.as_ref().map_or_else(|| "(no pane)\n".to_owned(), |t| t.screen_text());
-                        if let Err(e) = std::fs::write(&path, text) {
-                            self.app.error(format!("PaneText {name}: {e}"));
-                        }
-                    }
-                    "PreviewText" => {
-                        let path = self.shot_dir.join(format!("{name}.preview.txt"));
-                        if let Err(e) = std::fs::write(&path, preview_text(&self.app.preview.state)) {
-                            self.app.error(format!("PreviewText {name}: {e}"));
-                        }
-                    }
-                    _ => {}
-                }
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // Straight to the quit `ui` already handles, past anything that
-            // would ask first or take `q` for itself (#236).
-            Some(keyscript::Press::Quit) => {
-                self.app.quit = true;
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // Taken in `ui`, which is where a viewport command can be sent.
-            Some(keyscript::Press::Shot(name)) => {
-                self.script_shot = Some((name, false));
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // The window lays out again at the new size before the next step.
-            Some(keyscript::Press::Size { w, h }) => {
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w as f32, h as f32)));
-                self.script.push_front(keyscript::Press::Wait(std::time::Duration::from_millis(400)));
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // The same write the settings screen makes: common.toml, applied
-            // as the watcher would.
-            Some(keyscript::Press::Theme(name)) => {
-                self.app.write_common(vec![ito_common::CommonChange { table: None, key: "theme", value: format!("{name:?}") }]);
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            Some(keyscript::Press::Lang(code)) => {
-                self.app.write_common(vec![ito_common::CommonChange { table: None, key: "language", value: format!("{code:?}") }]);
-                self.script_at = (frame, std::time::Instant::now());
-            }
-            // Taken before the wait above; `parse` puts a key after every one.
-            Some(keyscript::Press::Now) | None => {}
-            // Steps that read the window's tree or the clipboard: kura does not take them yet.
-            Some(_) => self.script_at = (frame, std::time::Instant::now()),
-        }
-        self.note_progress();
+        let now = std::time::Instant::now();
+        let outcome = self.script.hook(ctx, &mut self.app, raw_input, frame, now);
+        self.after_script(ctx, outcome);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -1100,7 +875,8 @@ impl eframe::App for Kura {
                 }
             }
         }
-        self.take_shot(&ctx);
+        let outcome = self.script.take_shot(&ctx, &mut self.app);
+        self.after_script(&ctx, outcome);
         let frame_nr = ctx.cumulative_frame_nr();
         if frame_nr != self.last_input_frame {
             self.last_input_frame = frame_nr;
@@ -1163,10 +939,8 @@ impl eframe::App for Kura {
 
         if ctx.input(|i| i.viewport().close_requested()) && !self.app.quit {
             // The title bar's × (`WM_CLOSE`): no later frame writes the file.
-            if let Some(done) = self.script_done.take() {
-                let _ = std::fs::write(done, state_report(&self.app) + &keyscript::closed_report(self.script.len()));
-                self.note_progress();
-            }
+            let outcome = self.script.ended(&mut self.app, script_run::Ending::Closed);
+            self.after_script(&ctx, outcome);
             // Closing the window keeps the session, bookmarks and history like `q` does.
             if !self.app.quit {
                 self.app.save_on_close();
@@ -1176,10 +950,8 @@ impl eframe::App for Kura {
         if self.app.quit {
             // The frame that writes `keys: done` never comes for a closed
             // window, so a script ending in `q` is reported here instead.
-            if let Some(done) = self.script_done.take() {
-                let _ = std::fs::write(done, state_report(&self.app) + &keyscript::quit_report(self.script.len()));
-                self.note_progress();
-            }
+            let outcome = self.script.ended(&mut self.app, script_run::Ending::Quit);
+            self.after_script(&ctx, outcome);
             self.app.on_quit();
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -1201,7 +973,7 @@ impl eframe::App for Kura {
         {
             ctx.request_repaint_after(Duration::from_millis(80));
         }
-        self.cursor_icon = ctx.output(|o| o.cursor_icon);
+        self.script.cursor_icon = ctx.output(|o| o.cursor_icon);
     }
 }
 
@@ -2604,7 +2376,7 @@ mod tests {
             let done = dir.join(name);
             let at = std::time::Instant::now().checked_sub(quiet).unwrap();
             let watch = Arc::new(Mutex::new(ScriptWatch { left: 1, at, due, finished: false }));
-            watch_script(watch.clone(), labels.clone(), done.clone(), egui::Context::default());
+            watch_script(watch.clone(), labels.clone(), done.clone(), egui::Context::default(), Arc::default());
             // The watcher looks once a second, so a report is waited for
             // (a loaded machine let 1.5 s pass without its first look); the
             // absence of one can only be had by letting a look or two go by.
