@@ -9,10 +9,12 @@ description: "kura-specific rules for /dev-orchestra: spec fields, version/CHANG
 
 ## 流れ
 1. 設計（必要なら Codex 設計レビュー）→ 実装役の選択 → 仕様ファイルを scratchpad に置く。
-2. 実装は Sonnet のワーカー。**`worker-start --agent claude` は Bypass Permissions の確認画面で止まることがある。**
-   通常モードで動かすには `orca terminal create --worktree current --title <名> --command "claude --model sonnet --effort high"` で端末を作り、
-   `worker-start --spec-file <仕様> --terminal <handle>` で渡す。渡したらターンを終えて Orca の通知を待つ
+2. 実装は Sonnet のワーカー。`worker-start --spec-file <仕様> --worktree current --agent claude --model <sonnet の ID>` で起動する（終わると Orca が約 2 分後に端末を自動で閉じる）。
+   Bypass Permissions の確認画面は、持ち主が許可したときだけ承諾してよい（許可はその作業の分だけ。ほかの作業に持ち越さない）。
+   許可が無ければ承諾せず（文字も Enter も送らない）、持ち主に知らせて待つ。権限の確認（`awaiting_permission`）で止まったワーカーは異常終了として扱わず、勝手に承諾・中断・起動し直しをしない。
+   渡したらターンを終えて Orca の通知を待つ
    （ポーリング・再送をしない。`start_unknown` / `turn_start_unobserved` は待つか、`orca terminal read` で確かめる）。
+   `--terminal` で自作した端末は自動で閉じないので、使うなら `orca terminal close` で閉じる。
 3. 戻ったら main が差分を確かめる → `audit`（差分をラベル付きで渡す）→ 指摘は読んで確かめてから反映。
 4. 実機でしか測れない行があれば、ビルド後に `wintest` に行 ID・期待値・exe・fixtures・scratch を渡して測らせる
    （規則は `docs/claude/wintest-measure.md`）。結果は main が確かめる。`[x]` を付けるのは `docs/claude/lanes.md` の「`[x]` の規則（正）」のとおり。

@@ -9,6 +9,12 @@
 
 ## [未リリース]
 
+## [0.150.5] - 2026-11-07
+
+### 変更
+
+- 開発の手順（`.claude/skills/dev-orchestra-kura/SKILL.md`）: Sonnet のワーカーは `worker-start --agent claude` で起動する形に戻した（終わると Orca が約 2 分後に端末を閉じる。`--terminal` で自作した端末は `orca terminal close` で閉じる）。Bypass Permissions の確認画面を承諾してよいのは持ち主が許可したときだけ（許可はその作業の分だけ）とした。許可が無ければ承諾せずに持ち主に知らせて待ち、権限の確認（`awaiting_permission`）で止まったワーカーを異常終了として扱わない。アプリの動きは変わらない。
+
 ## [0.150.4] - 2026-11-07
 
 ### 修正
