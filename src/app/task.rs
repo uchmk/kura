@@ -281,6 +281,8 @@ pub struct KuraChange {
 /// One write for the config.toml writer: the file, the folders to read the
 /// config from afterwards, and the changes in the order they were made.
 pub(super) struct KuraJob {
+    /// Which write this is, to match the answer to it.
+    pub(super) seq: u64,
     pub(super) path: PathBuf,
     pub(super) dirs: Vec<PathBuf>,
     pub(super) changes: Vec<KuraChange>,
@@ -294,11 +296,32 @@ pub(super) struct KuraJob {
 /// What a write of config.toml came to: the rows written, as a toast says
 /// them, and the config read back -- or what stopped it.
 pub(crate) struct KuraWritten {
+    /// The job it answers; a merged write answers with the last one merged.
+    pub(super) seq: u64,
     pub(super) said: String,
     pub(super) read: Result<crate::config::Fresh, String>,
     /// Whether the file changed: an edit that leaves it as it was starts no
     /// watcher event to keep quiet, and says so instead of "Saved".
     pub(super) wrote: bool,
+}
+
+/// Consecutive jobs for the same file as one write of the newest values. The
+/// merged job answers with the last one's `seq`.
+pub(super) fn merge_jobs(queued: impl IntoIterator<Item = KuraJob>) -> Vec<KuraJob> {
+    let mut jobs: Vec<KuraJob> = Vec::new();
+    for j in queued {
+        match jobs.last_mut() {
+            Some(m) if m.path == j.path => {
+                m.changes.extend(j.changes);
+                m.keys.extend(j.keys);
+                m.webhooks = j.webhooks.or(m.webhooks.take());
+                m.dirs = j.dirs;
+                m.seq = j.seq;
+            }
+            _ => jobs.push(j),
+        }
+    }
+    jobs
 }
 
 /// The writer's thread: each job, and every job queued behind it, as one
@@ -307,18 +330,7 @@ pub(super) fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Opti
     let (tx, rx) = crossbeam_channel::unbounded::<KuraJob>();
     let spawned = std::thread::Builder::new().name("kura-toml".into()).spawn(move || {
         while let Ok(first) = rx.recv() {
-            let mut jobs: Vec<KuraJob> = vec![first];
-            for j in rx.try_iter() {
-                match jobs.last_mut() {
-                    Some(m) if m.path == j.path => {
-                        m.changes.extend(j.changes);
-                        m.keys.extend(j.keys);
-                        m.webhooks = j.webhooks.or(m.webhooks.take());
-                        m.dirs = j.dirs;
-                    }
-                    _ => jobs.push(j),
-                }
-            }
+            let jobs = merge_jobs(std::iter::once(first).chain(rx.try_iter()));
             for j in jobs {
                 let written = if j.keys.is_empty() { write_kura_toml(j) } else { write_keymap_toml(j) };
                 if done.send(written).is_err() {
@@ -326,6 +338,44 @@ pub(super) fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Opti
                 }
                 ctx.request_repaint();
             }
+        }
+    });
+    spawned.ok().map(|_| tx)
+}
+
+/// One write for the common.toml writer.
+pub(super) struct CommonJob {
+    pub(super) seq: u64,
+    pub(super) base: PathBuf,
+    pub(super) changes: Vec<ito_common::CommonChange>,
+}
+
+/// What a write of common.toml came to, with the themes read after it.
+pub(crate) struct CommonWritten {
+    pub(super) seq: u64,
+    pub(super) themes: Themes,
+    pub(super) read: CommonRead,
+}
+
+/// The common.toml writer's thread: one thread, so quick changes land in
+/// order, and one answer per job.
+pub(super) fn common_writer(done: Sender<CommonWritten>, ctx: egui::Context) -> Option<Sender<CommonJob>> {
+    let (tx, rx) = crossbeam_channel::unbounded::<CommonJob>();
+    let spawned = std::thread::Builder::new().name("common-toml".into()).spawn(move || {
+        while let Ok(job) = rx.recv() {
+            let base = job.base;
+            let changes = job.changes;
+            let written = ito_common::edit_common(&base, |text| changes.iter().try_fold(text.to_owned(), |t, c| c.apply(&t)));
+            let read = match written {
+                Ok(()) => ito_common::Common::read(&base),
+                Err(e) if e.contains("common.toml") => Err(e),
+                Err(e) => Err(format!("common.toml: {e}")),
+            };
+            let themes = super::read_themes(&base);
+            if done.send(CommonWritten { seq: job.seq, themes, read }).is_err() {
+                return;
+            }
+            ctx.request_repaint();
         }
     });
     spawned.ok().map(|_| tx)
@@ -391,7 +441,7 @@ pub(super) fn write_kura_toml(job: KuraJob) -> KuraWritten {
         ito_common::write_atomic(&job.path, new)?;
         Ok(Config::read_fresh(&job.dirs))
     })();
-    KuraWritten { said, read, wrote: true }
+    KuraWritten { seq: job.seq, said, read, wrote: true }
 }
 
 // The keymap.toml a test's Keys page writes: none unless the test names one,
@@ -434,7 +484,7 @@ pub(super) fn write_keymap_toml(job: KuraJob) -> KuraWritten {
         Ok(Config::read_fresh(&job.dirs))
     })();
     let said = if wrote { format!("Saved keymap.toml: {said}") } else { format!("keymap.toml already says so: {said}") };
-    KuraWritten { said, read, wrote }
+    KuraWritten { seq: job.seq, said, read, wrote }
 }
 
 pub struct Toast {

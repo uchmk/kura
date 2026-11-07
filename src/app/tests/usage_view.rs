@@ -54,7 +54,7 @@ fn a_changed_common_toml_applies_without_a_restart() {
 }
 
 /// What the settings screen changes goes into common.toml, keeping what
-/// was in it, and comes back through the watcher's channel to be applied.
+/// was in it, and comes back through the writer's own channel to be applied.
 #[test]
 fn the_settings_screen_writes_common_toml_and_applies_it() {
     let dir = util::test_dir("settings-common");
@@ -62,23 +62,21 @@ fn the_settings_screen_writes_common_toml_and_applies_it() {
     std::fs::create_dir_all(&base).unwrap();
     std::fs::write(base.join("common.toml"), "# mine\ntheme = \"dark\"\n").unwrap();
     let mut a = app_in(&dir);
-    let (tx, rx) = crossbeam_channel::unbounded();
     a.common_base = Some(base.clone());
-    a.common_tx = Some(tx);
-    a.common_rx = Some(rx.clone());
     a.write_common(vec![
         ito_common::CommonChange { table: None, key: "language", value: "\"ja\"".into() },
         ito_common::CommonChange { table: Some("clock"), key: "hour24", value: "false".into() },
     ]);
-    let read = rx.recv_timeout(Duration::from_secs(10)).expect("the write reports back");
-    a.set_common(read);
+    assert!(a.config_writes_pending(), "sent, not yet answered");
+    answer_config_writes(&mut a);
     assert_eq!(a.lang, "ja");
     assert!(!a.clock.hour24);
     let text = std::fs::read_to_string(base.join("common.toml")).unwrap();
     assert!(text.starts_with("# mine\ntheme = \"dark\"\n"), "kept what was there: {text}");
     // Nothing changed is nothing written.
     a.write_common(Vec::new());
-    assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
+    assert!(!a.config_writes_pending());
+    assert!(a.config_write_failed.is_none());
 }
 
 /// With no config folder there is nowhere to write, and the screen says so.
@@ -91,10 +89,25 @@ fn the_settings_screen_without_a_folder_says_so() {
     assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("common.toml:")));
 }
 
+/// Drain the channels until every config write sent has been answered.
+fn answer_config_writes(a: &mut App) {
+    let ctx = a.ctx.clone();
+    let until = Instant::now() + Duration::from_secs(10);
+    while a.config_writes_pending() {
+        assert!(Instant::now() < until, "the writers answered");
+        a.drain_channels(&ctx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 /// Wait for the config.toml writer and apply what it read back.
 fn kura_written(a: &mut App) {
     let w = a.kura_rx.recv_timeout(Duration::from_secs(10)).expect("the writer answered");
     a.kura_written(w);
+    // A broken file is a failure some tests want; an answer to a write that
+    // never went out is not.
+    let failed = a.config_write_failed.as_deref().unwrap_or("");
+    assert!(!failed.contains("came out of order"), "{failed}");
 }
 
 fn change(table: &'static str, key: &'static str, value: Option<&str>) -> KuraChange {

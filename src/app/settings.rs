@@ -156,25 +156,20 @@ impl App {
             return;
         }
         let Some(base) = self.common_base.clone() else {
-            self.error("common.toml: there is no config folder to keep it in");
+            self.fail_config_write("common.toml: there is no config folder to keep it in".into());
             return;
         };
-        let tx = self.common_tx.clone();
-        let to_themes = self.themes_tx.clone();
-        let ctx = self.ctx.clone();
-        std::thread::spawn(move || {
-            let written = ito_common::edit_common(&base, |text| changes.iter().try_fold(text.to_owned(), |t, c| c.apply(&t)));
-            let read = match written {
-                Ok(()) => ito_common::Common::read(&base),
-                Err(e) if e.contains("common.toml") => Err(e),
-                Err(e) => Err(format!("common.toml: {e}")),
-            };
-            let _ = to_themes.send(read_themes(&base));
-            if let Some(tx) = tx {
-                let _ = tx.send(read);
-            }
-            ctx.request_repaint();
-        });
+        if self.common_jobs.is_none() {
+            self.common_jobs = common_writer(self.common_answers_tx.clone(), self.ctx.clone());
+        }
+        let seq = self.config_writes.next_seq(Writer::Common);
+        let sent = self.common_jobs.as_ref().is_some_and(|tx| tx.send(CommonJob { seq, base, changes }).is_ok());
+        if sent {
+            self.config_writes.sent(Writer::Common, "common.toml", Instant::now());
+        } else {
+            self.common_jobs = None;
+            self.fail_config_write("common.toml: could not start writing it".into());
+        }
     }
 
     /// kura's own config folder, where its config.toml is (`KURA_CONFIG_HOME`).
@@ -199,7 +194,7 @@ impl App {
             return;
         }
         let Some(path) = self.own_config_in_force() else {
-            self.error("config.toml: there is no config folder to keep it in");
+            self.fail_config_write("config.toml: there is no config folder to keep it in".into());
             return;
         };
         self.write_kura_to(path, crate::config::dirs_to_read(), changes);
@@ -208,33 +203,35 @@ impl App {
     /// [`App::write_kura`] to a file named here, reading the config back from
     /// `dirs`: what a test drives with a folder of its own.
     pub(crate) fn write_kura_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, changes: Vec<KuraChange>) {
-        self.send_kura_job(KuraJob { path, dirs, changes, keys: Vec::new(), webhooks: None });
+        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes, keys: Vec::new(), webhooks: None }, "config.toml");
     }
 
     /// The `[[notify.webhooks]]` the Notifications page changed, written to
     /// the config.toml in force.
     pub fn write_webhooks(&mut self, places: Vec<ito_notify::webhook::Place>) {
         let Some(path) = self.own_config_in_force() else {
-            self.error("config.toml: there is no config folder to keep it in");
+            self.fail_config_write("config.toml: there is no config folder to keep it in".into());
             return;
         };
-        self.send_kura_job(KuraJob {
-            path,
-            dirs: crate::config::dirs_to_read(),
-            changes: Vec::new(),
-            keys: Vec::new(),
-            webhooks: Some(places),
-        });
+        self.send_kura_job(
+            KuraJob { seq: 0, path, dirs: crate::config::dirs_to_read(), changes: Vec::new(), keys: Vec::new(), webhooks: Some(places) },
+            "config.toml",
+        );
     }
 
-    pub(super) fn send_kura_job(&mut self, job: KuraJob) {
+    /// Hand a job to the config.toml / keymap.toml writer, giving it its
+    /// number. `what` is the file, for the bookkeeping and the failure.
+    pub(super) fn send_kura_job(&mut self, mut job: KuraJob, what: &'static str) {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
+        job.seq = self.config_writes.next_seq(Writer::Kura);
         let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(job).is_ok());
-        if !sent {
+        if sent {
+            self.config_writes.sent(Writer::Kura, what, Instant::now());
+        } else {
             self.kura_jobs = None;
-            self.error("config.toml: could not start writing it");
+            self.fail_config_write(format!("{what}: could not start writing it"));
         }
     }
 
@@ -277,7 +274,7 @@ impl App {
             return;
         }
         let Some(path) = Self::own_keymap() else {
-            self.error("keymap.toml: there is no config folder to keep it in");
+            self.fail_config_write("keymap.toml: there is no config folder to keep it in".into());
             return;
         };
         self.write_keymap_to(path, crate::config::dirs_to_read(), edits);
@@ -286,20 +283,21 @@ impl App {
     /// [`App::write_keymap`] to a file named here, reading the config back
     /// from `dirs`.
     pub(crate) fn write_keymap_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, keys: Vec<ito_keymap::Edit>) {
-        if self.kura_jobs.is_none() {
-            self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
-        }
-        let sent =
-            self.kura_jobs.as_ref().is_some_and(|tx| tx.send(KuraJob { path, dirs, changes: Vec::new(), keys, webhooks: None }).is_ok());
-        if !sent {
-            self.kura_jobs = None;
-            self.error("keymap.toml: could not start writing it");
-        }
+        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes: Vec::new(), keys, webhooks: None }, "keymap.toml");
     }
 
     /// The writer's answer: the config it read back, applied with what a
-    /// broken file gave last time kept, or what stopped the write.
+    /// broken file gave last time kept, or what stopped the write. The writes
+    /// it stands for count as answered only once it has been applied.
     pub(crate) fn kura_written(&mut self, w: KuraWritten) {
+        let seq = w.seq;
+        self.apply_kura_written(w);
+        if let Err(e) = self.config_writes.answered(Writer::Kura, seq) {
+            self.fail_config_write(e);
+        }
+    }
+
+    fn apply_kura_written(&mut self, w: KuraWritten) {
         match w.read {
             Ok(fresh) => {
                 let mut cfg = Config::settle(&mut self.cfg, fresh);
@@ -309,7 +307,7 @@ impl App {
                     self.kura_wrote = Some(Instant::now());
                 }
             }
-            Err(e) => self.error(e),
+            Err(e) => self.fail_config_write(e),
         }
     }
 
@@ -318,7 +316,7 @@ impl App {
     /// works before there is anything to change.
     pub fn open_own_config(&mut self) {
         let Some(path) = self.own_config_in_force() else {
-            self.error("config.toml: there is no config folder to keep it in");
+            self.fail_config_write("config.toml: there is no config folder to keep it in".into());
             return;
         };
         let tx = self.settings_tx.clone();

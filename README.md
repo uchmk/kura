@@ -1738,6 +1738,10 @@ for what the key before started to settle (v0.65.0). That is how a check reaches
 halfway — `d<Now>w` opens the task panel while the trash is still running, and `j<Now>j` lands two
 moves inside the preview's 40 ms debounce. It has to come right before a key; anything else is
 refused on the command line.
+`<Now>` applies to the next step only: `<A-c><Now><State:mid><State:after>` reads `mid` at once, and `after` waits for the screen to settle again.
+A step after a write to `common.toml`, `config.toml` or `keymap.toml` (`<Theme:>`, `<Lang:>`) does not run until the writer has answered, whatever `<Now>` says;
+if it has not answered within 10 s the run fails with step `<config write>`.
+A key that is not drawn within 10 s (the window hidden, minimized or covered) fails the run at that step.
 
 `<Shot:name>` saves the window as it is at that point as `name.png`, beside the `KURA_KEYS_DONE`
 file (or in the folder kura was started from), and the next key waits until it is on disk
@@ -1747,7 +1751,9 @@ one run. The name is letters, digits, `-` and `_`. `<Shot:name@preview>` saves o
 `<State:name>` writes what the `KURA_KEYS_DONE` file would say at that point to `name.txt` in the
 same folder (v0.73.74). That file is written when the script ends, so a script ending in `q` reports
 `overlay: none`; `--keys "<F12><State:panel><Esc>q"` reads the open box and still quits by itself.
-The file ends with a `settled: yes` or `settled: no` line: whether what the last key started had landed.
+The file ends with a `settled: yes` or `settled: no` line: whether what the last key started had landed,
+then `config writes pending: yes|no` (a config file write has not been answered yet) and
+`config write failed: none|<message>` (the first write that failed).
 
 `<PaneText:name>` writes what the terminal pane shows, as text with the blanks at the end of each row
 cut, to `name.pane.txt` beside the `KURA_KEYS_DONE` file (v0.78.63), so a full-screen program's footer

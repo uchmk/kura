@@ -37,6 +37,8 @@ mod overlay;
 pub use overlay::*;
 mod task;
 pub use task::*;
+mod config_writes;
+pub(crate) use config_writes::*;
 mod preview_state;
 pub use preview_state::*;
 mod split;
@@ -202,6 +204,16 @@ pub struct App {
     /// When that write was read back: the watcher sees the same change a
     /// moment later, and its reload then says nothing the write did not.
     kura_wrote: Option<Instant>,
+    /// The common.toml writer's thread, started at its first write.
+    common_jobs: Option<Sender<CommonJob>>,
+    /// What it wrote and read back, on a channel of its own: the watcher's
+    /// is for changes made elsewhere.
+    common_answers: crossbeam_channel::Receiver<CommonWritten>,
+    common_answers_tx: Sender<CommonWritten>,
+    /// Config writes sent and answered.
+    pub(crate) config_writes: ConfigWrites,
+    /// The first config write that failed, kept for a `--keys` run to end on.
+    pub(crate) config_write_failed: Option<String>,
     pub preview: PreviewSlot,
     pub max_preview: bool,
     /// The terminal pane has the window. A third of the height is right for a
@@ -393,6 +405,7 @@ impl App {
 
         let (settings_tx, settings_rx) = crossbeam_channel::unbounded();
         let (kura_tx, kura_rx) = crossbeam_channel::unbounded();
+        let (common_answers_tx, common_answers) = crossbeam_channel::unbounded();
         let (themes_tx, themes_rx) = crossbeam_channel::unbounded();
         let mut app = Self {
             clock: ito_common::Clock::default(),
@@ -413,6 +426,11 @@ impl App {
             kura_rx,
             kura_tx,
             kura_wrote: None,
+            common_jobs: None,
+            common_answers,
+            common_answers_tx,
+            config_writes: ConfigWrites::default(),
+            config_write_failed: None,
             cfg,
             tabs: vec![tab],
             active: 0,

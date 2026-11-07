@@ -707,6 +707,12 @@ struct ScriptWatch {
     finished: bool,
 }
 
+/// Whether the script has made no progress for longer than its due wait plus
+/// [`keyscript::STALL`], as of `now`.
+fn stalled(w: &ScriptWatch, now: std::time::Instant) -> bool {
+    now.saturating_duration_since(w.at) > w.due + keyscript::STALL
+}
+
 /// `--keys` runs in the frame loop, and a window that stops getting frames
 /// stops pressing -- one ARM64 run sat 60 s with `u` never pressed and nothing
 /// to show for it (#168, proposal 5). This thread nudges the loop once a
@@ -730,7 +736,7 @@ fn watch_script(
             }
             ctx.request_repaint();
             let quiet = w.at.elapsed();
-            if !told && quiet > w.due + keyscript::STALL {
+            if !told && stalled(&w, std::time::Instant::now()) {
                 told = true;
                 let report = keyscript::stalled_report(&labels, w.left, quiet);
                 // A report that cannot be written reads as no report: say so, and fail the run.
@@ -852,7 +858,7 @@ impl eframe::App for Kura {
     /// key opened has been drawn once; and never more than five seconds behind,
     /// so a thing that never settles delays the script rather than stopping it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        let frame = ctx.cumulative_frame_nr();
+        let frame = ctx.cumulative_frame_nr_for(egui::ViewportId::ROOT);
         let now = std::time::Instant::now();
         let outcome = self.script.hook(ctx, &mut self.app, raw_input, frame, now);
         self.after_script(ctx, outcome);
@@ -1425,8 +1431,10 @@ fn state_report(app: &App) -> String {
         lines.push(format!("other list top: {}", app.tabs[other].current.offset));
     }
     lines.push(format!("preview top: {} of {}", tab.preview_offset, app.preview.max_offset));
-    // The first screen sent ahead of the coloured whole (v0.86.12): `settled`
-    // waits it out, so only `<Now>` and a short `<Wait:>` can read it.
+    // The first screen sent ahead of the coloured whole (v0.86.12):
+    // `<Now><State:a>` samples without waiting for settle, but may still
+    // show loading or miss the early screen. A following plain `<State:b>`
+    // waits for settle; this pair does not give a timed reading.
     lines.push(format!("preview: {}", if app.preview.early { "early" } else { "whole" }));
     // How long the text on show is (`5237+` when the read was cut): the top
     // above is the last place to scroll to, which is not the line count

@@ -25,6 +25,24 @@ use crate::keyscript::{self, Press};
 /// How long a step waits for `App::settled()`, and a `<Shot:>` for its picture.
 const DEFAULT_WAIT: Duration = Duration::from_secs(5);
 
+/// How long an input that went in may wait to be drawn before the run fails.
+const DELIVER_WAIT: Duration = Duration::from_secs(10);
+
+/// How long a config write may wait for the writer's answer before the run fails.
+const CONFIG_WAIT: Duration = Duration::from_secs(10);
+
+/// The label a failure about the config writers goes under: it belongs to no script step.
+const CONFIG_STEP: &str = "<config write>";
+
+/// An input handed to the main window that has not been drawn yet.
+struct Inflight {
+    /// The root viewport's frame it went in on.
+    frame: u64,
+    at: Instant,
+    /// The script step it came from.
+    step: usize,
+}
+
 /// What the frame loop does after the player has looked at a frame.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Outcome {
@@ -67,6 +85,13 @@ pub(crate) struct ScriptRun {
     at: (u64, Instant),
     /// `<Now>` was read: the next key goes in a frame after the last, without the settled wait.
     now: bool,
+    /// The last input handed to the main window, until a later frame confirms it was drawn.
+    inflight: Option<Inflight>,
+    /// When the script last made progress, for the watchdog: a step ran, an
+    /// input was drawn, a config write was answered or a picture was saved.
+    progress_at: Instant,
+    /// `ConfigWrites::answers` as last seen, to notice an answer.
+    answers_seen: u64,
     /// The shape the window asked of the mouse cursor in the last frame, for `<State:>`.
     pub(crate) cursor_icon: egui::CursorIcon,
     shot: Option<Shot>,
@@ -189,11 +214,15 @@ impl ScriptRun {
     /// saving what it writes into `shot_dir`. `failed` is the flag `main`
     /// turns into the exit code.
     pub(crate) fn new(steps: &[keyscript::Step], done: Option<PathBuf>, shot_dir: PathBuf, failed: Arc<AtomicBool>) -> Self {
+        let started = Instant::now();
         Self {
             queue: steps.iter().enumerate().filter_map(|(i, s)| keyscript::press(s).map(|p| (i, p))).collect(),
             labels: steps.iter().map(keyscript::label).collect(),
-            at: (0, Instant::now()),
+            at: (0, started),
             now: false,
+            inflight: None,
+            progress_at: started,
+            answers_seen: 0,
             cursor_icon: egui::CursorIcon::Default,
             shot: None,
             shot_dir,
@@ -213,7 +242,7 @@ impl ScriptRun {
     pub(crate) fn start_watch(&mut self, ctx: &egui::Context) {
         let Some(done) = self.done.clone() else { return };
         let watch =
-            Arc::new(Mutex::new(crate::ScriptWatch { left: self.left(None), at: Instant::now(), due: Duration::ZERO, finished: false }));
+            Arc::new(Mutex::new(crate::ScriptWatch { left: self.left(None), at: self.progress_at, due: Duration::ZERO, finished: false }));
         crate::watch_script(watch.clone(), self.labels.clone(), done, ctx.clone(), self.failed.clone());
         self.watch = Some(watch);
     }
@@ -237,7 +266,7 @@ impl ScriptRun {
         let Some(watch) = &self.watch else { return };
         if let Ok(mut w) = watch.lock() {
             w.left = self.left(None);
-            w.at = self.at.1;
+            w.at = self.progress_at;
             w.due = match self.queue.front() {
                 Some((_, Press::Wait(d))) => *d,
                 _ => Duration::ZERO,
@@ -264,11 +293,16 @@ impl ScriptRun {
     fn fail(&mut self, app: &mut App, step: usize, why: String) -> Outcome {
         let label = self.label(step);
         let left = self.left(Some(step));
+        self.fail_as(app, &label, left, why)
+    }
+
+    /// [`Self::fail`] under a label of its own, for a failure that is not a script step's.
+    fn fail_as(&mut self, app: &mut App, label: &str, left: usize, why: String) -> Outcome {
         self.failed.store(true, Ordering::SeqCst);
         say_err(&format!("failed: step {label}: {why}"));
         self.queue.clear();
         self.shot = None;
-        let report = crate::state_report(app) + &keyscript::failed_report(&label, &why, left);
+        let report = crate::state_report(app) + &keyscript::failed_report(label, &why, left);
         self.write_done(&report);
         app.error(format!("{label}: {why}"));
         Outcome::Failed
@@ -318,6 +352,51 @@ impl ScriptRun {
     pub(crate) fn hook(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
         if self.finished || (self.queue.is_empty() && self.shot.is_none() && self.done.is_none()) {
             return Outcome::Continue;
+        }
+        // Another window's frame is not the main window's: nothing goes in on
+        // it. An input waiting to be drawn that meets one at the same frame
+        // went to a window that was not drawn.
+        if raw_input.viewport_id != egui::ViewportId::ROOT {
+            if let Some(f) = self.inflight.as_ref().filter(|f| f.frame == frame) {
+                let why = format!("the input went to viewport {:?} while the main window was not drawn", raw_input.viewport_id);
+                let step = f.step;
+                return self.fail(app, step, why);
+            }
+            return Outcome::Continue;
+        }
+        if self.inflight.as_ref().is_some_and(|f| frame > f.frame) {
+            self.inflight = None;
+            self.progress_at = now;
+            self.note_progress();
+        }
+        let answers = app.config_writes.answers();
+        if answers != self.answers_seen {
+            self.answers_seen = answers;
+            self.progress_at = now;
+            self.note_progress();
+        }
+        // A config write that failed, or has not been answered, holds the
+        // script: what it reads next would be the old config.
+        if let Some(msg) = app.config_write_failed.clone() {
+            let left = self.left(None);
+            return self.fail_as(app, CONFIG_STEP, left, msg);
+        }
+        if app.config_writes_pending() {
+            if let Some((seq, file)) = app.config_writes.overdue(now, CONFIG_WAIT) {
+                let why = format!("no answer from the config writer within {} s of write #{seq} ({file})", CONFIG_WAIT.as_secs());
+                let left = self.left(None);
+                return self.fail_as(app, CONFIG_STEP, left, why);
+            }
+            ctx.request_repaint();
+            return Outcome::Continue;
+        }
+        if let Some(f) = &self.inflight {
+            if now.saturating_duration_since(f.at) >= DELIVER_WAIT {
+                let why =
+                    format!("the input was not drawn within {} s (the window may be hidden, minimized or covered)", DELIVER_WAIT.as_secs());
+                let step = f.step;
+                return self.fail(app, step, why);
+            }
         }
         let (last_frame, last_at) = self.at;
         let since = now.saturating_duration_since(last_at);
@@ -378,6 +457,9 @@ impl ScriptRun {
         };
         // A `<Wait:N>` presses nothing: it is not named when the screen was unsettled.
         let mut record = true;
+        // `<Now>` is for the step after it only; a wait is not a step it can be spent on.
+        let is_wait = matches!(press, Press::Wait(_));
+        let mut ran = true;
         match press {
             // Counted from the key before it: the next key goes in at least
             // this long after that one, and still only once things settle.
@@ -387,26 +469,24 @@ impl ScriptRun {
                 if left.is_zero() {
                     self.at = (frame, now);
                 } else {
+                    ran = false;
                     self.queue.push_front((idx, Press::Wait(d)));
                     ctx.request_repaint_after(left);
                 }
             }
             Press::Events(events) => {
                 raw_input.events.extend(events);
-                self.at = (frame, now);
-                self.now = false;
+                self.inject(idx, frame, now);
             }
             // Read as it goes in, not when the script was parsed: an earlier
             // key of the script may have put something on the clipboard.
             Press::Paste => {
                 raw_input.events.push(keyscript::paste_event());
-                self.at = (frame, now);
-                self.now = false;
+                self.inject(idx, frame, now);
             }
             Press::PasteText(text) => {
                 raw_input.events.push(keyscript::paste_text_event(&text));
-                self.at = (frame, now);
-                self.now = false;
+                self.inject(idx, frame, now);
             }
             p @ (Press::Click { .. } | Press::DClick { .. } | Press::Hover { .. } | Press::Wheel { .. } | Press::Drag { .. }) => {
                 let rect = ctx.input(|i| i.viewport_rect());
@@ -422,15 +502,20 @@ impl ScriptRun {
                     }
                 }
                 raw_input.events.extend(events);
-                self.at = (frame, now);
-                self.now = false;
+                self.inject(idx, frame, now);
             }
             // Written now: the wait above is the one a key gets, so this is
             // the state the key before it left (#230).
             Press::State(name) => {
                 let path = self.shot_dir.join(format!("{name}.txt"));
                 let text = crate::state_report(app)
-                    + &format!("cursor icon: {:?}\nsettled: {}\n", self.cursor_icon, if settled { "yes" } else { "no" });
+                    + &format!(
+                        "cursor icon: {:?}\nsettled: {}\nconfig writes pending: {}\nconfig write failed: {}\n",
+                        self.cursor_icon,
+                        if settled { "yes" } else { "no" },
+                        if app.config_writes_pending() { "yes" } else { "no" },
+                        app.config_write_failed.as_deref().unwrap_or("none"),
+                    );
                 if let Err(why) = write_text(&path, &text) {
                     return self.fail(app, idx, why);
                 }
@@ -501,8 +586,21 @@ impl ScriptRun {
         if record && late {
             self.record_unsettled(idx);
         }
+        if !is_wait {
+            self.now = false;
+        }
+        if ran {
+            self.progress_at = now;
+        }
         self.note_progress();
         Outcome::Continue
+    }
+
+    /// A step handed input to the main window on this frame: it is in flight until a later one is drawn.
+    fn inject(&mut self, step: usize, frame: u64, now: Instant) {
+        self.at = (frame, now);
+        self.now = false;
+        self.inflight = Some(Inflight { frame, at: now, step });
     }
 
     /// Where `<Shot:name>` saves (`name@preview` is the preview pane's crop of `name.png`).
@@ -540,6 +638,8 @@ impl ScriptRun {
         match save_shot(&image, crop, app.preview.rect, ctx.content_rect().width(), &self.shot_path(&name)) {
             Ok(_) => {
                 self.shot = None;
+                self.progress_at = Instant::now();
+                self.note_progress();
                 Outcome::Continue
             }
             Err(why) => self.fail(app, step, why),
@@ -558,6 +658,17 @@ impl ScriptRun {
         }
         if self.done.is_none() {
             return Outcome::Continue;
+        }
+        if let Some(msg) = app.config_write_failed.clone() {
+            let left = self.left(None);
+            return self.fail_as(app, CONFIG_STEP, left, msg);
+        }
+        if app.config_writes_pending() {
+            let file = app.config_writes.oldest_file().unwrap_or("config");
+            let what = if how == Ending::Closed { "the window was closed" } else { "kura quit" };
+            let why = format!("{what} before the config writer answered ({file})");
+            let left = self.left(None);
+            return self.fail_as(app, CONFIG_STEP, left, why);
         }
         let left = self.left(None);
         let (lines, base) = match how {
@@ -618,6 +729,7 @@ mod tests {
             let steps = keyscript::parse(script).unwrap();
             let mut run = ScriptRun::new(&steps, done, shot_dir, self.failed.clone());
             run.at = (0, self.t0);
+            run.progress_at = self.t0;
             run
         }
 
@@ -628,6 +740,35 @@ mod tests {
             let mut raw = egui::RawInput::default();
             let ctx = self.screen.ctx.clone();
             run.hook(&ctx, &mut self.screen.app, &mut raw, self.frame, self.t0)
+        }
+
+        /// A frame of the player `secs` after the last, `frames` on, in the viewport `id`.
+        fn tick(&mut self, run: &mut ScriptRun, secs: u64, frames: u64, id: egui::ViewportId) -> Outcome {
+            self.frame += frames;
+            self.t0 += Duration::from_secs(secs);
+            let mut raw = egui::RawInput { viewport_id: id, ..Default::default() };
+            let ctx = self.screen.ctx.clone();
+            run.hook(&ctx, &mut self.screen.app, &mut raw, self.frame, self.t0)
+        }
+
+        /// A folder for common.toml under the rig's, with a file in it, so a
+        /// `<Theme:>` has a real writer to wait for.
+        fn common_folder(&mut self) {
+            let base = self.dir.join("uchmk");
+            std::fs::create_dir_all(&base).unwrap();
+            std::fs::write(base.join("common.toml"), "theme = \"light\"\n").unwrap();
+            self.screen.app.common_base = Some(base);
+        }
+
+        /// Let the writers answer: drain the channels until nothing is pending.
+        fn answer(&mut self) {
+            let ctx = self.screen.ctx.clone();
+            let until = Instant::now() + Duration::from_secs(10);
+            while self.screen.app.config_writes_pending() {
+                assert!(Instant::now() < until, "the writer answered");
+                self.screen.app.drain_channels(&ctx);
+                std::thread::sleep(Duration::from_millis(5));
+            }
         }
 
         fn flag(&self) -> bool {
@@ -873,5 +1014,248 @@ mod tests {
         let said = read(&done);
         assert!(said.ends_with("quit: yes\nkeys: done\n"), "{said}");
         assert!(!rig.flag());
+    }
+
+    use crate::app::Writer;
+
+    /// Past the 10 s a write may wait, counted from a send that happened a
+    /// moment after the rig's clock started.
+    const PAST_CONFIG_WAIT: u64 = 11;
+
+    #[test]
+    fn a_held_answer_holds_the_script_and_fails_it_at_ten_seconds() {
+        let mut rig = Rig::new("keys-held-answer", true);
+        rig.common_folder();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Theme:dark><Now><State:mid><Quit>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "the theme is written");
+        assert!(rig.screen.app.config_writes_pending());
+        // The answer is held: nothing is drained.
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 5), Outcome::Continue);
+        assert!(!rig.dir.join("mid.txt").exists(), "State is not written");
+        assert!(!rig.screen.app.quit, "<Quit> has not run");
+        assert!(!rig.flag());
+        assert_eq!(rig.step(&mut run, PAST_CONFIG_WAIT - 5), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed\n") && said.contains("step: <config write>\n"), "{said}");
+        assert!(said.contains("no answer from the config writer within 10 s of write #1 (common.toml)"), "{said}");
+        assert!(!said.contains("keys: done"), "{said}");
+        assert!(!rig.dir.join("mid.txt").exists() && !rig.screen.app.quit);
+        assert!(rig.flag());
+    }
+
+    #[test]
+    fn the_next_step_does_not_run_while_a_write_is_unanswered() {
+        let mut rig = Rig::new("keys-unanswered", true);
+        rig.common_folder();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Theme:dark><State:after>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        // Settled and long past the settle wait, and still it does not go on.
+        for _ in 0..5 {
+            assert_eq!(rig.step(&mut run, 1), Outcome::Continue);
+            assert!(!rig.dir.join("after.txt").exists());
+        }
+        assert_eq!(rig.step(&mut run, PAST_CONFIG_WAIT - 5), Outcome::Failed);
+        assert!(!rig.dir.join("after.txt").exists());
+        assert!(read(&done).contains("step: <config write>\n"));
+    }
+
+    #[test]
+    fn an_answer_in_time_lets_the_script_go_on_to_done() {
+        let mut rig = Rig::new("keys-answered", true);
+        rig.common_folder();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Theme:dark><State:after>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 5), Outcome::Continue);
+        rig.answer();
+        for _ in 0..3 {
+            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        }
+        let state = read(&rig.dir.join("after.txt"));
+        assert!(state.ends_with("config writes pending: no\nconfig write failed: none\n"), "{state}");
+        let said = read(&done);
+        assert!(said.ends_with("keys: done\n"), "{said}");
+        assert!(!rig.flag());
+    }
+
+    #[test]
+    fn now_is_for_the_next_step_only() {
+        let mut rig = Rig::new("keys-now-one-step", false);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<A-c><Now><State:mid><State:after>", Some(done), rig.dir.clone());
+        // The screen is not settled: the first key goes in after the settle wait.
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
+        // `mid` is read at once; `after` is back to waiting for the screen.
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert!(rig.dir.join("mid.txt").exists(), "<Now> let the next step go without waiting");
+        assert!(!run.now, "and was spent on it");
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert!(!rig.dir.join("after.txt").exists(), "an unsettled screen holds the step after");
+        assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
+        assert!(rig.dir.join("after.txt").exists(), "until the settle wait is over");
+    }
+
+    #[test]
+    fn closing_or_quitting_with_a_write_pending_fails_the_run() {
+        for (how, why) in [
+            (Ending::Closed, "the window was closed before the config writer answered (keymap.toml)"),
+            (Ending::Quit, "kura quit before the config writer answered (keymap.toml)"),
+        ] {
+            let mut rig = Rig::new("keys-ended-pending", true);
+            let done = rig.dir.join("done.txt");
+            let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+            rig.screen.app.config_writes.sent(Writer::Kura, "keymap.toml", rig.t0);
+            assert_eq!(run.ended(&mut rig.screen.app, how), Outcome::Failed, "{how:?}");
+            let said = read(&done);
+            assert!(said.contains("keys: failed\n") && said.contains("step: <config write>\n"), "{said}");
+            assert!(said.contains(why), "{said}");
+            assert!(!said.contains("keys: done") && !said.contains("keys: closed") && !said.contains("keys: quit"), "{said}");
+            assert!(rig.flag());
+        }
+    }
+
+    #[test]
+    fn a_failed_config_write_ends_the_run_with_its_message() {
+        let mut rig = Rig::new("keys-write-failed-ended", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        rig.screen.app.fail_config_write("common.toml: no space".into());
+        assert_eq!(run.ended(&mut rig.screen.app, Ending::Closed), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("step: <config write>\n") && said.contains("common.toml: no space"), "{said}");
+        assert!(rig.flag());
+
+        let mut rig = Rig::new("keys-write-failed-hook", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        rig.screen.app.fail_config_write("common.toml: no space".into());
+        rig.screen.app.fail_config_write("a second one".into());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("step: <config write>\n") && said.contains("common.toml: no space"), "the first wins: {said}");
+        assert_eq!(rig.screen.app.config_write_failed.as_deref(), Some("common.toml: no space"));
+    }
+
+    #[test]
+    fn a_write_is_judged_by_its_own_age_not_the_one_before_it() {
+        let mut rig = Rig::new("keys-two-writes", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:s>", Some(done), rig.dir.clone());
+        let start = rig.t0;
+        // A goes out at 0 s and is answered at 6 s; B goes out at 5 s and is answered at 11 s.
+        let a = rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", start);
+        let b = rig.screen.app.config_writes.sent(Writer::Common, "common.toml", start + Duration::from_secs(5));
+        assert_eq!(b, 1);
+        for sec in 1..=12u64 {
+            if sec == 7 {
+                rig.screen.app.config_writes.answered(Writer::Kura, a).unwrap();
+            }
+            if sec == 12 {
+                rig.screen.app.config_writes.answered(Writer::Common, b).unwrap();
+            }
+            assert_eq!(rig.step(&mut run, 1), Outcome::Continue, "no failure at {sec} s");
+        }
+        assert!(!rig.flag());
+        assert!(rig.dir.join("s.txt").exists(), "and the script went on once both were answered");
+    }
+
+    #[test]
+    fn a_write_nobody_answers_fails_at_ten_seconds_naming_it() {
+        let mut rig = Rig::new("keys-never-answered", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:s>", Some(done.clone()), rig.dir.clone());
+        let a = rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", rig.t0);
+        assert_eq!(rig.step(&mut run, 9), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 1), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains(&format!("no answer from the config writer within 10 s of write #{a} (config.toml)")), "{said}");
+    }
+
+    #[test]
+    fn the_waits_fit_inside_the_watchdogs() {
+        // ito's TEXT_WAIT and READ_WAIT are checked against STALL in ito.
+        let longest = DELIVER_WAIT.max(DEFAULT_WAIT).max(CONFIG_WAIT);
+        assert!(DEFAULT_WAIT + longest < keyscript::STALL, "{DEFAULT_WAIT:?} + {longest:?} < {:?}", keyscript::STALL);
+    }
+
+    #[test]
+    fn the_watchdog_clock_moves_with_the_script_and_not_with_the_waiting() {
+        let mut rig = Rig::new("keys-watchdog", true);
+        let start = rig.t0;
+        let mut run = rig.run("j<State:s>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        run.watch = Some(Arc::new(Mutex::new(crate::ScriptWatch { left: 2, at: start, due: Duration::ZERO, finished: false })));
+        let at = |run: &ScriptRun| run.watch.as_ref().unwrap().lock().unwrap().at;
+        let secs = |t: Instant| t.saturating_duration_since(start).as_secs();
+        // An input goes in at 0 s.
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 0);
+        // It is drawn at 9 s; a write goes out then.
+        rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", start + Duration::from_secs(9));
+        assert_eq!(rig.step(&mut run, 9), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 9, "delivery is progress");
+        // Frames drawn while the write is out move nothing.
+        assert_eq!(rig.step(&mut run, 3), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 2), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 9, "waiting for the answer is not progress");
+        // Answered at 18 s.
+        rig.screen.app.config_writes.answered(Writer::Kura, 1).unwrap();
+        assert_eq!(rig.step(&mut run, 4), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 18, "an answer is progress");
+        let w = run.watch.as_ref().unwrap().lock().unwrap();
+        assert!(!crate::stalled(&w, start + Duration::from_secs(32)));
+        assert!(!crate::stalled(&w, start + Duration::from_secs(18) + keyscript::STALL));
+        assert!(crate::stalled(&w, start + Duration::from_secs(18 + 31)));
+    }
+
+    #[test]
+    fn a_wait_keeps_its_grace_before_the_watchdog_calls_a_stall() {
+        let mut rig = Rig::new("keys-watchdog-wait", true);
+        let start = rig.t0;
+        let mut run = rig.run("j<Wait:20000>k", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        run.watch = Some(Arc::new(Mutex::new(crate::ScriptWatch { left: 3, at: start, due: Duration::ZERO, finished: false })));
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        let w = run.watch.as_ref().unwrap().lock().unwrap();
+        assert_eq!(w.due, Duration::from_secs(20));
+        assert!(!crate::stalled(&w, start + Duration::from_secs(20) + keyscript::STALL));
+        assert!(crate::stalled(&w, start + Duration::from_secs(20 + 31)));
+    }
+
+    #[test]
+    fn an_input_that_is_never_drawn_fails_after_ten_seconds() {
+        let mut rig = Rig::new("keys-not-drawn", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j<State:s>", Some(done.clone()), rig.dir.clone());
+        let root = egui::ViewportId::ROOT;
+        assert_eq!(rig.tick(&mut run, 0, 2, root), Outcome::Continue, "the key goes in");
+        // The window is hidden: the frame counter does not move.
+        assert_eq!(rig.tick(&mut run, 5, 0, root), Outcome::Continue);
+        assert_eq!(rig.tick(&mut run, 4, 0, root), Outcome::Continue);
+        assert_eq!(rig.tick(&mut run, 1, 0, root), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("the input was not drawn within 10 s (the window may be hidden, minimized or covered)"), "{said}");
+        assert!(!rig.dir.join("s.txt").exists());
+    }
+
+    #[test]
+    fn an_input_in_flight_that_meets_another_window_fails_but_an_idle_hook_does_nothing() {
+        let other = egui::ViewportId::from_hash_of("another window");
+        let mut rig = Rig::new("keys-other-viewport", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j<State:s>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.tick(&mut run, 0, 2, egui::ViewportId::ROOT), Outcome::Continue);
+        assert_eq!(rig.tick(&mut run, 0, 0, other), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("the input went to viewport "), "{said}");
+
+        // With nothing in flight another window's hook injects nothing and changes nothing.
+        let mut rig = Rig::new("keys-other-idle", true);
+        let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        let before = run.queue.len();
+        assert_eq!(rig.tick(&mut run, 0, 4, other), Outcome::Continue);
+        assert!(run.queue.len() == before && run.inflight.is_none());
     }
 }
