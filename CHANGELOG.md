@@ -9,6 +9,14 @@
 
 ## [未リリース]
 
+## [0.151.3] - 2026-11-08
+
+### 変更
+
+- 開発の手順（`.claude/skills/dev-orchestra-kura`）: Sonnet のワーカーと Codex の設計レビューを、Agent ツールの subagent として起動するようにした
+  （持ち主が subagent の一覧で見るため。Orca の `worker-start` は持ち主が頼んだときだけ）。Codex の設計レビューは、設計の判断があるときに回す。
+  CHANGELOG の日付の取り方を、この PC の Git Bash で JST の日付が出る `TZ=JST-9 date +%F` に直した。アプリの動きは変わらない。
+
 ## [0.151.2] - 2026-11-08
 
 ### 修正

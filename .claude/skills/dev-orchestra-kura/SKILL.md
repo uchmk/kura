@@ -8,13 +8,13 @@ description: "kura-specific rules for /dev-orchestra: spec fields, version/CHANG
 グローバルの `dev-orchestra` に足す、kura だけの決まり。正は `CLAUDE.md` と `docs/claude/`。
 
 ## 流れ
-1. 設計（必要なら Codex 設計レビュー）→ 実装役の選択 → 仕様ファイルを scratchpad に置く。
-2. 実装は Sonnet のワーカー。`worker-start --spec-file <仕様> --worktree current --agent claude --model <sonnet の ID>` で起動する（終わると Orca が約 2 分後に端末を自動で閉じる）。
-   Bypass Permissions の確認画面は、持ち主が許可したときだけ承諾してよい（許可はその作業の分だけ。ほかの作業に持ち越さない）。
-   許可が無ければ承諾せず（文字も Enter も送らない）、持ち主に知らせて待つ。権限の確認（`awaiting_permission`）で止まったワーカーは異常終了として扱わず、勝手に承諾・中断・起動し直しをしない。
-   渡したらターンを終えて Orca の通知を待つ
-   （ポーリング・再送をしない。`start_unknown` / `turn_start_unobserved` は待つか、`orca terminal read` で確かめる）。
-   `--terminal` で自作した端末は自動で閉じないので、使うなら `orca terminal close` で閉じる。
+1. 設計（設計の判断があれば Codex の設計レビューを回す。枠は十分ある）→ 実装役の選択 → 仕様ファイルを scratchpad に置く。
+   Codex は Agent ツールの subagent（`general-purpose`、`model: haiku`）を包みにして、その中で
+   `cd /c/dev/kura && codex exec -s read-only -C 'C:/dev/kura' --color never -o "<出力>" "<依頼文>"` を前面で 1 回回す（グローバルの `dev-orchestra` の「起動のしかた」）。
+2. 実装は Sonnet のワーカー。**Agent ツールの subagent**（`subagent_type: general-purpose`、`model: sonnet`）として起動し、prompt に仕様ファイルの絶対パスを書く。
+   裏の子プロセスや Orca の `worker-start` では起動しない（持ち主は subagent の一覧で見る。Orca は持ち主が頼んだときだけで、そのときはグローバルの `dev-orchestra` の手順）。
+   渡したら完了の通知を待つ（ポーリングしない）。直しは SendMessage で同じ subagent に戻す。
+   subagent の権限の確認は持ち主に出る。代わりに承諾せず、拒否されたら迂回せずに持ち主に知らせる。
 3. 戻ったら main が差分を確かめる → `audit`（差分をラベル付きで渡す）→ 指摘は読んで確かめてから反映。
 4. 実機でしか測れない行があれば、ビルド後に `wintest` に行 ID・期待値・exe・fixtures・scratch を渡して測らせる
    （規則は `docs/claude/wintest-measure.md`）。結果は main が確かめる。`[x]` を付けるのは `docs/claude/lanes.md` の「`[x]` の規則（正）」のとおり。
@@ -31,7 +31,7 @@ description: "kura-specific rules for /dev-orchestra: spec fields, version/CHANG
 
 ## 指示役の側
 - 動きが変わる変更には TESTING.md の行を足す（`[x]` を付けてよいのは実機のセッションと持ち主だけ）。
-- 版: PATCH を上げ（文書だけでも）、`cargo build` で Cargo.lock、CHANGELOG（JST: `TZ=Asia/Tokyo date +%F`）、件名 `vX.Y.Z: …`。
+- 版: PATCH を上げ（文書だけでも）、`cargo build` で Cargo.lock、CHANGELOG（JST: Git Bash では `TZ=JST-9 date +%F`。この PC の Git Bash は `TZ=Asia/Tokyo` を解さず UTC の日付を出す）、件名 `vX.Y.Z: …`。
 - 実行中の `kura.exe` がリンクを塞ぐ（`os error 5`）ときは、止めてよい（事前確認不要）。
 - 一時ファイルは `R:\Temp`（`mktemp -p /r/Temp`）。
 - `git add` は自分のパスを 1 つずつ。`git diff --staged --name-only` で確かめ、コミット後に `git show --stat HEAD`。
