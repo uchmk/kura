@@ -58,8 +58,15 @@ waits for the window -- and with `--keys`, until kura has pressed the last key
 and it has settled (`OUT/keys.done`), then `XRUN_WAIT` seconds more (default 1;
 without `--keys`, 3) -- and leaves `OUT/shot.png`, `OUT/title.txt`,
 `OUT/clip.txt` (armed with `XRUN-SENTINEL` first, read while kura still owns
-it) and `OUT/kura.log`. No `OUT/keys.done` means the keys timed out: that
-result is of a half-pressed script, so do not tick from it. `OUT/keys.done`
+it) and `OUT/kura.log`. With `--keys`, **a non-zero exit from xrun.sh is no
+result** (v0.151.1): the last line of `OUT/keys.done` was not `keys: done` --
+no file (the keys timed out), `keys: failed`, `keys: unsettled`, `keys: refused`
+or `keys: closed`. xrun.sh says why on stderr (the shot and the title are still
+taken, to show it) and ends with kura's exit code if kura had ended by itself
+with a non-zero one, else 1. A kura that refused the script before its window
+(`keys: refused`, or an unknown step's `keys: failed`) ends xrun.sh earlier,
+with `xrun: no window appeared` and exit 1 and no shot. Do not tick from such a
+run; report it. `OUT/keys.done`
 itself holds the state after the last key -- `cwd`, `hovered`, `selected`,
 `tab`, `overlay`, `input`, `pane`, `toast`, one `name: value` per line
 (README, `--keys`) -- so read it rather than pressing a key to find out.

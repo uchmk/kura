@@ -179,19 +179,27 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb imagemagick x11-utils \
-            mesa-vulkan-drivers libxkbcommon-x11-0
+            mesa-vulkan-drivers libxkbcommon-x11-0 xdotool xclip
       - name: Build
         run: cargo build --locked
       - name: Start it and photograph it
         run: scripts/smoke-linux.sh --out smoke.png
-      # Kept whether or not the step passed: a failure here is a picture of
+      # The Linux lane presses keys through scripts/xrun.sh and reads a zero
+      # exit as a result. A run that did not do what its script said (kura
+      # v0.151.0) must come back non-zero through it (ito v0.262.7, #202), and
+      # one that did must not.
+      - name: Press keys through xrun.sh
+        run: scripts/smoke-keys-linux.sh --out keys-smoke
+      # Kept whether or not the steps passed: a failure here is a picture of
       # something, and the picture is the report.
       - name: Keep the screenshot
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: linux-smoke
-          path: smoke.png
+          path: |
+            smoke.png
+            keys-smoke
           if-no-files-found: warn
 
   # CLAUDE.md says clippy is kept at zero warnings with `--all-targets`, and

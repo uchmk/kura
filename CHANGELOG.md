@@ -9,6 +9,22 @@
 
 ## [未リリース]
 
+## [0.151.1] - 2026-11-08
+
+### 変更
+
+- ito を v0.262.7（`e0015f9`）に上げ、`scripts/lanes.sh sync` で `scripts/xrun.sh` を写した（ito#202）。`--keys` の done ファイルの
+  最後の行が `keys: done` でない（またはファイルが無い）と、xrun.sh は shot.png・title.txt・clip.txt を残したうえで理由を stderr に出し、
+  0 以外で終わる（アプリが自分で 0 以外の終了コードで終わっていればそのコード、でなければ 1）。窓の前に拒まれたときは、それより前に
+  `xrun: no window appeared` で 1 を返す（shot は撮らない）。
+- Linux レーンの指示（`.claude/linux-role.md`）: `--keys` での xrun.sh の 0 以外の終了は結果なしとして扱い、`[x]` の根拠にしない。
+
+### 追加
+
+- CI の smoke ジョブ（ubuntu、Xvfb）に `scripts/smoke-keys-linux.sh` を足した。xrun.sh 経由で `j<State:s>`（結果になる）、
+  書けない `<State:x>`（窓が開いてから `keys: failed`）、`<Assert:foo>`（窓の前に拒む）の 3 通りを押し、最初だけが終了コード 0 で
+  `keys: done` になることを確かめる。
+
 ## [0.151.0] - 2026-11-08
 
 ### 変更
