@@ -78,10 +78,14 @@ mkdir -p "$OUT/failed/x.txt"
 printf 'an xrun.sh run folder\n' >"$OUT/failed/.keys-run"
 run failed 'j<State:x>k'
 [ "$code" != 0 ] || fail "failed: xrun.sh exit 0 for a run that could not write <State:x>"
-[ "$(head -1 "$OUT/failed/keys.done" 2>/dev/null)" = "keys: failed" ] || fail "failed: keys.done does not start 'keys: failed'"
+# Once the window is up, a failed run's report is the state lines, then
+# `keys: failed` and the step, the reason and what was left.
+grep -qx 'keys: failed' "$OUT/failed/keys.done" 2>/dev/null || fail "failed: keys.done has no 'keys: failed' line"
+grep -qx 'step: <State:x>' "$OUT/failed/keys.done" 2>/dev/null || fail "failed: keys.done does not name <State:x> as the step"
 
 run refused 'j<Assert:foo>k'
 [ "$code" != 0 ] || fail "refused: xrun.sh exit 0 for a script kura refused"
+# Refused before the window, there is no state yet: the report is only that.
 [ "$(head -1 "$OUT/refused/keys.done" 2>/dev/null)" = "keys: failed" ] || fail "refused: keys.done does not start 'keys: failed'"
 
 if [ "$FAILS" -gt 0 ]; then
