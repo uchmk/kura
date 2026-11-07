@@ -775,6 +775,35 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
         // `enter` on a file moves into its outline; a double-click opens.
         queued.push(Act::Open { interactive: false, hovered: true });
     }
+    // A details-view header sorts by its column; the active column flips direction.
+    if let Some(col) = res.header_clicked {
+        use crate::fs::SortBy as S;
+        let by = match col {
+            0 => Some(S::Natural),
+            1 => Some(S::Mtime),
+            2 => Some(S::Btime),
+            3 => Some(S::Atime),
+            4 => Some(S::Type),
+            5 => Some(S::Size),
+            6 => Some(S::Dimensions),
+            7 => Some(S::Owner),
+            8 => Some(S::Permissions),
+            9 => Some(S::Extension),
+            10 => Some(S::Usage),
+            _ => None,
+        };
+        if let Some(by) = by {
+            app.focus_pane(idx);
+            app.preview.outline = None;
+            let cur = app.tabs[idx].sort;
+            let same = cur.by == by || (col == 0 && matches!(cur.by, S::Alphabetical | S::Natural));
+            queued.push(Act::Sort {
+                by: Some(if same { cur.by } else { by }),
+                reverse: Some(if same { !cur.reverse } else { false }),
+                dir_first: None,
+            });
+        }
+    }
     // Right-click asks what can be done with the row it landed on, so the pane
     // and the cursor move there first.
     if let Some(row) = res.secondary_clicked {

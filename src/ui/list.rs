@@ -40,6 +40,8 @@ pub struct ListResult {
     pub double_clicked: Option<usize>,
     /// Right-click, which opens the context menu on that row.
     pub secondary_clicked: Option<usize>,
+    /// The details view's column header that was clicked (an index into `DETAIL_KEYS`).
+    pub header_clicked: Option<usize>,
     /// The row a drag began on, the frame it began.
     pub drag_started: Option<usize>,
     /// The drag that began here has been let go, wherever the pointer is now.
@@ -66,6 +68,7 @@ pub fn draw(
     let details = st.linemode == crate::fs::entry::Linemode::All;
     let cell_width = painter.layout_no_wrap("M".into(), st.font.clone(), st.theme.fg).size().x;
     let columns = if details { detail_columns(rect.width(), cell_width) } else { Vec::new() };
+    let mut header_clicked = None;
     if details {
         let name_width = columns.first().map_or(rect.width(), |c| c.1);
         let header = |col: usize| {
@@ -94,6 +97,16 @@ pub fn draw(
         for (col, x, width) in std::iter::once((0, 0.0, name_width)).chain(columns.iter().copied()) {
             let cell = Rect::from_min_size(egui::pos2(rect.left() + x + 4.0, rect.top()), Vec2::new((width - 8.0).max(0.0), st.row_h));
             painter.with_clip_rect(cell).text(cell.left_center(), Align2::LEFT_CENTER, header(col), st.font.clone(), st.theme.fg_dim);
+            // The whole header cell is the click target: a click sorts by the column.
+            let hit = Rect::from_min_size(egui::pos2(rect.left() + x, rect.top()), Vec2::new(width, st.row_h));
+            let id = ui.id().with(("list-header", rect.left() as i32, rect.top() as i32, col));
+            let resp = ui.interact(hit, id, egui::Sense::click());
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if resp.clicked() {
+                header_clicked = Some(col);
+            }
         }
     }
     let rect = if details { Rect::from_min_max(rect.min + Vec2::new(0.0, st.row_h), rect.max) } else { rect };
@@ -102,6 +115,7 @@ pub fn draw(
         clicked: None,
         double_clicked: None,
         secondary_clicked: None,
+        header_clicked,
         drag_started: None,
         drag_stopped: false,
         scroll_rows: 0.0,
@@ -184,13 +198,19 @@ pub fn draw(
                 let cell = Rect::from_min_size(egui::pos2(rect.left() + offset + 4.0, y), Vec2::new(width - 8.0, st.row_h));
                 let text = detail_text(entry, col, st.lang);
                 let cp = painter.with_clip_rect(cell);
-                cp.text(
-                    if col == 5 { cell.right_center() } else { cell.left_center() },
-                    if col == 5 { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER },
-                    text,
-                    st.font.clone(),
-                    st.theme.fg_dim,
-                );
+                if col == 5 {
+                    // Number and unit are two columns: the numbers end at one x and
+                    // the units (B / K / M / G) start at one x, so they line up.
+                    let (num, unit) = text.split_once(' ').unwrap_or((text.as_str(), ""));
+                    let unit_x = cell.right() - 1.5 * cell_width;
+                    let num_right = cell.right() - 2.0 * cell_width;
+                    cp.text(egui::pos2(num_right, cell.center().y), Align2::RIGHT_CENTER, num, st.font.clone(), st.theme.fg_dim);
+                    if !unit.is_empty() {
+                        cp.text(egui::pos2(unit_x, cell.center().y), Align2::LEFT_CENTER, unit, st.font.clone(), st.theme.fg_dim);
+                    }
+                } else {
+                    cp.text(cell.left_center(), Align2::LEFT_CENTER, text, st.font.clone(), st.theme.fg_dim);
+                }
                 if col == 10 && entry.usage.is_some() && st.usage_max > 0 {
                     let track = Rect::from_min_size(cell.left_bottom() - Vec2::new(0.0, 3.0), Vec2::new(cell.width(), 2.0));
                     cp.rect_filled(track, CornerRadius::ZERO, st.theme.border);

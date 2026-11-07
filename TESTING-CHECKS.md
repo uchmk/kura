@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 779 件（TESTING.md の全 974 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 781 件（TESTING.md の全 976 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1139,6 +1139,8 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **69.10** （v0.148.0）窓を広げる → 画像の大きさ・所有者・権限・拡張子が出る。`.png` / `.jpg` は少し待つと `1920 × 1080` のように出て、SVG やテキストは空。所有者はアカウント名（Windows は `DOMAIN\user`、Linux / macOS はユーザー名） — *(v0.148.0) Widen the window → Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: `DOMAIN\user`; Linux/macOS: the user name)*
 - [ ] **69.11** （v0.148.0）詳細ビューで `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` → 種類・権限・測った使用量・所有者・画像のピクセル数・アクセス日時の順に並び替わる。値のない行は昇順でも降順でも最後。見出しの並べた列に ▲ か ▼。何千ファイルのフォルダーでも UI が固まらない — *(v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view → The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files*
 - [ ] **69.12** （v0.148.0）`m o` → 各行の右の値が所有者になる — *(v0.148.0) `m o` → The right-hand value of every row is the owner*
+- [ ] **69.13** （v0.150.0）詳細ビューのサイズ欄を、5 B・3 KB・259 KB・27 MB のファイルとフォルダーで見る → 数字の右端が 1 か所にそろい、単位（B / K / M / G）の左端も 1 か所にそろって縦に並ぶ。フォルダーは件数だけで、数字と同じ右端にそろう — *(v0.150.0) In the details view, look at the Size column with files of 5 B, 3 KB, 259 KB and 27 MB and a folder → The numbers end at one x and the units (B / K / M / G) start at one x, so the units line up in a column; a folder shows only its count, ending at the same x as the numbers*
+- [ ] **69.14** （v0.150.0）詳細ビューで「サイズ」の見出しをクリック、もう一度クリック、次に更新日時・名前・所有者（広い窓）→ クリックした列で並べ替わり（▲）、今の列をもう一度押すと ▼ に反転する。見出しの上でポインターが手の形になる。分割の非アクティブ側の見出しを押すと、その側にフォーカスが移って並べ替わる — *(v0.150.0) Click the Size heading, click it again, then Date modified, Name and Owner (wide window) → Each click sorts by that column (▲ shown); clicking the active column flips to ▼; the pointer is a hand over the headings; a click on a heading in the unfocused pane of a split focuses it and sorts there*
 
 ## 70. Convert images, `c i` (v0.149.0)
 

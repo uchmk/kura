@@ -1950,6 +1950,8 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.10 | (v0.148.0) Widen the window | Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: `DOMAIN\user`; Linux/macOS: the user name) |
 | 69.11 | (v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view | The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files |
 | 69.12 | (v0.148.0) `m o` | The right-hand value of every row is the owner |
+| 69.13 | (v0.150.0) In the details view, look at the Size column with files of 5 B, 3 KB, 259 KB and 27 MB and a folder | The numbers end at one x and the units (B / K / M / G) start at one x, so the units line up in a column; a folder shows only its count, ending at the same x as the numbers |
+| 69.14 | (v0.150.0) Click the Size heading, click it again, then Date modified, Name and Owner (wide window) | Each click sorts by that column (▲ shown); clicking the active column flips to ▼; the pointer is a hand over the headings; a click on a heading in the unfocused pane of a split focuses it and sorts there |
 
 ## 70. Convert images, `c i` (v0.149.0)
 
