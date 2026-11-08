@@ -1759,6 +1759,10 @@ then `config writes pending: yes|no` (a config file write has not been answered 
 cut, to `name.pane.txt` beside the `KURA_KEYS_DONE` file (v0.78.63), so a full-screen program's footer
 can be checked as words; with no pane it writes `(no pane)`.
 
+`<ReadHas:PaneText=text>` and `<ReadHas:PreviewText=text>` pass when that reading (the terminal pane's text, the preview's text) contains the text,
+re-reading every frame for up to 15 seconds; if it never does, the run ends `keys: failed` with `why:` naming the reading, the text wanted and what was read.
+It writes no file and presses nothing (ito 0.264.0).
+
 `<Now>` may also come before `<State:name>`, `<Shot:name>` or `<PaneText:name>`, to read a job that is still running (v0.78.69): `<A-c><Now><State:mid>`.
 
 `<PreviewText:name>` writes the preview pane's text whole (the file's lines, a hex dump, a card's rows, or the error) to `name.preview.txt` (v0.78.70), so a preview's body can be checked as words.
@@ -1860,17 +1864,23 @@ left: u <Shot:after>
 Should the keys go on after all, the usual report replaces it. So read the last line: `keys: done`
 is a finished script, and anything else is not.
 
+Every report (done, failed, unsettled, quit, closed, refused, stalled and panicked) carries exactly one `run: <id>` line, so a test can tell its own
+run's file from a stale one. The first line stays as it was (`keys: stalled` is read there), and a finished script still ends `keys: done`
+with `run:` just before it; for the other endings `run:` is the last line. The id is `KURA_KEYS_RUN_ID` when set (1 to 64 of
+`A-Z a-z 0-9 _ -`), else `<unix ms>-<pid>`. It is decided before the script is parsed: a bad `KURA_KEYS_RUN_ID` is refused before any window,
+with `keys: refused` and exit code 3 (ito 0.265.0, #203).
+
 Two more endings leave the file too (v0.72.8). A script whose last key quits kura (`jq`) writes its
 report as the window closes, with `quit: yes` just before `keys: done`; a quit with keys still to go
 ends `keys: quit` and `left: N not pressed`. A script refused before the window opens (a plain
-space, a key that cannot be typed) writes `keys: refused` and `why: …`, the same reason the command
+space, a key that cannot be typed, a `<ReadHas:>` of a reading kura does not have) writes `keys: refused` and `why: …`, the same reason the command
 line gets -- which a run started detached never sees. A window closed from outside (the title bar's ×) while the
 script runs writes `quit: window closed` before `keys: done`, or `keys: closed` and `left: N not pressed` (v0.78.161).
 
 A run that did not do what the script said does not end `keys: done`, and exits with code 3:
 
 - `keys: failed`, with `step:`, `why:` and `left: N not pressed`. A step kura's `--keys` does not carry out yet
-  (`<Assert:>`, `<Click:text>`, `<Clipboard:>`, `<Is:>`, `<Tree:>` and the like) is refused before the window opens,
+  (`<Assert:>`, `<Click:text>`, `<Clipboard:>`, `<Is:>`, `<Tree:>`, `<ClickId:>`, `<Id:>`, `<ValueId:>` and the like) is refused before the window opens,
   the same way, with `step i of n` in `why:`. While the script runs, a `<State:>`, `<PaneText:>` or `<PreviewText:>`
   file or a `<Shot:>` picture that cannot be written, or a picture that does not arrive in 5 seconds, ends it so
   (the window closes). The `why:` names the path. The same lines go to standard error.

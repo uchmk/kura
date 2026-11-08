@@ -87,6 +87,8 @@ pub(crate) struct ScriptRun {
     now: bool,
     /// The last input handed to the main window, until a later frame confirms it was drawn.
     inflight: Option<Inflight>,
+    /// When the `<ReadHas:>` at the front of the queue was first tried.
+    read_has_since: Option<Instant>,
     /// When the script last made progress, for the watchdog: a step ran, an
     /// input was drawn, a config write was answered or a picture was saved.
     progress_at: Instant,
@@ -135,12 +137,14 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::Size { .. }
         | Press::Theme(_)
         | Press::Lang(_) => None,
-        Press::Read { tag, .. } => match tag.as_str() {
+        Press::Read { tag, .. } | Press::ReadHas { tag, .. } => match tag.as_str() {
             "PaneText" | "PreviewText" => None,
             _ => Some("a reading kura does not have"),
         },
         Press::ClickText { .. } | Press::DClickText(_) => Some("a click on text"),
-        Press::Assert { .. } | Press::Is { .. } | Press::Announced(_) | Press::Tree(_) => Some("a check of the window's tree"),
+        Press::Assert { .. } | Press::Is { .. } | Press::Announced(_) | Press::Tree(_) | Press::ClickId(_) | Press::IdCheck(_) => {
+            Some("a check of the window's tree")
+        }
         Press::Clipboard(_) | Press::ClipboardHas(_) => Some("a check of the clipboard"),
     }
 }
@@ -154,8 +158,10 @@ fn say_err(text: &str) {
 
 /// Write a report, and when it cannot be written say so and mark the run as
 /// not succeeded: a done file that is missing reads as a stall, not as a result.
+/// Every report from a running script gets the run's `run: <id>` line here (#203);
+/// the refusals before the window add it in `main.rs`.
 pub(crate) fn write_report(path: &Path, text: &str, failed: &AtomicBool) -> bool {
-    match std::fs::write(path, text) {
+    match std::fs::write(path, keyscript::with_current_run(text)) {
         Ok(()) => true,
         Err(e) => {
             say_err(&format!("cannot write {}: {e}", path.display()));
@@ -204,6 +210,15 @@ pub(crate) fn save_shot(
     Ok(path.to_path_buf())
 }
 
+/// What kura reads under `tag` (`PaneText`, `PreviewText`); `None` for a tag it does not have.
+fn reading(app: &App, tag: &str) -> Option<String> {
+    match tag {
+        "PaneText" => Some(app.term.as_ref().map_or_else(|| "(no pane)\n".to_owned(), |t| t.screen_text())),
+        "PreviewText" => Some(crate::preview_text(&app.preview.state)),
+        _ => None,
+    }
+}
+
 /// Write `text` to `path`, the error naming the path.
 fn write_text(path: &Path, text: &str) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| format!("could not write {}: {e}", path.display()))
@@ -221,6 +236,7 @@ impl ScriptRun {
             at: (0, started),
             now: false,
             inflight: None,
+            read_has_since: None,
             progress_at: started,
             answers_seen: 0,
             cursor_icon: egui::CursorIcon::Default,
@@ -430,7 +446,12 @@ impl ScriptRun {
         }
         // `<Now>`: one frame after the last key is enough -- it has been
         // handed to the app, which is all the next one needs.
-        let ready = if self.now { frame > last_frame } else { frame >= last_frame + 2 && (settled || waited_long) };
+        // A `<ReadHas:>` that has started looking reads again every frame, settled or not.
+        let ready = if self.now || self.read_has_since.is_some() {
+            frame > last_frame
+        } else {
+            frame >= last_frame + 2 && (settled || waited_long)
+        };
         if !ready {
             return Outcome::Continue;
         }
@@ -540,6 +561,27 @@ impl ScriptRun {
                 }
                 self.at = (frame, now);
             }
+            // Reads again each frame until the text is in the reading, for up to `READ_WAIT`.
+            // It presses nothing and is a check that tolerates a moving screen, so it is not named as unsettled.
+            Press::ReadHas { tag, text } => {
+                record = false;
+                let since = *self.read_has_since.get_or_insert(now);
+                let got = reading(app, &tag).unwrap_or_default();
+                if got.contains(&text) {
+                    self.read_has_since = None;
+                    self.at = (frame, now);
+                } else if now.saturating_duration_since(since) < keyscript::READ_WAIT {
+                    ran = false;
+                    self.queue.push_front((idx, Press::ReadHas { tag, text }));
+                } else {
+                    self.read_has_since = None;
+                    let shown: String = got.chars().take(200).collect();
+                    let more = if got.chars().count() > 200 { "..." } else { "" };
+                    let why =
+                        format!("{tag} did not contain {text:?} within {} s; it read {shown:?}{more}", keyscript::READ_WAIT.as_secs());
+                    return self.fail(app, idx, why);
+                }
+            }
             // Straight to the quit `ui` already handles, past anything that
             // would ask first or take `q` for itself (#236).
             Press::Quit => {
@@ -579,7 +621,9 @@ impl ScriptRun {
             | Press::ClipboardHas(_)
             | Press::Is { .. }
             | Press::Tree(_)
-            | Press::Announced(_) => {
+            | Press::Announced(_)
+            | Press::ClickId(_)
+            | Press::IdCheck(_) => {
                 return self.fail(app, idx, "kura's --keys does not carry out this step yet".to_owned());
             }
         }
@@ -780,6 +824,11 @@ mod tests {
         std::fs::read_to_string(path).unwrap()
     }
 
+    /// A report without its `run:` line, to look at how the rest ends.
+    fn body(report: &str) -> String {
+        report.lines().filter(|l| !l.starts_with("run: ")).map(|l| format!("{l}\n")).collect()
+    }
+
     /// A path under a regular file: nothing can be created there, on any OS.
     fn unwritable(dir: &Path) -> PathBuf {
         let file = dir.join("in-the-way");
@@ -795,7 +844,12 @@ mod tests {
         {
             assert_eq!(unsupported(&p(ok)), None, "{ok}");
         }
-        for bad in ["<Assert:foo>", "<Assert:!foo>", "<Click:Name>", "<Clipboard:x>", "<Tree:t>"] {
+        assert_eq!(unsupported(&p("<ReadHas:PaneText=x>")), None);
+        assert_eq!(unsupported(&p("<ReadHas:PreviewText=x>")), None);
+        assert!(unsupported(&Press::ReadHas { tag: "Bogus".into(), text: "x".into() }).is_some());
+        for bad in
+            ["<Assert:foo>", "<Assert:!foo>", "<Click:Name>", "<Clipboard:x>", "<Tree:t>", "<ClickId:a><Id:a>", "<Id:a>", "<ValueId:a=b>"]
+        {
             assert!(unsupported(&p(bad)).is_some(), "{bad}");
         }
         let unknown = Press::Read { tag: "Bogus".into(), name: "n".into() };
@@ -814,11 +868,108 @@ mod tests {
             assert!(said.contains("keys: failed\n"), "{script}: {said}");
             assert!(said.contains(&format!("step: {script}\n")), "{script}: {said}");
             assert!(said.contains(&shot_dir.display().to_string()), "{script} names the path: {said}");
-            assert!(said.ends_with("left: 1 not pressed\n"), "{script}: {said}");
+            assert!(body(&said).ends_with("left: 1 not pressed\n"), "{script}: {said}");
             assert!(!said.contains("keys: done"), "{script}: {said}");
             assert!(rig.flag(), "{script}");
             assert!(run.queue.is_empty() && run.done.is_none(), "{script}: no more keys, one report");
         }
+    }
+
+    /// Every report kura writes carries exactly one `run:` line; a success still ends with `keys: done`.
+    #[test]
+    fn reports_carry_one_run_line() {
+        keyscript::run_id("KURA").unwrap();
+        let id = keyscript::current_run_id().unwrap();
+        let mut rig = Rig::new("keys-run-line", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        while rig.step(&mut run, 0) == Outcome::Continue && run.done.is_some() {}
+        let said = read(&done);
+        assert_eq!(said.lines().filter(|l| l.starts_with("run: ")).count(), 1, "{said}");
+        assert!(said.ends_with(&format!("run: {id}\nkeys: done\n")), "{said}");
+
+        let bad = rig.dir.join("failed.txt");
+        let mut run = rig.run("j", Some(bad.clone()), rig.dir.clone());
+        run.queue = [(0, Press::Read { tag: "Bogus".into(), name: "n".into() })].into();
+        assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
+        let said = read(&bad);
+        assert_eq!(said.lines().filter(|l| l.starts_with("run: ")).count(), 1, "{said}");
+        assert!(said.lines().any(|l| l == format!("run: {id}")), "{said}");
+        assert!(said.contains("keys: failed\n") && !said.contains("keys: done"), "{said}");
+        assert!(said.lines().filter(|l| l.starts_with("keys: ")).eq(["keys: failed"]), "{said}");
+    }
+
+    #[test]
+    fn read_has_waits_for_the_text_then_fails_naming_what_it_read() {
+        let mut rig = Rig::new("keys-read-has", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        // No pane in the harness: the reading is "(no pane)".
+        run.queue = [(0, Press::ReadHas { tag: "PaneText".into(), text: "(no pane)".into() })].into();
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert!(run.queue.is_empty(), "the text was there at once");
+
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        run.queue = [(0, Press::ReadHas { tag: "PaneText".into(), text: "never there".into() })].into();
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "waits");
+        assert_eq!(run.queue.len(), 1);
+        assert_eq!(rig.step(&mut run, keyscript::READ_WAIT.as_secs() + 1), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed\n") && said.contains("PaneText") && said.contains("never there"), "{said}");
+        assert!(said.contains("(no pane)"), "what it read: {said}");
+        assert!(rig.flag());
+    }
+
+    /// A `<ReadHas:>` on a screen that never settles looks again on the next frame,
+    /// finds its text there, and is not named as a step that went in unsettled.
+    #[test]
+    fn read_has_on_a_moving_screen_finds_late_text_and_is_not_unsettled() {
+        use crate::app::PreviewState;
+        use crate::preview::Payload;
+        let mut rig = Rig::new("keys-read-has-moving", false);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        run.queue = [(0, Press::ReadHas { tag: "PreviewText".into(), text: "late text".into() })].into();
+        rig.screen.app.preview.state = PreviewState::Loading;
+        assert_eq!(rig.step(&mut run, 6), Outcome::Continue, "starts looking");
+        assert_eq!(run.queue.len(), 1, "not there yet");
+        rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("some late text".into()));
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "looks again without waiting to settle");
+        assert!(run.queue.is_empty(), "found on the next frame");
+        rig.screen.app.preview.in_flight = false;
+        while rig.step(&mut run, 0) == Outcome::Continue && run.done.is_some() {}
+        let said = read(&done);
+        assert!(said.ends_with("keys: done\n"), "{said}");
+        assert!(!said.lines().any(|l| l.starts_with("unsettled") || l.starts_with("keys: unsettled")), "{said}");
+        assert!(!rig.flag());
+
+        // After `<Now>`, the second look does not wait out the settle time either.
+        rig.screen.app.preview.in_flight = true;
+        rig.screen.app.preview.state = PreviewState::Loading;
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        run.queue = [(0, Press::Now), (1, Press::ReadHas { tag: "PreviewText".into(), text: "later".into() })].into();
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(run.queue.len(), 1, "looked once under <Now>");
+        rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("later".into()));
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert!(run.queue.is_empty(), "found on the next frame, not after the settle wait");
+    }
+
+    /// What a failed `<ReadHas:>` read is cut to its first 200 characters.
+    #[test]
+    fn read_has_names_at_most_200_characters_of_what_it_read() {
+        use crate::app::PreviewState;
+        use crate::preview::Payload;
+        let mut rig = Rig::new("keys-read-has-long", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        run.queue = [(0, Press::ReadHas { tag: "PreviewText".into(), text: "zzz".into() })].into();
+        rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("x".repeat(300)));
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, keyscript::READ_WAIT.as_secs() + 1), Outcome::Failed);
+        let said = read(&done);
+        let why = said.lines().find(|l| l.starts_with("why: ")).expect("a why line");
+        assert!(why.ends_with(&format!("it read {:?}...", "x".repeat(200))), "{why}");
     }
 
     #[test]
@@ -913,7 +1064,7 @@ mod tests {
         assert_eq!(rig.step(&mut run, 6), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("step: <Shot:x>\n"), "{said}");
-        assert!(said.ends_with("left: 2 not pressed\n"), "the shot and the key after it: {said}");
+        assert!(body(&said).ends_with("left: 2 not pressed\n"), "the shot and the key after it: {said}");
         assert!(!rig.dir.join("x.png").exists());
         assert!(rig.flag());
     }
@@ -930,7 +1081,7 @@ mod tests {
             let said = read(&done);
             assert!(said.contains("keys: failed\n"), "{how:?}: {said}");
             assert!(!said.contains("keys: done"), "{how:?}: {said}");
-            assert!(said.ends_with("left: 1 not pressed\n"), "{how:?}: {said}");
+            assert!(body(&said).ends_with("left: 1 not pressed\n"), "{how:?}: {said}");
             assert!(rig.flag(), "{how:?}");
         }
     }
@@ -949,7 +1100,7 @@ mod tests {
         }
         assert_eq!(last, Outcome::Unsettled);
         let said = read(&done);
-        assert!(said.ends_with("keys: unsettled\n"), "{said}");
+        assert!(body(&said).ends_with("keys: unsettled\n"), "{said}");
         assert!(said.contains("unsettled: 4 of 5 steps went in after 5 s without settling: j <Drag:"), "{said}");
         assert_eq!(said.matches("<Drag:").count(), 1, "a split drag is named once: {said}");
         assert!(!said.contains("<Wait:400>"), "the wait Size adds is not a step: {said}");
@@ -982,7 +1133,7 @@ mod tests {
         assert!(rig.flag());
         // The window closes later: the report is not rewritten, the flag stays.
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Closed), Outcome::Continue);
-        assert!(read(&done).ends_with("keys: unsettled\n"));
+        assert!(body(&read(&done)).ends_with("keys: unsettled\n"));
         assert!(rig.flag());
     }
 
@@ -998,7 +1149,7 @@ mod tests {
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Closed), Outcome::Unsettled);
         let said = read(&done);
         assert!(said.contains("unsettled: 1 of 2 steps went in after 5 s without settling: j\n"), "{said}");
-        assert!(said.ends_with("keys: closed\nleft: 1 not pressed\n"), "{said}");
+        assert!(body(&said).ends_with("keys: closed\nleft: 1 not pressed\n"), "{said}");
         assert_eq!(said.matches("keys: ").count(), 1, "one ending: {said}");
         assert!(rig.flag());
     }
@@ -1012,7 +1163,7 @@ mod tests {
         run.queue.clear();
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Continue);
         let said = read(&done);
-        assert!(said.ends_with("quit: yes\nkeys: done\n"), "{said}");
+        assert!(body(&said).ends_with("quit: yes\nkeys: done\n"), "{said}");
         assert!(!rig.flag());
     }
 

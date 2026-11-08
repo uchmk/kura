@@ -9,6 +9,22 @@
 
 ## [未リリース]
 
+## [0.153.0] - 2026-11-08
+
+### 追加
+
+- `--keys` の `<ReadHas:PaneText=文字>`・`<ReadHas:PreviewText=文字>`（ito 0.264.0、uchmk/ito#203 の 2）。ペインかプレビューの文字に、その文字が入るまで毎フレーム読み直し（画面が落ち着くのを待たない。落ち着かないまま入った手順には数えない）、15 秒（`READ_WAIT`）待っても無ければ `keys: failed` で終わる。`why:` に読んだもの・探した文字・読めた中身（最初の 200 字）を書く。kura に無い読み物（`<ReadHas:Bogus=x>`）は窓の前に `keys: refused`（終了コード 2）で断る。
+- `KURA_KEYS_DONE` の報告に `run: <id>` の行（ito 0.265.0、#203 の 3）。done・failed・unsettled・quit・closed・refused・stalled・panicked のどれにもちょうど 1 行入り、テストが自分の回の報告を古いものと見分けられる。ID は `KURA_KEYS_RUN_ID`（`A-Z a-z 0-9 _ -` の 1〜64 字）か、無ければ `<unix ms>-<pid>`。台本を読む前に決める。
+- `examples/term-probe.rs`: 設定の画面の Shell のテストが起こす子プロセス（ito の `probe::main`）。
+
+### 変更
+
+- `KURA_KEYS_DONE` の報告の形: `run:` の行が増えた。1 行目はそのままで、最後まで進んだ台本は今までどおり `keys: done` で終わる（`run:` はその直前）。ほかの終わり方では `run:` が最後の行。最後の行か 1 行目を読む道具（`scripts/keys.ps1`・`smoke-keys-linux.sh`・`xrun.sh`）はそのまま動く。
+- 正しくない `KURA_KEYS_RUN_ID` は窓の前に `keys: refused` で断り、終了コード 3。
+- ito の `<ClickId:>`・`<Id:>`・`<ValueId:>` は、ほかの木の検査（`<Assert:>`・`<Tree:>`）と同じく窓の前に断る。kura の `--keys` はまだ AccessKit の木を観測しない。
+- ito の全部のクレートを v0.265.0（`50612a3`）に上げた（v0.262.7 から。#203 の 1〜3）。
+- TESTING.md: 25.17a・b・d の期待に `run:` の行を足し、25.17e（`run:` の行と `KURA_KEYS_RUN_ID`）・25.17f（正しくない ID）・25.17g（`<ReadHas:>`）を足した。
+
 ## [0.152.4] - 2026-11-08
 
 ### 変更
