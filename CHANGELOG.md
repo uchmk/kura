@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.154.2] - 2026-11-08
+
+### 変更
+
+- ito を 0.271.0（f0bc584。前は 9f79619）に上げた。ito の側で `--keys` の進め方の共通の部品（`ito_keyscript::pace`）と、その適合テストの表が入ったが、kura はまだ使っていない（kura の `--keys` の動きは変わらない）。
+- `scripts/lanes.sh sync` で ito-first の表（`scripts/ito-first.txt`）を ito から写した。`arboard` を直接の依存に足すと検査で落ちる（v0.154.1 で ito の `ito-clipboard` に移したため）。
+
 ## [0.154.1] - 2026-11-08
 
 ### 変更
