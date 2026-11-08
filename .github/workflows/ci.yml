@@ -201,6 +201,17 @@ jobs:
         run: scripts/check-term-settings.sh run --out term-settings
       - name: Check that check fails when it should
         run: scripts/check-term-settings-selftest.sh --out term-settings-selftest --good term-settings/out
+      # TESTING 65.1-65.4 (bookmarks) and 70.1-70.4, 70.7 (part), 70.8 (convert).
+      # Each check reads what kura reported through --keys and the files left
+      # on disk; each self-test breaks the result and must fail for its reason.
+      - name: Check bookmarks
+        run: scripts/check-bookmarks.sh run --out bookmarks
+      - name: Check that the bookmarks check fails when it should
+        run: scripts/check-bookmarks-selftest.sh --out bookmarks-selftest
+      - name: Check image conversion
+        run: scripts/check-convert.sh run --out convert
+      - name: Check that the convert check fails when it should
+        run: scripts/check-convert-selftest.sh --out convert-selftest
       # Kept whether or not the steps passed: a failure here is a picture of
       # something, and the picture is the report.
       - name: Keep the screenshot
@@ -213,6 +224,10 @@ jobs:
             keys-smoke
             term-settings
             term-settings-selftest
+            bookmarks
+            bookmarks-selftest
+            convert
+            convert-selftest
           if-no-files-found: warn
 
   # CLAUDE.md says clippy is kept at zero warnings with `--all-targets`, and

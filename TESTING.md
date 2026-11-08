@@ -1913,10 +1913,10 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 
 | # | Do | Expect |
 |---|----|--------|
-| 65.1 | In a folder press `ba`, then `bq` | A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]` |
-| 65.2 | In the same folder press `bq` again | A toast says it is already bookmarked as `q`; nothing else changes |
-| 65.3 | With `language = "ja"` in `common.toml`, press `ba`, `bq` in the same folder, `bq` again, then `bd` and `q` (v0.146.10) | The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before |
-| 65.4 | With `language = "ja"`, press `bD`, then `y` (v0.146.10) | The confirm is answered and a toast says `ブックマークを全部削除`; the bookmark list is empty |
+| 65.1 | In a folder press `ba`, then `bq` | A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]`. Automated: `scripts/check-bookmarks.sh` (Linux CI). |
+| 65.2 | In the same folder press `bq` again | A toast says it is already bookmarked as `q`; nothing else changes. Automated: `scripts/check-bookmarks.sh` (Linux CI). |
+| 65.3 | With `language = "ja"` in `common.toml`, press `ba`, `bq` in the same folder, `bq` again, then `bd` and `q` (v0.146.10) | The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before. Automated: `scripts/check-bookmarks.sh` (Linux CI). |
+| 65.4 | With `language = "ja"`, press `bD`, then `y` (v0.146.10) | The confirm is answered and a toast says `ブックマークを全部削除`; the bookmark list is empty. Automated: `scripts/check-bookmarks.sh` (Linux CI). |
 
 ## 66. Line numbers in rendered Markdown (v0.145.0)
 
@@ -1979,14 +1979,14 @@ Convert the selected images to JPEG, PNG or lossless WebP next to the originals.
 
 | # | Do | Expect |
 |---|----|--------|
-| 70.1 | Select a few `.png` and `.jpg` files (one with transparency), press `c i`, pick `JPEG` | A job runs; `.jpg` files appear beside the originals (the `.jpg` sources are skipped); the toast reads `N converted: A → B (−x%)` with the skipped count; the originals stay |
-| 70.2 | Repeat 70.1 with `PNG` and `WebP (lossless)`, then open the results in another viewer | They open and look the same size; the transparent PNG shows the `alpha_background` colour in the JPEG |
-| 70.3 | Convert again so the output name already exists | The usual conflict dialog (overwrite / skip / rename / cancel) appears; cancelling leaves the old output intact and no `.kura-convert-*.tmp` is left in the folder |
-| 70.4 | Select a text file and an image, `c i`, `JPEG` | The text file is skipped and counted; the image converts; a file you cannot read (open it exclusively elsewhere) is listed as an error in the task list and the rest still convert |
+| 70.1 | Select a few `.png` and `.jpg` files (one with transparency), press `c i`, pick `JPEG` | A job runs; `.jpg` files appear beside the originals (the `.jpg` sources are skipped); the toast reads `N converted: A → B (−x%)` with the skipped count; the originals stay. Automated: `scripts/check-convert.sh` (Linux CI); the transparency background is checked by pixel. |
+| 70.2 | Repeat 70.1 with `PNG` and `WebP (lossless)`, then open the results in another viewer | They open and look the same size; the transparent PNG shows the `alpha_background` colour in the JPEG. Automated: `scripts/check-convert.sh` (Linux CI); the outputs are decoded and compared by size and pixel, not opened in another viewer. The source is one flat colour, so losslessness itself is left to the unit test `all_encoders_round_trip_dimensions_and_lossless_pixels`. |
+| 70.3 | Convert again so the output name already exists | The usual conflict dialog (overwrite / skip / rename / cancel) appears; cancelling leaves the old output intact and no `.kura-convert-*.tmp` is left in the folder. Automated: `scripts/check-convert.sh` (Linux CI); with one file, the confirm titled `File already exists` shows, and after Cancel no output is written, the original is unchanged and no temp file is left. |
+| 70.4 | Select a text file and an image, `c i`, `JPEG` | The text file is skipped and counted; the image converts; a file you cannot read (open it exclusively elsewhere) is listed as an error in the task list and the rest still convert. Automated: `scripts/check-convert.sh` (Linux CI); the unreadable file is made with chmod 000 on Linux, a stand-in for the Windows exclusive open. |
 | 70.5 | Convert a very large photo (tens of megapixels) and a folder of many images | The UI stays responsive; the task list shows progress; `x` cancels between files |
 | 70.6 | Settings (`<C-,>`) → Convert: change JPEG quality, PNG compression, background colour, "move originals to the trash" | Values save to `config.toml` `[convert]`; a bad colour is refused; with the trash option on, the original goes to the trash only after its output is written |
-| 70.7 | Use a Japanese file name, a network drive and a read-only folder | Names are kept; the read-only folder gives an error row, not a crash |
-| 70.8 | Inside an archive, press `c i`; also right-click an image | Inside an archive it is refused; the right-click menu lists Convert |
+| 70.7 | Use a Japanese file name, a network drive and a read-only folder | Names are kept; the read-only folder gives an error row, not a crash. Automated in part: `scripts/check-convert.sh` (Linux CI) covers a Japanese file name and a read-only folder; the network drive is not covered. |
+| 70.8 | Inside an archive, press `c i`; also right-click an image | Inside an archive it is refused; the right-click menu lists Convert. Automated: `scripts/check-convert.sh` (Linux CI); the menu is opened with Shift+F10, not a right-click. |
 
 ## 71. Toasts read aloud (v0.157.0)
 

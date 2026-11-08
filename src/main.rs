@@ -1277,8 +1277,10 @@ fn state_report(app: &App) -> String {
     // and every trash, junction, overwrite and link question was a picture
     // too (#230). Blank body lines are spacing and are left out.
     if let app::Overlay::Confirm(c) = &app.overlay {
+        // The title as the box draws it: `c.title` is the English key until then.
+        let title = crate::i18n::tr_desc(&app.lang, &c.title);
         let body = c.body.iter().filter(|l| !l.trim().is_empty()).map(|l| l.as_str());
-        lines.push(format!("confirm: {}", std::iter::once(c.title.as_str()).chain(body).collect::<Vec<_>>().join(" | ")));
+        lines.push(format!("confirm: {}", std::iter::once(title.as_str()).chain(body).collect::<Vec<_>>().join(" | ")));
         let keys: Vec<String> = (0..c.options.len()).map(|i| c.button_label(i)).collect();
         lines.push(format!("confirm keys: {}", keys.join(" | ")));
     }
@@ -2335,6 +2337,15 @@ mod tests {
         assert!(report.lines().any(|l| l == "overlay: confirm"), "{report}");
         assert!(report.lines().any(|l| l == "confirm: Report a bug | kura 0.0.0 | Nothing is sent."), "{report}");
         assert!(report.lines().any(|l| l == "confirm keys: [o] / <Enter> Open the form | [n] Cancel"), "{report}");
+
+        // The title is the one the box draws, in the reader's language.
+        if let app::Overlay::Confirm(c) = &mut app.overlay {
+            c.title = "Delete all bookmarks?".into();
+        }
+        let lang = std::mem::replace(&mut app.lang, "ja".into());
+        let report = state_report(&app);
+        app.lang = lang;
+        assert!(report.lines().any(|l| l.starts_with("confirm: ブックマークをすべて削除しますか？ | ")), "{report}");
 
         // The outline entry under the cursor while the outline has the keys,
         // with the 1-based line `<Enter>` opens an editor at (#155, #235).
