@@ -106,7 +106,7 @@ impl App {
                 self.spot_copy_rx = None;
                 match res {
                     Ok(n) => self.toast(format!("Copied the spot panels of {n} files")),
-                    Err(err) => self.error(format!("Clipboard: {err}")),
+                    Err(err) => self.error(format!("Copy failed: {err}")),
                 }
             }
         }

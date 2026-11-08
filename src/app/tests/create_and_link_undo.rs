@@ -192,7 +192,7 @@ fn the_report_names_no_home_folder_from_the_last_error() {
     assert!(!url.contains(needle), "the link carries the home folder: {url}");
     // And `c` copies it to this thread's fake clipboard, never the machine's.
     a.answer_confirm('c');
-    assert_eq!(crate::exec::get_clipboard(), Ok(url));
+    assert_eq!(ito_clipboard::Fake::this_thread().contents(), Some(url));
 }
 
 /// Q71: a key the box does not offer leaves it open, so a stray key no

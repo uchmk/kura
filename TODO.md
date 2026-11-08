@@ -173,6 +173,10 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
   - obsidian の MCP サーバーに接続できない（ECONNREFUSED）。Obsidian 側でサーバーが動いているか確認する。
   - 2026-10-09、持ち主が「やりたい」。開発のセッション（Claude）が外のサービスに届くためのもので、filer の機能ではない。
     kura などの uchmk のアプリを LLM とつなぐ話は「LLM との連携」の節。
+- [ ] 貼り付けのクリップボードの読み取りを UI スレッドから外す（v0.154.1 で ito-clipboard に移したときの残り）
+  - `ito_clipboard::Clipboard::get_text` は X11 で待つことがある。今は UI スレッドで読む: `src/keyscript.rs` の `paste_event`、
+    `src/ui/overlay.rs` の `right_click_paste`、`src/ui/term.rs` の右クリックの貼り付け。
+  - ハンドルは UI スレッドで `clipboard!()` から取り、ワーカーに渡す（テストで別スレッドの偽物を読まないように）。
 
 ## Linux レーン（v0.59.6）
 

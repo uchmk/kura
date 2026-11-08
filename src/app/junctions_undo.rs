@@ -64,12 +64,12 @@ impl App {
     /// nothing made. Each runs in any shell (see `ops::mklink_line`).
     pub(super) fn copy_mklink(&mut self, links: &[ops::Link]) {
         let lines: Vec<String> = links.iter().map(|l| ops::mklink_line(&l.at, &l.target)).collect();
-        match exec::set_clipboard(&lines.join("\n")) {
+        match ito_clipboard::clipboard!().set_text(&lines.join("\n")) {
             Ok(()) => self.toast(match lines.len() {
                 1 => "Copied the mklink command — it runs in cmd or PowerShell".to_owned(),
                 n => format!("Copied {n} mklink commands — they run in cmd or PowerShell"),
             }),
-            Err(e) => self.error(format!("Clipboard: {e}")),
+            Err(e) => self.error(format!("Copy failed: {e}")),
         }
     }
 

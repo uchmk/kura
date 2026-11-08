@@ -95,7 +95,7 @@ fn note_inline(painter: &Painter, pos: Pos2, galley: &std::sync::Arc<egui::Galle
 pub fn copy_selection(ctx: &egui::Context) -> bool {
     match ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::new(SELECTED))) {
         Some(t) if !t.is_empty() => {
-            let _ = crate::exec::set_clipboard(&t);
+            let _ = ito_clipboard::clipboard!().set_text(&t);
             true
         }
         _ => false,
@@ -147,7 +147,7 @@ pub fn draw(
             ui.ctx().open_url(egui::OpenUrl::new_tab(url));
         }
         if let Some(t) = driven.copy.as_deref() {
-            let _ = crate::exec::set_clipboard(t);
+            let _ = ito_clipboard::clipboard!().set_text(t);
         }
         let over_url = ui.input(|i| i.modifiers.command) && resp.hover_pos().is_some_and(|p| s.url_at(p, rect).is_some());
         if over_url {

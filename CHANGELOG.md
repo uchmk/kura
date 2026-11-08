@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.154.1] - 2026-11-08
+
+### 変更
+
+- コピーと貼り付けを ito の `ito-clipboard` に移した（ito 0.270.0、9f79619。前は e367140）。kura が自分で持っていたクリップボードの書き込み（`exec.rs` の `set_clipboard` など、テスト用の偽物、`--keys` のコピーの記録への写し、改行の変換）を消し、`arboard` を直接の依存から外した。Windows で改行を CRLF にすること、`<State:>` の `clipboard set:`、`--keys` の `<Clipboard:>` は前と同じ。終わるときに `ito_clipboard::release()` を呼ぶ。
+- 小さな違い（ito の決まりに合わせた）: クリップボードの失敗のトーストは `Copy failed: clipboard: …`・`Paste failed: clipboard: …`（前は `Clipboard: …`・`Could not read the clipboard: …`）。Linux・macOS では、書く文字の CRLF を LF にそろえる（Windows は前と同じく CRLF）。コピーに失敗したときは `<State:>` の `clipboard set:` を書き換えない（前は失敗したコピーの文字も載った）。
+
 ## [0.154.0] - 2026-11-08
 
 ### 追加

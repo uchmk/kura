@@ -54,7 +54,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     // Letting go of a selection copies it, which is what a terminal means by
     // selecting: there is no other step.
     if let Some(text) = shown.copy {
-        let _ = crate::exec::set_clipboard(&text);
+        let _ = ito_clipboard::clipboard!().set_text(&text);
     }
     // Ctrl+click (Cmd on a Mac) on a link: a web address goes to the browser,
     // a path is shown in the list -- this is a file manager, and the list is
@@ -79,11 +79,11 @@ pub fn draw(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     // Right-click pastes. `<C-v>` reaches the pane as egui's paste event; a
     // right-click is not one, so the clipboard is read here.
     if shown.paste {
-        match crate::exec::get_clipboard() {
-            Ok(text) if !text.is_empty() => app.paste_to_term(&text),
+        match ito_clipboard::clipboard!().get_text() {
+            Ok(Some(text)) if !text.is_empty() => app.paste_to_term(&text),
             Ok(_) => {}
             // Said out loud because the right-click looked like it did nothing.
-            Err(e) => app.error(format!("Could not read the clipboard: {e}")),
+            Err(e) => app.error(format!("Paste failed: {e}")),
         }
     }
 }

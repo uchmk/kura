@@ -1096,7 +1096,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         }
     }
     if let Some(path) = copy {
-        match crate::exec::set_clipboard(&path) {
+        match ito_clipboard::clipboard!().set_text(&path) {
             Ok(()) => app.toast(format!("{}: {path}", k.copied)),
             Err(e) => app.error(format!("Copy failed: {e}")),
         }

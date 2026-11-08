@@ -104,10 +104,10 @@ impl App {
                 Act::Copy(_) => {
                     let text = ov.shown_text();
                     let n = len;
-                    match exec::set_clipboard(&text) {
+                    match ito_clipboard::clipboard!().set_text(&text) {
                         Ok(()) if n == 1 => self.toast("Copied 1 row".to_string()),
                         Ok(()) => self.toast(format!("Copied {n} rows")),
-                        Err(e) => self.error(format!("Clipboard: {e}")),
+                        Err(e) => self.error(format!("Copy failed: {e}")),
                     }
                 }
                 Act::Arrow(step) if len > 0 => ov.cursor = step.apply(ov.cursor, len, page),

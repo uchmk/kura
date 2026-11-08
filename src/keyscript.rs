@@ -29,7 +29,7 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
 
 /// Ctrl+V as the platform delivers it: the clipboard's text, now.
 pub fn paste_event() -> egui::Event {
-    egui::Event::Paste(crate::exec::get_clipboard().unwrap_or_default())
+    egui::Event::Paste(ito_clipboard::clipboard!().get_text().ok().flatten().unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -86,7 +86,7 @@ mod tests {
         let key = |t| Key::parse(t).unwrap();
         assert_eq!(press(&Step::Key(key("<C-v>"))), Some(Press::Paste));
         assert_eq!(parse("<Paste>").unwrap(), [Step::Paste]);
-        crate::exec::fake_clipboard("pasted-name");
+        ito_clipboard::Fake::this_thread().put(Some("pasted-name"));
         s.feed(events(&key("g")).unwrap());
         s.feed(events(&key("<Space>")).unwrap());
         s.feed(vec![paste_event()]);

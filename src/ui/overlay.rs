@@ -64,7 +64,7 @@ fn right_click_paste(
     if !resp.secondary_clicked() {
         return Ok(false);
     }
-    let add = one_line(&crate::exec::get_clipboard()?);
+    let add = one_line(&ito_clipboard::clipboard!().get_text().map_err(|e| e.to_string())?.unwrap_or_default());
     if add.is_empty() {
         return Ok(false);
     }
@@ -231,7 +231,7 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
     }
     // Said out loud because the right-click looked like it did nothing.
     if let Err(e) = clip {
-        app.error(format!("Could not read the clipboard: {e}"));
+        app.error(format!("Paste failed: {e}"));
     }
     let _ = queued;
 }
@@ -3066,7 +3066,7 @@ mod prompt_selection {
         // On the field's text, which `r` opened with `report` selected.
         let i = f.texts.iter().rposition(|t| t == "report.txt").expect("the field is drawn, after the list");
         let at = f.places[i] + egui::vec2(8.0, 6.0);
-        crate::exec::fake_clipboard("notes");
+        ito_clipboard::Fake::this_thread().put(Some("notes"));
         let press = |pressed| egui::Event::PointerButton {
             pos: at,
             button: egui::PointerButton::Secondary,

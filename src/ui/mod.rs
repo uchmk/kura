@@ -2928,11 +2928,11 @@ line"
             ),
             "{got:?}"
         );
-        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some(got.as_str()), "letting go copied the selection");
-        crate::exec::fake_clipboard("something else");
+        assert_eq!(ito_clipboard::Fake::this_thread().last_set().as_deref(), Some(got.as_str()), "letting go copied the selection");
+        ito_clipboard::Fake::this_thread().put(Some("something else"));
         s.feed(vec![egui::Event::Copy]);
         assert!(!s.app.quit, "Ctrl+C copied the selection and did not close the tab");
-        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some(got.as_str()), "and Ctrl+C copied it again");
+        assert_eq!(ito_clipboard::Fake::this_thread().last_set().as_deref(), Some(got.as_str()), "and Ctrl+C copied it again");
     }
 
     /// A double click takes the word and a triple click the line, each copied
@@ -2957,14 +2957,14 @@ line"
         }
         let f = s.draw();
         assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line"));
-        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("line"), "the word was copied");
+        assert_eq!(ito_clipboard::Fake::this_thread().last_set().as_deref(), Some("line"), "the word was copied");
         let fill = s.app.cfg.theme.common.selection();
         assert!(f.rects.iter().any(|(_, c)| *c == fill), "the highlight is tsumugi's: {:?}", f.rects);
         s.feed(vec![press(true)]);
         s.feed(vec![press(false)]);
         s.draw();
         assert_eq!(crate::ui::preview::selected_text(&s.ctx).as_deref(), Some("line 3"));
-        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("line 3"), "the line was copied");
+        assert_eq!(ito_clipboard::Fake::this_thread().last_set().as_deref(), Some("line 3"), "the line was copied");
     }
 
     /// A selection belongs to the file it was made on. The next file's
@@ -3003,9 +3003,9 @@ line"
         assert_eq!(crate::ui::preview::selected_text(&s.ctx), None, "the selection did not move to b.txt");
         let fill = s.app.cfg.theme.common.selection();
         assert!(!f.rects.iter().any(|(_, c)| *c == fill), "and nothing is highlighted: {:?}", f.rects);
-        crate::exec::fake_clipboard("kept");
+        ito_clipboard::Fake::this_thread().put(Some("kept"));
         s.feed(vec![egui::Event::Copy]);
-        assert_eq!(crate::exec::last_set_clipboard().as_deref(), Some("kept"), "Ctrl+C copied nothing");
+        assert_eq!(ito_clipboard::Fake::this_thread().contents().as_deref(), Some("kept"), "Ctrl+C copied nothing");
     }
 
     /// 18.8: `<Tab>` puts the spot panel up, about the hovered file.
@@ -3785,7 +3785,7 @@ mod config_warning_frame {
         }
 
         s.typed("C");
-        let copied = crate::exec::get_clipboard().expect("the copy");
+        let copied = ito_clipboard::Fake::this_thread().contents().expect("the copy");
         assert!(copied.lines().any(|l| l == warning), "the warning as one line: {copied}");
     }
 }

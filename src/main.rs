@@ -421,6 +421,7 @@ fn main() -> eframe::Result<()> {
             }))
         }),
     );
+    ito_clipboard::release();
     // A `--keys` run that did not succeed exits with the code a script can tell
     // from a crash, whatever the window did on its way out.
     if keys_failed.load(std::sync::atomic::Ordering::SeqCst) {
@@ -1412,7 +1413,7 @@ fn state_report(app: &App) -> String {
     // What kura last put on the clipboard (`c` and friends), one line, cut
     // at 200 characters: read from outside it needed a second tool (#197).
     // Not what is on the clipboard, which may be someone else's.
-    if let Some(text) = exec::last_set_clipboard() {
+    if let Some(text) = ito_clipboard::clipboard!().last_set() {
         let one: String = text.replace(['\r', '\n'], " / ").chars().take(200).collect();
         lines.push(format!("clipboard set: {one}"));
         // The whole text, beside `KURA_KEYS_DONE`, for when 200 characters
@@ -2063,7 +2064,7 @@ mod tests {
         let app = App::new(crate::config::Config::load(), dir, egui::Context::default());
         assert!(state_report(&app).lines().any(|l| l.starts_with("frames: ")));
         assert!(state_report(&app).lines().any(|l| l.starts_with("mcp: ")));
-        exec::set_clipboard("one\r\ntwo").unwrap();
+        ito_clipboard::clipboard!().set_text("one\r\ntwo").unwrap();
         assert!(state_report(&app).lines().any(|l| l == "clipboard set: one /  / two"), "{}", state_report(&app));
     }
 

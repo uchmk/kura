@@ -219,7 +219,7 @@ impl App {
         term.set_colors([fg.r(), fg.g(), fg.b()], [bg.r(), bg.g(), bg.b()]);
         for text in term.drain() {
             // A program asked for the clipboard; only this thread can oblige.
-            let _ = exec::set_clipboard(&text);
+            let _ = ito_clipboard::clipboard!().set_text(&text);
         }
         if term.exited {
             self.term = None;

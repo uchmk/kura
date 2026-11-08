@@ -218,9 +218,9 @@ impl App {
             // The whole list as text, as spot's `C` does (Q48).
             Act::Copy(CopyWhat::All) => {
                 let (text, keys) = crate::ui::overlay::help_text(self);
-                match exec::set_clipboard(&text) {
+                match ito_clipboard::clipboard!().set_text(&text) {
                     Ok(()) => self.toast(format!("Copied the help panel: {keys} keys")),
-                    Err(err) => self.error(format!("Clipboard: {err}")),
+                    Err(err) => self.error(format!("Copy failed: {err}")),
                 }
             }
             _ => {}
@@ -271,18 +271,18 @@ impl App {
                 let sections = self.spot_sections();
                 let text = spot_text(&sections);
                 let rows: usize = sections.iter().map(|s| s.rows.len()).sum();
-                match exec::set_clipboard(&text) {
+                match ito_clipboard::clipboard!().set_text(&text) {
                     Ok(()) => self.toast(format!("Copied the spot panel: {rows} rows")),
-                    Err(err) => self.error(format!("Clipboard: {err}")),
+                    Err(err) => self.error(format!("Copy failed: {err}")),
                 }
             }
             Act::Copy(_) => {
                 let cursor = ov.cursor;
                 let sections = self.spot_sections();
                 let Some((key, value)) = sections.iter().flat_map(|s| &s.rows).nth(cursor) else { return };
-                match exec::set_clipboard(value) {
+                match ito_clipboard::clipboard!().set_text(value) {
                     Ok(()) => self.toast(format!("Copied {key}: {value}")),
-                    Err(err) => self.error(format!("Clipboard: {err}")),
+                    Err(err) => self.error(format!("Copy failed: {err}")),
                 }
             }
             _ => {}
@@ -292,9 +292,9 @@ impl App {
     /// Copy the folder this tab shows (the path line's right-click).
     pub fn copy_cwd(&mut self) {
         let text = self.tabs[self.active].cwd.display().to_string();
-        match exec::set_clipboard(&text) {
+        match ito_clipboard::clipboard!().set_text(&text) {
             Ok(()) => self.toast(format!("Copied {text}")),
-            Err(err) => self.error(format!("Clipboard: {err}")),
+            Err(err) => self.error(format!("Copy failed: {err}")),
         }
     }
 
@@ -312,11 +312,12 @@ impl App {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.spot_copy_rx = Some(rx);
         let ctx = self.ctx.clone();
+        let clipboard = ito_clipboard::clipboard!();
         std::thread::spawn(move || {
             crate::preview::init_com_thread();
             let entries = entries_of_paths(paths);
             let text = spot_text_of(&entries);
-            let _ = tx.send(exec::set_clipboard(&text).map(|()| entries.len()).map_err(|e| e.to_string()));
+            let _ = tx.send(clipboard.set_text(&text).map(|()| entries.len()).map_err(|e| e.to_string()));
             ctx.request_repaint();
         });
     }

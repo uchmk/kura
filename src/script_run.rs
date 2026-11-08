@@ -793,7 +793,7 @@ impl ScriptRun {
                     Err(why) => return self.look_again(app, idx, again, why, now, &mut ran, &mut record),
                 }
             }
-            // What kura copied after the last action (`set_clipboard` notes each copy for ito's record).
+            // What kura copied after the last action (ito's OS clipboard writer notes each copy for its record).
             Press::Clipboard(text) => {
                 record = false;
                 let checked = keyscript::check_clipboard_after(ctx, self.since.unwrap_or_default(), &text);
@@ -1925,11 +1925,19 @@ mod tests {
         assert_eq!(run.progress_at, at, "a retry is not progress");
     }
 
-    /// `<Clipboard:>` and `<ClipboardHas:>` check what kura copied after the last action. ito's copy
-    /// record is process-wide: only this thread's copies go to it while the guard is held.
+    /// ito's copy record is process-wide: tests that note copies take turns, each starting from an empty record.
+    /// The fake comes first so it is let go before the lock (a tuple drops in order).
+    fn noting_fake() -> (ito_clipboard::Entered, std::sync::MutexGuard<'static, ()>) {
+        static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let guard = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+        ito_clipboard::record::reset();
+        (ito_clipboard::Fake::new().noting().enter(), guard)
+    }
+
+    /// `<Clipboard:>` and `<ClipboardHas:>` check what kura copied after the last action.
     #[test]
     fn clipboard_checks_read_what_kura_copied() {
-        let _noting = crate::exec::note_copies_here();
+        let _noting = noting_fake();
         let name = "0-kura-clip-ok.txt";
         let mut rig = Rig::with_files("keys-clip-ok", true, &[name]);
         let done = rig.dir.join("done.txt");
@@ -1951,7 +1959,7 @@ mod tests {
     /// A copy from before the last action does not count: ito's own words for it, naming that copy.
     #[test]
     fn clipboard_check_without_a_copy_after_the_action_fails() {
-        let _noting = crate::exec::note_copies_here();
+        let _noting = noting_fake();
         let name = "0-kura-clip-none.txt";
         let mut rig = Rig::with_files("keys-clip-none", true, &[name]);
         let done = rig.dir.join("done.txt");

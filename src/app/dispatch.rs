@@ -376,9 +376,9 @@ impl App {
         let top = tab.preview_offset;
         let line = tab.find_at.filter(|l| (top..top + 30).contains(l)).unwrap_or(top);
         match view.index.full_line(line) {
-            Ok(text) => match exec::set_clipboard(&text) {
+            Ok(text) => match ito_clipboard::clipboard!().set_text(&text) {
                 Ok(()) => self.toast(format!("Copied line {} ({})", line + 1, crate::util::human_size(text.len() as u64))),
-                Err(err) => self.error(format!("Clipboard: {err}")),
+                Err(err) => self.error(format!("Copy failed: {err}")),
             },
             Err(0) => self.error("Could not read the line"),
             Err(n) => self.error(format!("Line {} is too long to copy ({})", line + 1, crate::util::human_size(n))),
@@ -704,7 +704,7 @@ impl App {
             self.toast("No finished command to copy (the shell has to mark its prompts, OSC 133)");
             return;
         };
-        match crate::exec::set_clipboard(&text) {
+        match ito_clipboard::clipboard!().set_text(&text) {
             Ok(()) => {
                 let n = text.lines().count();
                 self.toast(format!("Copied the last command's output ({n} line{})", if n == 1 { "" } else { "s" }));

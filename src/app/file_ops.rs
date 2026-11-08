@@ -570,7 +570,7 @@ impl App {
     pub(super) fn open_report(&mut self, url: String) {
         match exec::open_url(&url) {
             Ok(()) => self.toast("Opened a bug report in your browser"),
-            Err(e) => match exec::set_clipboard(&url) {
+            Err(e) => match ito_clipboard::clipboard!().set_text(&url) {
                 Ok(()) => {
                     self.error(format!("could not open the browser: {e}. The report's link is on the clipboard -- paste it into one"))
                 }
@@ -628,12 +628,12 @@ impl App {
             return;
         }
         let text = Self::copy_lines(&paths, what);
-        match exec::set_clipboard(&text) {
+        match ito_clipboard::clipboard!().set_text(&text) {
             Ok(()) => match paths.len() {
                 1 => self.toast(format!("Copied: {text}")),
                 n => self.toast(format!("Copied {n} lines")),
             },
-            Err(err) => self.error(format!("Clipboard: {err}")),
+            Err(err) => self.error(format!("Copy failed: {err}")),
         }
     }
 

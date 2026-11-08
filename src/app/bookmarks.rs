@@ -362,12 +362,12 @@ impl App {
             ConfirmAction::BugReport { url } => match ch {
                 'o' => self.open_report(url),
                 'c' => {
-                    match exec::set_clipboard(&url) {
+                    match ito_clipboard::clipboard!().set_text(&url) {
                         Ok(()) => {
                             let text = crate::i18n::tr(&self.lang, "toast.bug_report_link_copied");
                             self.toast(text);
                         }
-                        Err(e) => self.error(format!("Clipboard: {e}")),
+                        Err(e) => self.error(format!("Copy failed: {e}")),
                     }
                     self.last_report = Some(url);
                 }

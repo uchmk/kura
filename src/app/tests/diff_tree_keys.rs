@@ -40,10 +40,10 @@ fn c_copies_the_rows_on_screen() {
     assert_eq!(c.map(|b| b.run.clone()), Some(vec![Act::Copy(CopyWhat::All)]), "C is bound in [diff]");
     let mut a = app_with(vec![row("a", TreeState::Same), row("b", TreeState::LeftOnly), row("c", TreeState::Differ)]);
     a.diff_act(Act::Copy(CopyWhat::All));
-    assert_eq!(exec::get_clipboard().unwrap(), "same\ta\nleft only\tb\ndiffer\tc");
+    assert_eq!(ito_clipboard::Fake::this_thread().contents().unwrap(), "same\ta\nleft only\tb\ndiffer\tc");
     a.diff_act(Act::HideSame);
     a.diff_act(Act::Copy(CopyWhat::All));
-    assert_eq!(exec::get_clipboard().unwrap(), "left only\tb\ndiffer\tc");
+    assert_eq!(ito_clipboard::Fake::this_thread().contents().unwrap(), "left only\tb\ndiffer\tc");
     assert!(matches!(a.overlay, Overlay::Diff(_)), "copying leaves the comparison open");
 }
 
