@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Press keys in kura on a virtual display through scripts/xrun.sh, three ways,
+# Press keys in kura on a virtual display through scripts/xrun.sh, four ways,
 # and fail unless only the run that did what its script said comes back as a
 # result.
 #
@@ -12,11 +12,17 @@
 # Linux, where the lane runs:
 #
 #   done     `j<State:s>`         exit 0, last line `keys: done`, s.txt written
+#   announced `y<Announced:Yanked 1 item>`
+#                                 exit 0, last line `keys: done`: the yank
+#                                 toast was read to the screen reader
 #   failed   `j<State:x>k` with   non-zero, `keys: failed`: the window opened,
 #            x.txt a folder       the write failed, and the window closed itself
 #   refused  `j<Tab`              non-zero, `keys: refused`: the script cannot be
 #                                 typed, refused before the window, so xrun.sh
 #                                 sees no window
+#
+# From v0.157.0 kura reads its toasts to the screen reader through ito-a11y,
+# and `<Announced:>` hears the same line.
 #
 # The refused-before-the-window case is also in tests/keys_fail_closed.rs;
 # here it is the lane's tool that has to say "no result" for it.
@@ -73,6 +79,10 @@ run done 'j<State:s>'
 [ "$(tail -1 "$OUT/done/keys.done" 2>/dev/null)" = "keys: done" ] || fail "done: keys.done does not end 'keys: done'"
 grep -q '^settled: ' "$OUT/done/s.txt" 2>/dev/null || fail "done: s.txt has no 'settled:' line"
 
+run announced 'y<Announced:Yanked 1 item>'
+[ "$code" = 0 ] || fail "announced: xrun.sh exit $code, not 0"
+[ "$(tail -1 "$OUT/announced/keys.done" 2>/dev/null)" = "keys: done" ] || fail "announced: keys.done does not end 'keys: done'"
+
 # A folder where `<State:x>` would write x.txt. xrun.sh keeps folders when it
 # empties a run folder, and `.keys-run` marks the folder as its own.
 mkdir -p "$OUT/failed/x.txt"
@@ -93,4 +103,4 @@ if [ "$FAILS" -gt 0 ]; then
   echo "smoke-keys-linux: $FAILS check(s) failed; the runs are in $OUT" >&2
   exit 1
 fi
-echo "smoke-keys-linux: ok (done was a result, failed and refused were not)"
+echo "smoke-keys-linux: ok (done and announced were results, failed and refused were not)"

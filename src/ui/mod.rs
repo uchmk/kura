@@ -1249,6 +1249,17 @@ fn draw_toasts(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     if app.toasts.is_empty() {
         return;
     }
+    // Read the toasts aloud in the frame that draws them (this runs once per frame on both the Settings screen and the
+    // main screen). All of them, oldest first: a toast that does not fit on screen is still news.
+    let now = std::time::Instant::now();
+    for t in app.toasts.iter_mut() {
+        let level = match t.level {
+            crate::app::Level::Info => None,
+            crate::app::Level::Warn => Some(ito_a11y::State::Warning),
+            crate::app::Level::Error => Some(ito_a11y::State::Error),
+        };
+        ito_a11y::announce_toast(ui, &mut t.told, t.count, level, &t.text, &app.lang, now);
+    }
     let theme = &app.cfg.theme;
     let painter = ui.painter();
     // Below the header, not on top of it. The right-hand end of the header
@@ -2051,6 +2062,56 @@ mod whole_frame {
         let hovered = s.app.cfg.theme.hovered_bg;
         let row_h = f.rects.iter().find(|(_, c)| *c == hovered).expect("the cursor row").0.height();
         assert!(toast_y >= crumb_y + row_h, "the toast's text ({toast_y}) is a row below the breadcrumb's ({crumb_y}, row {row_h})",);
+    }
+
+    /// The lines `ito_a11y` recorded after `before` that contain `needle` (the record is process-wide and tests run in
+    /// parallel, so each test looks only for text of its own).
+    fn heard_since(before: u64, needle: &str) -> Vec<String> {
+        ito_a11y::announced_after(before).into_iter().filter(|m| m.contains(needle)).collect()
+    }
+
+    /// A toast is read to the screen reader once, not on every frame it stays up.
+    #[test]
+    fn a_toast_is_announced_once_not_every_frame() {
+        ito_a11y::record_announcements(true);
+        let before = ito_a11y::announced_count();
+        let mut s = Screen::open(crate::util::test_dir("frame-toast-told-once"));
+        s.app.toast("told once: frame-toast-told-once");
+        for _ in 0..5 {
+            s.draw();
+        }
+        assert_eq!(heard_since(before, "frame-toast-told-once"), ["told once: frame-toast-told-once"]);
+    }
+
+    /// The same toast raised twice before it is drawn shows `×2` but is spoken once, without the count.
+    #[test]
+    fn a_toast_raised_twice_in_one_frame_is_spoken_once_without_the_count() {
+        ito_a11y::record_announcements(true);
+        let before = ito_a11y::announced_count();
+        let mut s = Screen::open(crate::util::test_dir("frame-toast-told-twice"));
+        s.app.toast("told twice: frame-toast-told-twice");
+        s.app.toast("told twice: frame-toast-told-twice");
+        let f = s.draw();
+        s.draw();
+        assert!(f.says("×2"), "{:?}", f.texts);
+        assert_eq!(heard_since(before, "frame-toast-told-twice"), ["told twice: frame-toast-told-twice"]);
+    }
+
+    /// A warning and an error carry the level in words, as `toast_line` says it.
+    #[test]
+    fn a_warning_and_an_error_are_announced_with_their_level() {
+        ito_a11y::record_announcements(true);
+        let before = ito_a11y::announced_count();
+        let mut s = Screen::open(crate::util::test_dir("frame-toast-told-level"));
+        s.app.warn("careful: frame-toast-told-level");
+        s.app.error("broken: frame-toast-told-level");
+        s.draw();
+        let lang = s.app.lang.clone();
+        let want = [
+            ito_a11y::toast_line(Some(ito_a11y::State::Warning), "careful: frame-toast-told-level", &lang),
+            ito_a11y::toast_line(Some(ito_a11y::State::Error), "broken: frame-toast-told-level", &lang),
+        ];
+        assert_eq!(heard_since(before, "frame-toast-told-level"), want);
     }
 
     /// #105: a folder still waiting for its first listing gets no count -- not

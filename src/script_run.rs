@@ -2474,14 +2474,28 @@ mod tests {
         assert!(read(&done).contains("no widget has the test ID `nothing`"));
     }
 
+    /// The first step has no action before it, so this looks at everything the process has announced: the needle is one
+    /// no other test says.
     #[test]
-    fn announced_fails_while_kura_announces_nothing() {
+    fn announced_fails_when_nothing_said_the_text() {
         let mut rig = Rig::new("keys-announced", true);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("<Announced:hello>", Some(done.clone()), rig.dir.clone());
+        let mut run = rig.run("<Announced:never-said-by-kura-7f3a>", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         assert_eq!(rig.step(&mut run, 4), Outcome::Failed);
         assert!(read(&done).contains("keys: failed"));
+    }
+
+    /// `y` raises the toast `Yanked 1 item`, which kura reads aloud when it draws it. `<Announced:>` only looks after
+    /// this run's last action, and the yank is this run's own. Another test drawing a one-item yank at the same moment
+    /// would be heard too, which could only let this pass, never make it fail.
+    #[test]
+    fn announced_passes_for_the_yank_toast() {
+        let mut rig = Rig::new("keys-announced-yank", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("y<Announced:Yanked 1 item>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(until_end(&mut rig, &mut run, 1, 12), Outcome::Continue);
+        assert!(read(&done).trim_end().ends_with("keys: done"), "{}", read(&done));
     }
 
     #[test]

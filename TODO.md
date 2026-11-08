@@ -54,9 +54,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
-- [ ] kura のトーストを `ito_a11y::announce` で読み上げる（今は何も announce しないので、`<Announced:x>` は必ず落ちる）。
-  uchmk/ito#207（`announce` の live の直しと、トーストの読み上げの共通の部品 `Told`・`announce_toast`）が入ったら、`rev` を上げて
-  `Toast` に `Told` を持たせ、`draw_toasts` の先頭で読む。Linux の smoke `announced`、TESTING 25.17h の文言と 71 節を足す【後】
 - [ ] 見た目の行のパイロット（59.5・41.15・49.4・54.18）: ito の uchmk/ito#205（state JSON v1・`<Snap:>`・矩形つきの Tree・Shot の付属 JSON・検査器・証拠のフォルダ）が出たら、`rev` を上げて state の中身を入れ、check spec を書いて回す【後】
 
 ## マージで止めている実機の PR

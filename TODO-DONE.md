@@ -2434,6 +2434,9 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
 - [x] `--keys` の自動テスト化の段階 3: kura の自前の実行（`src/script_run.rs`）で窓を読む手順を実行する（`<Click:文字>`・`<RClick:文字>`・`<DClick:文字>`・`<Assert:>`・`<Is…:>`・`<Tree:>`・`<Announced:>`・`<ClickId:>`・`<Id:>`・`<ValueId:>`・`<FocusedId:>`）
   → v0.154.0: ito v0.268.0 に上げ、ito の `Runner` と同じ意味と失敗の文で実行する（`fresh`・3 秒の再試行・`mark` からの `Announced`）。`<State:>` に `since last action:` の行。
 - [x] `<Clipboard:>`・`<ClipboardHas:>` を実行する → v0.154.0: `exec::set_clipboard` が ito v0.268.0 の `note_copy` に写しを渡し、最後の操作のあとのコピーだけを見る（uchmk/ito#206）。
+- [x] （v0.157.0）kura のトーストを `ito_a11y::announce` で読み上げる（今は何も announce しないので、`<Announced:x>` は必ず落ちる）。
+  uchmk/ito#207（`announce` の live の直しと、トーストの読み上げの共通の部品 `Told`・`announce_toast`）が入ったら、`rev` を上げて
+  `Toast` に `Told` を持たせ、`draw_toasts` の先頭で読む。Linux の smoke `announced`、TESTING 25.17h の文言と 71 節を足す
 
 ### ARM64 の再テストの所見（#295）
 - [x] （v0.85.1。トーストの 1 行目のホームフォルダを `~` にした）（#295 の所見 2）設定ファイルが長いパスにあると警告のトーストが 3 行に折れてプレビューの先頭を覆う（33.7 の「1 行」に反する）。1 行目のパスを `~` や相対に短縮してから折る

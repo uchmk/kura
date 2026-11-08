@@ -630,7 +630,7 @@ impl App {
             t.at = Instant::now();
             return;
         }
-        self.toasts.push(Toast { text, level, at: Instant::now(), count: 1 });
+        self.toasts.push(Toast { text, level, at: Instant::now(), count: 1, told: ito_a11y::Told::default() });
     }
 
     /// Add `text` to the bell's list, or refresh the unread notice already

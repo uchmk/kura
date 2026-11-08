@@ -619,4 +619,6 @@ pub struct Toast {
     /// one repeated message would hide every other for six seconds — including
     /// the header summary underneath it, which is where the reason usually is.
     pub count: u32,
+    /// What the screen reader was told about this toast; kept with it so a raise is spoken once.
+    pub told: ito_a11y::Told,
 }
