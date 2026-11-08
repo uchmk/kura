@@ -22,7 +22,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
   人への確認事項は `question` の issue（書き方は docs/claude/questions.md。QUESTIONS.md は Q1-Q98 の archive）。
   - 未完了の項目の末尾の `【人】` `【QA】` `【実機】` `【後】` `【pane】` は開発のセッションが進めない印。「次の項目」を探すときは飛ばす。
     `【pane】` はターミナルペイン: コードは uchmk/ito の `ito-pane` にあり、kura は `Cargo.toml` の `rev` で固定して読む
-    （直すときは tsumugi 側で直し、`rev` を上げて `cargo build` で `Cargo.lock` を合わせる）。
+    （直すときは ito（ito-pane）で直し、`rev` を上げて `cargo build` で `Cargo.lock` を合わせる）。
   - 済んだ項目はその場で [TODO-DONE.md](TODO-DONE.md) に移す（コミットの前に `python scripts/archive-done.py`）。
   - TODO-DONE.md・TESTING-CHECKS.md・TESTING-LINUX.md・CHANGELOG.md は全部を読まない。Grep（`^- \[ \]`、`^- \[ \] \*\*` など）か、Read の `offset`・`limit` で引く。
 - **直した分は再テストに回す。**動きが変わった行は TESTING-CHECKS.md の `[x]` を外し、`retest` の issue を立てる
@@ -47,7 +47,7 @@ yazi 風のキーボード操作ファイルマネージャーを Rust + egui 0.
 
 ## ビルド・検証
 
-- **`cargo fmt --all` で整形する**（v0.109.15 から。設定は `rustfmt.toml`＝`max_width = 140`、`use_small_heuristics = "Max"`。ito・yagura・minato・tsumugi と同じ）。
+- **`cargo fmt --all` で整形する**（v0.109.15 から。設定は `rustfmt.toml`＝`max_width = 140`、`use_small_heuristics = "Max"`。ito・yagura・koyomi・michi・fude と同じ）。
   CI の `fmt` ジョブと `scripts/verify.sh` が `cargo fmt --all --check` で見る。整形だけのコミットは `.git-blame-ignore-revs` に載せてある。
 - clippy は `--all-targets -- -D warnings` で警告ゼロ（CI が強制）。検証は CI と同じ stable で回す。
 - 1 つの OS ではほかの OS の `#[cfg(...)]` のコードがコンパイルされないので、`verify.sh` と CI の `clippy` が Linux・`x86_64-pc-windows-msvc`・
@@ -79,8 +79,8 @@ QA・Windows 実機（x64、ARM64 はリリースごと）・Linux レーン・�
 - PC のセッションは 30 分ごとくらいに開いている `needs-pc` を拾い、Issue に結果を書いて閉じ、頼んだセッションにもメッセージで知らせる。
   クラウドのセッションからは PC のセッションにメッセージを返せないので、PC への連絡は Issue だけで行う。
 - PC のセッションはクラウドが作業しているブランチや main のコードを直接いじらない。直しが要れば担当のセッションに頼む。
-- 持ち主の GitHub Project「uchmk」（[ユーザーの project #2](https://github.com/users/uchmk/projects/2)）に 4 つのリポジトリの開いている issue と PR が集まる。
-  kura の分は Project の自動追加（`is:issue,pr is:open -label:lane-status`）が、ito・yagura・tsumugi の分は PC の needs-pc の巡回（:07 と :37）が入れる。
+- 持ち主の GitHub Project「uchmk」（[ユーザーの project #2](https://github.com/users/uchmk/projects/2)）に uchmk のリポジトリの開いている issue と PR が集まる。
+  kura の分は Project の自動追加（`is:issue,pr is:open -label:lane-status`）が、ito・yagura などほかのリポジトリの分は PC の needs-pc の巡回（:07 と :37）が入れる。
   個人の Project はクラウドのセッションから触れないので、クラウドは操作しない。
 
 ## 構成

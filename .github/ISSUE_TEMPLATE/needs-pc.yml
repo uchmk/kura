@@ -52,4 +52,4 @@ body:
     attributes:
       label: Requesting session / 頼んだセッション
       description: Its title, so the answer can be sent back. / 結果を送り返すためのセッションの題。
-      placeholder: Opus5.5 メイン開発 tsumugi
+      placeholder: Opus5.5 メイン開発 kura

@@ -10,8 +10,8 @@
 - `【QA】` TESTING.md の文言や、テストの探索など、QA セッションの分（`.claude/qa-role.md`）
 - `【実機】` Windows の実機でしか測れないこと。順番表（`.claude/windows-role.md`）に積んで待つ
 
-- [ ] （#308 の所見）`wezterm imgcat` で 2560x1280 の PNG が何も描かれない（160x80 は描かれる）。tsumugi 側で調べる。【pane】
-- [ ] （#306 の所見の残り）sixel（`chafa -f sixels`）は同梱の ConPTY に DCS を落とされて本文が文字で出る。kura か tsumugi が ConPTY にパススルーを頼めるか調べる（`KURA_PTY_LOG` で見る）。【pane】
+- [ ] （#308 の所見）`wezterm imgcat` で 2560x1280 の PNG が何も描かれない（160x80 は描かれる）。ito（ito-pane）で調べる。【pane】
+- [ ] （#306 の所見の残り）sixel（`chafa -f sixels`）は同梱の ConPTY に DCS を落とされて本文が文字で出る。kura か ito（ito-pane）が ConPTY にパススルーを頼めるか調べる（`KURA_PTY_LOG` で見る）。【pane】
 - [ ] （#306 の所見）`wezterm imgcat` がペインの中で `attempt to divide by zero` で panic する（`wezterm\src\main.rs:383`）。セルのピクセル寸法が 0 で返っている疑い（`CSI 16 t` / `CSI 14 t` の返事、`TIOCGWINSZ`）。49.11 と同じ点。【pane】
 - [ ] （#302 の提案）50.7 の「コンソールの窓が出ない」は、ARM64 は測れないとして `[ ]` に残し、x64 は約 5ms 間隔の窓の列挙（753 回）で出なかったと `[x]` にした。5ms より短い窓は取りこぼすので、持ち主が外観の行として扱うか決める。【人】
 - [ ] 再テストの順番表に「前の run から変わった行」を書く欄を足し、1 行の修正で約 50 行を押し直させないようにする。`.claude/windows-role.md` の段落（#300 の提案 2）【人】
@@ -33,8 +33,8 @@
 
 - [ ] 設定が `%APPDATA%\kura` から `%APPDATA%\uchmk\kura` へ自動で移った（`kura.toml` は `config.toml`）。自分で `KURA_CONFIG_HOME` を使っていれば、そのフォルダの `kura.toml` も `config.toml` に改名される。古いフォルダが残っていれば中身を確かめて消す【人】
 - [ ] 実機のレーンを common.toml から切り離す: レーンの kura が `<C-=>` を押すと持ち主の common.toml の倍率が変わり、机のほかの uchmk のアプリも大きくなる。`scripts/auto-wintest.ps1` で `UCHMK_CONFIG_DIR` を一時フォルダに向けるか、`KURA_SCALE=1` を渡す【実機】
-- [ ] 窓の位置と大きさを覚える処理を ito に寄せる（tsumugi と yagura にも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
-- [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は tsumugi と yagura が common.toml を読むようになってから確かめる【実機】
+- [ ] 窓の位置と大きさを覚える処理を ito に寄せる（yagura などほかのアプリにも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
+- [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は yagura を横に開いて確かめる（yagura は common.toml の倍率に従う）【実機】
 
 ## 多言語対応（2026-10-10、持ち主の希望）
 
@@ -42,10 +42,9 @@
 `language = "auto" | "en" | "ja" | …` で選び、アプリごとの設定に `language` があればそちらが勝つ。`auto` は OS の言語（`sys-locale`）。
 仕組みは先に yagura の `src/i18n.rs`（`tr("key")` / `trf("key", &[..])`、英語の表は `src/lang/en.toml`）で作った。
 
-- [ ] yagura の `i18n` を tsumugi の workspace の共有クレートに切り出す（tsumugi を `access:"push"` で付け直す。tsumugi の設定画面の言語の欄 `prefs.rs` もつなぐ）。【後】
 - [ ] filer の画面の文字（ヘルプの見出し・トースト・オーバーレイ・ステータスバー・確認の文）を `tr()` に通し、英語の表を足す。
   yazi の keymap の `desc` は利用者の設定から来るので訳さない。表に無いキーはテストで落とす。【後】
-- [ ] 日本語の表を足す。CJK のフォントは tsumugi の `fonts.rs` の取り方を使う。filer.toml に `language` を足し、README に書く。【後】
+- [ ] 日本語の表を足す。CJK のフォントは ito の `ito-fonts` を使う。filer.toml に `language` を足し、README に書く。【後】
 
 ## テストと QA の運用を軽くする（2026-10-11、持ち主の判断）
 
@@ -53,7 +52,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 所見・バグ・確認事項は GitHub Issues に移し、共通の道具は ito に置く。段階ごとに 1 つの版で出す。
 
 - [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
-- [ ] tsumugi の :50 のタスクを `lane-boot.ps1` で登録し直す（tsumugi の CLAUDE.md の手順）【人】
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
 - [ ] `--keys` の自動テスト化の段階 2: ito の uchmk/ito#203（観測の約束: ito-a11y の Test ID、ito-keyscript の世代・ID の手順・run ID・probe、ito-prefs の Shell ID）が入ったら、ito の `rev` を上げて kura 側を合わせる（段階 1 は v0.152.0: 設定の書き込みを待つ・`<config write>` で落ちる・`<Now>` は直後の 1 手順だけ）
@@ -79,7 +77,7 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 filer・tsumugi・これから作るアプリを LLM とつなげたい。ソースを使い回せる形にすることも含めて課題にする（持ち主の言葉）。
 `ito-pane`（旧 `tsumugi-pane`）と同じく、共有のクレートに入れて各アプリが `rev` で固定して読む形が第一候補。
 
-- [ ] 段 5: 書く道具（窓の確認の箱つき）。#315 の 1 で決まり、kura は v0.109.0 で入れた（TESTING.md 50.8-50.13）【実機】。tsumugi のセッションへの入力は未着手
+- [ ] 段 5: 書く道具（窓の確認の箱つき）。#315 の 1 で決まり、kura は v0.109.0 で入れた（TESTING.md 50.8-50.13）【実機】。tsumugi のセッションへの入力はやらない（2026-11-08、tsumugi をメンテナンスの対象から外した）
 
 ## 印の意味（2026-10-04）
 
@@ -139,7 +137,7 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
   `filer.exe` は署名が無い（Q14）ので、どう判定されるかは試さないと分からない。
 - [ ] 通ったら、release.yml の Windows の成果物を zip から exe に戻す（zip を残すかも決める）。 【実機】
   2026-10-09、持ち主: 最終的には filer も tsumugi も、これから作る別のアプリも exe 1 つにしたい。方向は決まったので、上の Defender の確認待ち。
-  埋め込みと書き出しは tsumugi でも要るので、共有のクレート（ito の `ito-pane` の側）に置くのがよい。
+  埋め込みと書き出しはほかの uchmk のアプリでも要るので、共有のクレート（ito の `ito-pane` の側）に置くのがよい。
 
 ## GitHub の情報を見る口（Q16）
 
@@ -173,7 +171,7 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
   - engineering 系（GitHub、Slack、Linear、Notion、Asana、Atlassian、Datadog、PagerDuty）は未認証。claude.ai のコネクタ設定か `/mcp` で認証する。
   - obsidian の MCP サーバーに接続できない（ECONNREFUSED）。Obsidian 側でサーバーが動いているか確認する。
   - 2026-10-09、持ち主が「やりたい」。開発のセッション（Claude）が外のサービスに届くためのもので、filer の機能ではない。
-    filer / tsumugi を LLM とつなぐ話は「LLM との連携」の節。
+    kura などの uchmk のアプリを LLM とつなぐ話は「LLM との連携」の節。
 
 ## Linux レーン（v0.59.6）
 

@@ -73,7 +73,7 @@ and `--extensions-dir`. It reads no picture and none of the owner's settings, an
 **Do not change the machine's display scale** (#228): a row that wants a scale other than 100% gets it from kura's own `<C-=>`
 (five presses reach 150%, `Scale 150%` in `toasts:`), as #227 did. #228 set the laptop to 150% through `SPI_SETLOGICALDPIOVERRIDE` and
 deleted the registry key it made afterwards; it put everything back, but a run that dies in between leaves the owner's desk at 150%.
-Since v0.99.0 the scale keys write `scale` into `%APPDATA%\uchmk\common.toml`, which tsumugi and yagura follow too: prefer starting kura
+Since v0.99.0 the scale keys write `scale` into `%APPDATA%\uchmk\common.toml`, which yagura and the other uchmk apps follow too: prefer starting kura
 with `$env:KURA_SCALE = '1.5'`, which neither writes it nor follows it. A row that has to press the keys reads the file's `scale` first and
 writes it back when it ends (`<C-0>` alone leaves 1.0, not what the owner had).
 **A run that presses `d` takes back what it trashed** (#231): `u` before it ends, or remove from the Recycle Bin only the items whose

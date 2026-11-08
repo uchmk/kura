@@ -1,7 +1,7 @@
 //! Write `TESTING-KEYS.md`: one tickable line per binding of the default
 //! keymap, ticks carried over by layer and key.
 //!
-//! The generator is ito's `ito-testcheck` (shared with tsumugi); this is
+//! The generator is ito's `ito-testcheck` (shared with the other uchmk apps); this is
 //! kura's configuration of it: the paths, the preamble and a line per layer.
 //!
 //!     cargo run --example make-keycheck [-- --check | --stats]

@@ -9,6 +9,16 @@
 
 ## [未リリース]
 
+## [0.152.3] - 2026-11-08
+
+### 変更
+
+- 文書: メンテナンスの対象を koyomi・michi・kura・fude・ito・yagura（と、これから作るアプリ）にした（2026-11-08、持ち主の判断。tsumugi と minato は外し、代わりに Orca と Linear を使う）。
+  CLAUDE.md・README・TESTING.md（1.11・15 節・15.10・18.7e・29.22・53.10・54 節・54.4・54.16〜54.18）・`docs/claude/`・`rustfmt.toml` などで、
+  いまの隣のアプリや例として tsumugi・minato を挙げていたところを、yagura かほかの uchmk のアプリに直した。テーマの名前（`tsumugi Dark` など）と昔の記録はそのまま。
+  ターミナルペインの直し先は ito（`ito-pane`）。kura の動きは変わらない。
+- TODO: tsumugi の :50 のタスクの登録し直しと、tsumugi のセッションへの入力は「やらない」で閉じた。yagura の `i18n` を ito に寄せる項目は、yagura がもう `ito-i18n` を使っていたので済みにした。54 節の前書きで、yagura を用意する行に 54.17 も入れた。
+
 ## [0.152.2] - 2026-11-08
 
 ### 修正

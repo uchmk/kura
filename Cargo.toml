@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.152.2"
+version = "0.152.3"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -33,7 +33,7 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 tar = { version = "0.4", default-features = false }
 sevenz-rust2 = "0.24"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
-# The terminal pane (src/terminal.rs, src/ui/term.rs), shared with tsumugi
+# The terminal pane (src/terminal.rs, src/ui/term.rs), shared with the other uchmk apps through ito
 # since v0.78.125 and kept in uchmk/ito with the other shared crates since
 # v0.93.10. Pinned to a commit, the same one for every ito crate; to take a
 # fix, move `rev` and run `cargo build` so Cargo.lock follows. Pure Rust, like
@@ -49,7 +49,7 @@ ito-keyscript = { git = "https://github.com/uchmk/ito", rev = "e0015f90cf5be0a86
 # socket / named pipe) and the MCP server Claude Code talks to over stdio.
 # Hand-written on serde_json, no async runtime. The same commit as the pane.
 ito-ipc = { git = "https://github.com/uchmk/ito", rev = "e0015f90cf5be0a86013d2c537b2069a65cfd42d" }
-# The rule a search query matches by (`f` `s` `S` `/` `?` `F`), shared with tsumugi; the same commit as the others.
+# The rule a search query matches by (`f` `s` `S` `/` `?` `F`), shared with the other uchmk apps through ito; the same commit as the others.
 ito-match = { git = "https://github.com/uchmk/ito", rev = "e0015f90cf5be0a86013d2c537b2069a65cfd42d" }
 # The clock at the status bar's right end and the `[clock]` / `language` of the
 # config shared by every uchmk app (common.toml); the same commit as the others.

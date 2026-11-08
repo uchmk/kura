@@ -2,7 +2,7 @@
 //! the manual half of TESTING.md, in Japanese, with a box to tick per check
 //! and the commands each section needs.
 //!
-//! The generator is ito's `ito-testcheck` (shared with tsumugi); this is
+//! The generator is ito's `ito-testcheck` (shared with the other uchmk apps); this is
 //! kura's configuration of it: the paths, the two lanes and their preambles.
 //! Ticks survive regeneration, rows a test names are left out, and the
 //! Japanese comes from `scripts/testcheck-ja.toml` beside TESTING.md's English.

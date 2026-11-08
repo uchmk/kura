@@ -152,7 +152,7 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   状態の issue にコメントするので通知が届く。中身を見て、取っておくものはマージし、ブランチは消す。
   HEAD が detached・`test/<レーン>-*`・`rescue/<レーン>-*` でないとき、rebase の途中のとき、救出に失敗したときだけ、前と同じく止まる。**`scripts/*.ps1` は CI の
   `powershell` ジョブ（`scripts/check-ps1.ps1`）が構文を見る。**pwsh のある機械なら `verify.sh` も見る。
-  **同じ机の tsumugi のレーン（:50）とはロック `Local\wintest-desktop` を分け合う**（v0.80.17）。実行の間だけ取り、取れなければ最大 20 分
+  **同じ机のほかのアプリのレーン（yagura など）とはロック `Local\wintest-desktop` を分け合う**（v0.80.17）。実行の間だけ取り、取れなければ最大 20 分
   （`-DesktopWaitMin`）待って次回に回す（引き金は使わない）。どちらも SendInput でキーを送るので、重なると互いの窓に入力が混ざる。
   ログの `desktop lock: waited N min` / `still held` がその印。
   **ビルドの成果物は RAM ディスクに置く**（v0.73.17）。R: があれば、作業フォルダの `target` を `R:\cargo-target\<作業フォルダ名>` への
