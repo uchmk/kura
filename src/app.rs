@@ -350,6 +350,10 @@ pub struct App {
     pending_completion: Option<PendingCompletion>,
     /// Scans in flight, so results can be routed back to the right folder.
     inflight: HashMap<u64, PathBuf>,
+    /// The newest scan applied to each folder. The pool answers out of order,
+    /// so a listing asked for earlier can arrive after a later one; it is
+    /// older than what is on screen and is dropped (#506).
+    listed: HashMap<PathBuf, u64>,
     pub quit: bool,
     pub cwd_file: Option<PathBuf>,
     pub chooser_file: Option<PathBuf>,
@@ -527,6 +531,7 @@ impl App {
             counted: std::collections::HashSet::new(),
             pending_completion: None,
             inflight: HashMap::new(),
+            listed: HashMap::new(),
             quit: false,
             cwd_file: None,
             chooser_file: None,

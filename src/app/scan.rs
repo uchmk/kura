@@ -261,6 +261,16 @@ impl App {
         match res {
             ScanResult::Listed { id, path, entries } => {
                 self.inflight.remove(&id);
+                // Ids rise in the order the scans were asked for, and a scan
+                // reads at least what was there when it was asked. One that
+                // answers after a later one is the older reading: it would put
+                // back a listing without a name just made, and the cursor that
+                // had landed on that name would fall onto the row it left (#506).
+                if self.listed.get(&path).is_some_and(|&newest| newest > id) {
+                    self.complete_from(id, &path, &entries);
+                    return;
+                }
+                self.listed.insert(path.clone(), id);
                 let entries = Arc::new(entries);
                 self.cache.put(path.clone(), entries.clone());
                 self.apply_listing(&path, entries.clone());
@@ -273,6 +283,14 @@ impl App {
                 if self.pending_completion.as_ref().is_some_and(|p| p.id == id) {
                     self.pending_completion = None;
                 }
+                // The same order holds for a failure: one asked for before the
+                // listing on screen is older than it and must not blank it.
+                // A failure that is the newest reading counts as one, so an
+                // older listing answering after it does not bring it back.
+                if self.listed.get(&path).is_some_and(|&newest| newest > id) {
+                    return;
+                }
+                self.listed.insert(path.clone(), id);
                 // A jump that was never listed is undone first: the tab goes
                 // back where it was instead of showing an empty error column.
                 let jumped = self.pane_tabs().into_iter().find(|&i| self.tabs[i].cwd == path && self.tabs[i].pending_cd.is_some());

@@ -553,9 +553,10 @@ fn a_new_name_waits_for_the_listing_that_has_it() {
     let before = vec![Entry::from_path(dir.join("b.txt")).unwrap()];
 
     a.inflight.clear(); // App::new's own scans, never answered here
-    a.inflight.insert(901, dir.clone());
+    let early = a.scanner.next_id(); // asked for before the name was made
+    a.inflight.insert(early, dir.clone());
     a.do_create("aa.txt");
-    a.on_scan(ScanResult::Listed { id: 901, path: dir.clone(), entries: before.clone() });
+    a.on_scan(ScanResult::Listed { id: early, path: dir.clone(), entries: before.clone() });
     assert_eq!(a.tabs[a.active].current.hovered_name(), Some("b.txt"), "not there yet");
     assert!(a.land_on.is_some(), "so the landing still waits");
 
@@ -566,8 +567,44 @@ fn a_new_name_waits_for_the_listing_that_has_it() {
     assert!(a.land_on.is_none());
 
     a.land_on = Some(dir.join("gone.txt"));
-    a.on_scan(ScanResult::Listed { id: 902, path: dir.clone(), entries: before });
+    let later = a.scanner.next_id();
+    a.on_scan(ScanResult::Listed { id: later, path: dir.clone(), entries: before });
     assert!(a.land_on.is_none(), "no scan left to wait for");
+}
+
+/// #506: the scan pool answers out of order. A listing asked for before `a`
+/// made the file, answering after the rescan that has it, is the older
+/// reading: it does not take the new name off the screen, and the cursor that
+/// landed on it stays there.
+#[test]
+fn an_older_listing_answering_late_is_dropped() {
+    let dir = crate::util::test_dir("land-on-out-of-order");
+    std::fs::write(dir.join("b.txt"), "x").unwrap();
+    let mut a = app_in(&dir);
+    a.apply_listing(&dir, Arc::new(vec![Entry::from_path(dir.join("b.txt")).unwrap()]));
+    let before = vec![Entry::from_path(dir.join("b.txt")).unwrap()];
+
+    a.inflight.clear(); // App::new's own scans, never answered here
+    let early = a.scanner.next_id(); // the watcher's, asked for before the name was made
+    a.inflight.insert(early, dir.clone());
+    let failed = a.scanner.next_id(); // another, whose read of the folder failed
+    a.inflight.insert(failed, dir.clone());
+    a.do_create("aa.txt");
+    let id = *a.inflight.iter().find(|(&i, p)| i != early && i != failed && **p == dir).map(|(id, _)| id).expect("a's own rescan");
+    assert!(id > early, "ids rise in the order scans are asked for");
+    let after = vec![Entry::from_path(dir.join("aa.txt")).unwrap(), Entry::from_path(dir.join("b.txt")).unwrap()];
+    a.on_scan(ScanResult::Listed { id, path: dir.clone(), entries: after });
+    assert_eq!(a.tabs[a.active].current.hovered_name(), Some("aa.txt"), "onto the new file");
+
+    a.on_scan(ScanResult::Listed { id: early, path: dir.clone(), entries: before });
+    assert_eq!(a.tabs[a.active].current.entries.len(), 2, "the new file is still listed");
+    assert_eq!(a.tabs[a.active].current.hovered_name(), Some("aa.txt"), "and the cursor is still on it");
+    assert!(!a.inflight.contains_key(&early), "the late answer is no longer waited for");
+
+    a.on_scan(ScanResult::Failed { id: failed, path: dir.clone(), error: "timed out".into() });
+    assert_eq!(a.tabs[a.active].current.state, LoadState::Ready, "an older failure does not blank the listing");
+    assert_eq!(a.tabs[a.active].current.hovered_name(), Some("aa.txt"));
+    assert!(a.toasts.is_empty(), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
 }
 
 /// #105: `<Esc>` while a jump is still waiting takes the tab
