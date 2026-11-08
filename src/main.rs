@@ -868,11 +868,12 @@ impl eframe::App for Kura {
     /// `--keys`: the next scripted key, in the raw input a keyboard would have
     /// filled -- so it takes every road a real press takes.
     ///
-    /// One key at a time, and only once what the last one started has landed
-    /// (`App::settled`): `<Tab>C` copying a panel whose sections are still on
-    /// the worker would copy half of it. Two frames apart at least, so what the
-    /// key opened has been drawn once; and never more than five seconds behind,
-    /// so a thing that never settles delays the script rather than stopping it.
+    /// One step at a time, paced by `pace::Pace`, and only once what the last
+    /// one started has landed (`App::settled`): `<Tab>C` copying a panel whose
+    /// sections are still on the worker would copy half of it. Two frames apart
+    /// at least, so what the key opened has been drawn once; and never more than
+    /// five seconds behind: a screen that never settles delays the script, and
+    /// the run then ends `keys: unsettled` rather than looking like a success.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let frame = ctx.cumulative_frame_nr_for(egui::ViewportId::ROOT);
         let now = std::time::Instant::now();

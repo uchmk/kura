@@ -8,7 +8,6 @@
 
 use super::*;
 use std::collections::VecDeque;
-use std::time::Duration;
 
 /// The two writer threads. config.toml and keymap.toml share the first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,18 +102,22 @@ impl ConfigWrites {
     }
 
     /// How many answers have been taken; it only goes up.
+    #[cfg(test)]
     pub(crate) fn answers(&self) -> u64 {
         self.answers
     }
 
-    /// The oldest unanswered write that was sent `limit` or longer before `now`.
-    pub(crate) fn overdue(&self, now: Instant, limit: Duration) -> Option<(u64, &'static str)> {
-        self.oldest().filter(|(_, at, _)| *at + limit <= now).map(|(seq, _, file)| (seq, file))
-    }
-
-    /// The file of the oldest unanswered write.
-    pub(crate) fn oldest_file(&self) -> Option<&'static str> {
-        self.oldest().map(|(_, _, file)| file)
+    /// What is in flight, in the shape the key-script pacer reads. `failed` is
+    /// the app's first failed write, if any (only its message is kept, so the
+    /// number and file are left empty).
+    pub(crate) fn status(&self, failed: Option<&str>) -> ito_common::writes::Status {
+        use ito_common::writes::{Failure, Pending, Status};
+        Status {
+            pending: self.kura.waiting.len() + self.common.waiting.len(),
+            oldest: self.oldest().map(|(seq, since, file)| Pending { seq, file: file.to_owned(), since }),
+            answers: self.answers,
+            failed: failed.map(|why| Failure { seq: 0, file: String::new(), why: why.to_owned() }),
+        }
     }
 
     fn oldest(&self) -> Option<(u64, Instant, &'static str)> {
@@ -146,6 +149,7 @@ impl App {
 mod tests {
     use super::*;
     use std::path::Path;
+    use std::time::Duration;
 
     #[test]
     fn a_kura_answer_is_newer_than_the_last_and_not_newer_than_the_last_sent() {
@@ -188,19 +192,23 @@ mod tests {
     }
 
     #[test]
-    fn the_oldest_unanswered_write_is_the_one_that_is_overdue() {
+    fn the_status_names_the_oldest_unanswered_write() {
         let t = Instant::now();
-        let ten = Duration::from_secs(10);
         let mut w = ConfigWrites::default();
-        assert_eq!(w.overdue(t + ten, ten), None);
+        let s = w.status(None);
+        assert_eq!((s.pending, s.oldest, s.answers, s.failed), (0, None, 0, None));
         w.sent(Writer::Kura, "config.toml", t);
         w.sent(Writer::Common, "common.toml", t + Duration::from_secs(5));
-        assert_eq!(w.overdue(t + Duration::from_secs(9), ten), None);
-        assert_eq!(w.overdue(t + ten, ten), Some((1, "config.toml")));
+        let s = w.status(Some("boom"));
+        assert_eq!(s.pending, 2);
+        let oldest = s.oldest.unwrap();
+        assert_eq!((oldest.seq, oldest.file.as_str(), oldest.since), (1, "config.toml", t));
+        assert_eq!(s.failed.unwrap().why, "boom");
         assert_eq!(w.answered(Writer::Kura, 1), Ok(()));
-        assert_eq!(w.overdue(t + ten, ten), None, "the other has waited 5 s");
-        assert_eq!(w.overdue(t + Duration::from_secs(15), ten), Some((1, "common.toml")));
-        assert_eq!(w.oldest_file(), Some("common.toml"));
+        let s = w.status(None);
+        assert_eq!((s.pending, s.answers), (1, 1));
+        let oldest = s.oldest.unwrap();
+        assert_eq!((oldest.file.as_str(), oldest.since), ("common.toml", t + Duration::from_secs(5)));
     }
 
     fn job(seq: u64, path: &Path, key: &'static str) -> KuraJob {

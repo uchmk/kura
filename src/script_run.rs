@@ -5,15 +5,14 @@
 //! file or picture is missing or a wait was not met. It ends one of five ways
 //! in `KURA_KEYS_DONE`: `keys: done`, `keys: unsettled` (a key went in after
 //! the settle wait with the screen still moving), `keys: failed`, or the
-//! older `keys: closed` / `keys: quit` with keys left. The last three of the
-//! first two, and `failed`, set the flag the process turns into
-//! `keyscript::FAILED_EXIT`.
+//! older `keys: closed` / `keys: quit` with keys left. `keys: unsettled`,
+//! `keys: failed` and a close or quit with unsettled steps set the flag the
+//! process turns into `keyscript::FAILED_EXIT`.
 //!
 //! The player takes the time and the frame number as arguments and sends no
 //! window command of its own, so a test can put a step "6 s ago" instead of
 //! sleeping, and read the [`Outcome`].
 
-use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -21,27 +20,6 @@ use std::time::{Duration, Instant};
 
 use crate::app::App;
 use crate::keyscript::{self, evidence, pace, review, Press};
-
-/// How long a step waits for `App::settled()`, and a `<Shot:>` for its picture.
-const DEFAULT_WAIT: Duration = Duration::from_secs(5);
-
-/// How long an input that went in may wait to be drawn before the run fails.
-const DELIVER_WAIT: Duration = Duration::from_secs(10);
-
-/// How long a config write may wait for the writer's answer before the run fails.
-const CONFIG_WAIT: Duration = Duration::from_secs(10);
-
-/// The label a failure about the config writers goes under: it belongs to no script step.
-const CONFIG_STEP: &str = "<config write>";
-
-/// An input handed to the main window that has not been drawn yet.
-struct Inflight {
-    /// The root viewport's frame it went in on.
-    frame: u64,
-    at: Instant,
-    /// The script step it came from.
-    step: usize,
-}
 
 /// What the frame loop does after the player has looked at a frame.
 #[derive(Debug, PartialEq, Eq)]
@@ -64,39 +42,25 @@ pub(crate) enum Ending {
     Quit,
 }
 
-/// A `<Shot:name>` asked for and not yet on disk.
+/// A `<Shot:name>` asked for and not yet on disk (Pace holds its deadline).
 struct Shot {
     name: String,
     /// The screenshot command has been sent.
     sent: bool,
-    /// The script step it came from.
-    step: usize,
-    /// When the step went in; the picture is waited for from here.
-    since: Instant,
     /// The theme and language in force when the screenshot command was sent (empty until then).
     theme: String,
     lang: String,
 }
 
+/// A change of `common.toml` a step asks for, after the step has been marked: the key and its TOML value.
+type CommonEdit = (&'static str, String);
+
+/// The `--keys` host: ito's [`pace::Pace`] decides what comes next and when; this carries each step out in the
+/// window and writes what the run leaves behind.
 pub(crate) struct ScriptRun {
-    /// The steps still to press, each with the index of the script step it came from
-    /// (a split drag and the wait `Size` adds carry their parent's).
-    queue: VecDeque<(usize, Press)>,
-    /// Every step as it was written, by index.
+    pace: pace::Pace,
+    /// Every step as it was written, by index (for the watchdog's report).
     labels: Vec<String>,
-    /// The frame and the moment the last scripted key went in.
-    at: (u64, Instant),
-    /// `<Now>` was read: the next key goes in a frame after the last, without the settled wait.
-    now: bool,
-    /// The last input handed to the main window, until a later frame confirms it was drawn.
-    inflight: Option<Inflight>,
-    /// When the `<ReadHas:>` at the front of the queue was first tried.
-    read_has_since: Option<Instant>,
-    /// When the script last made progress, for the watchdog: a step ran, an
-    /// input was drawn, a config write was answered or a picture was saved.
-    progress_at: Instant,
-    /// `ConfigWrites::answers` as last seen, to notice an answer.
-    answers_seen: u64,
     /// The shape the window asked of the mouse cursor in the last frame, for `<State:>`.
     pub(crate) cursor_icon: egui::CursorIcon,
     shot: Option<Shot>,
@@ -105,40 +69,30 @@ pub(crate) struct ScriptRun {
     /// `KURA_KEYS_DONE`, until the run's report has been written.
     done: Option<PathBuf>,
     watch: Option<Arc<Mutex<crate::ScriptWatch>>>,
-    /// How long a step waits for `App::settled()` before it goes in anyway.
-    pub(crate) settle_wait: Duration,
-    /// How long a `<Shot:>` waits for its picture.
-    pub(crate) shot_deadline: Duration,
     /// This run did not succeed. Outlives the window: `main` reads it after `run_native`.
     failed: Arc<AtomicBool>,
-    /// Steps that went in after the settle wait on a screen that had not settled.
-    unsettled: Vec<usize>,
-    /// The script ended after the settle wait on a screen that had not settled.
-    unsettled_end: bool,
-    /// The end has been reached and reported.
-    finished: bool,
     /// The script has a step that reads the window's tree (`<Assert:>`, `<Click:text>`, `<Tree:>`, ...).
     reads_window: bool,
-    /// The tree generation as of the last action having been drawn; a reading step needs a newer tree.
-    action_gen: u64,
     /// What the app had copied and announced when the last action went in (`<Announced:>` looks after it).
     since: Option<keyscript::Mark>,
-    /// When the last action went in, for `<State:>`'s `since last action:` line.
-    acted: Option<Instant>,
-    /// The script step that last acted: a drag's queued tail frames carry the same index and do not act again.
-    acted_idx: Option<usize>,
-    /// When the window-reading step at the front of the queue first failed to find what it looks for.
-    check_since: Option<Instant>,
     /// The theme the last `<Theme:>` of this run asked for; empty when none did.
     theme_requested: String,
     /// The language the last `<Lang:>` of this run asked for; empty when none did.
     lang_requested: String,
+    /// `<Quit>` has gone in: nothing more is pressed while the window closes.
+    quitting: bool,
     /// `run.json`'s record, written beside the done file (only with one).
     run: evidence::Run,
     /// The first `run.json` has been tried.
     run_started: bool,
     /// The last `run.json` has been written, or there is no folder for it.
     run_closed: bool,
+    /// `trace.jsonl`, once opened (only with a done file).
+    trace: Option<evidence::TraceFile>,
+    trace_started: bool,
+    /// Why `trace.jsonl` could not be written, until it is reported.
+    trace_err: Option<String>,
+    trace_reported: bool,
 }
 
 /// What kura cannot carry out: `None` for the steps it can (today, every parsed step but `<Snap:>`). An exhaustive
@@ -197,14 +151,6 @@ fn reads_window(press: &Press) -> bool {
     )
 }
 
-/// A step that only looks (presses nothing): it retries on every frame, settled or not, and is never named as unsettled.
-fn pure_check(press: &Press) -> bool {
-    matches!(
-        press,
-        Press::Assert { .. } | Press::Is { .. } | Press::Announced(_) | Press::IdCheck(_) | Press::Clipboard(_) | Press::ClipboardHas(_)
-    )
-}
-
 /// A click at `pos` in one frame, the shape of kura's own `<Click:>` / `<DClick:>`: egui reads
 /// the press and release of one frame as a click, and the two pairs as a double click.
 fn click_events(pos: egui::Pos2, right: bool, double: bool) -> Vec<egui::Event> {
@@ -224,6 +170,14 @@ fn click_events(pos: egui::Pos2, right: bool, double: bool) -> Vec<egui::Event> 
 fn say_err(text: &str) {
     use std::io::Write;
     let _ = writeln!(std::io::stderr(), "kura --keys: {text}");
+}
+
+/// Add `more` to what the ending says on standard error.
+fn add_say(e: &mut pace::Ended, more: String) {
+    e.say = Some(match e.say.take() {
+        Some(old) => format!("{old}; {more}"),
+        None => more,
+    });
 }
 
 /// Write a report, and when it cannot be written say so and mark the run as
@@ -362,47 +316,51 @@ impl ScriptRun {
     /// saving what it writes into `shot_dir`. `failed` is the flag `main`
     /// turns into the exit code.
     pub(crate) fn new(steps: &[keyscript::Step], done: Option<PathBuf>, shot_dir: PathBuf, failed: Arc<AtomicBool>) -> Self {
-        let started = Instant::now();
-        let queue: VecDeque<(usize, Press)> = steps.iter().enumerate().filter_map(|(i, s)| keyscript::press(s).map(|p| (i, p))).collect();
-        let reads_window = queue.iter().any(|(_, p)| reads_window(p));
+        Self::started(steps, done, shot_dir, failed, Instant::now(), |_| {})
+    }
+
+    /// [`Self::new`] with the moment the run starts and a say in Pace's waits (for a test that puts a step "6 s ago").
+    fn started(
+        steps: &[keyscript::Step],
+        done: Option<PathBuf>,
+        shot_dir: PathBuf,
+        failed: Arc<AtomicBool>,
+        now: Instant,
+        tune: impl FnOnce(&mut pace::Config),
+    ) -> Self {
+        let presses: Vec<Press> = steps.iter().filter_map(keyscript::press).collect();
+        let reads_window = presses.iter().any(reads_window);
         // As ito's `Runner::new`: announcements are recorded only for a script that looks at them.
-        if queue.iter().any(|(_, p)| matches!(p, Press::Announced(_) | Press::Tree(_))) {
+        if presses.iter().any(|p| matches!(p, Press::Announced(_) | Press::Tree(_))) {
             ito_a11y::record_announcements(true);
         }
         let mut run = evidence::Run::new("kura::ScriptRun", steps.len());
         run.app = "kura".into();
         run.app_version = env!("CARGO_PKG_VERSION").into();
+        // Without a done file there is no report: an empty queue just holds.
+        let mut config = pace::Config { report: done.is_some(), ..pace::Config::new("kura") };
+        tune(&mut config);
         Self {
-            queue,
+            pace: pace::Pace::new(config, steps, now),
             labels: steps.iter().map(keyscript::label).collect(),
-            at: (0, started),
-            now: false,
-            inflight: None,
-            read_has_since: None,
-            progress_at: started,
-            answers_seen: 0,
             cursor_icon: egui::CursorIcon::Default,
             shot: None,
             shot_dir,
             done,
             watch: None,
-            settle_wait: DEFAULT_WAIT,
-            shot_deadline: DEFAULT_WAIT,
             failed,
-            unsettled: Vec::new(),
-            unsettled_end: false,
-            finished: false,
             reads_window,
-            action_gen: 0,
             since: None,
-            acted: None,
-            acted_idx: None,
-            check_since: None,
             theme_requested: String::new(),
             lang_requested: String::new(),
+            quitting: false,
             run,
             run_started: false,
             run_closed: false,
+            trace: None,
+            trace_started: false,
+            trace_err: None,
+            trace_reported: false,
         }
     }
 
@@ -410,37 +368,21 @@ impl ScriptRun {
     /// pressing (`watch_script`); only with a done file to tell.
     pub(crate) fn start_watch(&mut self, ctx: &egui::Context) {
         let Some(done) = self.done.clone() else { return };
-        let watch =
-            Arc::new(Mutex::new(crate::ScriptWatch { left: self.left(None), at: self.progress_at, due: Duration::ZERO, finished: false }));
+        let p = self.pace.progress();
+        let watch = Arc::new(Mutex::new(crate::ScriptWatch { left: p.left, at: p.at, due: Duration::ZERO, finished: false }));
         crate::watch_script(watch.clone(), self.labels.clone(), done, ctx.clone(), self.failed.clone());
         self.watch = Some(watch);
     }
 
-    /// The steps of the script not yet carried out: distinct step indices,
-    /// not queue entries, and the step whose picture is awaited (or `extra`,
-    /// the one that has just failed) counts as not carried out.
-    fn left(&self, extra: Option<usize>) -> usize {
-        let mut steps: Vec<usize> = self.queue.iter().map(|(i, _)| *i).chain(extra).chain(self.shot.as_ref().map(|s| s.step)).collect();
-        steps.sort_unstable();
-        steps.dedup();
-        steps.len()
-    }
-
-    fn label(&self, step: usize) -> String {
-        self.labels.get(step).cloned().unwrap_or_else(|| format!("step {}", step + 1))
-    }
-
-    /// Tell the watchdog the script has moved.
-    fn note_progress(&self) {
+    /// Tell the watchdog how far the script has got.
+    fn note(&self) {
         let Some(watch) = &self.watch else { return };
         if let Ok(mut w) = watch.lock() {
-            w.left = self.left(None);
-            w.at = self.progress_at;
-            w.due = match self.queue.front() {
-                Some((_, Press::Wait(d))) => *d,
-                _ => Duration::ZERO,
-            };
-            w.finished = self.done.is_none();
+            let p = self.pace.progress();
+            w.left = p.left;
+            w.at = p.at;
+            w.due = p.due;
+            w.finished = p.finished || self.done.is_none();
         }
     }
 
@@ -457,295 +399,280 @@ impl ScriptRun {
         ok
     }
 
-    /// End the run as failed at script step `step`: the report, the line on
-    /// standard error, the toast for a person watching, and no more keys.
-    fn fail(&mut self, app: &mut App, step: usize, why: String) -> Outcome {
-        let label = self.label(step);
-        let left = self.left(Some(step));
-        self.fail_as(app, &label, left, why)
+    /// `trace.jsonl`, created once (a run with a done file). Never truncates one that is open.
+    fn open_trace(&mut self) {
+        if self.trace_started || self.done.is_none() {
+            return;
+        }
+        self.trace_started = true;
+        match evidence::TraceFile::create(&self.shot_dir, keyscript::current_run_id()) {
+            Ok(t) => self.trace = Some(t),
+            Err(e) => self.trace_err = Some(format!("cannot write {}: {e}", evidence::TRACE)),
+        }
     }
 
-    /// [`Self::fail`] under a label of its own, for a failure that is not a script step's.
-    fn fail_as(&mut self, app: &mut App, label: &str, left: usize, why: String) -> Outcome {
-        self.failed.store(true, Ordering::SeqCst);
-        say_err(&format!("failed: step {label}: {why}"));
-        self.queue.clear();
-        self.shot = None;
-        // Nothing waits any more, so `due` stops asking for frames.
-        self.check_since = None;
-        self.read_has_since = None;
-        let how = pace::How::Failed { step: label.to_owned(), why: why.clone() };
-        // An ending that already fails keeps its tail, whether or not `run.json` could be written.
-        let (tail, _) = self.keep_run(how, keyscript::failed_report(label, &why, left), left);
-        let report = crate::state_report(app) + &tail;
-        self.write_done(&report);
-        app.error(format!("{label}: {why}"));
-        Outcome::Failed
+    /// Write the trace lines Pace has closed. The first write error drops the file.
+    fn flush_trace(&mut self) {
+        if !self.trace_started {
+            if self.done.is_none() {
+                // No trace will be written: do not let the lines pile up.
+                let _ = self.pace.take_trace();
+            }
+            return;
+        }
+        let lines = self.pace.take_trace();
+        let Some(trace) = self.trace.as_mut() else { return };
+        for line in &lines {
+            if let Err(e) = trace.write(line) {
+                self.trace = None;
+                self.trace_err = Some(format!("cannot write {}: {e}", evidence::TRACE));
+                break;
+            }
+        }
+    }
+
+    /// A trace failure while the run goes on fails the run, the way a `run.json` failure does.
+    fn trace_report(&mut self, app: &mut App) -> Outcome {
+        if self.trace_reported || self.run_closed {
+            return Outcome::Continue;
+        }
+        let Some(why) = self.trace_err.take() else { return Outcome::Continue };
+        self.trace_reported = true;
+        match self.pace.host_failed(evidence::TRACE_STEP, why) {
+            Some(e) => self.keep(app, e),
+            None => Outcome::Continue,
+        }
+    }
+
+    /// After a step of the script: write the trace, report its failure, tell the watch.
+    fn sync(&mut self, app: &mut App) -> Outcome {
+        self.flush_trace();
+        let out = self.trace_report(app);
+        self.note();
+        if self.pace.failed() {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+        out
     }
 
     /// The first `run.json`, `running`, at the first frame the player handles (ito's `start_run`). Only with a done
-    /// file. A failure to write it fails the run at `<run.json>`; there is no folder for the last one either.
+    /// file. A failure to write it fails the run at `<run.json>`.
     fn start_run(&mut self, app: &mut App) -> Option<Outcome> {
         if self.run_started || self.run_closed || self.done.is_none() {
             return None;
         }
         self.run_started = true;
+        self.open_trace();
         self.run.run_id = keyscript::current_run_id().map(str::to_owned);
         if let Err(err) = self.run.write(&self.shot_dir) {
-            self.run_closed = true;
-            let left = self.left(None);
             let why = format!("cannot write {}: {err}", evidence::FILE);
-            return Some(self.fail_as(app, evidence::STEP, left, why));
+            if let Some(mut e) = self.pace.host_failed(evidence::STEP, why) {
+                // `keep` writes no evidence for a closed run: this failure's line goes to the trace here.
+                self.run_closed = true;
+                self.flush_trace();
+                self.trace = None;
+                if let Some(more) = self.trace_err.take() {
+                    add_say(&mut e, more);
+                }
+                return Some(self.keep(app, e));
+            }
         }
         None
     }
 
-    /// The run ends as `how` says: write the last `run.json` (ito's `keep`). `tail` is what follows the state report
-    /// in the done file. Returns the tail to write and whether a failure to write `run.json` turned a success into a
-    /// failure (the file on disk then stays at its `running` record). Nothing without a done file or a second time.
-    fn keep_run(&mut self, how: pace::How, tail: String, left: usize) -> (String, bool) {
-        if self.run_closed || self.done.is_none() {
-            return (tail, false);
-        }
-        self.run_closed = true;
-        self.run_started = true;
-        self.run.run_id = keyscript::current_run_id().map(str::to_owned);
-        let ended = pace::Ended { how, tail, say: None, failed: self.failed.load(Ordering::SeqCst), left };
-        self.run.end(&ended, evidence::now_ms());
-        let Err(err) = self.run.write(&self.shot_dir) else { return (ended.tail, false) };
-        let why = format!("cannot write {}: {err}", evidence::FILE);
-        {
-            use std::io::Write;
-            let _ = writeln!(std::io::stderr(), "keys: {why}");
-        }
-        self.failed.store(true, Ordering::SeqCst);
-        if matches!(ended.how, pace::How::Done) || ended.tail.ends_with("keys: done\n") {
-            return (keyscript::failed_report(evidence::STEP, &why, left), true);
-        }
-        (ended.tail, false)
-    }
-
-    /// Remember that step `idx` went in on a screen that had not settled.
-    fn record_unsettled(&mut self, idx: usize) {
-        self.failed.store(true, Ordering::SeqCst);
-        if !self.unsettled.contains(&idx) {
-            self.unsettled.push(idx);
+    /// The run's ending `e` meets a failure of the evidence (`step` is its label). The first failure is the ending's;
+    /// one that follows only goes to `say`.
+    fn end_failure(&mut self, e: &mut pace::Ended, step: &str, why: String) {
+        self.pace.write_failed();
+        e.failed = true;
+        add_say(e, why.clone());
+        // An ending that reads as a success becomes a failure at `step`; one that already fails keeps its tail and
+        // carries the reason in `say`.
+        if matches!(e.how, pace::How::Done) || e.tail.ends_with("keys: done\n") {
+            e.tail = keyscript::failed_report(step, &why, e.left);
+            e.how = pace::How::Failed { step: step.to_owned(), why };
         }
     }
 
-    /// The last lines of the report when anything went in unsettled, in place of `keys: done`.
-    fn unsettled_lines(&self) -> Option<String> {
-        if self.unsettled.is_empty() && !self.unsettled_end {
-            return None;
+    /// The run has ended as `e`: write `run.json` and `trace.jsonl` (a failure to is a failure of the run), the
+    /// done file, the line on standard error and the toast for a person watching.
+    fn keep(&mut self, app: &mut App, mut e: pace::Ended) -> Outcome {
+        // A late picture is never saved.
+        self.shot = None;
+        let unsettled = !self.pace.unsettled().is_empty();
+        // The evidence could not be written. A close or quit keeps its tail, so `e.how` does not show this.
+        let mut lost = false;
+        if !self.run_closed && self.done.is_some() {
+            self.run_closed = true;
+            self.run_started = true;
+            // The trace first: a run that ends before its first input still gets one.
+            self.open_trace();
+            self.flush_trace();
+            if let Some(why) = self.trace_err.take() {
+                if !std::mem::replace(&mut self.trace_reported, true) {
+                    self.end_failure(&mut e, evidence::TRACE_STEP, why);
+                    lost = true;
+                }
+            }
+            self.run.run_id = keyscript::current_run_id().map(str::to_owned);
+            self.run.end(&e, evidence::now_ms());
+            if let Err(err) = self.run.write(&self.shot_dir) {
+                let why = format!("cannot write {}: {err}", evidence::FILE);
+                self.end_failure(&mut e, evidence::STEP, why.clone());
+                lost = true;
+                // Pace has ended and cannot report it; the trace says so itself.
+                if let Some(trace) = self.trace.as_mut() {
+                    let line = self.pace.no_step_line(evidence::STEP, &why);
+                    if let Err(err) = trace.write(&line) {
+                        add_say(&mut e, format!("cannot write {}: {err}", evidence::TRACE));
+                    }
+                }
+            }
+            self.trace = None;
         }
-        let secs = self.settle_wait.as_secs();
-        let mut out = String::new();
-        if !self.unsettled.is_empty() {
-            let named: Vec<String> = self.unsettled.iter().map(|i| self.label(*i)).collect();
-            out += &format!(
-                "unsettled: {} of {} steps went in after {secs} s without settling: {}\n",
-                named.len(),
-                self.labels.len(),
-                named.join(" ")
-            );
+        let ok = self.write_done(&(crate::state_report(app) + &e.tail));
+        if let Some(say) = &e.say {
+            say_err(say);
         }
-        if self.unsettled_end {
-            out += &format!("unsettled: the script ended after {secs} s without settling\n");
+        if e.failed {
+            self.failed.store(true, Ordering::SeqCst);
         }
-        out += "keys: unsettled\n";
-        Some(out)
+        if let pace::How::Failed { step, why } = &e.how {
+            app.error(format!("{step}: {why}"));
+        }
+        self.note();
+        match &e.how {
+            _ if !ok || lost => Outcome::Failed,
+            pace::How::Failed { .. } => Outcome::Failed,
+            pace::How::Unsettled => Outcome::Unsettled,
+            pace::How::Done => Outcome::Continue,
+            pace::How::Closed | pace::How::Quit if unsettled => Outcome::Unsettled,
+            pace::How::Closed | pace::How::Quit => Outcome::Continue,
+        }
     }
 
     /// `--keys`: the next scripted key, in the raw input a keyboard would have
     /// filled -- so it takes every road a real press takes.
     ///
-    /// One key at a time, and only once what the last one started has landed
-    /// (`App::settled`): `<Tab>C` copying a panel whose sections are still on
-    /// the worker would copy half of it. Two frames apart at least, so what the
-    /// key opened has been drawn once; and never more than the settle wait
-    /// behind, so a thing that never settles delays the script rather than
-    /// stopping it -- but a key that went in that way is named in the report,
-    /// and the run does not end as a success.
+    /// Pace decides what is next and when (one step at a time, once what the last one
+    /// started has landed, never more than the settle wait behind); this carries the step out.
+    /// A key that went in after the settle wait is named in the report, and the run does
+    /// not end as a success.
     pub(crate) fn hook(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
-        if self.finished || (self.queue.is_empty() && self.shot.is_none() && self.done.is_none()) {
+        if self.pace.finished() {
             return Outcome::Continue;
         }
+        let out = self.step(ctx, app, raw_input, frame, now);
+        let synced = self.sync(app);
+        if out == Outcome::Continue {
+            synced
+        } else {
+            out
+        }
+    }
+
+    fn step(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
         if let Some(out) = self.start_run(app) {
             return out;
         }
         if self.reads_window {
             keyscript::observe(ctx);
         }
-        // Another window's frame is not the main window's: nothing goes in on
-        // it. An input waiting to be drawn that meets one at the same frame
-        // went to a window that was not drawn.
-        if raw_input.viewport_id != egui::ViewportId::ROOT {
-            if let Some(f) = self.inflight.as_ref().filter(|f| f.frame == frame) {
-                let why = format!("the input went to viewport {:?} while the main window was not drawn", raw_input.viewport_id);
-                let step = f.step;
-                return self.fail(app, step, why);
-            }
+        if self.quitting {
             return Outcome::Continue;
         }
-        if self.inflight.as_ref().is_some_and(|f| frame > f.frame) {
-            self.inflight = None;
-            self.action_gen = keyscript::generation(ctx);
-            self.progress_at = now;
-            self.note_progress();
-        }
-        let answers = app.config_writes.answers();
-        if answers != self.answers_seen {
-            self.answers_seen = answers;
-            // A reading after `<Theme:>` / `<Lang:>` needs a tree drawn after the new config was applied.
-            self.action_gen = keyscript::generation(ctx);
-            self.progress_at = now;
-            self.note_progress();
-        }
-        // A config write that failed, or has not been answered, holds the
-        // script: what it reads next would be the old config.
-        if let Some(msg) = app.config_write_failed.clone() {
-            let left = self.left(None);
-            return self.fail_as(app, CONFIG_STEP, left, msg);
-        }
-        if app.config_writes_pending() {
-            if let Some((seq, file)) = app.config_writes.overdue(now, CONFIG_WAIT) {
-                let why = format!("no answer from the config writer within {} s of write #{seq} ({file})", CONFIG_WAIT.as_secs());
-                let left = self.left(None);
-                return self.fail_as(app, CONFIG_STEP, left, why);
-            }
-            ctx.request_repaint();
-            return Outcome::Continue;
-        }
-        if let Some(f) = &self.inflight {
-            if now.saturating_duration_since(f.at) >= DELIVER_WAIT {
-                let why =
-                    format!("the input was not drawn within {} s (the window may be hidden, minimized or covered)", DELIVER_WAIT.as_secs());
-                let step = f.step;
-                return self.fail(app, step, why);
-            }
-        }
-        let (last_frame, last_at) = self.at;
-        let since = now.saturating_duration_since(last_at);
-        let settled = app.settled();
-        // Inside a `<Wait:N>` once the key before it has been drawn and has
-        // settled: sleep out the rest instead of drawing frames that change
-        // nothing. Repainting through the wait cost about 1 CPU second in 10
-        // on every backend (#287, proposal 1), which is what 47.1 measures.
-        if let Some((_, Press::Wait(d))) = self.queue.front() {
-            let left = d.saturating_sub(since);
-            if !left.is_zero() && self.shot.is_none() && frame >= last_frame + 2 && settled {
-                ctx.request_repaint_after(left);
-                return Outcome::Continue;
-            }
-        }
-        ctx.request_repaint();
-        let waited_long = since > self.settle_wait;
-        // A picture being taken holds the next key until it is saved. One that
-        // never comes is a missing file: the run failed.
-        if let Some(shot) = &self.shot {
-            if now.saturating_duration_since(shot.since) <= self.shot_deadline {
-                return Outcome::Continue;
-            }
-            let (step, path) = (shot.step, self.shot_path(&shot.name));
-            let why = format!("no picture arrived within {} s; {} was not saved", self.shot_deadline.as_secs(), path.display());
-            return self.fail(app, step, why);
-        }
-        if matches!(self.queue.front(), Some((_, Press::Now))) {
-            self.queue.pop_front();
-            self.now = true;
-        }
-        // `<Now>`: one frame after the last key is enough -- it has been
-        // handed to the app, which is all the next one needs.
-        // A `<ReadHas:>` that has started looking reads again every frame, settled or not.
-        // A retrying pure check (`<Assert:>` and kin) does the same.
-        let ready = if self.now || self.read_has_since.is_some() || self.pure_retry() {
-            frame > last_frame
-        } else {
-            frame >= last_frame + 2 && (settled || waited_long)
+        let viewport = (raw_input.viewport_id != egui::ViewportId::ROOT).then(|| format!("{:?}", raw_input.viewport_id));
+        let status = app.config_writes.status(app.config_write_failed.as_deref());
+        let f = pace::Frame {
+            pass: frame,
+            now,
+            viewport: viewport.as_deref(),
+            settled: Some(app.settled()),
+            writes: Some(&status),
+            generation: keyscript::generation(ctx),
         };
-        if !ready {
-            return Outcome::Continue;
-        }
-        // Past the settle wait on a screen that is still moving, outside `<Now>`.
-        let late = !self.now && !settled;
-        // The same wait as before a key: the last one has been drawn and has
-        // settled, so what is on screen now is its result.
-        let Some((idx, press)) = self.queue.pop_front() else {
-            self.finished = true;
-            self.unsettled_end = late;
-            let lines = self.unsettled_lines();
-            let tail = lines.clone().unwrap_or_else(|| "keys: done\n".to_owned());
-            if let Some(lines) = &lines {
-                self.failed.store(true, Ordering::SeqCst);
-                say_err(&lines.lines().collect::<Vec<_>>().join("; "));
+        match self.pace.next(&f) {
+            pace::Next::Hold { wake } => {
+                match wake {
+                    None => {}
+                    Some(d) if d.is_zero() => ctx.request_repaint(),
+                    Some(d) => ctx.request_repaint_after(d),
+                }
+                Outcome::Continue
             }
-            let how = if lines.is_some() { pace::How::Unsettled } else { pace::How::Done };
-            let (tail, run_failed) = self.keep_run(how, tail, 0);
-            let ok = self.write_done(&(crate::state_report(app) + &tail));
-            self.note_progress();
-            return match (ok && !run_failed, lines.is_some()) {
-                (false, _) => Outcome::Failed,
-                (true, true) => Outcome::Unsettled,
-                (true, false) => Outcome::Continue,
-            };
-        };
-        // A `<Wait:N>` presses nothing: it is not named when the screen was unsettled.
-        let mut record = true;
-        // `<Now>` is for the step after it only; a wait is not a step it can be spent on.
-        let is_wait = matches!(press, Press::Wait(_));
-        let mut ran = true;
-        // A window-reading step that has to look again goes back on the queue as it was.
-        let again = reads_window(&press).then(|| press.clone());
-        match press {
-            // Counted from the key before it: the next key goes in at least
-            // this long after that one, and still only once things settle.
-            Press::Wait(d) => {
-                record = false;
-                let left = d.saturating_sub(since);
-                if left.is_zero() {
-                    self.at = (frame, now);
-                } else {
-                    ran = false;
-                    self.queue.push_front((idx, Press::Wait(d)));
-                    ctx.request_repaint_after(left);
+            pace::Next::Take(entry) => {
+                let (taken, edit) = self.carry_out(ctx, app, raw_input, &entry, now);
+                // An action's first input goes in now: what the app copied and announced from here on is what
+                // `<Announced:>` looks at, and `<State:>` says how long ago it was. Once per script step.
+                if pace::conformance::acts_taken(&entry, &taken) && self.pace.act(now) {
+                    self.since = Some(keyscript::mark(ctx));
+                }
+                // The same write the settings screen makes: common.toml, applied as the watcher would.
+                if let Some((key, value)) = edit {
+                    app.write_common(vec![ito_common::CommonChange { table: None, key, value }]);
+                }
+                let quit = matches!(taken, pace::Taken::Quit);
+                let ended = self.pace.taken(&f, taken);
+                ctx.request_repaint();
+                if quit {
+                    self.quitting = true;
+                }
+                match ended {
+                    Some(e) => self.keep(app, e),
+                    None => Outcome::Continue,
                 }
             }
+            pace::Next::End(e) => self.keep(app, e),
+        }
+    }
+
+    /// Carry out one step in the window. Pacing is Pace's: this only does the step and says what came of it.
+    /// A change of `common.toml` comes back to be written after the step has been marked.
+    fn carry_out(
+        &mut self,
+        ctx: &egui::Context,
+        app: &mut App,
+        raw_input: &mut egui::RawInput,
+        entry: &pace::Entry,
+        now: Instant,
+    ) -> (pace::Taken, Option<CommonEdit>) {
+        use pace::{More, Taken};
+        let input = |more: Vec<More>| Taken::Input { flight: true, more };
+        let verdict = |r: Result<(), String>| match r {
+            Ok(()) => Taken::Done,
+            Err(why) => Taken::Again { why },
+        };
+        let mut edit = None;
+        let taken = match &entry.press {
             Press::Events(events) => {
-                self.act(ctx, now, idx);
-                raw_input.events.extend(events);
-                self.inject(idx, frame, now);
+                raw_input.events.extend(events.iter().cloned());
+                input(Vec::new())
             }
             // Read as it goes in, not when the script was parsed: an earlier
             // key of the script may have put something on the clipboard.
             Press::Paste => {
-                self.act(ctx, now, idx);
                 raw_input.events.push(keyscript::paste_event());
-                self.inject(idx, frame, now);
+                input(Vec::new())
             }
             Press::PasteText(text) => {
-                self.act(ctx, now, idx);
-                raw_input.events.push(keyscript::paste_text_event(&text));
-                self.inject(idx, frame, now);
+                raw_input.events.push(keyscript::paste_text_event(text));
+                input(Vec::new())
             }
             p @ (Press::Click { .. } | Press::DClick { .. } | Press::Hover { .. } | Press::Wheel { .. } | Press::Drag { .. }) => {
-                self.act(ctx, now, idx);
                 let rect = ctx.input(|i| i.viewport_rect());
-                let mut events = keyscript::pointer_events(&p, rect);
+                let mut events = keyscript::pointer_events(p, rect);
                 // A drag one event per frame: in one frame egui never sees the
                 // button held while the pointer moves, so nothing starts to
                 // drag (#283, #284). The first goes in now, the rest follow
-                // as steps of their own, each after the frame has settled.
+                // as continuations of the same step.
+                let mut more = Vec::new();
                 if matches!(p, Press::Drag { .. }) && events.len() > 1 {
-                    let rest = events.split_off(1);
-                    for e in rest.into_iter().rev() {
-                        self.queue.push_front((idx, Press::Events(vec![e])));
-                    }
+                    more = events.split_off(1).into_iter().map(|e| More::Then(Press::Events(vec![e]))).collect();
                 }
                 raw_input.events.extend(events);
-                self.inject(idx, frame, now);
+                input(more)
             }
-            // Written now: the wait above is the one a key gets, so this is
-            // the state the key before it left (#230).
+            // Written now: Pace has waited for the screen the key before it left (#230).
             Press::State(name) => {
                 let path = self.shot_dir.join(format!("{name}.txt"));
                 let text = crate::state_report(app)
@@ -753,310 +680,136 @@ impl ScriptRun {
                     + &format!(
                         "cursor icon: {:?}\nsettled: {}\nconfig writes pending: {}\nconfig write failed: {}\n",
                         self.cursor_icon,
-                        if settled { "yes" } else { "no" },
+                        if app.settled() { "yes" } else { "no" },
                         if app.config_writes_pending() { "yes" } else { "no" },
                         app.config_write_failed.as_deref().unwrap_or("none"),
                     )
-                    + &keyscript::since_action_line(self.acted.map(|t| now.saturating_duration_since(t)));
-                if let Err(why) = write_text(&path, &text) {
-                    return self.fail(app, idx, why);
+                    + &keyscript::since_action_line(self.pace.since_action(now));
+                match write_text(&path, &text) {
+                    Ok(()) => Taken::Done,
+                    Err(why) => Taken::Failed(why),
                 }
-                self.at = (frame, now);
             }
             // The readings kura adds to the common script (`keyscript::DIALECT`).
             Press::Read { tag, name } => {
                 let written = match tag.as_str() {
                     // The pane's own text, beside the state: `name.pane.txt`, so a
                     // `<State:name>` of the same name does not take its place (#229).
-                    "PaneText" => {
-                        let text = app.term.as_ref().map_or_else(|| "(no pane)\n".to_owned(), |t| t.screen_text());
-                        write_text(&self.shot_dir.join(format!("{name}.pane.txt")), &text)
-                    }
-                    "PreviewText" => {
-                        write_text(&self.shot_dir.join(format!("{name}.preview.txt")), &crate::preview_text(&app.preview.state))
-                    }
+                    "PaneText" => write_text(&self.shot_dir.join(format!("{name}.pane.txt")), &reading(app, tag).unwrap_or_default()),
+                    "PreviewText" => write_text(&self.shot_dir.join(format!("{name}.preview.txt")), &reading(app, tag).unwrap_or_default()),
                     other => Err(format!("kura's --keys has no reading called {other}")),
                 };
-                if let Err(why) = written {
-                    return self.fail(app, idx, why);
+                match written {
+                    Ok(()) => Taken::Done,
+                    Err(why) => Taken::Failed(why),
                 }
-                self.at = (frame, now);
             }
-            // Reads again each frame until the text is in the reading, for up to `READ_WAIT`.
-            // It presses nothing and is a check that tolerates a moving screen, so it is not named as unsettled.
+            // Pace reads again each frame until the text is in the reading.
             Press::ReadHas { tag, text } => {
-                record = false;
-                let since = *self.read_has_since.get_or_insert(now);
-                let got = reading(app, &tag).unwrap_or_default();
-                if got.contains(&text) {
-                    self.read_has_since = None;
-                    self.at = (frame, now);
-                } else if now.saturating_duration_since(since) < keyscript::READ_WAIT {
-                    ran = false;
-                    self.queue.push_front((idx, Press::ReadHas { tag, text }));
+                let got = reading(app, tag);
+                if got.as_deref().is_some_and(|g| g.contains(text.as_str())) {
+                    Taken::Done
                 } else {
-                    self.read_has_since = None;
-                    let shown: String = got.chars().take(200).collect();
-                    let more = if got.chars().count() > 200 { "..." } else { "" };
-                    let why =
-                        format!("{tag} did not contain {text:?} within {} s; it read {shown:?}{more}", keyscript::READ_WAIT.as_secs());
-                    return self.fail(app, idx, why);
+                    Taken::Again { why: pace::read_has_why(tag, text, got.as_deref()) }
                 }
             }
             // Straight to the quit `ui` already handles, past anything that
             // would ask first or take `q` for itself (#236).
             Press::Quit => {
                 app.quit = true;
-                self.at = (frame, now);
+                Taken::Quit
             }
             // Taken in `ui`, which is where a viewport command can be sent.
             Press::Shot(name) => {
-                self.shot = Some(Shot { name, sent: false, step: idx, since: now, theme: String::new(), lang: String::new() });
-                self.at = (frame, now);
+                self.shot = Some(Shot { name: name.clone(), sent: false, theme: String::new(), lang: String::new() });
+                Taken::Shot { path: self.shot_path(name).to_string_lossy().into_owned() }
             }
             // The window lays out again at the new size before the next step.
             Press::Size { w, h } => {
-                self.act(ctx, now, idx);
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w as f32, h as f32)));
-                self.queue.push_front((idx, Press::Wait(Duration::from_millis(400))));
-                self.at = (frame, now);
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(*w as f32, *h as f32)));
+                Taken::Changed { more: vec![More::Step(Press::Wait(Duration::from_millis(400)))] }
             }
-            // The same write the settings screen makes: common.toml, applied
-            // as the watcher would.
             Press::Theme(name) => {
-                self.act(ctx, now, idx);
                 self.theme_requested = name.clone();
-                app.write_common(vec![ito_common::CommonChange { table: None, key: "theme", value: format!("{name:?}") }]);
-                self.at = (frame, now);
+                edit = Some(("theme", format!("{name:?}")));
+                Taken::Changed { more: Vec::new() }
             }
             Press::Lang(code) => {
-                self.act(ctx, now, idx);
                 self.lang_requested = code.clone();
-                app.write_common(vec![ito_common::CommonChange { table: None, key: "language", value: format!("{code:?}") }]);
-                self.at = (frame, now);
+                edit = Some(("language", format!("{code:?}")));
+                Taken::Changed { more: Vec::new() }
             }
-            // Taken before the wait above; `parse` puts a key after every one.
-            Press::Now => {}
             // Refused before the window opens (`unsupported`); a run handed one anyway fails on it.
-            Press::Snap { name, .. } => {
-                return self.fail(app, idx, format!("<Snap:{name}>: {UNSUPPORTED_WHY}"));
-            }
-            // The window-reading steps. Each needs a tree drawn after the last action; what it looks
-            // for is waited for up to `TEXT_WAIT`, then the run fails with the reason.
-            Press::ClickText { right, text } => {
-                let found = self.fresh(ctx).and_then(|_| keyscript::locate(ctx, &text));
-                match found {
-                    Ok(pos) => {
-                        self.check_since = None;
-                        self.act(ctx, now, idx);
-                        raw_input.events.extend(click_events(pos, right, false));
-                        self.inject(idx, frame, now);
-                    }
-                    Err(why) => return self.look_again(app, idx, again, why, now, &mut ran, &mut record),
+            Press::Snap { name, .. } => Taken::Failed(format!("<Snap:{name}>: {UNSUPPORTED_WHY}")),
+            // The window-reading steps. Each needs a tree drawn after the last action; Pace waits for
+            // what it looks for, then fails the run with the reason.
+            Press::ClickText { right, text } => match self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)) {
+                Ok(pos) => {
+                    raw_input.events.extend(click_events(pos, *right, false));
+                    input(Vec::new())
                 }
-            }
-            Press::DClickText(text) => {
-                let found = self.fresh(ctx).and_then(|_| keyscript::locate(ctx, &text));
-                match found {
-                    Ok(pos) => {
-                        self.check_since = None;
-                        self.act(ctx, now, idx);
-                        raw_input.events.extend(click_events(pos, false, true));
-                        self.inject(idx, frame, now);
-                    }
-                    Err(why) => return self.look_again(app, idx, again, why, now, &mut ran, &mut record),
+                Err(why) => Taken::Again { why },
+            },
+            Press::DClickText(text) => match self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)) {
+                Ok(pos) => {
+                    raw_input.events.extend(click_events(pos, false, true));
+                    input(Vec::new())
                 }
-            }
+                Err(why) => Taken::Again { why },
+            },
             Press::ClickId(name) => {
-                let found = self.fresh(ctx).and_then(|o| match o.id(&name)? {
+                let found = self.fresh(ctx).and_then(|o| match o.id(name)? {
                     Some(node) => node.click_at.clone(),
                     None => Err(format!("no widget has the test ID `{name}`")),
                 });
                 match found {
                     Ok(pos) => {
-                        self.check_since = None;
-                        self.act(ctx, now, idx);
                         raw_input.events.extend(click_events(pos, false, false));
-                        self.inject(idx, frame, now);
+                        input(Vec::new())
                     }
-                    Err(why) => return self.look_again(app, idx, again, why, now, &mut ran, &mut record),
+                    Err(why) => Taken::Again { why },
                 }
             }
-            // Pure checks: they press nothing and tolerate a moving screen, like `<ReadHas:>`.
-            Press::Assert { text, present } => {
-                record = false;
-                let checked = self.fresh(ctx).and_then(|_| keyscript::check(ctx, &text, present));
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
-            }
-            Press::Is { prop, text } => {
-                record = false;
-                let checked = self.fresh(ctx).and_then(|_| keyscript::check_is(ctx, prop, &text));
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
-            }
-            Press::IdCheck(check) => {
-                record = false;
-                let checked = self.fresh(ctx).and_then(|o| check.check(&o));
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
-            }
+            Press::Assert { text, present } => verdict(self.fresh(ctx).and_then(|_| keyscript::check(ctx, text, *present))),
+            Press::Is { prop, text } => verdict(self.fresh(ctx).and_then(|_| keyscript::check_is(ctx, *prop, text))),
+            Press::IdCheck(check) => verdict(self.fresh(ctx).and_then(|o| check.check(&o))),
             Press::Announced(text) => {
-                record = false;
-                let checked = self.since.map_or_else(|| keyscript::check_announced(&text), |m| keyscript::check_announced_after(m, &text));
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
+                verdict(self.since.map_or_else(|| keyscript::check_announced(text), |m| keyscript::check_announced_after(m, text)))
             }
-            Press::Tree(name) => {
-                let tree = match self.fresh(ctx) {
-                    Ok(o) if o.tree.is_empty() => Err("the window's tree was empty".to_owned()),
-                    other => other,
-                };
-                match tree {
-                    Ok(_) => {
-                        self.check_since = None;
-                        // The same file name as a `<State:>` of that name, which it overwrites (as in ito).
-                        let path = self.shot_dir.join(format!("{name}.txt"));
-                        if let Err(e) = std::fs::write(&path, keyscript::tree_text(ctx)) {
-                            return self.fail(app, idx, format!("cannot write {}: {e}", path.display()));
-                        }
-                        self.at = (frame, now);
+            Press::Tree(name) => match self.fresh(ctx) {
+                Ok(o) if o.tree.is_empty() => Taken::Again { why: "the window's tree was empty".to_owned() },
+                Err(why) => Taken::Again { why },
+                Ok(_) => {
+                    // The same file name as a `<State:>` of that name, which it overwrites (as in ito).
+                    let path = self.shot_dir.join(format!("{name}.txt"));
+                    match std::fs::write(&path, keyscript::tree_text(ctx)) {
+                        Ok(()) => Taken::Done,
+                        Err(e) => Taken::Failed(format!("cannot write {}: {e}", path.display())),
                     }
-                    Err(why) => return self.look_again(app, idx, again, why, now, &mut ran, &mut record),
                 }
-            }
+            },
             // What kura copied after the last action (ito's OS clipboard writer notes each copy for its record).
-            Press::Clipboard(text) => {
-                record = false;
-                let checked = keyscript::check_clipboard_after(ctx, self.since.unwrap_or_default(), &text);
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
-            }
-            Press::ClipboardHas(text) => {
-                record = false;
-                let checked = keyscript::check_clipboard_has_after(ctx, self.since.unwrap_or_default(), &text);
-                if let Err(out) = self.checked(app, idx, again, checked, frame, now, &mut ran) {
-                    return out;
-                }
-            }
-        }
-        if record && late {
-            self.record_unsettled(idx);
-        }
-        // A step that looked again has not been spent on `<Now>`.
-        if !is_wait && ran {
-            self.now = false;
-        }
-        if ran {
-            self.progress_at = now;
-        }
-        self.note_progress();
-        Outcome::Continue
-    }
-
-    /// An action's first input goes in now: what the app copied and announced from here on is what
-    /// `<Announced:>` looks at, and `<State:>` says how long ago it was. Once per script step.
-    fn act(&mut self, ctx: &egui::Context, now: Instant, idx: usize) {
-        if self.acted_idx != Some(idx) {
-            self.since = Some(keyscript::mark(ctx));
-            self.acted = Some(now);
-            self.acted_idx = Some(idx);
-        }
+            Press::Clipboard(text) => verdict(keyscript::check_clipboard_after(ctx, self.since.unwrap_or_default(), text)),
+            Press::ClipboardHas(text) => verdict(keyscript::check_clipboard_has_after(ctx, self.since.unwrap_or_default(), text)),
+            // Pace spends these itself and never hands them out.
+            Press::Wait(_) | Press::Now => Taken::Failed("internal error: Pace handed out a step it spends itself".to_owned()),
+        };
+        (taken, edit)
     }
 
     /// The window as a reading step may judge it: seen after the last input was drawn, in the main
     /// window, and not minimized (ito's `Runner::fresh`).
     fn fresh(&self, ctx: &egui::Context) -> Result<keyscript::Observation, String> {
-        match keyscript::observation(ctx) {
-            Some(o) if o.generation > self.action_gen && o.viewport == egui::ViewportId::ROOT => {
-                if o.minimized == Some(true) {
-                    Err("the window is minimized".into())
-                } else {
-                    Ok(o)
-                }
-            }
-            _ => Err("the window's tree was not updated after the last action (the window may be hidden, minimized or covered)".into()),
-        }
-    }
-
-    /// A pure check is waiting for what it looks for: it looks again every frame.
-    fn pure_retry(&self) -> bool {
-        self.check_since.is_some() && self.queue.front().is_some_and(|(_, p)| pure_check(p))
-    }
-
-    /// The end of a pure check: passed (the retry state is cleared and the step counts as run), or
-    /// `Err` with the outcome to return (look again, or the run failed).
-    #[allow(clippy::too_many_arguments)]
-    fn checked(
-        &mut self,
-        app: &mut App,
-        idx: usize,
-        again: Option<Press>,
-        result: Result<(), String>,
-        frame: u64,
-        now: Instant,
-        ran: &mut bool,
-    ) -> Result<(), Outcome> {
-        match result {
-            Ok(()) => {
-                self.check_since = None;
-                self.at = (frame, now);
-                Ok(())
-            }
-            Err(why) => {
-                let mut record = false;
-                Err(self.look_again(app, idx, again, why, now, ran, &mut record))
-            }
-        }
-    }
-
-    /// A window-reading step did not find what it looks for: put it back to look again, until
-    /// `TEXT_WAIT` has passed, then fail the run with `why`. Nothing was pressed, so it neither
-    /// moves `at` nor counts as progress or as unsettled.
-    #[allow(clippy::too_many_arguments)]
-    fn look_again(
-        &mut self,
-        app: &mut App,
-        idx: usize,
-        again: Option<Press>,
-        why: String,
-        now: Instant,
-        ran: &mut bool,
-        record: &mut bool,
-    ) -> Outcome {
-        let since = *self.check_since.get_or_insert(now);
-        match again {
-            Some(press) if now.saturating_duration_since(since) < keyscript::TEXT_WAIT => {
-                *ran = false;
-                *record = false;
-                self.queue.push_front((idx, press));
-                self.note_progress();
-                Outcome::Continue
-            }
-            _ => {
-                self.check_since = None;
-                self.fail(app, idx, why)
-            }
-        }
+        let o = keyscript::observation(ctx).ok_or_else(|| pace::fresh(0, 0, false, None).unwrap_err())?;
+        pace::fresh(o.generation, self.pace.action_gen(), o.viewport == egui::ViewportId::ROOT, o.minimized)?;
+        Ok(o)
     }
 
     /// When the next frame is wanted for a retry that waits: a repaint asked for in `hook` can be
     /// forgotten when the pass begins (egui resets the delay then), so a quiet window could stop
     /// drawing while a check waits, and the watchdog only pokes once a second.
     pub(crate) fn due(&self) -> Option<Duration> {
-        (self.check_since.is_some() || self.read_has_since.is_some()).then_some(Duration::from_millis(16))
-    }
-
-    /// A step handed input to the main window on this frame: it is in flight until a later one is drawn.
-    fn inject(&mut self, step: usize, frame: u64, now: Instant) {
-        self.at = (frame, now);
-        self.now = false;
-        self.inflight = Some(Inflight { frame, at: now, step });
+        self.pace.due()
     }
 
     /// Where `<Shot:name>` saves: `shots/name.png` beside the done file (`name@preview` is the preview pane's crop of `name.png`).
@@ -1066,6 +819,16 @@ impl ScriptRun {
 
     /// `<Shot:name>`: ask for the picture, then save it when it arrives.
     pub(crate) fn take_shot(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
+        let out = self.shot_step(ctx, app);
+        let synced = self.sync(app);
+        if out == Outcome::Continue {
+            synced
+        } else {
+            out
+        }
+    }
+
+    fn shot_step(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
         let Some(shot) = &mut self.shot else { return Outcome::Continue };
         if !shot.sent {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(shot.name.clone())));
@@ -1076,7 +839,7 @@ impl ScriptRun {
             ctx.request_repaint();
             return Outcome::Continue;
         }
-        let (name, step, in_force) = (shot.name.clone(), shot.step, (shot.theme.clone(), shot.lang.clone()));
+        let (name, in_force) = (shot.name.clone(), (shot.theme.clone(), shot.lang.clone()));
         let image = ctx.input(|i| {
             i.raw.events.iter().find_map(|e| match e {
                 egui::Event::Screenshot { user_data, image, .. }
@@ -1114,11 +877,13 @@ impl ScriptRun {
         match saved {
             Ok(()) => {
                 self.shot = None;
-                self.progress_at = Instant::now();
-                self.note_progress();
+                self.pace.shot_saved(Instant::now());
                 Outcome::Continue
             }
-            Err(why) => self.fail(app, step, why),
+            Err(why) => match self.pace.shot_failed(why) {
+                Some(e) => self.keep(app, e),
+                None => Outcome::Continue,
+            },
         }
     }
 
@@ -1127,51 +892,20 @@ impl ScriptRun {
     /// `<Shot:>` still awaited is an unfinished step, whatever the queue says.
     /// The caller runs the close action of its path either way.
     pub(crate) fn ended(&mut self, app: &mut App, how: Ending) -> Outcome {
-        if let Some(shot) = &self.shot {
-            let (step, name) = (shot.step, shot.name.clone());
-            let what = if how == Ending::Closed { "the window was closed" } else { "kura quit" };
-            return self.fail(app, step, format!("{what} before the picture of <Shot:{name}> was saved"));
-        }
-        if self.done.is_none() {
-            return Outcome::Continue;
-        }
-        if let Some(msg) = app.config_write_failed.clone() {
-            let left = self.left(None);
-            return self.fail_as(app, CONFIG_STEP, left, msg);
-        }
-        if app.config_writes_pending() {
-            let file = app.config_writes.oldest_file().unwrap_or("config");
-            let what = if how == Ending::Closed { "the window was closed" } else { "kura quit" };
-            let why = format!("{what} before the config writer answered ({file})");
-            let left = self.left(None);
-            return self.fail_as(app, CONFIG_STEP, left, why);
-        }
-        let left = self.left(None);
-        let (lines, base) = match how {
-            Ending::Closed => (self.unsettled_lines(), keyscript::closed_report(left)),
-            Ending::Quit => (self.unsettled_lines(), keyscript::quit_report(left)),
+        let status = app.config_writes.status(app.config_write_failed.as_deref());
+        let how = match how {
+            Ending::Closed => pace::Ending::Closed,
+            Ending::Quit => pace::Ending::Quit,
         };
-        // A `keys: done` ending gives way to the unsettled lines. `keys: closed` /
-        // `keys: quit` stay last, since they say what was left, with the unsettled lines before them.
-        let tail = match (&lines, base.strip_suffix("keys: done\n")) {
-            (Some(lines), Some(head)) => format!("{head}{lines}"),
-            (Some(lines), None) => format!("{}{base}", lines.strip_suffix("keys: unsettled\n").unwrap_or(lines)),
-            (None, _) => base,
+        let out = match self.pace.end(how, Instant::now(), Some(&status)) {
+            Some(e) => self.keep(app, e),
+            None => Outcome::Continue,
         };
-        if lines.is_some() {
-            self.failed.store(true, Ordering::SeqCst);
-        }
-        self.finished = true;
-        let how = if how == Ending::Closed { pace::How::Closed } else { pace::How::Quit };
-        let (tail, run_failed) = self.keep_run(how, tail, left);
-        let ok = self.write_done(&(crate::state_report(app) + &tail));
-        self.note_progress();
-        if !ok || run_failed {
-            Outcome::Failed
-        } else if lines.is_some() {
-            Outcome::Unsettled
+        let synced = self.sync(app);
+        if out == Outcome::Continue {
+            synced
         } else {
-            Outcome::Continue
+            out
         }
     }
 }
@@ -1213,10 +947,12 @@ mod tests {
 
         fn run(&self, script: &str, done: Option<PathBuf>, shot_dir: PathBuf) -> ScriptRun {
             let steps = keyscript::parse(script).unwrap();
-            let mut run = ScriptRun::new(&steps, done, shot_dir, self.failed.clone());
-            run.at = (0, self.t0);
-            run.progress_at = self.t0;
-            run
+            ScriptRun::started(&steps, done, shot_dir, self.failed.clone(), self.t0, |_| {})
+        }
+
+        /// `run`, from steps built by hand (a step the parser would not make).
+        fn run_of(&self, steps: &[keyscript::Step], done: Option<PathBuf>, shot_dir: PathBuf) -> ScriptRun {
+            ScriptRun::started(steps, done, shot_dir, self.failed.clone(), self.t0, |_| {})
         }
 
         /// One frame of the player, `secs` after the last, two frames on.
@@ -1504,11 +1240,26 @@ mod tests {
             let mut rig = Rig::new("keys-runjson-ended", true);
             let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
             assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-            run.queue.clear();
             run.ended(&mut rig.screen.app, how);
             let json = squeezed(&rig.dir.join("run.json"));
             assert!(json.contains(&format!("\"status\":\"{status}\"")), "{status}: {json}");
         }
+    }
+
+    /// A run with a done file writes `trace.jsonl` beside run.json, one line per step; a run without one writes neither.
+    #[test]
+    fn a_done_file_run_writes_a_trace_line_per_step() {
+        let mut rig = Rig::new("keys-trace", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("jk<State:s>", Some(done), rig.dir.clone());
+        assert_eq!(until_end(&mut rig, &mut run, 1, 20), Outcome::Continue);
+        let trace = read(&rig.dir.join(evidence::TRACE));
+        assert_eq!(trace.lines().count(), 3, "{trace}");
+
+        let mut rig = Rig::new("keys-no-trace", true);
+        let mut run = rig.run("j", None, rig.dir.clone());
+        assert_eq!(until_end(&mut rig, &mut run, 1, 20), Outcome::Continue);
+        assert!(!rig.dir.join(evidence::TRACE).exists() && !rig.dir.join(evidence::FILE).exists());
     }
 
     /// run.json replaced by a folder after the start: the last write cannot go through.
@@ -1524,7 +1275,6 @@ mod tests {
         let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         block_run_json(&rig.dir);
-        run.queue.clear();
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("step: <run.json>\n"), "{said}");
@@ -1552,10 +1302,11 @@ mod tests {
         let mut run = rig.run("jjj", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         block_run_json(&rig.dir);
-        run.ended(&mut rig.screen.app, Ending::Quit);
+        assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: quit\nleft: "), "{said}");
         assert!(!said.contains("step: <run.json>"), "{said}");
+        assert!(rig.flag());
     }
 
     #[test]
@@ -1568,6 +1319,8 @@ mod tests {
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("step: <run.json>\n"), "{said}");
         assert!(rig.flag());
+        let trace = read(&rig.dir.join(evidence::TRACE));
+        assert!(trace.contains("<run.json>"), "the failure has its line in the trace: {trace}");
     }
 
     #[test]
@@ -1598,7 +1351,7 @@ mod tests {
             assert!(body(&said).ends_with("left: 1 not pressed\n"), "{script}: {said}");
             assert!(!said.contains("keys: done"), "{script}: {said}");
             assert!(rig.flag(), "{script}");
-            assert!(run.queue.is_empty() && run.done.is_none(), "{script}: no more keys, one report");
+            assert!(run.pace.left() == 0 && run.done.is_none(), "{script}: no more keys, one report");
         }
     }
 
@@ -1616,8 +1369,7 @@ mod tests {
         assert!(said.ends_with(&format!("run: {id}\nkeys: done\n")), "{said}");
 
         let bad = rig.dir.join("failed.txt");
-        let mut run = rig.run("j", Some(bad.clone()), rig.dir.clone());
-        run.queue = [(0, Press::Read { tag: "Bogus".into(), name: "n".into() })].into();
+        let mut run = rig.run_of(&[keyscript::Step::Read { tag: "Bogus".into(), name: "n".into() }], Some(bad.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
         let said = read(&bad);
         assert_eq!(said.lines().filter(|l| l.starts_with("run: ")).count(), 1, "{said}");
@@ -1630,16 +1382,14 @@ mod tests {
     fn read_has_waits_for_the_text_then_fails_naming_what_it_read() {
         let mut rig = Rig::new("keys-read-has", true);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
         // No pane in the harness: the reading is "(no pane)".
-        run.queue = [(0, Press::ReadHas { tag: "PaneText".into(), text: "(no pane)".into() })].into();
+        let mut run = rig.run("<ReadHas:PaneText=(no pane)>", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        assert!(run.queue.is_empty(), "the text was there at once");
+        assert!(run.pace.left() == 0, "the text was there at once");
 
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-        run.queue = [(0, Press::ReadHas { tag: "PaneText".into(), text: "never there".into() })].into();
+        let mut run = rig.run("<ReadHas:PaneText=never there>", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "waits");
-        assert_eq!(run.queue.len(), 1);
+        assert_eq!(run.pace.left(), 1);
         assert_eq!(rig.step(&mut run, keyscript::READ_WAIT.as_secs() + 1), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("PaneText") && said.contains("never there"), "{said}");
@@ -1655,14 +1405,13 @@ mod tests {
         use crate::preview::Payload;
         let mut rig = Rig::new("keys-read-has-moving", false);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-        run.queue = [(0, Press::ReadHas { tag: "PreviewText".into(), text: "late text".into() })].into();
+        let mut run = rig.run("<ReadHas:PreviewText=late text>", Some(done.clone()), rig.dir.clone());
         rig.screen.app.preview.state = PreviewState::Loading;
         assert_eq!(rig.step(&mut run, 6), Outcome::Continue, "starts looking");
-        assert_eq!(run.queue.len(), 1, "not there yet");
+        assert_eq!(run.pace.left(), 1, "not there yet");
         rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("some late text".into()));
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "looks again without waiting to settle");
-        assert!(run.queue.is_empty(), "found on the next frame");
+        assert!(run.pace.left() == 0, "found on the next frame");
         rig.screen.app.preview.in_flight = false;
         while rig.step(&mut run, 0) == Outcome::Continue && run.done.is_some() {}
         let said = read(&done);
@@ -1673,13 +1422,12 @@ mod tests {
         // After `<Now>`, the second look does not wait out the settle time either.
         rig.screen.app.preview.in_flight = true;
         rig.screen.app.preview.state = PreviewState::Loading;
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-        run.queue = [(0, Press::Now), (1, Press::ReadHas { tag: "PreviewText".into(), text: "later".into() })].into();
+        let mut run = rig.run("<Now><ReadHas:PreviewText=later>", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        assert_eq!(run.queue.len(), 1, "looked once under <Now>");
+        assert_eq!(run.pace.left(), 1, "looked once under <Now>");
         rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("later".into()));
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        assert!(run.queue.is_empty(), "found on the next frame, not after the settle wait");
+        assert!(run.pace.left() == 0, "found on the next frame, not after the settle wait");
     }
 
     /// What a failed `<ReadHas:>` read is cut to its first 200 characters.
@@ -1689,8 +1437,7 @@ mod tests {
         use crate::preview::Payload;
         let mut rig = Rig::new("keys-read-has-long", true);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-        run.queue = [(0, Press::ReadHas { tag: "PreviewText".into(), text: "zzz".into() })].into();
+        let mut run = rig.run("<ReadHas:PreviewText=zzz>", Some(done.clone()), rig.dir.clone());
         rig.screen.app.preview.state = PreviewState::Ready(Payload::Error("x".repeat(300)));
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         assert_eq!(rig.step(&mut run, keyscript::READ_WAIT.as_secs() + 1), Outcome::Failed);
@@ -1703,8 +1450,7 @@ mod tests {
     fn an_unknown_reading_fails_instead_of_being_skipped() {
         let mut rig = Rig::new("keys-bad-read", true);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-        run.queue = [(0, Press::Read { tag: "Bogus".into(), name: "n".into() })].into();
+        let mut run = rig.run_of(&[keyscript::Step::Read { tag: "Bogus".into(), name: "n".into() }], Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("Bogus"), "{said}");
@@ -1741,7 +1487,6 @@ mod tests {
         for how in [Ending::Closed, Ending::Quit] {
             let mut rig = Rig::new("keys-ended-unwritable", true);
             let mut run = rig.run("j", Some(unwritable(&rig.dir)), rig.dir.clone());
-            run.queue.clear();
             let ctx_app = &mut rig.screen.app;
             assert_eq!(run.ended(ctx_app, how), Outcome::Failed, "{how:?}");
             assert!(rig.flag(), "{how:?}");
@@ -1805,7 +1550,7 @@ mod tests {
             let done = rig.dir.join("done.txt");
             let mut run = rig.run("<Shot:x>", Some(done.clone()), rig.dir.clone());
             assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-            assert!(run.queue.is_empty(), "the queue says nothing is left");
+            assert_eq!(run.pace.left(), 1, "the shot is the step still to be answered");
             assert_eq!(run.ended(&mut rig.screen.app, how), Outcome::Failed, "{how:?}");
             let said = read(&done);
             assert!(said.contains("keys: failed\n"), "{how:?}: {said}");
@@ -1901,7 +1646,7 @@ mod tests {
         while !rig.flag() {
             assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
         }
-        assert!(!run.queue.is_empty(), "k is still to go");
+        assert!(run.pace.left() > 0, "k is still to go");
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Closed), Outcome::Unsettled);
         let said = read(&done);
         assert!(said.contains("unsettled: 1 of 2 steps went in after 5 s without settling: j\n"), "{said}");
@@ -1916,7 +1661,6 @@ mod tests {
         let done = rig.dir.join("done.txt");
         let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        run.queue.clear();
         assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Continue);
         let said = read(&done);
         assert!(body(&said).ends_with("quit: yes\nkeys: done\n"), "{said}");
@@ -1999,7 +1743,6 @@ mod tests {
         // `mid` is read at once; `after` is back to waiting for the screen.
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         assert!(rig.dir.join("mid.txt").exists(), "<Now> let the next step go without waiting");
-        assert!(!run.now, "and was spent on it");
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         assert!(!rig.dir.join("after.txt").exists(), "an unsettled screen holds the step after");
         assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
@@ -2084,9 +1827,21 @@ mod tests {
 
     #[test]
     fn the_waits_fit_inside_the_watchdogs() {
-        // ito's TEXT_WAIT and READ_WAIT are checked against STALL in ito.
-        let longest = DELIVER_WAIT.max(DEFAULT_WAIT).max(CONFIG_WAIT);
-        assert!(DEFAULT_WAIT + longest < keyscript::STALL, "{DEFAULT_WAIT:?} + {longest:?} < {:?}", keyscript::STALL);
+        // A step can wait for the settle wait and then for the longest wait of its own.
+        let c = pace::Config::new("kura");
+        let longest = [
+            c.settle_wait,
+            c.shot_deadline,
+            c.state_deadline,
+            keyscript::DELIVER_WAIT,
+            keyscript::TEXT_WAIT,
+            keyscript::READ_WAIT,
+            pace::CONFIG_WAIT,
+        ]
+        .into_iter()
+        .max()
+        .unwrap();
+        assert!(c.settle_wait + longest < keyscript::STALL, "{:?} + {longest:?} < {:?}", c.settle_wait, keyscript::STALL);
     }
 
     #[test]
@@ -2161,9 +1916,9 @@ mod tests {
         // With nothing in flight another window's hook injects nothing and changes nothing.
         let mut rig = Rig::new("keys-other-idle", true);
         let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
-        let before = run.queue.len();
+        let before = run.pace.left();
         assert_eq!(rig.tick(&mut run, 0, 4, other), Outcome::Continue);
-        assert!(run.queue.len() == before && run.inflight.is_none());
+        assert!(run.pace.left() == before && !run.pace.in_flight());
     }
 
     /// Passes until the run ends or `n` passes have gone by.
@@ -2188,15 +1943,15 @@ mod tests {
         let mut run = rig.run("j<C-,><Assert:!Open config.toml>", Some(done.clone()), rig.dir.clone());
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.queue.len() == 2 {
+            if run.pace.left() == 2 {
                 break;
             }
         }
-        assert_eq!(run.queue.len(), 2, "j went in and was drawn (so a tree exists)");
+        assert_eq!(run.pace.left(), 2, "j went in and was drawn (so a tree exists)");
         assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
-        assert_eq!(run.queue.len(), 1, "<C-,> went in, and is never drawn");
+        assert_eq!(run.pace.left(), 1, "<C-,> went in, and is never drawn");
         assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
-        assert!(run.check_since.is_some() && run.due().is_some(), "the check waits for a newer tree");
+        assert!(run.due().is_some(), "the check waits for a newer tree");
         assert_eq!(rig.hook_by(&mut run, Duration::from_secs(1)), Outcome::Continue);
         assert_eq!(rig.hook_by(&mut run, Duration::from_secs(4)), Outcome::Failed);
         let said = read(&done);
@@ -2227,16 +1982,15 @@ mod tests {
         rig.screen.feed(Vec::new());
         rig.answer();
         assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
-        assert!(matches!(run.queue.front(), Some((_, Press::Assert { .. }))), "the check has not passed on the old tree");
-        assert!(run.check_since.is_some(), "it is waiting");
+        assert_eq!(run.pace.left(), 1, "the check has not passed on the old tree");
+        assert!(run.due().is_some(), "it is waiting");
         for _ in 0..30 {
             rig.pass(&mut run, 0);
-            if run.queue.is_empty() {
+            if run.pace.left() == 0 {
                 break;
             }
         }
-        assert!(run.queue.is_empty(), "the check passed on a tree drawn after the answer");
-        assert!(run.check_since.is_none());
+        assert!(run.pace.left() == 0, "the check passed on a tree drawn after the answer");
     }
 
     /// A missing text is looked for until `TEXT_WAIT` is up: still waiting 1 ms short of it, failed at it.
@@ -2247,11 +2001,11 @@ mod tests {
         let mut run = rig.run("<C-,><Assert:Not on this screen>", Some(done.clone()), rig.dir.clone());
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.check_since.is_some() {
+            if run.pace.left() == 1 && run.due().is_some() {
                 break;
             }
         }
-        assert_eq!(run.check_since, Some(rig.t0), "the check looked once and did not find it");
+        assert!(run.due().is_some(), "the check looked once and did not find it");
         let wait = keyscript::TEXT_WAIT;
         assert_eq!(rig.hook_by(&mut run, wait - Duration::from_millis(1)), Outcome::Continue, "1 ms short of the wait");
         assert!(!done.exists());
@@ -2273,18 +2027,22 @@ mod tests {
         assert!(rig.flag());
     }
 
-    /// `<Now>` is for the step after it: a check of that step that has to look again has not used it up.
+    /// `<Now>` is for the step after it: a look of that step that has to look again has not used it up. A `<Click:>` is
+    /// what shows it (a check looks again each pass with or without `<Now>`, and is never named unsettled): on a screen
+    /// still moving, the second look goes in on the next pass and is not named. The click is never drawn.
     #[test]
-    fn now_survives_check_retry() {
-        let mut rig = Rig::new("keys-now-retry", true);
+    fn now_survives_a_look_that_looks_again() {
+        let mut rig = Rig::new("keys-now-retry", false);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("<Now><Assert:Not on this screen>", Some(done.clone()), rig.dir.clone());
+        let mut run = rig.run("<Now><Click:Open config.toml>", Some(done), rig.dir.clone());
         assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
-        assert!(run.check_since.is_some(), "the check looked and did not find it");
-        assert!(run.now, "the retry has not spent <Now>");
-        assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
-        assert!(run.now, "still not");
-        assert_eq!(rig.pass(&mut run, 4), Outcome::Failed);
+        assert_eq!(run.pace.left(), 1, "the look did not find it");
+        rig.screen.app.toggle_settings();
+        rig.screen.feed(Vec::new());
+        assert!(!rig.screen.app.settled(), "the rig's screen is still moving");
+        assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
+        assert_eq!(run.pace.left(), 0, "found on the next pass, not after the settle wait");
+        assert!(run.pace.unsettled().is_empty(), "it went in under <Now>, so it is not named");
     }
 
     /// A drag is several steps of one action: only its first frame marks the action.
@@ -2292,19 +2050,75 @@ mod tests {
     fn drag_marks_only_first_frame() {
         let mut rig = Rig::new("keys-drag-act", true);
         let mut run = rig.run("<Drag:0.2,0.3-0.6,0.3>", Some(rig.dir.join("done.txt")), rig.dir.clone());
-        assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
-        let acted = run.acted.expect("the first frame acted");
-        let idx = run.acted_idx;
+        let (out, first) = rig.hook_events(&mut run, Duration::ZERO);
+        assert_eq!(out, Outcome::Continue);
+        let acted = rig.t0;
+        let idx = run.pace.acted_idx();
+        assert!(idx.is_some(), "the first frame acted");
+        assert_eq!(run.pace.since_action(rig.t0), Some(Duration::ZERO), "the action is marked at the first frame");
         assert!(run.since.is_some());
-        assert!(run.queue.len() > 1, "the rest of the drag is still to go in");
-        let mut frames = 0;
-        while !run.queue.is_empty() && frames < 20 {
-            rig.hook_by(&mut run, Duration::from_secs(1));
-            frames += 1;
-            assert_eq!(run.acted, Some(acted), "a tail frame of the drag did not act again");
-            assert_eq!(run.acted_idx, idx);
+        assert!(!first.is_empty(), "the first frame of the drag went in");
+        let mut tail_frames = 0;
+        while run.pace.left() > 0 && tail_frames < 20 {
+            let (out, events) = rig.hook_events(&mut run, Duration::from_secs(1));
+            assert_eq!(out, Outcome::Continue);
+            assert!(!events.is_empty(), "each frame carries the drag on");
+            tail_frames += 1;
+            assert_eq!(run.pace.since_action(rig.t0), Some(rig.t0 - acted), "a tail frame of the drag did not act again");
+            assert_eq!(run.pace.acted_idx(), idx);
         }
-        assert!(run.queue.is_empty() && frames > 1, "the drag's tail frames went in");
+        assert!(run.pace.left() == 0 && tail_frames > 1, "the drag's tail frames went in");
+    }
+
+    /// A drag goes on frame by frame while the screen moves: its tail waits for no settling and is never named unsettled.
+    #[test]
+    fn a_drags_tail_does_not_wait_for_a_settled_screen() {
+        let mut rig = Rig::new("keys-drag-unsettled", false);
+        let mut run = rig.run("<Now><Drag:0.2,0.3-0.6,0.3>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
+        let start = rig.t0;
+        let mut tail_frames = 0;
+        while run.pace.left() > 0 && tail_frames < 20 {
+            let (out, events) = rig.hook_events(&mut run, Duration::from_millis(30));
+            assert_eq!(out, Outcome::Continue);
+            assert!(!events.is_empty(), "the screen is still moving and the drag goes on");
+            tail_frames += 1;
+        }
+        assert!(run.pace.left() == 0 && tail_frames > 1, "the drag's tail frames went in");
+        assert!(rig.t0 - start < pace::Config::new("kura").settle_wait, "well inside the settle wait");
+        assert!(!rig.screen.app.settled(), "the rig's screen is still moving");
+        assert!(run.pace.unsettled().is_empty(), "the tail is never named");
+    }
+
+    /// `<Now>` does not lift a check's deadline: a text that never comes still fails it.
+    #[test]
+    fn a_check_after_now_still_fails_at_its_deadline() {
+        let mut rig = Rig::new("keys-now-deadline", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Now><Assert:Not on this screen>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 4), Outcome::Failed);
+        assert!(read(&done).contains("keys: failed\n"));
+    }
+
+    /// `<Now>` is for the one step after it. Once the check has passed it is spent: the key after the check waits for
+    /// the settled screen, and is named when it goes in without one. Nothing is clicked here, so no opener is launched.
+    #[test]
+    fn now_is_spent_by_the_check_it_precedes() {
+        let mut rig = Rig::new("keys-now-spent", false);
+        let mut run = rig.run("<Now><Assert:Open config.toml>j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        assert_eq!(run.pace.left(), 2, "the check did not find it");
+        rig.screen.app.toggle_settings();
+        rig.screen.feed(Vec::new());
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        assert_eq!(run.pace.left(), 1, "the check found it");
+        assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
+        assert_eq!(run.pace.left(), 1, "the key waits for the screen: <Now> is spent");
+        assert!(rig.pass(&mut run, 6) != Outcome::Failed);
+        assert_eq!(run.pace.left(), 0, "the settle wait is over");
+        assert_eq!(run.pace.unsettled().len(), 1, "and the key is named");
     }
 
     /// A `<Tree:>` that looked more than once clears the retry: the check after it gets its own 3 s.
@@ -2316,8 +2130,8 @@ mod tests {
         let (out, held) = rig.hook_events(&mut run, Duration::ZERO);
         assert_eq!(out, Outcome::Continue, "the key goes in, undrawn for now");
         assert_eq!(rig.hook_by(&mut run, Duration::ZERO), Outcome::Continue);
-        let first = run.check_since.expect("the tree waits for a newer one");
-        assert!(matches!(run.queue.front(), Some((_, Press::Tree(_)))));
+        assert!(run.due().is_some(), "the tree waits for a newer one");
+        assert_eq!(run.pace.left(), 2);
         assert_eq!(rig.hook_by(&mut run, Duration::from_secs(2)), Outcome::Continue);
         rig.screen.feed(held);
         for _ in 0..20 {
@@ -2329,12 +2143,14 @@ mod tests {
         assert!(rig.dir.join("t.txt").exists(), "the tree was written once a tree was drawn");
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.check_since.is_some() {
+            if run.pace.left() == 1 {
                 break;
             }
         }
-        let second = run.check_since.expect("the Assert looked and did not find it");
-        assert!(second > first, "the Assert has its own clock, not the Tree's");
+        assert_eq!(run.pace.left(), 1, "only the Assert is left");
+        // The Assert has its own 3 s, counted from when it began, not from the Tree's start.
+        assert_eq!(rig.hook_by(&mut run, Duration::from_secs(2)), Outcome::Continue);
+        assert_eq!(rig.hook_by(&mut run, Duration::from_secs(4)), Outcome::Failed);
     }
 
     /// A check that looks again has made no progress: the stall watchdog's clock stays where it was.
@@ -2344,15 +2160,15 @@ mod tests {
         let mut run = rig.run("<C-,><Assert:Not on this screen>", Some(rig.dir.join("done.txt")), rig.dir.clone());
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.check_since.is_some() {
+            if run.pace.left() == 1 && run.due().is_some() {
                 break;
             }
         }
-        assert!(run.check_since.is_some());
-        let at = run.progress_at;
+        assert!(run.due().is_some());
+        let at = run.pace.progress().at;
         assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
         assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
-        assert_eq!(run.progress_at, at, "a retry is not progress");
+        assert_eq!(run.pace.progress().at, at, "a retry is not progress");
     }
 
     /// ito's copy record is process-wide: tests that note copies take turns, each starting from an empty record.
@@ -2373,7 +2189,7 @@ mod tests {
         let done = rig.dir.join("done.txt");
         let mut run = rig.run(&format!("cf<Clipboard:{name}><ClipboardHas:kura-clip>"), Some(done.clone()), rig.dir.clone());
         assert_eq!(until_end(&mut rig, &mut run, 1, 40), Outcome::Continue);
-        assert!(run.queue.is_empty() && run.finished, "every step went in");
+        assert!(run.pace.left() == 0 && run.pace.finished(), "every step went in");
         assert!(read(&done).ends_with("keys: done\n"), "{}", read(&done));
         assert!(!rig.flag());
 
@@ -2428,7 +2244,7 @@ mod tests {
         let said = read(&rig.dir.join("s.txt"));
         assert!(said.contains("settings page: general"), "{said}");
         assert!(said.contains("since last action: "), "{said}");
-        assert!(run.since.is_some() && run.acted.is_some(), "the click is an action");
+        assert!(run.since.is_some() && run.pace.acted_idx().is_some(), "the click is an action");
 
         let mut rig = Rig::new("keys-click-text-missing", true);
         let done = rig.dir.join("done.txt");
@@ -2450,7 +2266,7 @@ mod tests {
             rig.dir.clone(),
         );
         assert_eq!(until_end(&mut rig, &mut run, 1, 60), Outcome::Continue);
-        assert!(run.queue.is_empty() && run.finished, "every step passed");
+        assert!(run.pace.left() == 0 && run.pace.finished(), "every step passed");
         assert!(read(&rig.dir.join("s.txt")).contains("settings page: kura"));
 
         // Without the click the editor is not open.

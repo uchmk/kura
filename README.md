@@ -1907,6 +1907,8 @@ A run that did not do what the script said does not end `keys: done`, and exits 
   the end with `status` (`done`, `failed`, `unsettled`, `closed` or `quit`) and, for a failure, `step`, `why` and `left`. A failure to
   write it turns a run that would have succeeded into a failure at `<run.json>` (exit 3); a run that already fails
   (`unsettled`, or `quit` / `closed` with steps left) keeps its own ending, and the reason goes to stderr (v0.156.0).
+- `trace.jsonl` is written beside `run.json`: one JSON object per line, one line per step, in the order the steps closed (v0.158.0).
+  A failure to write it fails the run at `<trace.jsonl>`, as for `run.json`. Without `KURA_KEYS_DONE` neither file is written.
 
 Without `KURA_KEYS_DONE` the exit code is the only report. A `keys: quit` or `keys: closed` run exits 3 too if a step
 before it went in unsettled.
