@@ -281,6 +281,15 @@ fn reading(app: &App, tag: &str) -> Option<String> {
     }
 }
 
+/// The terminal lines of `<State:>`: the args and env names the settings page edits (what a new pane
+/// would get). The env VALUES are never written: they can be secrets. The names are quoted like the
+/// args, so a name with a line break in it cannot add a line to the report. Whether a pane is open is
+/// the report's own `pane:` line.
+fn term_state_lines(app: &App) -> String {
+    let names: Vec<&str> = app.cfg.term.env.keys().map(String::as_str).collect();
+    format!("term args: {:?}\nterm env names: {names:?}\n", app.cfg.term.args)
+}
+
 /// Write `text` to `path`, the error naming the path.
 fn write_text(path: &Path, text: &str) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| format!("could not write {}: {e}", path.display()))
@@ -620,6 +629,7 @@ impl ScriptRun {
             Press::State(name) => {
                 let path = self.shot_dir.join(format!("{name}.txt"));
                 let text = crate::state_report(app)
+                    + &term_state_lines(app)
                     + &format!(
                         "cursor icon: {:?}\nsettled: {}\nconfig writes pending: {}\nconfig write failed: {}\n",
                         self.cursor_icon,
@@ -1180,6 +1190,22 @@ mod tests {
         assert!(unsupported(&unknown).is_some());
     }
 
+    /// The key script `scripts/check-term-settings.sh` sends runs only on Linux CI, so a step kura
+    /// would refuse (a typo, a reading it does not have) is caught here, on every machine, first.
+    #[test]
+    fn the_term_settings_check_sends_only_steps_kura_carries_out() {
+        let sh = include_str!("../scripts/check-term-settings.sh");
+        let mut lines = sh.lines().map(|l| l.trim_end_matches('\r'));
+        assert!(lines.any(|l| l == "read -r -d '' KEYS <<'EOF'"), "no KEYS heredoc");
+        let script: String = lines.take_while(|l| *l != "EOF").collect();
+        assert!(script.contains("<Quit>"), "{script}");
+        let steps = keyscript::parse(&script).unwrap_or_else(|why| panic!("{why}"));
+        for (i, step) in steps.iter().enumerate() {
+            let press = keyscript::press(step).unwrap_or_else(|| panic!("step {i} is not a key: {step:?}"));
+            assert_eq!(unsupported(&press), None, "step {i}: {press:?}");
+        }
+    }
+
     #[test]
     fn a_write_that_fails_ends_the_run_failed() {
         for script in ["<State:a>", "<PaneText:a>", "<PreviewText:a>"] {
@@ -1448,6 +1474,33 @@ mod tests {
         assert!(said.ends_with("keys: done\n"), "{said}");
         assert!(read(&rig.dir.join("a.txt")).contains("cursor icon: Default\nsettled: yes\n"));
         assert!(!rig.flag());
+    }
+
+    /// `<State:>` names the terminal args and the env NAMES, and whether a pane is open, before
+    /// `cursor icon:`; an env value is never in it.
+    #[test]
+    fn state_names_the_terminal_args_and_env_names_but_never_a_value() {
+        let mut rig = Rig::new("keys-state-term", true);
+        let done = rig.dir.join("done.txt");
+        rig.screen.app.cfg.term.args = vec!["-NoLogo".to_owned()];
+        rig.screen.app.cfg.term.env.insert("KURA_T".to_owned(), "hello".to_owned());
+        rig.screen.app.cfg.term.env.insert("KURA_A".to_owned(), "s3cr3t-value".to_owned());
+        let mut run = rig.run("<State:s>", Some(done), rig.dir.clone());
+        for _ in 0..3 {
+            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        }
+        let said = read(&rig.dir.join("s.txt"));
+        assert!(said.contains("term args: [\"-NoLogo\"]\nterm env names: [\"KURA_A\", \"KURA_T\"]\ncursor icon: "), "{said}");
+        assert!(said.contains("\npane: closed\n"), "{said}");
+        assert!(!said.contains("hello") && !said.contains("s3cr3t-value"), "{said}");
+
+        let mut rig = Rig::new("keys-state-term-empty", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:s>", Some(done), rig.dir.clone());
+        for _ in 0..3 {
+            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        }
+        assert!(read(&rig.dir.join("s.txt")).contains("term args: []\nterm env names: []\ncursor icon: "));
     }
 
     #[test]

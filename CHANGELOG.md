@@ -9,6 +9,15 @@
 
 ## [未リリース]
 
+## [0.155.0] - 2026-11-08
+
+### 追加
+
+- `scripts/check-term-settings.sh`: TESTING 57.2・57.3 を Linux の CI で確かめる。設定の画面の Shell のカードで決めた引数と環境変数が、ターミナルのペインで起きるシェルに本当に届くか、カードで消した変数が次のペインに残らないかを、仮想の画面（`scripts/xrun.sh`）の上の本物の窓を `--keys` で操作して見る。シェルの代わりにプローブ（`examples/term-probe`）を起こし、受け取った argv と環境変数をファイルに書かせて照らし合わせる。書き込まれた `config.toml` の中身も見る。結果は、この run の run id と nonce が付いたものだけを数えるので、前の run の残りでは合格しない。
+- `scripts/check-term-settings-selftest.sh`: 上の検査をわざと壊した 11 通り（kura を回して台本や条件を変える 6 通りと、結果の写しを書き換える 5 通り）で回し、どれも決めた理由で落ちることを確かめる。CI の Linux の smoke のジョブが両方を回し、結果を成果物に残す。
+- 単体テスト `the_term_settings_check_sends_only_steps_kura_carries_out`: 上の検査が送る `--keys` の台本を kura の読み手で読み、どの手順も kura が受け付けるかを確かめる。台本の書き間違いが Linux の CI まで行かずに、どの機械でも見つかる。
+- `--keys` の `<State:>` に、新しいペインが受け取る端末の設定の 2 行を足した: `term args: ["-NoLogo"]` と `term env names: ["KURA_T"]`。名前は並べ替えて引用する。値は秘密かもしれないので書かない。
+
 ## [0.154.4] - 2026-11-08
 
 ### 修正

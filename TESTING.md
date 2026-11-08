@@ -1796,8 +1796,8 @@ The Terminal section of Settings is ito's Shell card. Use a copy of `config.toml
 | # | Do | Expect |
 | --- | --- | --- |
 | 57.1 | `Ctrl+,` → kura page, Shell card: pick a shell, then open a new terminal pane | The pane runs that shell; `[term] shell` in `config.toml` holds it and your comments are still there. "Automatic" removes the key |
-| 57.2 | Type `-NoLogo` in Arguments and press Enter, open a new terminal | The shell starts with it; `[term] args = ["-NoLogo"]` is written |
-| 57.3 | Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` | It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line |
+| 57.2 | Type `-NoLogo` in Arguments and press Enter, open a new terminal | The shell starts with it; `[term] args = ["-NoLogo"]` is written. Automated: `scripts/check-term-settings.sh` (Linux CI). |
+| 57.3 | Environment variables → Edit, Add `KURA_T` = `hello`, Save, open a new terminal and print `$env:KURA_T` | It prints `hello`; `[term.env]` holds `KURA_T = "hello"`. Editing again and removing it removes the line. Automated: `scripts/check-term-settings.sh` (Linux CI). |
 | 57.4 | Start kura with `KURA_TERM_SHELL=cmd` while `[term.env]` has a variable | The pane runs `cmd` and the variable is still set |
 
 ## 58. Advanced page: folders and Reset (v0.130.0)

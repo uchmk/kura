@@ -190,6 +190,17 @@ jobs:
       # one that did must not.
       - name: Press keys through xrun.sh
         run: scripts/smoke-keys-linux.sh --out keys-smoke
+      # TESTING 57.2 and 57.3: what Settings -> Shell sets reaches the shell a
+      # terminal pane starts, and what it removes is gone from the next one.
+      # A probe program stands in for the shell. The self-test then breaks the
+      # run six ways and the result folder five ways, and each must fail for
+      # its own reason, so an "ok" above means something.
+      - name: Build the shell probe
+        run: cargo build --locked --example term-probe
+      - name: Check Settings -> Shell reaches the terminal
+        run: scripts/check-term-settings.sh run --out term-settings
+      - name: Check that check fails when it should
+        run: scripts/check-term-settings-selftest.sh --out term-settings-selftest --good term-settings/out
       # Kept whether or not the steps passed: a failure here is a picture of
       # something, and the picture is the report.
       - name: Keep the screenshot
@@ -200,6 +211,8 @@ jobs:
           path: |
             smoke.png
             keys-smoke
+            term-settings
+            term-settings-selftest
           if-no-files-found: warn
 
   # CLAUDE.md says clippy is kept at zero warnings with `--all-targets`, and

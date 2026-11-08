@@ -1751,6 +1751,8 @@ one run. The name is letters, digits, `-` and `_`. `<Shot:name@preview>` saves o
 `<State:name>` writes what the `KURA_KEYS_DONE` file would say at that point to `name.txt` in the
 same folder (v0.73.74). That file is written when the script ends, so a script ending in `q` reports
 `overlay: none`; `--keys "<F12><State:panel><Esc>q"` reads the open box and still quits by itself.
+It names the terminal settings a new pane would start with: `term args: ["-NoLogo"]`, `term env names: ["KURA_T"]`
+(the names, sorted and quoted; never the values); its `pane:` line says whether a pane is open (`closed`, or its size).
 The file ends with a `settled: yes` or `settled: no` line: whether what the last key started had landed,
 then `config writes pending: yes|no` (a config file write has not been answered yet) and
 `config write failed: none|<message>` (the first write that failed).
