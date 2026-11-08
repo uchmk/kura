@@ -141,7 +141,7 @@ pub(crate) struct ScriptRun {
     run_closed: bool,
 }
 
-/// What kura cannot carry out: `None` for the steps it can (today, every parsed step). An exhaustive
+/// What kura cannot carry out: `None` for the steps it can (today, every parsed step but `<Snap:>`). An exhaustive
 /// match with no wildcard, so a step ito adds does not go in unnoticed when
 /// kura bumps its ito rev: somebody has to decide.
 pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
@@ -175,6 +175,8 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::ClickId(_)
         | Press::IdCheck(_) => None,
         Press::Clipboard(_) | Press::ClipboardHas(_) => None,
+        // ito v0.276.0's state, picture, state step: kura writes no state JSON yet (`<State:>` is the text report).
+        Press::Snap { .. } => Some("<Snap:> needs the state JSON, which kura does not write yet"),
     }
 }
 
@@ -835,6 +837,10 @@ impl ScriptRun {
             }
             // Taken before the wait above; `parse` puts a key after every one.
             Press::Now => {}
+            // Refused before the window opens (`unsupported`); a run handed one anyway fails on it.
+            Press::Snap { name, .. } => {
+                return self.fail(app, idx, format!("<Snap:{name}>: {UNSUPPORTED_WHY}"));
+            }
             // The window-reading steps. Each needs a tree drawn after the last action; what it looks
             // for is waited for up to `TEXT_WAIT`, then the run fails with the reason.
             Press::ClickText { right, text } => {
@@ -1324,12 +1330,14 @@ mod tests {
         ] {
             assert_eq!(unsupported(&p(ok)), None, "{ok}");
         }
-        // Every step the parser makes is carried out today; the guard stays for a step a newer ito adds.
+        // The clipboard steps are carried out too.
         for ok in ["<Clipboard:x>", "<ClipboardHas:x>"] {
             assert_eq!(unsupported(&p(ok)), None, "{ok}");
         }
         let unknown = Press::Read { tag: "Bogus".into(), name: "n".into() };
         assert!(unsupported(&unknown).is_some());
+        // ito v0.276.0's `<Snap:>` writes state JSON, which kura does not: refused before the first key.
+        assert!(unsupported(&p("<Snap:x>")).is_some());
     }
 
     /// The key script `scripts/check-term-settings.sh` sends runs only on Linux CI, so a step kura
@@ -1703,8 +1711,8 @@ mod tests {
         assert!(rig.flag());
     }
 
-    /// The guard against a step a newer ito adds: no parsed step reaches it today, so its report is
-    /// tested as text: a failed report naming the step and its place, with one `run:` line.
+    /// The guard against a step a newer ito adds (today `<Snap:>`; the whole run is in tests/keys_fail_closed.rs).
+    /// Its report as text: a failed report naming the step and its place, with one `run:` line.
     #[test]
     fn a_refused_step_is_reported_as_failed_with_its_place_and_one_run_line() {
         let text = unsupported_report("<Bogus:x>", 3, 5);

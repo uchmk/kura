@@ -1894,7 +1894,10 @@ A run that did not do what the script said does not end `keys: done`, and exits 
   `<Announced:text>` checks what the app announced since the last action, and `<Tree:name>` writes the tree to `name.txt` beside the
   report (the same name as a `<State:name>` overwrites it). A check or a click that does not find its target looks again for 3 seconds,
   then ends the run `keys: failed` with the reason, as ito's shared runner does. A click goes in as one frame (move, press, release).
-  `<State:>` ends with `since last action: N ms`. kura announces nothing yet, so `<Announced:>` can only fail for now.
+  `<State:>` ends with `since last action: N ms`. Since v0.157.0 kura announces its toasts, so `<Announced:>` hears them
+  (`y<Announced:Yanked 1 item>`).
+- `<Snap:name>` (ito v0.276.0: a state, a picture and a state again as one step) needs the state JSON, which kura does not write
+  yet. A script with one ends `keys: failed` before the window opens, naming the step (v0.157.1).
 - `keys: unsettled`, after lines naming the steps that went in after 5 seconds with the screen still not settled,
   and whether the script ended that way. The keys all went in, but not on the state the script assumed.
   Without `<Quit>` the window stays open as before, and kura exits 3 when it is closed.

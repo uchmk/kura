@@ -121,7 +121,7 @@ fn parse_cli() -> Cli {
                         Some(k) => refuse_keys(&format!("{k:?} cannot be typed")),
                         None => {
                             // A step a newer ito adds before kura carries it out would be skipped, and the run
-                            // would still read as a success: refuse it here, as failed. Today no parsed step is refused.
+                            // would still read as a success: refuse it here, as failed. Today only `<Snap:>` is.
                             let n = keys.len();
                             for (i, k) in keys.iter().enumerate() {
                                 if keyscript::press(k).as_ref().is_some_and(|p| script_run::unsupported(p).is_some()) {
