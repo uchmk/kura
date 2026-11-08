@@ -962,6 +962,10 @@ impl eframe::App for Kura {
             }
         }
 
+        // After everything is drawn, so the state JSON says what this pass drew.
+        let outcome = self.script.state_after_draw(&ctx, &mut self.app);
+        self.after_script(&ctx, outcome);
+
         if ctx.input(|i| i.viewport().close_requested()) && !self.app.quit {
             // The title bar's × (`WM_CLOSE`): no later frame writes the file.
             let outcome = self.script.ended(&mut self.app, script_run::Ending::Closed);
@@ -1199,6 +1203,11 @@ fn view_name(app: &App) -> &'static str {
     } else {
         "list"
     }
+}
+
+/// A toast's kind: the text before the first `:` of its first line (`Command failed`, `Open failed`).
+fn toast_kind(text: &str) -> &str {
+    text.lines().next().unwrap_or("").split(':').next().unwrap_or("").trim()
 }
 
 /// What `KURA_KEYS_DONE` holds once `--keys` is done: the state a check reads
@@ -1523,7 +1532,7 @@ fn state_report(app: &App) -> String {
     // The kind alone (`Command failed`, `Open failed`): the text before the
     // first `:` of its first line, so a wording check reads one short line and
     // not the long, localized `toast:` with its path (#289).
-    let kind = app.toasts.last().map_or("", |t| t.text.lines().next().unwrap_or("").split(':').next().unwrap_or("").trim());
+    let kind = app.toasts.last().map_or("", |t| toast_kind(&t.text));
     lines.push(format!("toast kind: {kind}"));
     // How many times that same line was raised, when more than once: the
     // `×8` the toast shows was only in the picture (#216).

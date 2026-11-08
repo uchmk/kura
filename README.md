@@ -1750,7 +1750,9 @@ next key waits until both are on disk (v0.67.0; the `shots` folder and the JSON 
 one run. The name is letters, digits, `-` and `_`. `<Shot:name@preview>` saves only the preview pane's rectangle (v0.78.218).
 
 `<State:name>` writes what the `KURA_KEYS_DONE` file would say at that point to `name.txt` in the
-same folder (v0.73.74). That file is written when the script ends, so a script ending in `q` reports
+same folder (v0.73.74), and the same state as JSON to `state/<name>.json` (v0.159.0, written after the
+frame's last drawing; the next step waits for it, and a JSON that is not written within 5 s fails the
+run). The `KURA_KEYS_DONE` file is written when the script ends, so a script ending in `q` reports
 `overlay: none`; `--keys "<F12><State:panel><Esc>q"` reads the open box and still quits by itself.
 It names the terminal settings a new pane would start with: `term args: ["-NoLogo"]`, `term env names: ["KURA_T"]`
 (the names, sorted and quoted; never the values); its `pane:` line says whether a pane is open (`closed`, or its size).

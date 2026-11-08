@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::app::App;
-use crate::keyscript::{self, evidence, pace, review, Press};
+use crate::keyscript::{self, evidence, pace, review, state, Press};
 
 /// What the frame loop does after the player has looked at a frame.
 #[derive(Debug, PartialEq, Eq)]
@@ -93,6 +93,12 @@ pub(crate) struct ScriptRun {
     /// Why `trace.jsonl` could not be written, until it is reported.
     trace_err: Option<String>,
     trace_reported: bool,
+    /// A `<State:name>` taken and not acknowledged yet: its name and the step's index.
+    state_out: Option<(String, usize)>,
+    /// What Pace saw as `settled` when it handed that step out.
+    state_settled: Option<bool>,
+    /// The app's part of that state is not submitted yet (`state_after_draw` does it, after the drawing).
+    state_due: bool,
 }
 
 /// What kura cannot carry out: `None` for the steps it can (today, every parsed step but `<Snap:>`). An exhaustive
@@ -129,16 +135,17 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::ClickId(_)
         | Press::IdCheck(_) => None,
         Press::Clipboard(_) | Press::ClipboardHas(_) => None,
-        // ito v0.276.0's state, picture, state step: kura writes no state JSON yet (`<State:>` is the text report).
-        Press::Snap { .. } => Some("<Snap:> needs the state JSON, which kura does not write yet"),
+        // ito's state, picture, state step needs two functions ito has not made public yet.
+        Press::Snap { .. } => Some("kura does not support <Snap:> yet"),
     }
 }
 
-/// A step that reads the window's tree (the ones that need `keyscript::observe`).
+/// A step that reads the window's tree (the ones that need `keyscript::observe`; `<State:>` too, for its JSON).
 fn reads_window(press: &Press) -> bool {
     matches!(
         press,
-        Press::ClickText { .. }
+        Press::State(_)
+            | Press::ClickText { .. }
             | Press::DClickText(_)
             | Press::Assert { .. }
             | Press::Is { .. }
@@ -306,6 +313,25 @@ fn term_state_lines(app: &App) -> String {
     format!("term args: {:?}\nterm env names: {names:?}\n", app.cfg.term.args)
 }
 
+/// The app's part of the state JSON: only what kura knows, as it is now.
+fn state_part(app: &App) -> state::App {
+    let overlay = crate::overlay_name(app);
+    let view = crate::view_name(app);
+    let mut app_state = ito_mcp::serde_json::from_str::<state::Value>(&crate::mcp::state_json(app, overlay, view)).ok();
+    if let Some(map) = app_state.as_mut().and_then(state::Value::as_object_mut) {
+        map.insert("config_writes_pending".to_owned(), app.config_writes_pending().into());
+        map.insert("config_write_failed".to_owned(), app.config_write_failed.clone().into());
+    }
+    state::App {
+        screen: Some(view.to_owned()),
+        overlay: Some((overlay != "none").then(|| overlay.to_owned())),
+        toasts: Some(
+            app.toasts.iter().map(|t| state::Toast { text: t.text.clone(), kind: crate::toast_kind(&t.text).to_owned() }).collect(),
+        ),
+        app_state,
+    }
+}
+
 /// Write `text` to `path`, the error naming the path.
 fn write_text(path: &Path, text: &str) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| format!("could not write {}: {e}", path.display()))
@@ -361,6 +387,9 @@ impl ScriptRun {
             trace_started: false,
             trace_err: None,
             trace_reported: false,
+            state_out: None,
+            state_settled: None,
+            state_due: false,
         }
     }
 
@@ -572,7 +601,7 @@ impl ScriptRun {
     }
 
     fn step(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
-        if let Some(out) = self.before_step(ctx, app) {
+        if let Some(out) = self.before_step(ctx, app, now) {
             return out;
         }
         let viewport = (raw_input.viewport_id != egui::ViewportId::ROOT).then(|| format!("{:?}", raw_input.viewport_id));
@@ -589,13 +618,16 @@ impl ScriptRun {
     }
 
     /// What comes before a frame is handed to Pace: the first `run.json`, the window's reading (it must precede
-    /// `keyscript::generation`), and a quit that has already been taken. `Some` ends the frame there.
-    fn before_step(&mut self, ctx: &egui::Context, app: &mut App) -> Option<Outcome> {
+    /// `keyscript::generation`), the state writer's answers, and a quit that has already been taken. `Some` ends the frame there.
+    fn before_step(&mut self, ctx: &egui::Context, app: &mut App, now: Instant) -> Option<Outcome> {
         if let Some(out) = self.start_run(app) {
             return Some(out);
         }
         if self.reads_window {
             keyscript::observe(ctx);
+        }
+        if let Some(out) = self.drain_state(ctx, app, now) {
+            return Some(out);
         }
         self.quitting.then_some(Outcome::Continue)
     }
@@ -703,7 +735,13 @@ impl ScriptRun {
                     )
                     + &keyscript::since_action_line(self.pace.since_action(now));
                 match write_text(&path, &text) {
-                    Ok(()) => Taken::Done,
+                    Ok(()) => {
+                        // The JSON is built in `state_after_draw`, from what the pass draws.
+                        self.state_out = Some((name.clone(), entry.idx));
+                        self.state_settled = self.pace.take_settled();
+                        self.state_due = true;
+                        Taken::State { name: name.clone() }
+                    }
                     Err(why) => Taken::Failed(why),
                 }
             }
@@ -909,6 +947,76 @@ impl ScriptRun {
         }
     }
 
+    /// The state JSON of a `<State:>` could not be made or written: the run fails at once with `why`.
+    fn state_failed(&mut self, app: &mut App, why: &str) -> Outcome {
+        self.state_out = None;
+        self.state_due = false;
+        match self.pace.state_failed(why) {
+            Some(e) => self.keep(app, e),
+            None => Outcome::Continue,
+        }
+    }
+
+    /// Hand Pace the state writer's acknowledgements. One with nothing waiting for it is dropped.
+    fn drain_state(&mut self, ctx: &egui::Context, app: &mut App, now: Instant) -> Option<Outcome> {
+        while let Some(ack) = state::take_ack(ctx) {
+            let Some((want, _)) = self.state_out.clone() else { continue };
+            let why = match ack {
+                state::Ack::Written { name, .. } if name == want => {
+                    self.state_out = None;
+                    self.pace.state_saved(now);
+                    continue;
+                }
+                state::Ack::Written { name, .. } => format!("state JSON for {name} arrived while waiting for {want}"),
+                state::Ack::Failed { name, why } if name == want => why,
+                state::Ack::Failed { name, why } => format!("state JSON for {name} failed ({why}) while waiting for {want}"),
+                // `Ack` is non-exhaustive: an answer kura cannot read is not a success.
+                _ => format!("an unknown answer of the state writer while waiting for {want}"),
+            };
+            let out = self.state_failed(app, &why);
+            if self.pace.finished() {
+                return Some(out);
+            }
+        }
+        None
+    }
+
+    /// `<State:name>`: once the window is drawn, hand ito the app's part of the state JSON. It is read here and not in
+    /// the hook because `ui` still changes the app after the hook (expired toasts go, results arrive, the keys act),
+    /// and ito merges it into the tree of this same pass. A pass egui throws away leaves it for the next one.
+    pub(crate) fn state_after_draw(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
+        if !self.state_due || self.pace.finished() || ctx.will_discard() {
+            return Outcome::Continue;
+        }
+        self.state_due = false;
+        let Some((name, idx)) = self.state_out.clone() else { return Outcome::Continue };
+        let after_step = idx.checked_sub(1);
+        let asked = |s: &str| Some(s.to_owned()).filter(|s| !s.is_empty());
+        let header = state::Header {
+            dir: self.shot_dir.clone(),
+            name,
+            run_id: keyscript::current_run_id().map(str::to_owned),
+            after_step,
+            after_label: after_step.and_then(|i| self.labels.get(i).cloned()),
+            settled: self.state_settled,
+            app_name: Some("kura".to_owned()),
+            app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+            theme_requested: asked(&self.theme_requested),
+            lang_requested: asked(&self.lang_requested),
+            ..Default::default()
+        };
+        let out = match state::submit(ctx, header, state_part(app)) {
+            Ok(()) => Outcome::Continue,
+            Err(why) => self.state_failed(app, &why),
+        };
+        let synced = self.sync(app);
+        if out == Outcome::Continue {
+            synced
+        } else {
+            out
+        }
+    }
+
     /// The window was closed (the title bar's x) or the app quit while the
     /// script ran: write what is left of the report. The picture of a
     /// `<Shot:>` still awaited is an unfinished step, whatever the queue says.
@@ -948,6 +1056,8 @@ mod tests {
         failed: Arc<AtomicBool>,
         t0: Instant,
         frame: u64,
+        /// `state_due` after each `state_after_draw` that `pass_with` made.
+        due_log: Vec<bool>,
     }
 
     impl Rig {
@@ -969,7 +1079,7 @@ mod tests {
                 screen.app.preview.in_flight = true;
             }
             assert_eq!(screen.app.settled(), settled, "the rig's screen");
-            Rig { dir, screen, failed: Arc::new(AtomicBool::new(false)), t0: Instant::now(), frame: 2 }
+            Rig { dir, screen, failed: Arc::new(AtomicBool::new(false)), t0: Instant::now(), frame: 2, due_log: Vec::new() }
         }
 
         fn run(&self, script: &str, done: Option<PathBuf>, shot_dir: PathBuf) -> ScriptRun {
@@ -1038,13 +1148,55 @@ mod tests {
         /// A real egui pass after the hook: what the hook injected is fed to the screen, so the
         /// AccessKit tree, the Tap and its generations are the real ones.
         fn pass(&mut self, run: &mut ScriptRun, secs: u64) -> Outcome {
+            self.pass_with(run, secs, |_, _| {})
+        }
+
+        /// `pass`, as `ui` runs it: the hook, then `handle_input` and the drawing, then `state_after_draw`.
+        /// `between` runs after the drawing and before `state_after_draw`, once per run of the closure (egui runs it
+        /// twice on a pass it will discard): a change the UI makes after the hook, like an expired toast.
+        fn pass_with(&mut self, run: &mut ScriptRun, secs: u64, mut between: impl FnMut(&mut App, &egui::Context)) -> Outcome {
             self.frame += 2;
+            // Simulated time stands still while the real writer thread owes its answer, so a slow thread
+            // cannot run into Pace's 5 s deadline.
+            let secs = if run.state_out.is_some() { 0 } else { secs };
             self.t0 += Duration::from_secs(secs);
             let mut raw = egui::RawInput::default();
             let ctx = self.screen.ctx.clone();
             let out = run.hook(&ctx, &mut self.screen.app, &mut raw, ctx.cumulative_frame_nr_for(egui::ViewportId::ROOT), self.t0);
-            self.screen.feed(std::mem::take(&mut raw.events));
-            out
+            let input =
+                egui::RawInput { screen_rect: Some(self.screen.rect()), events: std::mem::take(&mut raw.events), ..Default::default() };
+            let was_due = run.state_due;
+            let app = &mut self.screen.app;
+            let mut after = Outcome::Continue;
+            let log = &mut self.due_log;
+            let full = ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::handle_input(app, &ctx);
+                egui::CentralPanel::default().frame(egui::Frame::NONE.fill(app.cfg.theme.bg)).show(ui, |ui| crate::ui::draw(app, ui));
+                between(app, &ctx);
+                after = run.state_after_draw(&ctx, app);
+                log.push(run.state_due);
+            });
+            let mut textures = full.textures_delta;
+            textures.clear();
+            if let (true, false, Some((name, _))) = (was_due, run.state_due, &run.state_out) {
+                // The writer thread answers on its own time: give it up to a quarter of a second (a failing one
+                // never makes the file, so that one waits the whole time).
+                let json = run.shot_dir.join("state").join(format!("{name}.json"));
+                let until = Instant::now() + Duration::from_millis(250);
+                while !json.exists() && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                std::thread::sleep(Duration::from_millis(15));
+            } else if run.state_out.is_some() {
+                // Awaiting the writer's answer: do not spin through the passes faster than a thread can answer.
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            if out == Outcome::Continue {
+                after
+            } else {
+                out
+            }
         }
 
         fn flag(&self) -> bool {
@@ -1069,8 +1221,8 @@ mod tests {
 
     impl pace::conformance::Subject for KuraSubject {
         fn skips(&self) -> &[pace::conformance::Need] {
-            // kura writes no state JSON yet and refuses `<Snap:>`.
-            &[pace::conformance::Need::StateJson, pace::conformance::Need::Snap]
+            // kura refuses `<Snap:>`.
+            &[pace::conformance::Need::Snap]
         }
 
         fn run(&mut self, case: &pace::conformance::Case) -> pace::conformance::Trace {
@@ -1090,7 +1242,6 @@ mod tests {
             let mut tr = Trace::default();
             let mut end_ms = None;
             for tick in &case.ticks {
-                assert!(tick.state.is_none(), "{}: a state event reached a subject that skips StateJson", case.name);
                 let now = at(tick.ms);
                 if let Some(event) = &tick.shot {
                     let saved = match event {
@@ -1104,11 +1255,26 @@ mod tests {
                         break;
                     }
                 }
+                match &tick.state {
+                    Some(pace::conformance::StateEvent::Saved) => {
+                        run.state_out = None;
+                        run.pace.state_saved(now);
+                    }
+                    Some(pace::conformance::StateEvent::Failed(why)) => {
+                        let _ = run.state_failed(app, why);
+                        let _ = run.sync(app);
+                        if run.done.is_none() {
+                            end_ms = Some(tick.ms);
+                            break;
+                        }
+                    }
+                    None => {}
+                }
                 if run.pace.finished() {
                     continue;
                 }
                 run.since = None;
-                if run.before_step(&ctx, app).is_some() {
+                if run.before_step(&ctx, app, now).is_some() {
                     continue;
                 }
                 let status = tick.writes.as_ref().map(|w| w.status(base));
@@ -1742,9 +1908,7 @@ mod tests {
         let mut rig = Rig::new("keys-settled", true);
         let done = rig.dir.join("done.txt");
         let mut run = rig.run("j<State:a>", Some(done.clone()), rig.dir.clone());
-        for _ in 0..3 {
-            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        }
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
         let said = read(&done);
         assert!(said.ends_with("keys: done\n"), "{said}");
         assert!(read(&rig.dir.join("a.txt")).contains("cursor icon: Default\nsettled: yes\n"));
@@ -1872,12 +2036,10 @@ mod tests {
         rig.common_folder();
         let done = rig.dir.join("done.txt");
         let mut run = rig.run("<Theme:dark><State:after>", Some(done.clone()), rig.dir.clone());
-        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        assert_eq!(rig.step(&mut run, 5), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 5), Outcome::Continue);
         rig.answer();
-        for _ in 0..3 {
-            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        }
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
         let state = read(&rig.dir.join("after.txt"));
         assert!(state.contains("config writes pending: no\nconfig write failed: none\n"), "{state}");
         let said = read(&done);
@@ -1891,14 +2053,15 @@ mod tests {
         let done = rig.dir.join("done.txt");
         let mut run = rig.run("<A-c><Now><State:mid><State:after>", Some(done), rig.dir.clone());
         // The screen is not settled: the first key goes in after the settle wait.
-        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
-        assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 6), Outcome::Continue);
         // `mid` is read at once; `after` is back to waiting for the screen.
-        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
         assert!(rig.dir.join("mid.txt").exists(), "<Now> let the next step go without waiting");
-        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        until_acked(&mut rig, &mut run);
+        assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
         assert!(!rig.dir.join("after.txt").exists(), "an unsettled screen holds the step after");
-        assert_eq!(rig.step(&mut run, 6), Outcome::Continue);
+        assert_eq!(rig.pass(&mut run, 6), Outcome::Continue);
         assert!(rig.dir.join("after.txt").exists(), "until the settle wait is over");
     }
 
@@ -2074,11 +2237,253 @@ mod tests {
         assert!(run.pace.left() == before && !run.pace.in_flight());
     }
 
-    /// Passes until the run ends or `n` passes have gone by.
+    /// The state JSON `<State:name>` wrote beside the report.
+    fn state_json_of(dir: &Path, name: &str) -> ito_mcp::serde_json::Value {
+        let path = dir.join("state").join(format!("{name}.json"));
+        ito_mcp::serde_json::from_str(&read(&path)).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    }
+
+    /// Hooks alone (nothing drawn) until the run has taken a `<State:>` and owes its JSON.
+    fn until_state_due(rig: &mut Rig, run: &mut ScriptRun) {
+        for _ in 0..20 {
+            if run.state_due {
+                return;
+            }
+            assert_eq!(rig.hook_by(run, Duration::ZERO), Outcome::Continue);
+        }
+        panic!("the run never took its <State:>");
+    }
+
+    fn hovered_name(rig: &Rig) -> String {
+        rig.screen
+            .app
+            .tab()
+            .current
+            .hovered()
+            .and_then(|e| e.path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default()
+    }
+
+    /// Passes (as `ui` runs them) until the run has ended or finished its steps.
+    fn finish(rig: &mut Rig, run: &mut ScriptRun) -> Outcome {
+        for _ in 0..2000 {
+            let out = rig.pass(run, 0);
+            if out != Outcome::Continue || run.pace.finished() {
+                return out;
+            }
+        }
+        panic!("the run did not finish in 2000 passes");
+    }
+
+    /// Passes until the state being written has been acknowledged. A test that counts passes
+    /// after that does not depend on how long the writer took.
+    fn until_acked(rig: &mut Rig, run: &mut ScriptRun) {
+        for _ in 0..2000 {
+            if run.state_out.is_none() {
+                return;
+            }
+            assert_eq!(rig.pass(run, 0), Outcome::Continue);
+        }
+        panic!("the state was not acknowledged in 2000 passes");
+    }
+
+    #[test]
+    fn state_writes_the_json_beside_the_txt() {
+        keyscript::run_id("KURA").unwrap();
+        let id = keyscript::current_run_id().unwrap();
+        let mut rig = Rig::new("keys-state-json", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:a>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let v = state_json_of(&rig.dir, "a");
+        assert_eq!(v["screen"], "list");
+        assert!(v["overlay"].is_null(), "{v}");
+        assert_eq!(v["toasts"], ito_mcp::serde_json::json!([]));
+        assert_eq!(v["app_state"]["cwd"], rig.dir.display().to_string().as_str());
+        assert_eq!(v["app_state"]["config_writes_pending"], false);
+        assert!(v["app_state"]["config_write_failed"].is_null());
+        assert_eq!((v["app"]["name"].as_str(), v["app"]["version"].as_str()), (Some("kura"), Some(env!("CARGO_PKG_VERSION"))));
+        assert_eq!(v["run_id"], id);
+        assert!(read(&rig.dir.join("a.txt")).contains("cursor icon: Default\n"), "the txt stays");
+        let said = read(&done);
+        assert!(said.ends_with("keys: done\n"), "{said}");
+        assert!(!rig.flag());
+    }
+
+    #[test]
+    fn a_state_folder_that_cannot_be_made_fails_the_run_with_the_reason() {
+        let mut rig = Rig::new("keys-state-blocked", true);
+        std::fs::write(rig.dir.join("state"), "in the way").unwrap();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:a>", Some(done.clone()), rig.dir.clone());
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed") && said.contains("<State:a>"), "{said}");
+        assert!(!said.contains("within 5 s"), "the writer's own failure, not the deadline: {said}");
+        assert!(rig.flag());
+    }
+
+    #[test]
+    fn the_next_step_waits_for_the_ack() {
+        // No drawing, so no JSON and no ack: `j` is not pressed, and the wait ends at Pace's deadline.
+        let mut rig = Rig::new("keys-state-waits", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:a>j", Some(done.clone()), rig.dir.clone());
+        until_state_due(&mut rig, &mut run);
+        let before = hovered_name(&rig);
+        for _ in 0..3 {
+            assert_eq!(rig.hook_by(&mut run, Duration::from_secs(1)), Outcome::Continue);
+            assert_eq!(hovered_name(&rig), before);
+        }
+        assert_eq!(rig.hook_by(&mut run, Duration::from_secs(10)), Outcome::Failed);
+        assert!(read(&done).contains("no state JSON for <State:a> within 5 s"), "{}", read(&done));
+    }
+
+    #[test]
+    fn after_step_and_after_label_name_the_step_before() {
+        let mut rig = Rig::new("keys-state-after", true);
+        let mut run = rig.run("<State:a>j<State:b>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let (a, b) = (state_json_of(&rig.dir, "a"), state_json_of(&rig.dir, "b"));
+        assert!(a["after_step"].is_null() && a["after_label"].is_null(), "{a}");
+        assert_eq!((b["after_step"].as_u64(), b["after_label"].as_str()), (Some(1), Some("j")), "{b}");
+    }
+
+    #[test]
+    fn settled_is_what_pace_saw_for_each_state() {
+        let mut rig = Rig::new("keys-state-settled", false);
+        let mut run = rig.run("<State:a><State:b>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        let json = rig.dir.join("state").join("a.json");
+        for _ in 0..2000 {
+            assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
+            if json.exists() && run.state_out.is_none() {
+                break;
+            }
+        }
+        assert!(json.exists(), "the first state was written");
+        rig.screen.app.preview.in_flight = false;
+        // The first state went out unsettled, so the run ends `unsettled`; the JSON is what is checked here.
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Unsettled);
+        assert_eq!(state_json_of(&rig.dir, "a")["settled"], false);
+        assert_eq!(state_json_of(&rig.dir, "b")["settled"], true);
+    }
+
+    #[test]
+    fn an_open_overlay_and_a_toast_are_in_the_json() {
+        let mut rig = Rig::new("keys-state-overlay", true);
+        rig.screen.app.toast("Note: hello");
+        rig.screen.app.overlay = crate::app::Overlay::Help;
+        let mut run = rig.run("<State:a>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let v = state_json_of(&rig.dir, "a");
+        assert_eq!(v["overlay"], "help");
+        assert_eq!(v["toasts"], ito_mcp::serde_json::json!([{"text": "Note: hello", "kind": "Note"}]));
+        assert_eq!(v["app_state"]["overlay"], "help");
+    }
+
+    #[test]
+    fn no_state_json_without_a_state_step() {
+        let mut rig = Rig::new("keys-no-state", true);
+        let mut run = rig.run("j<Wait:1>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert!(!run.reads_window, "nothing in the script reads the window");
+        for _ in 0..30 {
+            assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
+            if run.pace.finished() {
+                break;
+            }
+        }
+        assert!(run.pace.finished());
+        assert!(!rig.dir.join("state").exists());
+        assert!(run.state_out.is_none() && !run.state_due);
+    }
+
+    #[test]
+    fn a_refused_submit_fails_the_run_at_once_with_its_reason() {
+        let mut rig = Rig::new("keys-state-refused", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:a>", Some(done.clone()), rig.dir.clone());
+        until_state_due(&mut rig, &mut run);
+        let dir = rig.dir.clone();
+        let out = rig.pass_with(&mut run, 0, |_, ctx| {
+            let header = state::Header { dir: dir.clone(), name: "other".into(), ..Default::default() };
+            state::submit(ctx, header, state::App::default()).unwrap();
+        });
+        assert_eq!(out, Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed"), "{said}");
+        assert!(!said.contains("within 5 s"), "{said}");
+        assert!(rig.flag() && run.pace.finished() && run.state_out.is_none());
+    }
+
+    #[test]
+    fn the_json_says_what_the_pass_drew_not_what_the_hook_saw() {
+        // A toast expires and an overlay opens after the hook.
+        let mut rig = Rig::new("keys-state-late-a", true);
+        rig.screen.app.toast("Note: gone");
+        let mut run = rig.run("<State:a>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        until_state_due(&mut rig, &mut run);
+        let out = rig.pass_with(&mut run, 0, |app, _| {
+            app.toasts.clear();
+            app.overlay = crate::app::Overlay::Help;
+        });
+        assert_eq!(out, Outcome::Continue);
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let v = state_json_of(&rig.dir, "a");
+        assert_eq!((v["overlay"].as_str(), v["toasts"].as_array().map(Vec::len)), (Some("help"), Some(0)), "{v}");
+
+        // The overlay closes and a toast comes after the hook.
+        let mut rig = Rig::new("keys-state-late-b", true);
+        rig.screen.app.overlay = crate::app::Overlay::Help;
+        let mut run = rig.run("<State:a>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        until_state_due(&mut rig, &mut run);
+        rig.pass_with(&mut run, 0, |app, _| {
+            app.overlay = crate::app::Overlay::None;
+            if app.toasts.is_empty() {
+                app.toast("Late: arrived");
+            }
+        });
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let v = state_json_of(&rig.dir, "a");
+        assert!(v["overlay"].is_null(), "{v}");
+        assert_eq!(v["toasts"][0]["text"], "Late: arrived");
+    }
+
+    #[test]
+    fn a_discarded_pass_submits_nothing_and_the_next_one_the_later_values() {
+        let mut rig = Rig::new("keys-state-discard", true);
+        let mut run = rig.run("<State:a>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        until_state_due(&mut rig, &mut run);
+        let mut calls = 0;
+        let out = rig.pass_with(&mut run, 0, |app, ctx| {
+            calls += 1;
+            if calls == 1 {
+                app.toast("Note: first");
+                ctx.request_discard("test");
+            } else {
+                app.toasts.clear();
+                app.toast("Note: second");
+            }
+        });
+        assert_eq!(out, Outcome::Continue);
+        assert_eq!(calls, 2, "egui ran the closure again after the discard");
+        assert_eq!(rig.due_log, vec![true, false], "the discarded pass left the request, the next one submitted it");
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let v = state_json_of(&rig.dir, "a");
+        assert_eq!(v["toasts"], ito_mcp::serde_json::json!([{"text": "Note: second", "kind": "Note"}]));
+    }
+
+    /// Passes until the run ends or `n` passes have gone by. Passes spent waiting for the writer thread's
+    /// answer to a `<State:>` are not counted: it answers on its own time.
     fn until_end(rig: &mut Rig, run: &mut ScriptRun, secs: u64, n: usize) -> Outcome {
         let mut out = Outcome::Continue;
         for _ in 0..n {
             out = rig.pass(run, secs);
+            for _ in 0..2000 {
+                if out != Outcome::Continue || run.state_out.is_none() {
+                    break;
+                }
+                out = rig.pass(run, secs);
+            }
             if out != Outcome::Continue {
                 break;
             }
