@@ -52,6 +52,8 @@ use self::spot_panel::page_for;
 use self::term_pane::{no_osc7, program_label};
 pub use undo::*;
 mod bookmarks;
+mod clip_read;
+pub use clip_read::*;
 mod compare;
 mod completion;
 mod details;
@@ -159,6 +161,8 @@ pub struct App {
     pub spotted: Option<(PathBuf, Vec<Section>)>,
     /// The answer of a `C` over a selection, built off the UI thread.
     spot_copy_rx: Option<crossbeam_channel::Receiver<Result<usize, String>>>,
+    /// A right-click paste into the terminal, waiting for the clipboard.
+    pub term_paste: Option<ClipRead>,
 
     pub pending: Vec<Key>,
     pub which: Vec<(String, String, String)>,
@@ -470,6 +474,7 @@ impl App {
             spotter,
             spotted: None,
             spot_copy_rx: None,
+            term_paste: None,
             pending: Vec::new(),
             which: Vec::new(),
             overlay: Overlay::None,

@@ -109,6 +109,7 @@ fn a_modal_panel_takes_the_wheel() {
         focused: true,
         completion: Vec::new(),
         completion_at: 0,
+        paste: None,
     };
     assert!(!Overlay::Input(prompt).is_modal(), "the list above it is still being read");
 }

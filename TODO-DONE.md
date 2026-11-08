@@ -2773,6 +2773,12 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
   - `extend(x.drain(..))` → `append(&mut x)`（theme.rs 2 箇所）、`sort_by` → `sort_by_key`（sort.rs）、
     手書きの切り上げ除算 → `div_ceil`、意味のない `.max(0)` の削除（overlay.rs）。
   - テスト側の `== false` も `!` に直した（glob.rs）。`--all-targets` で警告ゼロになった。
+- [x] 貼り付けのクリップボードの読み取りを UI スレッドから外す（v0.154.1 で ito-clipboard に移したときの残り）（v0.154.4）
+  - `ito_clipboard::Clipboard::get_text` は X11 で待つことがある。今は UI スレッドで読む: `src/keyscript.rs` の `paste_event`、
+    `src/ui/overlay.rs` の `right_click_paste`、`src/ui/term.rs` の右クリックの貼り付け。
+  - ハンドルは UI スレッドで `clipboard!()` から取り、ワーカーに渡す（テストで別スレッドの偽物を読まないように）。
+  - 済: 右クリックの 2 つ（入力欄・選ぶ一覧の入力欄、ターミナル）は `src/app/clip_read.rs` の `ClipRead` で読む。待つ間は `settled()` が偽。
+    `--keys` の `paste_event` は、egui-winit が本物の Ctrl+V を UI スレッドで読むのに合わせて、わざと UI スレッドのまま。
 
 ### Linux レーン（v0.59.6）
 - [x] クラウドのコンテナで Xvfb と lavapipe により filer が起動し、`--keys`・クリップボード・ペイン（bash）まで動くことを確かめた。

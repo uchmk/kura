@@ -2278,6 +2278,7 @@ mod tests {
             cursor: 1,
             action: app::PickAction::Bookmarks { paths: Vec::new(), keys: Vec::new(), filtering: false },
             focused: true,
+            paste: None,
         };
         ov.refilter();
         app.overlay = app::Overlay::Pick(ov);
@@ -2302,6 +2303,7 @@ mod tests {
             cursor: 1,
             action: app::PickAction::OpenWith { paths: Vec::new(), runs: Vec::new(), line: None },
             focused: true,
+            paste: None,
         };
         ov.refilter();
         app.overlay = app::Overlay::Pick(ov);

@@ -452,6 +452,7 @@ fn palette_filters_on_both_the_description_and_the_command() {
         cursor: 0,
         action: PickAction::Command { runs },
         focused: false,
+        paste: None,
     };
     pick.refilter();
     let by_command = pick.selected().expect("the command text must match");

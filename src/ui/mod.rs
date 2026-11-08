@@ -4705,6 +4705,7 @@ mod undo_frame {
             focused: true,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         });
         s.feed(vec![key(egui::Key::Enter, egui::Modifiers::NONE)]);
     }
@@ -4917,6 +4918,7 @@ mod cursor_follows_frame {
             focused: true,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         });
         s.feed(vec![key(egui::Key::Enter, egui::Modifiers::NONE)]);
     }
@@ -5264,6 +5266,7 @@ mod name_hint {
             focused: true,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         });
         s.app.name_hint()
     }

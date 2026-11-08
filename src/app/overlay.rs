@@ -45,6 +45,8 @@ pub struct InputOverlay {
     pub focused: bool,
     pub completion: Vec<String>,
     pub completion_at: usize,
+    /// A right-click paste waiting for the clipboard; it goes with the prompt when the prompt closes.
+    pub paste: Option<FieldPaste>,
 }
 
 #[derive(Clone, Debug)]
@@ -149,6 +151,8 @@ pub struct PickOverlay {
     pub cursor: usize,
     pub action: PickAction,
     pub focused: bool,
+    /// A right-click paste waiting for the clipboard; it goes with the prompt when the prompt closes.
+    pub paste: Option<FieldPaste>,
 }
 
 impl PickOverlay {

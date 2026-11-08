@@ -599,6 +599,7 @@ impl App {
             focused: false,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         };
         ov.completion.clear();
         self.overlay = Overlay::Input(ov);
@@ -784,6 +785,7 @@ impl App {
                 cursor: 0,
                 action: PickAction::OpenWith { paths, runs, line },
                 focused: false,
+                paste: None,
             };
             pick.refilter();
             pick.cursor = first_found;

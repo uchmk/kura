@@ -1,7 +1,7 @@
 use egui::{Align2, CornerRadius, FontId, Rect, Stroke, Ui, Vec2};
 
 use super::{dim, modal_frame, modal_rect};
-use crate::app::{App, InputKind, Overlay, TaskState};
+use crate::app::{App, ClipRead, FieldPaste, InputKind, Overlay, TaskState};
 use crate::config::cmd::Act;
 
 pub fn which(app: &App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
@@ -52,33 +52,57 @@ pub fn which(app: &App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
 /// since a mouse paste that behaved differently would be a second thing to
 /// learn.
 ///
-/// `Ok(false)` means there was nothing to do. `Err` is a clipboard that could
-/// not be read, which on every platform is also how an empty one reads.
+/// The clipboard is read on a worker thread (`ClipRead`), because a read can
+/// block for seconds on X11 and the window must not freeze meanwhile. So the
+/// paste is two steps: the click starts the read and remembers where the paste
+/// goes (`pending`); a later frame, once the clipboard has answered, does it.
+/// The click's own frame never pastes. If the field was typed into while the
+/// clipboard was slow, the remembered place is stale, so the text goes over the
+/// field's *current* selection or caret, the way a late `<C-v>` would.
+///
+/// `Ok(false)` means there was nothing to do (yet). `Err` is a clipboard that
+/// could not be read, which on every platform is also how an empty one reads.
 fn right_click_paste(
     ui: &Ui,
     resp: &egui::Response,
     id: egui::Id,
     text: &mut String,
     selected: Option<std::ops::Range<usize>>,
+    pending: &mut Option<FieldPaste>,
 ) -> Result<bool, String> {
-    if !resp.secondary_clicked() {
+    let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
+    let chars = text.chars().count();
+    if resp.secondary_clicked() {
+        let at = match state.cursor.char_range() {
+            Some(r) => {
+                let r = r.as_sorted_char_range();
+                usize::from(r.start).min(chars)..usize::from(r.end).min(chars)
+            }
+            // Never clicked into: the end is where typing would have gone.
+            None => chars..chars,
+        };
+        let at = paste_over(at, selected, chars);
+        // A newer click replaces a read still going.
+        *pending = Some(FieldPaste { read: ClipRead::start(ito_clipboard::clipboard!(), ui.ctx()), before: text.clone(), at });
         return Ok(false);
     }
-    let add = one_line(&ito_clipboard::clipboard!().get_text().map_err(|e| e.to_string())?.unwrap_or_default());
+    let Some(answer) = pending.as_ref().and_then(|p| p.read.poll()) else { return Ok(false) };
+    let Some(p) = pending.take() else { return Ok(false) };
+    let add = one_line(&answer?.unwrap_or_default());
     if add.is_empty() {
         return Ok(false);
     }
-    let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
-    let chars = text.chars().count();
-    let at = match state.cursor.char_range() {
-        Some(r) => {
-            let r = r.as_sorted_char_range();
-            usize::from(r.start).min(chars)..usize::from(r.end).min(chars)
+    let at = if *text == p.before {
+        p.at.start.min(chars)..p.at.end.min(chars)
+    } else {
+        match state.cursor.char_range() {
+            Some(r) => {
+                let r = r.as_sorted_char_range();
+                usize::from(r.start).min(chars)..usize::from(r.end).min(chars)
+            }
+            None => chars..chars,
         }
-        // Never clicked into: the end is where typing would have gone.
-        None => chars..chars,
     };
-    let at = paste_over(at, selected, chars);
     let caret = at.start + add.chars().count();
     *text = splice(text, at, &add);
     let one = egui::text::CCursorRange::one(egui::text::CCursor::new(caret));
@@ -219,7 +243,7 @@ pub fn input(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, queued: &mut Ve
         set_caret(ui, id, ov.initial_selection.take());
         ov.focused = true;
     }
-    let clip = right_click_paste(ui, &resp, id, &mut ov.text, selected);
+    let clip = right_click_paste(ui, &resp, id, &mut ov.text, selected, &mut ov.paste);
     if (resp.changed() || matches!(clip, Ok(true))) && ov.text != before {
         app.input_changed();
     }
@@ -1022,7 +1046,7 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     }
     // The clipboard is ignored here rather than reported: a chooser has no room
     // for a toast under it, and the query is typed far more often than pasted.
-    let _ = right_click_paste(ui, &resp, pick_id, &mut p.query, selected);
+    let _ = right_click_paste(ui, &resp, pick_id, &mut p.query, selected, &mut p.paste);
     if p.query != before {
         p.refilter();
     }
@@ -2126,6 +2150,7 @@ mod help_frame {
             focused: true,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         });
         s.draw();
         let at = over_the_list(&s);
@@ -3008,8 +3033,9 @@ mod shell_hint_frame {
 #[cfg(test)]
 mod prompt_selection {
     use super::overlays::showing;
-    use crate::app::Overlay;
+    use crate::app::{ClipRead, FieldPaste, Overlay, PickAction, PickOverlay};
     use crate::ui::harness::Screen;
+    use crate::ui::preview_panes::until;
 
     fn field(s: &Screen) -> String {
         match &s.app.overlay {
@@ -3075,8 +3101,131 @@ mod prompt_selection {
         };
         s.feed(vec![egui::Event::PointerMoved(at), press(true)]);
         s.feed(vec![press(false)]);
+        // The clipboard is read on a worker: the click's own frame pastes nothing.
+        assert_eq!(field(&s), "report.txt");
+        assert!(s.app.paste_pending(), "the paste waits for the clipboard");
+        until(&mut s, |s| !s.app.paste_pending());
         s.draw();
         assert_eq!(field(&s), "notes.txt", "the selected stem was replaced, not added to");
+    }
+
+    /// A reader the test holds until it sends on the returned channel.
+    fn held(s: &Screen, answer: Result<Option<String>, String>) -> (std::sync::mpsc::Sender<()>, ClipRead) {
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let read = ClipRead::spawn(
+            move || {
+                wait.recv().ok();
+                answer
+            },
+            &s.ctx,
+        );
+        (go, read)
+    }
+
+    fn hold_paste(s: &mut Screen, answer: Result<Option<String>, String>) -> std::sync::mpsc::Sender<()> {
+        let (go, read) = held(s, answer);
+        let Overlay::Input(ov) = &mut s.app.overlay else { panic!("no prompt is open") };
+        let before = ov.text.clone();
+        let at = 0..before.chars().count();
+        ov.paste = Some(FieldPaste { read, before, at });
+        go
+    }
+
+    /// The prompt keeps taking keys while the clipboard is slow, and the paste
+    /// then lands where the caret is now, not where the click was.
+    #[test]
+    fn a_slow_clipboard_does_not_hold_the_prompt() {
+        let (_dir, mut s) = showing("q31-slow-clip", &["report.txt"]);
+        s.typed("r");
+        s.draw();
+        let go = hold_paste(&mut s, Ok(Some("XY".into())));
+        s.typed("ab");
+        s.draw();
+        assert_eq!(field(&s), "ab.txt", "typing is not held up");
+        assert!(!s.app.settled(), "a --keys step waits for the paste");
+        go.send(()).unwrap();
+        until(&mut s, |s| !s.app.paste_pending());
+        s.draw();
+        assert_eq!(field(&s), "abXY.txt", "the paste went to the caret of now");
+    }
+
+    /// A prompt closed meanwhile takes the waiting paste with it.
+    #[test]
+    fn closing_the_prompt_drops_a_paste_still_waiting() {
+        let (_dir, mut s) = showing("q31-close-clip", &["report.txt"]);
+        s.typed("r");
+        s.draw();
+        // An error, so an answer that still went somewhere would show as a toast.
+        let go = hold_paste(&mut s, Err("held".into()));
+        s.feed(vec![super::overlays::chord(egui::Key::Escape, egui::Modifiers::NONE)]);
+        assert!(!matches!(s.app.overlay, Overlay::Input(_)), "the prompt closed");
+        assert!(!s.app.paste_pending());
+        go.send(()).unwrap();
+        for _ in 0..20 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            s.turn();
+        }
+        assert!(s.app.toasts.iter().all(|t| !t.text.contains("Paste")), "no toast");
+        assert!(matches!(s.app.overlay, Overlay::None));
+    }
+
+    /// The chooser's query takes a right-click paste after the wait, and refilters.
+    #[test]
+    fn a_right_click_pastes_into_the_chooser_query() {
+        let (_dir, mut s) = showing("q31-pick-clip", &["a.txt"]);
+        let mut pick = PickOverlay {
+            title: "Pick".into(),
+            items: vec!["report".into(), "readme".into(), "zzzz".into()],
+            details: vec![String::new(); 3],
+            query: "re".into(),
+            matches: Vec::new(),
+            cursor: 0,
+            action: PickAction::Command { runs: vec![Vec::new(); 3] },
+            focused: false,
+            paste: None,
+        };
+        pick.refilter();
+        let before = pick.matches.len();
+        s.app.overlay = Overlay::Pick(pick);
+        let f = s.draw();
+        let i = f.texts.iter().rposition(|t| t == "re").expect("the query is drawn");
+        let at = f.places[i] + egui::vec2(30.0, 6.0);
+        ito_clipboard::Fake::this_thread().put(Some("port"));
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        s.feed(vec![egui::Event::PointerMoved(at), press(true)]);
+        s.feed(vec![press(false)]);
+        let Overlay::Pick(p) = &s.app.overlay else { panic!("the chooser is open") };
+        assert_eq!(p.query, "re");
+        assert!(p.paste.is_some());
+        until(&mut s, |s| !s.app.paste_pending());
+        s.draw();
+        let Overlay::Pick(p) = &s.app.overlay else { panic!("the chooser is open") };
+        assert_eq!(p.query, "report");
+        assert_eq!(p.matches.len(), 1);
+        assert!(before > 1);
+    }
+
+    /// The terminal's paste is picked up by the frame loop, and an error says so.
+    #[test]
+    fn a_failed_terminal_paste_is_toasted_when_it_answers() {
+        let (_dir, mut s) = showing("q31-term-clip", &["a.txt"]);
+        until(&mut s, |s| s.app.settled());
+        let (go, read) = held(&s, Err("held".into()));
+        s.app.term_paste = Some(read);
+        assert!(!s.app.settled(), "a --keys step waits for the paste");
+        go.send(()).unwrap();
+        until(&mut s, |s| s.app.term_paste.is_none());
+        assert!(
+            s.app.toasts.iter().any(|t| t.text == "Paste failed: held"),
+            "{:?}",
+            s.app.toasts.iter().map(|t| &t.text).collect::<Vec<_>>()
+        );
+        assert!(s.app.settled());
     }
 
     /// #297: `<C-u>` in a prompt deletes from the caret back to the start of the

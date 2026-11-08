@@ -110,6 +110,15 @@ impl App {
                 }
             }
         }
+        if let Some(answer) = self.term_paste.as_ref().and_then(ClipRead::poll) {
+            self.term_paste = None;
+            match answer {
+                Ok(Some(t)) if !t.is_empty() => self.paste_to_term(&t),
+                Ok(_) => {}
+                // Said out loud because the right-click looked like it did nothing.
+                Err(e) => self.error(format!("Paste failed: {e}")),
+            }
+        }
         while let Ok(res) = self.differ.rx.try_recv() {
             // An answer to a comparison that has since been closed, or replaced
             // by another pair, has nowhere to go.

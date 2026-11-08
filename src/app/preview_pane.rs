@@ -394,6 +394,8 @@ impl App {
             || (job_going && !matches!(self.overlay, Overlay::Confirm(_)))
             || self.preview.pending_since.is_some()
             || self.preview.in_flight
+            // A right-click paste still waiting for the clipboard, as for a listing.
+            || self.paste_pending()
             || matches!(self.preview.state, PreviewState::Loading)
             // A job that made something puts the cursor on it when the
             // listing is read again; until then `hovered:` names the row
@@ -410,6 +412,17 @@ impl App {
             Overlay::Diff(ov) => ov.outcome.is_some(),
             _ => true,
         }
+    }
+
+    /// A right-click paste is waiting for the clipboard: in the terminal, or in
+    /// the input prompt's or the chooser's field.
+    pub fn paste_pending(&self) -> bool {
+        self.term_paste.is_some()
+            || match &self.overlay {
+                Overlay::Input(ov) => ov.paste.is_some(),
+                Overlay::Pick(p) => p.paste.is_some(),
+                _ => false,
+            }
     }
 
     pub(super) fn preview_ready(&self) -> bool {

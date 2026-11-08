@@ -252,6 +252,7 @@ fn a_picker_filtered_to_nothing_stays_open() {
         cursor: 0,
         action: PickAction::Bookmarks { paths: vec![zip], keys: vec![String::new()], filtering: true },
         focused: false,
+        paste: None,
     };
     pick.refilter();
     a.overlay = Overlay::Pick(pick);

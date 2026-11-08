@@ -77,13 +77,9 @@ pub fn draw(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
         None => {}
     }
     // Right-click pastes. `<C-v>` reaches the pane as egui's paste event; a
-    // right-click is not one, so the clipboard is read here.
+    // right-click is not one, so the clipboard is read -- on a worker, as it
+    // can block for seconds on X11; `drain_channels` pastes the answer.
     if shown.paste {
-        match ito_clipboard::clipboard!().get_text() {
-            Ok(Some(text)) if !text.is_empty() => app.paste_to_term(&text),
-            Ok(_) => {}
-            // Said out loud because the right-click looked like it did nothing.
-            Err(e) => app.error(format!("Paste failed: {e}")),
-        }
+        app.start_term_paste();
     }
 }

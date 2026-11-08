@@ -28,6 +28,10 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
 }
 
 /// Ctrl+V as the platform delivers it: the clipboard's text, now.
+///
+/// This reads on the UI thread on purpose: egui-winit reads a real Ctrl+V there
+/// too, and `--keys` delivers what the key would. kura's own reads (a
+/// right-click paste) go through `ClipRead` instead.
 pub fn paste_event() -> egui::Event {
     egui::Event::Paste(ito_clipboard::clipboard!().get_text().ok().flatten().unwrap_or_default())
 }

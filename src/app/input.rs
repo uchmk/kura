@@ -24,6 +24,7 @@ impl App {
             focused: false,
             completion: Vec::new(),
             completion_at: 0,
+            paste: None,
         });
     }
 

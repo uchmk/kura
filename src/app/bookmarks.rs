@@ -92,6 +92,7 @@ impl App {
             cursor: 0,
             action: PickAction::Command { runs },
             focused: false,
+            paste: None,
         };
         pick.refilter();
         self.overlay = Overlay::Pick(pick);
@@ -126,6 +127,7 @@ impl App {
             cursor: 0,
             action: PickAction::Bookmarks { paths, keys, filtering: false },
             focused: false,
+            paste: None,
         };
         pick.refilter();
         self.overlay = Overlay::Pick(pick);
@@ -173,6 +175,7 @@ impl App {
             cursor: 0,
             action: PickAction::Bookmarks { paths, keys, filtering: false },
             focused: false,
+            paste: None,
         };
         pick.refilter();
         self.overlay = Overlay::Pick(pick);
@@ -213,6 +216,12 @@ impl App {
         }
     }
 
+    /// A right-click in the terminal pane: read the clipboard on a worker; the
+    /// answer is pasted by `drain_channels`. A newer click replaces a read still going.
+    pub fn start_term_paste(&mut self) {
+        self.term_paste = Some(ClipRead::start(ito_clipboard::clipboard!(), &self.ctx));
+    }
+
     /// Paste `text` into the terminal. Several lines into a program that did
     /// not ask for bracketed paste would run each one as it lands, so that case
     /// is asked about first -- the same question tsumugi puts (Windows
@@ -224,6 +233,13 @@ impl App {
             t.paste(text);
             return;
         };
+        // The question never replaces a box already open: a right-click paste
+        // answers late (the clipboard is read on a worker), and a prompt, a
+        // question or a `kura mcp` box may have opened meanwhile.
+        if !matches!(self.overlay, Overlay::None) {
+            self.warn(format!("Paste of {lines} lines dropped: another box is open"));
+            return;
+        }
         self.overlay = Overlay::Confirm(ConfirmOverlay {
             title: format!("Paste {lines} lines?"),
             body: ["The program here did not ask for bracketed paste, so each line runs as it lands.".to_owned(), String::new()]
