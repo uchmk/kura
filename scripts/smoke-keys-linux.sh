@@ -14,8 +14,9 @@
 #   done     `j<State:s>`         exit 0, last line `keys: done`, s.txt written
 #   failed   `j<State:x>k` with   non-zero, `keys: failed`: the window opened,
 #            x.txt a folder       the write failed, and the window closed itself
-#   refused  `j<Assert:foo>k`     non-zero, `keys: failed`: refused before the
-#                                 window, so xrun.sh sees no window
+#   refused  `j<Tab`              non-zero, `keys: refused`: the script cannot be
+#                                 typed, refused before the window, so xrun.sh
+#                                 sees no window
 #
 # The refused-before-the-window case is also in tests/keys_fail_closed.rs;
 # here it is the lane's tool that has to say "no result" for it.
@@ -83,10 +84,10 @@ run failed 'j<State:x>k'
 grep -qx 'keys: failed' "$OUT/failed/keys.done" 2>/dev/null || fail "failed: keys.done has no 'keys: failed' line"
 grep -qx 'step: <State:x>' "$OUT/failed/keys.done" 2>/dev/null || fail "failed: keys.done does not name <State:x> as the step"
 
-run refused 'j<Assert:foo>k'
+run refused 'j<Tab'
 [ "$code" != 0 ] || fail "refused: xrun.sh exit 0 for a script kura refused"
 # Refused before the window, there is no state yet: the report is only that.
-[ "$(head -1 "$OUT/refused/keys.done" 2>/dev/null)" = "keys: failed" ] || fail "refused: keys.done does not start 'keys: failed'"
+[ "$(head -1 "$OUT/refused/keys.done" 2>/dev/null)" = "keys: refused" ] || fail "refused: keys.done does not start 'keys: refused'"
 
 if [ "$FAILS" -gt 0 ]; then
   echo "smoke-keys-linux: $FAILS check(s) failed; the runs are in $OUT" >&2

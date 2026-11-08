@@ -1,5 +1,6 @@
-//! `kura --keys` with a step kura cannot carry out is refused before a window
-//! opens, as failed (exit 3), with the report in `KURA_KEYS_DONE`.
+//! `kura --keys` with a script that cannot be typed, or a bad run id, is refused
+//! before a window opens (nothing here opens one), and every report in
+//! `KURA_KEYS_DONE` carries one `run:` line.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -25,24 +26,6 @@ fn run_with_id(keys: &str, label: &str, run_id: Option<&str>) -> (Option<i32>, S
 }
 
 #[test]
-fn an_assert_step_is_refused_as_failed() {
-    let (code, said) = run("<Assert:foo>", "assert");
-    assert_eq!(code, Some(3), "{said}");
-    assert_eq!(said.lines().next(), Some("keys: failed"), "{said}");
-    assert!(said.contains("step 1 of 1"), "{said}");
-    assert_eq!(said.lines().rev().nth(1), Some("left: 1 not pressed"), "the run line is last: {said}");
-}
-
-#[test]
-fn an_unsupported_step_in_the_middle_names_its_place() {
-    let (code, said) = run("j<Click:Name>k", "clicktext");
-    assert_eq!(code, Some(3), "{said}");
-    assert_eq!(said.lines().next(), Some("keys: failed"), "{said}");
-    assert!(said.contains("step 2 of 3"), "{said}");
-    assert_eq!(said.lines().rev().nth(1), Some("left: 3 not pressed"), "the run line is last: {said}");
-}
-
-#[test]
 fn a_script_that_cannot_be_typed_is_still_refused() {
     let (code, said) = run("<Tab", "refused");
     assert_eq!(code, Some(2), "{said}");
@@ -54,16 +37,8 @@ fn run_lines(said: &str) -> Vec<&str> {
 }
 
 #[test]
-fn a_failed_report_carries_one_run_line_and_keeps_its_first_line() {
-    let (code, said) = run_with_id("<Assert:foo>", "runid", Some("my-run-1"));
-    assert_eq!(code, Some(3), "{said}");
-    assert_eq!(said.lines().next(), Some("keys: failed"), "{said}");
-    assert_eq!(run_lines(&said), ["run: my-run-1"], "{said}");
-}
-
-#[test]
 fn a_run_id_is_made_when_none_is_given() {
-    let (_, said) = run("<Assert:foo>", "runid-default");
+    let (_, said) = run("<Tab", "runid-default");
     let lines = run_lines(&said);
     assert_eq!(lines.len(), 1, "{said}");
     assert!(lines[0].len() > "run: ".len() && !lines[0].contains("(none)"), "{said}");

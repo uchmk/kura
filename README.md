@@ -1879,11 +1879,19 @@ script runs writes `quit: window closed` before `keys: done`, or `keys: closed` 
 
 A run that did not do what the script said does not end `keys: done`, and exits with code 3:
 
-- `keys: failed`, with `step:`, `why:` and `left: N not pressed`. A step kura's `--keys` does not carry out yet
-  (`<Assert:>`, `<Click:text>`, `<Clipboard:>`, `<Is:>`, `<Tree:>`, `<ClickId:>`, `<Id:>`, `<ValueId:>` and the like) is refused before the window opens,
-  the same way, with `step i of n` in `why:`. While the script runs, a `<State:>`, `<PaneText:>` or `<PreviewText:>`
+- `keys: failed`, with `step:`, `why:` and `left: N not pressed`. While the script runs, a `<State:>`, `<PaneText:>` or `<PreviewText:>`
   file or a `<Shot:>` picture that cannot be written, or a picture that does not arrive in 5 seconds, ends it so
   (the window closes). The `why:` names the path. The same lines go to standard error.
+- `<Clipboard:text>` and `<ClipboardHas:>` (v0.154.0) check the last text kura copied after the last action (kura notes each copy for ito's
+  record). They look again for 3 seconds like the other checks, then end the run `keys: failed` with ito's reason, for example
+  ``copied `a.txt`, not `zzz` ``. Before v0.154.0 both were refused before the window opened.
+- The window-reading steps (v0.154.0) read the window's accessibility tree, which has to be drawn after the last input:
+  `<Click:text>`, `<RClick:text>` and `<DClick:text>` click the one label, `<ClickId:name>` the widget with that test ID,
+  `<Assert:text>` and `<Assert:!text>` check what is on screen, `<Is…:>`, `<Id:>`, `<ValueId:>` and `<FocusedId:>` check a widget,
+  `<Announced:text>` checks what the app announced since the last action, and `<Tree:name>` writes the tree to `name.txt` beside the
+  report (the same name as a `<State:name>` overwrites it). A check or a click that does not find its target looks again for 3 seconds,
+  then ends the run `keys: failed` with the reason, as ito's shared runner does. A click goes in as one frame (move, press, release).
+  `<State:>` ends with `since last action: N ms`. kura announces nothing yet, so `<Announced:>` can only fail for now.
 - `keys: unsettled`, after lines naming the steps that went in after 5 seconds with the screen still not settled,
   and whether the script ended that way. The keys all went in, but not on the state the script assumed.
   Without `<Quit>` the window stays open as before, and kura exits 3 when it is closed.

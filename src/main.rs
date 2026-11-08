@@ -120,8 +120,8 @@ fn parse_cli() -> Cli {
                     Ok(keys) => match keys.iter().find(|k| keyscript::press(k).is_none()) {
                         Some(k) => refuse_keys(&format!("{k:?} cannot be typed")),
                         None => {
-                            // A step kura does not carry out would be skipped, and the run
-                            // would still read as a success: refuse it here, as failed.
+                            // A step a newer ito adds before kura carries it out would be skipped, and the run
+                            // would still read as a success: refuse it here, as failed. Today no parsed step is refused.
                             let n = keys.len();
                             for (i, k) in keys.iter().enumerate() {
                                 if keyscript::press(k).as_ref().is_some_and(|p| script_run::unsupported(p).is_some()) {
@@ -987,6 +987,11 @@ impl eframe::App for Kura {
         if self.app.preview.pending_since.is_some() {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
+        // A check or `<ReadHas:>` that waits looks again on the next pass: a repaint asked for in
+        // `raw_input_hook` can be forgotten when the pass begins, so ask here as well.
+        if let Some(due) = self.script.due() {
+            ctx.request_repaint_after(due);
+        }
         if !self.app.toasts.is_empty()
             || self.app.search.is_some()
             || self.app.term_waiting()
@@ -1449,7 +1454,9 @@ fn state_report(app: &App) -> String {
     // The first screen sent ahead of the coloured whole (v0.86.12):
     // `<Now><State:a>` samples without waiting for settle, but may still
     // show loading or miss the early screen. A following plain `<State:b>`
-    // waits for settle; this pair does not give a timed reading.
+    // waits for settle. Since v0.154.0 every `<State:>` ends with
+    // `since last action: N ms`, which says how soon after the last key the
+    // reading was taken.
     lines.push(format!("preview: {}", if app.preview.early { "early" } else { "whole" }));
     // How long the text on show is (`5237+` when the read was cut): the top
     // above is the last place to scroll to, which is not the line count

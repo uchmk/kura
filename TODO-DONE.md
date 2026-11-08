@@ -2431,6 +2431,9 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
 - [x] tsumugi の :50 のタスクを `lane-boot.ps1` で登録し直す（tsumugi の CLAUDE.md の手順）【人】（2026-11-08、やらない: tsumugi をメンテナンスの対象から外した。代わりに Orca と Linear を使う）
 - [x] `--keys` の自動テスト化の段階 2: ito の uchmk/ito#203（観測の約束: ito-a11y の Test ID、ito-keyscript の世代・ID の手順・run ID・probe、ito-prefs の Shell ID）が入ったら、ito の `rev` を上げて kura 側を合わせる（段階 1 は v0.152.0: 設定の書き込みを待つ・`<config write>` で落ちる・`<Now>` は直後の 1 手順だけ）
   → v0.153.0: ito v0.265.0 に上げた。`<ReadHas:PaneText=…>`／`<ReadHas:PreviewText=…>` を実行し、報告に `run:` の行（`KURA_KEYS_RUN_ID`）を足した。`examples/term-probe.rs`。
+- [x] `--keys` の自動テスト化の段階 3: kura の自前の実行（`src/script_run.rs`）で窓を読む手順を実行する（`<Click:文字>`・`<RClick:文字>`・`<DClick:文字>`・`<Assert:>`・`<Is…:>`・`<Tree:>`・`<Announced:>`・`<ClickId:>`・`<Id:>`・`<ValueId:>`・`<FocusedId:>`）
+  → v0.154.0: ito v0.268.0 に上げ、ito の `Runner` と同じ意味と失敗の文で実行する（`fresh`・3 秒の再試行・`mark` からの `Announced`）。`<State:>` に `since last action:` の行。
+- [x] `<Clipboard:>`・`<ClipboardHas:>` を実行する → v0.154.0: `exec::set_clipboard` が ito v0.268.0 の `note_copy` に写しを渡し、最後の操作のあとのコピーだけを見る（uchmk/ito#206）。
 
 ### ARM64 の再テストの所見（#295）
 - [x] （v0.85.1。トーストの 1 行目のホームフォルダを `~` にした）（#295 の所見 2）設定ファイルが長いパスにあると警告のトーストが 3 行に折れてプレビューの先頭を覆う（33.7 の「1 行」に反する）。1 行目のパスを `~` や相対に短縮してから折る

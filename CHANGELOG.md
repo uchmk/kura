@@ -9,6 +9,21 @@
 
 ## [未リリース]
 
+## [0.154.0] - 2026-11-08
+
+### 追加
+
+- `--keys` が窓を読む手順を実行する（ito 0.268.0、uchmk/ito#203 の段階 3）: `<Click:文字>`・`<RClick:文字>`・`<DClick:文字>`（その文字の部品を押す）・`<Assert:>`・`<Is…:>`・`<Tree:名前>`・`<Announced:>`・`<ClickId:>`・`<Id:>`・`<ValueId:>`・`<FocusedId:>`。テストの中のクリックは、書き換えるボタン（Forget・Reset・Import）を押さない。最後の操作のあとに描いた木だけを読み、合わなければ 3 秒（`TEXT_WAIT`）まで毎フレーム読み直し、それでも合わなければ ito の理由を `why:` に書いて `keys: failed` で終わる。クリックは 1 フレームで押して離す。`<Tree:名前>` は報告の隣に `名前.txt`（読めた部品の役割と名前）を書く。kura はまだ `ito_a11y::announce` で何も読み上げないので、`<Announced:>` は今は合わない。
+- `--keys` の `<Clipboard:文字>`・`<ClipboardHas:文字>`（uchmk/ito#206）。kura がクリップボードに書いた文字を ito の `note_copy` に写し、最後の操作のあとのコピーだけを見る。
+- `<State:>` の報告に `since last action: N ms` の行（最後の操作からの時間）。
+- 窓の検査が待っているあいだは 16 ms ごとに描き直す（入力が無くても読み直しが進む）。
+
+### 変更
+
+- ito の全部のクレートを v0.268.0（`e367140`）に上げた（v0.265.0 の `50612a3` から）。`<Announced:>` と `<Tree:>` の記録を入れるために `ito-a11y` を直接の依存に足した。
+- 上の手順は窓の前に `keys: refused` で断らなくなった（kura に無い読み物の `<ReadHas:Bogus=x>` は今までどおり断る）。`scripts/smoke-keys-linux.sh` の断られる例は `j<Tab`（閉じていない `<`）にした。
+- TESTING.md: 25.17a をクリップボードの行（`<Clipboard:>`・`<ClipboardHas:>`）に書き直し、25.17e の例を `<Tab` にし、25.17h（設定の画面を文字と ID で押して読む。`UCHMK_CONFIG_DIR` と `KURA_STATE_HOME` を空のフォルダーにする）を足し、27.6 に `since last action:` を足した。
+
 ## [0.153.0] - 2026-11-08
 
 ### 追加

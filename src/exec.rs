@@ -737,13 +737,24 @@ pub fn set_clipboard(text: &str) -> Result<(), String> {
     // machine every `cargo test` used to replace what was on it (the QA
     // agent's finding on section 26). It goes to this thread's fake instead,
     // where `get_clipboard` reads it back.
+    // `--keys`' `<Clipboard:>` reads ito's copy record; kura copies through arboard, so it notes each copy.
+    // That record is process-wide, so under test only a thread that asked for it notes (`note_copies_here`).
     #[cfg(test)]
     {
         fake_clipboard(text);
+        if NOTE_COPIES.with(|n| n.get()) {
+            crate::keyscript::note_copy(text);
+        }
         Ok(())
     }
     #[cfg(not(test))]
-    set_real_clipboard(text)
+    {
+        let r = set_real_clipboard(text);
+        if r.is_ok() {
+            crate::keyscript::note_copy(text);
+        }
+        r
+    }
 }
 
 /// What kura itself last put on the clipboard, for the state file (#197).
@@ -826,6 +837,33 @@ thread_local! {
 #[cfg(test)]
 pub fn fake_clipboard(text: &str) {
     FAKE_CLIPBOARD.with(|c| *c.borrow_mut() = Some(text.to_owned()));
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Whether [`set_clipboard`] on this thread gives its copies to ito's copy record.
+    static NOTE_COPIES: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// While held, this thread's copies reach ito's copy record, and no other test's do.
+#[cfg(test)]
+pub struct NoteCopies(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
+
+#[cfg(test)]
+impl Drop for NoteCopies {
+    fn drop(&mut self) {
+        NOTE_COPIES.with(|n| n.set(false));
+    }
+}
+
+/// For a test that checks `<Clipboard:>`: ito's copy record is process-wide, so tests copying side by side
+/// would land in it. Only the thread holding this notes its copies, and one such test runs at a time.
+#[cfg(test)]
+pub fn note_copies_here() -> NoteCopies {
+    static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let guard = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    NOTE_COPIES.with(|n| n.set(true));
+    NoteCopies(guard)
 }
 
 #[cfg(test)]
