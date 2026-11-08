@@ -60,14 +60,3 @@ fn a_bad_run_id_is_refused_before_any_window() {
     assert!(said.contains("KURA_KEYS_RUN_ID"), "{said}");
     assert_eq!(run_lines(&said).len(), 1, "{said}");
 }
-
-/// A step ito parses but kura does not carry out (`<Snap:>`, ito v0.276.0) fails before any window,
-/// with the step and the reason, instead of being skipped while the run reads as a success.
-#[test]
-fn a_step_kura_does_not_carry_out_fails_before_any_window() {
-    let (code, said) = run("j<Snap:x>", "unsupported-snap");
-    assert_eq!(code, Some(3), "{said}");
-    assert!(said.starts_with("keys: failed"), "{said}");
-    assert!(said.contains("Snap:x") && said.contains("does not carry out"), "{said}");
-    assert_eq!(run_lines(&said).len(), 1, "{said}");
-}

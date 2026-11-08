@@ -42,7 +42,7 @@ struct Cli {
     /// `--last` / `-r`: open the last session whatever folder kura was started in.
     last: bool,
     /// `--keys`: pressed by kura itself once it has started (Q24).
-    keys: Vec<keyscript::Step>,
+    keys: script_run::Script,
 }
 
 /// Put a line where whoever typed the command is looking.
@@ -99,7 +99,7 @@ const ENV_OUT_WAIT: &str = "\n                     (kura.exe in a script: add | 
 const ENV_OUT_WAIT: &str = "";
 
 fn parse_cli() -> Cli {
-    let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
+    let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: script_run::Script::default() };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -121,14 +121,11 @@ fn parse_cli() -> Cli {
                         Some(k) => refuse_keys(&format!("{k:?} cannot be typed")),
                         None => {
                             // A step a newer ito adds before kura carries it out would be skipped, and the run
-                            // would still read as a success: refuse it here, as failed. Today only `<Snap:>` is.
-                            let n = keys.len();
-                            for (i, k) in keys.iter().enumerate() {
-                                if keyscript::press(k).as_ref().is_some_and(|p| script_run::unsupported(p).is_some()) {
-                                    script_run::refuse_unsupported(&keyscript::label(k), i + 1, n);
-                                }
+                            // would still read as a success: `Script::checked` refuses it here, as failed.
+                            match script_run::Script::checked(keys) {
+                                Ok(script) => cli.keys = script,
+                                Err((step, i, n)) => script_run::refuse_unsupported(&step, i, n),
                             }
-                            cli.keys = keys;
                         }
                     },
                     Err(why) => refuse_keys(&why),
@@ -2478,7 +2475,7 @@ mod tests {
     /// quietly taking the first one's place.
     #[test]
     fn a_second_path_is_refused() {
-        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
+        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: script_run::Script::default() };
         assert!(take_path(&mut cli, "awkward").is_ok());
         let why = take_path(&mut cli, "names").unwrap_err();
         assert!(why.contains("\"awkward\"") && why.contains("\"names\"") && why.contains("quotes"), "{why}");
@@ -2488,7 +2485,7 @@ mod tests {
     /// #194: a Windows path is named as typed, not with every `\` doubled.
     #[test]
     fn a_refused_path_keeps_its_backslashes() {
-        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: Vec::new() };
+        let mut cli = Cli { path: None, cwd_file: None, chooser_file: None, last: false, keys: script_run::Script::default() };
         assert!(take_path(&mut cli, r"C:\dev").is_ok());
         let why = take_path(&mut cli, r"C:\Windows").unwrap_err();
         assert!(why.starts_with(r#"more than one path: "C:\dev" and "C:\Windows" ("#), "{why}");

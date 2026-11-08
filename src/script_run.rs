@@ -50,6 +50,42 @@ struct Shot {
     /// The theme and language in force when the screenshot command was sent (empty until then).
     theme: String,
     lang: String,
+    /// The picture is the middle stage of a `<Snap:>`.
+    snap: bool,
+    /// The pass the request went out in.
+    requested_frame: u64,
+    /// The window in points and the scale when the request went out (what the picture shows).
+    size: [f32; 2],
+    pixels_per_point: f32,
+    /// Seconds since the epoch when the request went out (the side JSON of a `<Snap:>` says this, as ito's does).
+    sent_time: u64,
+}
+
+/// A state a `<Snap:>` has written.
+struct SnapState {
+    path: String,
+    sha256: String,
+    stable: state::Stable,
+    seq: u64,
+}
+
+/// A `<Snap:>` picture that is saved.
+struct SnapShot {
+    meta: review::Meta,
+    png_sha256: String,
+    size_px: [u32; 2],
+    requested_frame: u64,
+    received_frame: u64,
+}
+
+/// The `<Snap:name>` that is running.
+struct SnapRun {
+    name: String,
+    capture_id: String,
+    /// The `settled` of the step, kept by the before state for the after one.
+    settled: Option<bool>,
+    before: Option<SnapState>,
+    shot: Option<SnapShot>,
 }
 
 /// A change of `common.toml` a step asks for, after the step has been marked: the key and its TOML value.
@@ -64,6 +100,8 @@ pub(crate) struct ScriptRun {
     /// The shape the window asked of the mouse cursor in the last frame, for `<State:>`.
     pub(crate) cursor_icon: egui::CursorIcon,
     shot: Option<Shot>,
+    /// The `<Snap:>` that is running.
+    snap: Option<SnapRun>,
     /// Where `<Shot:name>` and the readings save.
     shot_dir: PathBuf,
     /// `KURA_KEYS_DONE`, until the run's report has been written.
@@ -101,8 +139,8 @@ pub(crate) struct ScriptRun {
     state_due: bool,
 }
 
-/// What kura cannot carry out: `None` for the steps it can (today, every parsed step but `<Snap:>`). An exhaustive
-/// match with no wildcard, so a step ito adds does not go in unnoticed when
+/// What kura cannot carry out: `None` for the steps it can (today, every parsed step; a tag of a reading it does not
+/// have is refused when the script is parsed, and here too). An exhaustive match with no wildcard, so a step ito adds does not go in unnoticed when
 /// kura bumps its ito rev: somebody has to decide.
 pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
     match press {
@@ -121,7 +159,8 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::Drag { .. }
         | Press::Size { .. }
         | Press::Theme(_)
-        | Press::Lang(_) => None,
+        | Press::Lang(_)
+        | Press::Snap { .. } => None,
         Press::Read { tag, .. } | Press::ReadHas { tag, .. } => match tag.as_str() {
             "PaneText" | "PreviewText" => None,
             _ => Some("a reading kura does not have"),
@@ -135,8 +174,28 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::ClickId(_)
         | Press::IdCheck(_) => None,
         Press::Clipboard(_) | Press::ClipboardHas(_) => None,
-        // ito's state, picture, state step: the pieces are public since ito v0.282.0, kura has not wired it up yet.
-        Press::Snap { .. } => Some("kura does not support <Snap:> yet"),
+    }
+}
+
+/// A script every step of which kura carries out. `ScriptRun::new` takes only this, and `checked` is the only way to
+/// make a non-empty one, so a run cannot start on a script the `--keys` guard did not see.
+#[derive(Default)]
+pub(crate) struct Script(Vec<keyscript::Step>);
+
+impl Script {
+    /// `Err((step as written, place from 1, total))` for the first step kura does not carry out.
+    pub(crate) fn checked(steps: Vec<keyscript::Step>) -> Result<Self, (String, usize, usize)> {
+        let n = steps.len();
+        for (i, k) in steps.iter().enumerate() {
+            if keyscript::press(k).as_ref().is_some_and(|p| unsupported(p).is_some()) {
+                return Err((keyscript::label(k), i + 1, n));
+            }
+        }
+        Ok(Self(steps))
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -145,6 +204,7 @@ fn reads_window(press: &Press) -> bool {
     matches!(
         press,
         Press::State(_)
+            | Press::Snap { .. }
             | Press::ClickText { .. }
             | Press::DClickText(_)
             | Press::Assert { .. }
@@ -221,6 +281,20 @@ pub(crate) fn refuse_unsupported(step: &str, i: usize, n: usize) -> ! {
     std::process::exit(keyscript::FAILED_EXIT);
 }
 
+/// A taken screenshot as 8-bit RGBA pixels.
+fn rgba_image(image: &egui::ColorImage) -> Result<image::RgbaImage, String> {
+    let [w, h] = image.size;
+    let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
+    image::RgbaImage::from_raw(w as u32, h as u32, rgba).ok_or_else(|| "the picture had the wrong size".to_owned())
+}
+
+/// A taken screenshot as the bytes of a PNG.
+fn png_bytes(image: &egui::ColorImage) -> Result<Vec<u8>, String> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    rgba_image(image)?.write_to(&mut out, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+    Ok(out.into_inner())
+}
+
 /// A taken screenshot as a PNG at `path`: the whole picture, or with `crop`
 /// the preview pane's rectangle (`preview`, in points; `content_width` is the
 /// window's width in points, to turn them into the picture's pixels).
@@ -232,8 +306,7 @@ pub(crate) fn save_shot(
     path: &Path,
 ) -> Result<PathBuf, String> {
     let [w, h] = image.size;
-    let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
-    let mut img = image::RgbaImage::from_raw(w as u32, h as u32, rgba).ok_or_else(|| "the picture had the wrong size".to_owned())?;
+    let mut img = rgba_image(image)?;
     if crop {
         let r = preview.ok_or_else(|| "no preview pane is on screen".to_owned())?;
         let k = w as f32 / content_width.max(1.0);
@@ -269,14 +342,14 @@ struct Seen<'a> {
     pixels_per_point: f32,
 }
 
-/// The sidecar `path` (`shots/<name>.json`) beside a shot's picture.
-fn write_shot_json(path: &Path, seen: &Seen) -> Result<(), String> {
+/// What a shot's side JSON says about its picture.
+fn meta_of(seen: &Seen) -> review::Meta {
     let [w, h] = seen.size;
     let (component, rect) = match seen.preview {
         Some(r) => ("preview", [r.min.x, r.min.y, r.width(), r.height()]),
         None => ("window", [0.0, 0.0, w, h]),
     };
-    let meta = review::Meta {
+    review::Meta {
         name: seen.name.to_owned(),
         app: "kura".to_owned(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -291,8 +364,12 @@ fn write_shot_json(path: &Path, seen: &Seen) -> Result<(), String> {
         rect,
         time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
         pixels_per_point: seen.pixels_per_point,
-    };
-    write_text(path, &meta.to_json())
+    }
+}
+
+/// The sidecar `path` (`shots/<name>.json`) beside a shot's picture.
+fn write_shot_json(path: &Path, seen: &Seen) -> Result<(), String> {
+    write_text(path, &meta_of(seen).to_json())
 }
 
 /// What kura reads under `tag` (`PaneText`, `PreviewText`); `None` for a tag it does not have.
@@ -341,8 +418,8 @@ impl ScriptRun {
     /// The script `steps` (from `keyscript::parse`), reporting to `done` and
     /// saving what it writes into `shot_dir`. `failed` is the flag `main`
     /// turns into the exit code.
-    pub(crate) fn new(steps: &[keyscript::Step], done: Option<PathBuf>, shot_dir: PathBuf, failed: Arc<AtomicBool>) -> Self {
-        Self::started(steps, done, shot_dir, failed, Instant::now(), |_| {})
+    pub(crate) fn new(script: &Script, done: Option<PathBuf>, shot_dir: PathBuf, failed: Arc<AtomicBool>) -> Self {
+        Self::started(&script.0, done, shot_dir, failed, Instant::now(), |_| {})
     }
 
     /// [`Self::new`] with the moment the run starts and a say in Pace's waits (for a test that puts a step "6 s ago").
@@ -371,6 +448,7 @@ impl ScriptRun {
             labels: steps.iter().map(keyscript::label).collect(),
             cursor_icon: egui::CursorIcon::Default,
             shot: None,
+            snap: None,
             shot_dir,
             done,
             watch: None,
@@ -526,8 +604,12 @@ impl ScriptRun {
     /// The run has ended as `e`: write `run.json` and `trace.jsonl` (a failure to is a failure of the run), the
     /// done file, the line on standard error and the toast for a person watching.
     fn keep(&mut self, app: &mut App, mut e: pace::Ended) -> Outcome {
-        // A late picture is never saved.
+        // A late picture is never saved, and a late answer of the state writer never completes a `<Snap:>`.
         self.shot = None;
+        self.snap = None;
+        self.state_out = None;
+        self.state_settled = None;
+        self.state_due = false;
         let unsettled = !self.pace.unsettled().is_empty();
         // The evidence could not be written. A close or quit keeps its tail, so `e.how` does not show this.
         let mut lost = false;
@@ -776,7 +858,7 @@ impl ScriptRun {
             }
             // Taken in `ui`, which is where a viewport command can be sent.
             Press::Shot(name) => {
-                self.shot = Some(Shot { name: name.clone(), sent: false, theme: String::new(), lang: String::new() });
+                self.shot = Some(Self::pending_shot(name, false));
                 Taken::Shot { path: self.shot_path(name).to_string_lossy().into_owned() }
             }
             // The window lays out again at the new size before the next step.
@@ -794,8 +876,30 @@ impl ScriptRun {
                 edit = Some(("language", format!("{code:?}")));
                 Taken::Changed { more: Vec::new() }
             }
-            // Refused before the window opens (`unsupported`); a run handed one anyway fails on it.
-            Press::Snap { name, .. } => Taken::Failed(format!("<Snap:{name}>: {UNSUPPORTED_WHY}")),
+            // A state, the picture and a state again; Pace queues the later two stages itself. No `{name}.txt`: the JSON only.
+            Press::Snap { name, stage: keyscript::SnapStage::Before } => {
+                self.snap = Some(SnapRun {
+                    name: name.clone(),
+                    capture_id: format!("{}-{name}", entry.idx + 1),
+                    settled: self.pace.take_settled(),
+                    before: None,
+                    shot: None,
+                });
+                let n = format!("{name}-before");
+                self.state_out = Some((n.clone(), entry.idx));
+                self.state_due = true;
+                Taken::State { name: n }
+            }
+            Press::Snap { name, stage: keyscript::SnapStage::Shot } => {
+                self.shot = Some(Self::pending_shot(name, true));
+                Taken::Shot { path: self.shot_path(name).to_string_lossy().into_owned() }
+            }
+            Press::Snap { name, stage: keyscript::SnapStage::After } => {
+                let n = format!("{name}-after");
+                self.state_out = Some((n.clone(), entry.idx));
+                self.state_due = true;
+                Taken::State { name: n }
+            }
             // The window-reading steps. Each needs a tree drawn after the last action; Pace waits for
             // what it looks for, then fails the run with the reason.
             Press::ClickText { right, text } => match self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)) {
@@ -883,6 +987,21 @@ impl ScriptRun {
         }
     }
 
+    /// A `<Shot:>` (or the picture stage of a `<Snap:>`) that has not been asked for yet.
+    fn pending_shot(name: &str, snap: bool) -> Shot {
+        Shot {
+            name: name.to_owned(),
+            sent: false,
+            theme: String::new(),
+            lang: String::new(),
+            snap,
+            requested_frame: 0,
+            size: [0.0; 2],
+            pixels_per_point: 1.0,
+            sent_time: 0,
+        }
+    }
+
     fn shot_step(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
         let Some(shot) = &mut self.shot else { return Outcome::Continue };
         if !shot.sent {
@@ -890,11 +1009,17 @@ impl ScriptRun {
             // What is in force now is what the picture shows.
             shot.theme = app.theme_name.clone().unwrap_or_default();
             shot.lang = app.lang.clone();
+            shot.requested_frame = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
+            let screen = ctx.content_rect();
+            shot.size = [screen.width(), screen.height()];
+            shot.pixels_per_point = ctx.pixels_per_point();
+            shot.sent_time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
             shot.sent = true;
             ctx.request_repaint();
             return Outcome::Continue;
         }
-        let (name, in_force) = (shot.name.clone(), (shot.theme.clone(), shot.lang.clone()));
+        let (name, in_force, snap) = (shot.name.clone(), (shot.theme.clone(), shot.lang.clone()), shot.snap);
+        let (requested_frame, size, pixels_per_point, sent_time) = (shot.requested_frame, shot.size, shot.pixels_per_point, shot.sent_time);
         let image = ctx.input(|i| {
             i.raw.events.iter().find_map(|e| match e {
                 egui::Event::Screenshot { user_data, image, .. }
@@ -909,6 +1034,26 @@ impl ScriptRun {
             ctx.request_repaint();
             return Outcome::Continue;
         };
+        if snap {
+            // The picture and what its side JSON will say; `shots/<name>.json` waits for the after state.
+            let seen = Seen {
+                name: &name,
+                theme: &in_force.0,
+                lang: &in_force.1,
+                requested: (&self.theme_requested, &self.lang_requested),
+                size,
+                preview: None,
+                pixels_per_point,
+            };
+            let meta = review::Meta { time: sent_time, ..meta_of(&seen) };
+            let received_frame = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
+            let saved = self.store_snap_picture(&name, &image).map(|(png_sha256, size_px)| {
+                if let Some(run) = self.snap.as_mut() {
+                    run.shot = Some(SnapShot { meta, png_sha256, size_px, requested_frame, received_frame });
+                }
+            });
+            return self.shot_result(app, saved, Instant::now());
+        }
         // `name@preview` is the preview pane's rectangle, in the picture's pixels.
         let crop = name.ends_with(keyscript::SHOT_PREVIEW);
         let png = self.shot_path(&name);
@@ -932,6 +1077,21 @@ impl ScriptRun {
         self.shot_result(app, saved, Instant::now())
     }
 
+    /// The picture of a `<Snap:>`, durably (`.part`, flushed, renamed): its SHA-256 and size in pixels.
+    fn store_snap_picture(&self, name: &str, image: &egui::ColorImage) -> Result<(String, [u32; 2]), String> {
+        if self.snap.is_none() {
+            return Err(format!("no <Snap:{name}> is running"));
+        }
+        let png = self.shot_path(name);
+        if let Some(d) = png.parent() {
+            std::fs::create_dir_all(d).map_err(|e| format!("could not make {}: {e}", d.display()))?;
+        }
+        let bytes = png_bytes(image)?;
+        evidence::write_durable(&png, &bytes).map_err(|e| format!("could not save {}: {e}", png.display()))?;
+        let [w, h] = image.size;
+        Ok((state::sha256_hex(&bytes), [u32::try_from(w).unwrap_or(u32::MAX), u32::try_from(h).unwrap_or(u32::MAX)]))
+    }
+
     /// The picture of `<Shot:>` was saved or could not be: tell Pace. A seam so that a test can feed its own answer.
     fn shot_result(&mut self, app: &mut App, saved: Result<(), String>, now: Instant) -> Outcome {
         match saved {
@@ -940,10 +1100,15 @@ impl ScriptRun {
                 self.pace.shot_saved(now);
                 Outcome::Continue
             }
-            Err(why) => match self.pace.shot_failed(why) {
-                Some(e) => self.keep(app, e),
-                None => Outcome::Continue,
-            },
+            Err(why) => {
+                // A `<Snap:>` that lost its picture is over; nothing of it is written later.
+                self.shot = None;
+                self.snap = None;
+                match self.pace.shot_failed(why) {
+                    Some(e) => self.keep(app, e),
+                    None => Outcome::Continue,
+                }
+            }
         }
     }
 
@@ -951,6 +1116,7 @@ impl ScriptRun {
     fn state_failed(&mut self, app: &mut App, why: &str) -> Outcome {
         self.state_out = None;
         self.state_due = false;
+        self.snap = None;
         match self.pace.state_failed(why) {
             Some(e) => self.keep(app, e),
             None => Outcome::Continue,
@@ -962,10 +1128,11 @@ impl ScriptRun {
         while let Some(ack) = state::take_ack(ctx) {
             let Some((want, _)) = self.state_out.clone() else { continue };
             let why = match ack {
-                state::Ack::Written { name, .. } if name == want => {
-                    self.state_out = None;
-                    self.pace.state_saved(now);
-                    continue;
+                state::Ack::Written { name, path, sha256, stable, snapshot_seq, .. } if name == want => {
+                    match self.state_written(&name, &path, sha256, stable, snapshot_seq, now) {
+                        Ok(()) => continue,
+                        Err(why) => why,
+                    }
                 }
                 state::Ack::Written { name, .. } => format!("state JSON for {name} arrived while waiting for {want}"),
                 state::Ack::Failed { name, why } if name == want => why,
@@ -981,6 +1148,79 @@ impl ScriptRun {
         None
     }
 
+    /// The state `name` is on disk. A `<Snap:>` keeps what its side JSON says about it; the after state is the last
+    /// piece, and the side JSON is written before Pace hears that the step is done. `Err` is the reason the run fails.
+    fn state_written(
+        &mut self,
+        name: &str,
+        path: &Path,
+        sha256: String,
+        stable: state::Stable,
+        seq: u64,
+        now: Instant,
+    ) -> Result<(), String> {
+        let reference = |sha256: String, stable: state::Stable| SnapState {
+            path: format!("state/{}", path.file_name().map_or_else(|| name.to_owned(), |f| f.to_string_lossy().into_owned())),
+            sha256,
+            stable,
+            seq,
+        };
+        let snap_name = self.snap.as_ref().map(|s| s.name.clone());
+        match snap_name {
+            Some(a) if name == format!("{a}-before") => {
+                if let Some(snap) = self.snap.as_mut() {
+                    snap.before = Some(reference(sha256, stable));
+                }
+            }
+            Some(a) if name == format!("{a}-after") => {
+                self.write_snap_json(&a, &reference(sha256, stable))?;
+                self.snap = None;
+            }
+            _ => {}
+        }
+        self.state_out = None;
+        self.pace.state_saved(now);
+        Ok(())
+    }
+
+    /// `shots/<a>.json` of a `<Snap:>`, once its after state is written.
+    #[allow(clippy::field_reassign_with_default)]
+    fn write_snap_json(&self, a: &str, after: &SnapState) -> Result<(), String> {
+        let snap = self.snap.as_ref().ok_or_else(|| format!("cannot write shots/{a}.json: no <Snap:{a}> is running"))?;
+        let (Some(before), Some(shot)) = (&snap.before, &snap.shot) else {
+            return Err(format!("cannot write shots/{a}.json: the before state or the picture of <Snap:{a}> is missing"));
+        };
+        if before.seq != after.seq {
+            return Err(format!("state-after of <Snap:{a}> has snapshot_seq {} but state-before had {}", after.seq, before.seq));
+        }
+        // `StateRef`, `Capture` and `Env` are `#[non_exhaustive]`: built from `Default` and filled in.
+        let state_ref = |s: &SnapState| {
+            let mut r = review::StateRef::default();
+            r.path = s.path.clone();
+            r.sha256 = s.sha256.clone();
+            r.projection = s.stable.projection;
+            r.ui_sha256 = s.stable.ui_sha256.clone();
+            r.app_sha256 = s.stable.app_sha256.clone();
+            r
+        };
+        let unchanged = before.stable.ui_sha256 == after.stable.ui_sha256 && before.stable.app_sha256 == after.stable.app_sha256;
+        let mut capture = review::Capture::default();
+        capture.run_id = keyscript::current_run_id().map(str::to_owned);
+        capture.snapshot_seq = Some(before.seq);
+        capture.capture_id = snap.capture_id.clone();
+        capture.png = format!("{a}.png");
+        capture.png_sha256 = shot.png_sha256.clone();
+        capture.size_px = shot.size_px;
+        capture.state_before = Some(state_ref(before));
+        capture.state_after = Some(state_ref(after));
+        capture.state_unchanged = Some(unchanged);
+        capture.requested_frame = shot.requested_frame;
+        capture.received_frame = shot.received_frame;
+        capture.env = review::Env::of(&shot.meta);
+        let json = self.shot_dir.join("shots").join(format!("{a}.json"));
+        evidence::write_durable(&json, shot.meta.to_json_with(&capture).as_bytes()).map_err(|e| format!("cannot write shots/{a}.json: {e}"))
+    }
+
     /// `<State:name>`: once the window is drawn, hand ito the app's part of the state JSON. It is read here and not in
     /// the hook because `ui` still changes the app after the hook (expired toasts go, results arrive, the keys act),
     /// and ito merges it into the tree of this same pass. A pass egui throws away leaves it for the next one.
@@ -992,18 +1232,29 @@ impl ScriptRun {
         let Some((name, idx)) = self.state_out.clone() else { return Outcome::Continue };
         let after_step = idx.checked_sub(1);
         let asked = |s: &str| Some(s.to_owned()).filter(|s| !s.is_empty());
+        // The stages of a `<Snap:>` say which one they are and share its capture ID (as ito's `write_state`).
+        let (phase, capture_id, settled) = match &self.snap {
+            Some(snap) if name == format!("{}-before", snap.name) => {
+                (Some(state::Phase::Before), Some(snap.capture_id.clone()), snap.settled)
+            }
+            Some(snap) if name == format!("{}-after", snap.name) => {
+                (Some(state::Phase::After), Some(snap.capture_id.clone()), snap.settled)
+            }
+            _ => (None, None, self.state_settled),
+        };
         let header = state::Header {
             dir: self.shot_dir.clone(),
             name,
             run_id: keyscript::current_run_id().map(str::to_owned),
             after_step,
             after_label: after_step.and_then(|i| self.labels.get(i).cloned()),
-            settled: self.state_settled,
+            settled,
             app_name: Some("kura".to_owned()),
             app_version: Some(env!("CARGO_PKG_VERSION").to_owned()),
             theme_requested: asked(&self.theme_requested),
             lang_requested: asked(&self.lang_requested),
-            ..Default::default()
+            phase,
+            capture_id,
         };
         let out = match state::submit(ctx, header, state_part(app)) {
             Ok(()) => Outcome::Continue,
@@ -1219,10 +1470,14 @@ mod tests {
     /// `common.toml` edit: the answers come from the table.
     struct KuraSubject;
 
+    /// What the shot handler would have kept of a saved picture.
+    fn synthetic_snap_shot() -> SnapShot {
+        SnapShot { meta: review::Meta::default(), png_sha256: "0".repeat(64), size_px: [1, 1], requested_frame: 1, received_frame: 2 }
+    }
+
     impl pace::conformance::Subject for KuraSubject {
         fn skips(&self) -> &[pace::conformance::Need] {
-            // kura refuses `<Snap:>`.
-            &[pace::conformance::Need::Snap]
+            &[]
         }
 
         fn run(&mut self, case: &pace::conformance::Case) -> pace::conformance::Trace {
@@ -1248,6 +1503,10 @@ mod tests {
                         ShotEvent::Saved => Ok(()),
                         ShotEvent::Failed(why) => Err((*why).to_owned()),
                     };
+                    // The picture of a `<Snap:>` is what the shot handler keeps; the table only says that it was saved.
+                    if let (Some(snap), Ok(())) = (run.snap.as_mut(), &saved) {
+                        snap.shot = Some(synthetic_snap_shot());
+                    }
                     let _ = run.shot_result(app, saved, now);
                     let _ = run.sync(app);
                     if run.done.is_none() {
@@ -1257,8 +1516,23 @@ mod tests {
                 }
                 match &tick.state {
                     Some(pace::conformance::StateEvent::Saved) => {
-                        run.state_out = None;
-                        run.pace.state_saved(now);
+                        let name = run.state_out.as_ref().map(|(n, _)| n.clone()).unwrap_or_default();
+                        let written = run.state_written(
+                            &name,
+                            Path::new(&format!("{name}.json")),
+                            "0".repeat(64),
+                            state::Stable { projection: 1, ui_sha256: "u".into(), app_sha256: "a".into() },
+                            1,
+                            now,
+                        );
+                        if let Err(why) = written {
+                            let _ = run.state_failed(app, &why);
+                            let _ = run.sync(app);
+                            if run.done.is_none() {
+                                end_ms = Some(tick.ms);
+                                break;
+                            }
+                        }
                     }
                     Some(pace::conformance::StateEvent::Failed(why)) => {
                         let _ = run.state_failed(app, why);
@@ -1391,8 +1665,9 @@ mod tests {
         }
         let unknown = Press::Read { tag: "Bogus".into(), name: "n".into() };
         assert!(unsupported(&unknown).is_some());
-        // ito v0.276.0's `<Snap:>` writes state JSON, which kura does not: refused before the first key.
-        assert!(unsupported(&p("<Snap:x>")).is_some());
+        // `<Snap:>` is carried out since v0.160.0 (it reads the window, so the observer is on).
+        assert_eq!(unsupported(&p("<Snap:x>")), None);
+        assert!(reads_window(&p("<Snap:x>")));
     }
 
     /// The key script `scripts/check-term-settings.sh` sends runs only on Linux CI, so a step kura
@@ -1776,7 +2051,7 @@ mod tests {
         assert!(rig.flag());
     }
 
-    /// The guard against a step a newer ito adds (today `<Snap:>`; the whole run is in tests/keys_fail_closed.rs).
+    /// The guard against a step a newer ito adds (no step is refused today).
     /// Its report as text: a failed report naming the step and its place, with one `run:` line.
     #[test]
     fn a_refused_step_is_reported_as_failed_with_its_place_and_one_run_line() {
@@ -2285,6 +2560,222 @@ mod tests {
             assert_eq!(rig.pass(run, 0), Outcome::Continue);
         }
         panic!("the state was not acknowledged in 2000 passes");
+    }
+
+    /// Passes as `ui` runs them, and the picture delivered when the run asks for it, until the run ends or finishes.
+    fn drive_snap(rig: &mut Rig, run: &mut ScriptRun) -> Outcome {
+        for _ in 0..2000 {
+            let out = if run.shot.is_some() { deliver(rig, run, "a") } else { rig.pass(run, 1) };
+            if out != Outcome::Continue || run.pace.finished() {
+                return out;
+            }
+        }
+        panic!(
+            "the <Snap:a> did not finish in 2000 passes: shot={:?} out={:?} due={} snap={:?} left={} inflight={}",
+            run.shot.is_some(),
+            run.state_out,
+            run.state_due,
+            run.snap.as_ref().map(|s| (s.before.is_some(), s.shot.is_some())),
+            run.pace.left(),
+            run.pace.in_flight()
+        );
+    }
+
+    fn snap_rig(label: &str) -> (Rig, ScriptRun, PathBuf) {
+        // ito pairs a before state with its after state by run id, and the id is one per process. Set it here, or
+        // another test can set it between the two and part them.
+        keyscript::run_id("KURA").unwrap();
+        let rig = Rig::new(label, true);
+        let out = rig.dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let run = rig.run("<Snap:a>", Some(out.join("done.txt")), out.clone());
+        (rig, run, out)
+    }
+
+    /// The run, passed on until it is waiting for the after state of `<Snap:a>` (its picture is saved).
+    fn until_after_state(rig: &mut Rig, run: &mut ScriptRun) {
+        for _ in 0..2000 {
+            if run.state_out.as_ref().is_some_and(|(n, _)| n == "a-after") {
+                return;
+            }
+            let out = if run.shot.is_some() { deliver(rig, run, "a") } else { rig.pass(run, 1) };
+            assert_eq!(out, Outcome::Continue);
+        }
+        panic!("the run never asked for the after state");
+    }
+
+    fn sha_of(path: &Path) -> String {
+        state::sha256_hex(&std::fs::read(path).unwrap())
+    }
+
+    fn snap_state(seq: u64) -> SnapState {
+        SnapState {
+            path: "state/a-before.json".into(),
+            sha256: "1".repeat(64),
+            stable: state::Stable { projection: 1, ui_sha256: "u".into(), app_sha256: "a".into() },
+            seq,
+        }
+    }
+
+    #[test]
+    fn a_snap_leaves_two_states_a_picture_and_its_side_json() {
+        let (mut rig, mut run, out) = snap_rig("keys-snap-ok");
+        assert_eq!(drive_snap(&mut rig, &mut run), Outcome::Continue);
+        assert!(run.snap.is_none());
+        let (before, after) = (state_json_of(&out, "a-before"), state_json_of(&out, "a-after"));
+        assert_eq!((before["phase"].as_str(), after["phase"].as_str()), (Some("before"), Some("after")), "{before} {after}");
+        assert_eq!(before["capture_id"], "1-a");
+        assert_eq!(after["capture_id"], "1-a");
+        assert_eq!(before["snapshot_seq"], after["snapshot_seq"]);
+        let png = out.join("shots").join("a.png");
+        assert!(png.is_file());
+        assert!(!out.join("a.txt").exists(), "a <Snap:> writes no name.txt");
+        let v: ito_mcp::serde_json::Value = ito_mcp::serde_json::from_str(&read(&out.join("shots").join("a.json"))).unwrap();
+        assert!(v["run_id"].is_string(), "{v}");
+        assert_eq!(v["capture_id"], "1-a", "{v}");
+        assert_eq!(v["png_sha256"].as_str(), Some(sha_of(&png).as_str()), "{v}");
+        assert_eq!(v["state_before"]["sha256"].as_str(), Some(sha_of(&out.join("state").join("a-before.json")).as_str()), "{v}");
+        assert_eq!(v["state_after"]["sha256"].as_str(), Some(sha_of(&out.join("state").join("a-after.json")).as_str()), "{v}");
+        assert_eq!(v["snapshot_seq"], before["snapshot_seq"], "{v}");
+        // The language and theme in force are one record per process, so another test can change them between the two
+        // states. What this checks is that the side JSON says what the two states say.
+        assert_eq!(v["state_unchanged"].as_bool(), Some(before["stable"] == after["stable"]), "{v}");
+        assert!(read(&out.join("done.txt")).ends_with("keys: done\n"));
+    }
+
+    #[test]
+    fn the_side_json_waits_for_the_after_state() {
+        let (mut rig, mut run, out) = snap_rig("keys-snap-order");
+        until_after_state(&mut rig, &mut run);
+        assert!(out.join("shots").join("a.png").is_file() && out.join("state").join("a-before.json").is_file());
+        assert!(!out.join("shots").join("a.json").exists(), "not before the after state is acknowledged");
+        until_acked(&mut rig, &mut run);
+        assert!(out.join("shots").join("a.json").is_file(), "written before Pace is told");
+        assert!(out.join("state").join("a-after.json").is_file());
+    }
+
+    #[test]
+    fn the_side_json_is_refused_for_a_mismatch_or_a_missing_part() {
+        let (_rig, mut run, out) = snap_rig("keys-snap-refuse");
+        let run_of = |before: Option<SnapState>, shot: Option<SnapShot>| SnapRun {
+            name: "a".into(),
+            capture_id: "1-a".into(),
+            settled: None,
+            before,
+            shot,
+        };
+        run.snap = Some(run_of(Some(snap_state(3)), Some(synthetic_snap_shot())));
+        let why = run.write_snap_json("a", &snap_state(4)).unwrap_err();
+        assert_eq!(why, "state-after of <Snap:a> has snapshot_seq 4 but state-before had 3");
+        run.snap = Some(run_of(None, Some(synthetic_snap_shot())));
+        let missing = "cannot write shots/a.json: the before state or the picture of <Snap:a> is missing";
+        assert_eq!(run.write_snap_json("a", &snap_state(3)).unwrap_err(), missing);
+        run.snap = Some(run_of(Some(snap_state(3)), None));
+        assert_eq!(run.write_snap_json("a", &snap_state(3)).unwrap_err(), missing);
+        assert!(!out.join("shots").join("a.json").exists());
+    }
+
+    #[test]
+    fn the_side_json_says_whether_the_state_changed() {
+        let (_rig, mut run, out) = snap_rig("keys-snap-unchanged");
+        std::fs::create_dir_all(out.join("shots")).unwrap();
+        let mut said = |after: SnapState| {
+            run.snap = Some(SnapRun {
+                name: "a".into(),
+                capture_id: "1-a".into(),
+                settled: None,
+                before: Some(snap_state(3)),
+                shot: Some(synthetic_snap_shot()),
+            });
+            run.write_snap_json("a", &after).unwrap();
+            let v: ito_mcp::serde_json::Value = ito_mcp::serde_json::from_str(&read(&out.join("shots").join("a.json"))).unwrap();
+            v["state_unchanged"].clone()
+        };
+        assert_eq!(said(snap_state(3)), true);
+        let mut changed = snap_state(3);
+        changed.stable.app_sha256 = "b".into();
+        assert_eq!(said(changed), false);
+    }
+
+    #[test]
+    fn a_picture_that_cannot_be_saved_fails_the_snap() {
+        let (mut rig, mut run, out) = snap_rig("keys-snap-png-blocked");
+        std::fs::create_dir_all(out.join("shots").join("a.png")).unwrap();
+        let mut result = Outcome::Continue;
+        for _ in 0..2000 {
+            result = if run.shot.is_some() { deliver(&mut rig, &mut run, "a") } else { rig.pass(&mut run, 1) };
+            if result != Outcome::Continue {
+                break;
+            }
+        }
+        assert_eq!(result, Outcome::Failed);
+        let said = read(&out.join("done.txt"));
+        assert!(said.contains("keys: failed") && said.contains("shot:"), "{said}");
+        assert!(!out.join("shots").join("a.json").exists());
+        assert!(run.snap.is_none());
+    }
+
+    #[test]
+    fn a_failed_after_state_fails_the_snap_without_a_side_json() {
+        let (mut rig, mut run, out) = snap_rig("keys-snap-after-fails");
+        // A folder where the writer will put the after state: the before state is written, the after one is not.
+        std::fs::create_dir_all(out.join("state").join("a-after.json")).unwrap();
+        let mut result = Outcome::Continue;
+        for _ in 0..2000 {
+            result = if run.shot.is_some() { deliver(&mut rig, &mut run, "a") } else { rig.pass(&mut run, 1) };
+            if result != Outcome::Continue {
+                break;
+            }
+        }
+        assert_eq!(result, Outcome::Failed);
+        let said = read(&out.join("done.txt"));
+        assert!(said.contains("keys: failed") && said.contains("state-after:") && said.contains("cannot write"), "{said}");
+        assert!(!out.join("shots").join("a.json").exists());
+        assert!(run.snap.is_none());
+    }
+
+    #[test]
+    fn a_window_closed_in_the_middle_of_a_snap_leaves_no_side_json() {
+        let (mut rig, mut run, out) = snap_rig("keys-snap-closed");
+        until_after_state(&mut rig, &mut run);
+        // Bare passes merge what the last pass submitted, and the run reads no answer in them, so the writer's
+        // answer is in the queue when the window closes.
+        let ctx = rig.screen.ctx.clone();
+        let after = out.join("state").join("a-after.json");
+        for _ in 0..400 {
+            if after.is_file() {
+                break;
+            }
+            ctx.begin_pass(egui::RawInput::default());
+            let _ = ctx.end_pass();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(after.is_file(), "the writer never wrote the after state");
+        let _ = run.ended(&mut rig.screen.app, Ending::Closed);
+        assert!(run.snap.is_none() && run.state_out.is_none());
+        for _ in 0..50 {
+            let _ = run.drain_state(&ctx, &mut rig.screen.app, rig.t0);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!out.join("shots").join("a.json").exists(), "a late answer completes nothing");
+    }
+
+    #[test]
+    fn the_snap_step_reads_the_window_and_is_not_refused() {
+        let snap = keyscript::press(&keyscript::parse("<Snap:x>").unwrap()[0]).unwrap();
+        assert!(reads_window(&snap));
+        assert_eq!(unsupported(&snap), None);
+    }
+
+    #[test]
+    fn a_script_is_checked_before_a_run_can_take_it() {
+        let mut steps = keyscript::parse("j<Wait:5>").unwrap();
+        assert!(Script::checked(steps.clone()).is_ok_and(|s| !s.is_empty()));
+        assert!(Script::checked(Vec::new()).is_ok_and(|s| s.is_empty()));
+        steps.push(keyscript::Step::Read { tag: "Bogus".into(), name: "n".into() });
+        let (label, place, total) = Script::checked(steps).err().expect("refused");
+        assert_eq!((place, total), (3, 3), "{label}");
+        assert!(label.contains("Bogus"), "{label}");
     }
 
     #[test]

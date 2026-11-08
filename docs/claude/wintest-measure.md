@@ -21,9 +21,9 @@
 - 期待値 1 つにつき測った数 1 つ。**数・閾値・出どころ（ファイル＋キー、または画素の座標）**を報告する。
 - **AI Vision の答え・モデル同士の一致・自分が見た印象は、測定に数えない。**
 
-kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など。矩形は無い）、`<Shot:名前>` の PNG（窓全体。`shots/名前.png`）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
-画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON（`shots/名前.json`。theme・lang・size・rect・component・ppp）は kura から出る（v0.156.0）。矩形つきの state はまだ出ない（`src/main.rs` の `state_report`、`src/script_run.rs` の `take_shot`/`save_shot`）。
-**ito から来るのを待つもの**: state JSON v1、`<Snap:>`、矩形つきの Tree、検査器、証拠の folder（ito の `docs/visual-test.md` 成果物 2・決定 5）。
+kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など）と state JSON v1（`state/名前.json`。v0.159.0）、`<Snap:名前>`（v0.160.0。1 手で `state/名前-before.json`・`shots/名前.png`・`state/名前-after.json`・`shots/名前.json` を残す）、検査器 `scripts/visual-check.py`、証拠の folder（`keys.ps1 -Evidence`）、`<Shot:名前>` の PNG（窓全体。`shots/名前.png`）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
+画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON（`shots/名前.json`。theme・lang・size・rect・component・ppp）は kura から出る（v0.156.0）。**部品の矩形はまだ出ない。**kura はまだ部品に test id を付けていないので state の `ui[]` が空で、検査器は `ui[] is empty` の ERROR にする。check spec を書く前に、その行の部品に `ito_a11y::test_id` を付ける。
+**ito から来るのを待つもの**: ito の部品の中にある test id（タイトルバーの箱、ターミナルペインのプロンプトの印）。
 check spec が無い行、または今の道具では期待値のすべてを測れない行は、**目で見た行のまま**で、`[~]` までにする。
 
 画素の判定は **Windows / macOS の実機だけ**。**Linux のレーン（Xvfb）では画素を判定しない**（CPU 描画は実機の描画の代わりにならない）。

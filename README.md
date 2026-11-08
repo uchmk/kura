@@ -1898,8 +1898,10 @@ A run that did not do what the script said does not end `keys: done`, and exits 
   then ends the run `keys: failed` with the reason, as ito's shared runner does. A click goes in as one frame (move, press, release).
   `<State:>` ends with `since last action: N ms`. Since v0.157.0 kura announces its toasts, so `<Announced:>` hears them
   (`y<Announced:Yanked 1 item>`).
-- `<Snap:name>` (ito v0.276.0: a state, a picture and a state again as one step) needs the state JSON, which kura does not write
-  yet. A script with one ends `keys: failed` before the window opens, naming the step (v0.157.1).
+- `<Snap:name>` (since v0.160.0) is a state, a picture and a state again as one step. It leaves, in this order,
+  `state/name-before.json` (phase `before`, with a `capture_id`), `shots/name.png`, `state/name-after.json` (phase `after`, the same
+  `capture_id` and `snapshot_seq`) and `shots/name.json` (the `shot.v1` side JSON, written once the after state is on disk).
+  It writes no `name.txt`, and unlike `<Shot:>` it has no `@preview`: the picture is always the whole window.
 - `keys: unsettled`, after lines naming the steps that went in after 5 seconds with the screen still not settled,
   and whether the script ended that way. The keys all went in, but not on the state the script assumed.
   Without `<Quit>` the window stays open as before, and kura exits 3 when it is closed.
