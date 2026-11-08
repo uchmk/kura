@@ -12,6 +12,22 @@
   その行は **どの代わりを試し、なぜ主張を支えられなかったか** を書く。「見た目だから」だけは理由にならない。
 - 代わりの測定（`conhost.exe` の数だけ、など）は行全体の PASS にならない。測れなかった部分を **未確認** に挙げる。
 
+### 1a. 矩形と画素を測る（Tier 1。2026-11-08 承認）
+
+見た目の行でも、期待値のすべてを機械が測った行は `[x]` になりうる（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 1）。測定に数えるのは次だけ。
+
+- **同じ実行の** `<State:>` / state JSON の値、UI 要素の矩形、その実行の PNG から読んだ画素（矩形から割り出した座標）、持ち主が承認した基準画像との差。
+- 閾値は、その行の check spec（`tests/visual/<行>.toml`）に**実行の前に**書いたもの。見たあとで決めた閾値は数えない。
+- 期待値 1 つにつき測った数 1 つ。**数・閾値・出どころ（ファイル＋キー、または画素の座標）**を報告する。
+- **AI Vision の答え・モデル同士の一致・自分が見た印象は、測定に数えない。**
+
+kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など。矩形は無い）、`<Shot:名前>` の PNG（窓全体）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
+画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON と矩形つきの state は kura からはまだ出ない（`src/main.rs` の `state_report`、`src/script_run.rs` の `take_shot`/`save_shot`）。
+**ito から来るのを待つもの**: state JSON v1、`<Snap:>`、矩形つきの Tree、検査器、証拠の folder（ito の `docs/visual-test.md` 成果物 2・決定 5）。
+check spec が無い行、または今の道具では期待値のすべてを測れない行は、**目で見た行のまま**で、`[~]` までにする。
+
+画素の判定は **Windows / macOS の実機だけ**。**Linux のレーン（Xvfb）では画素を判定しない**（CPU 描画は実機の描画の代わりにならない）。
+
 ## 2. GUI の走らせ方
 
 - `pwsh -NoProfile` で `scripts\keys.ps1 -Bin <exe> -Dir <dir> -Out <走らせるごとに新しい dir> -Isolate`。

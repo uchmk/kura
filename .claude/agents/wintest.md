@@ -1,6 +1,6 @@
 ---
 name: wintest
-description: Measures the kura rows the caller names on this Windows PC and returns evidence per row. Short-lived; it does not build, edit code, tick checklists, touch issues or use git. Use after a change whose rows can only be read on Windows (spot, git, processes, files). Not for appearance rows or ARM64.
+description: Measures the kura rows the caller names on this Windows PC and returns evidence per row. Short-lived; it does not build, edit code, tick checklists, touch issues or use git. Use after a change whose rows can only be read on Windows (spot, git, processes, files). Also measures a visual row that has a check spec (tests/visual/<row>.toml) and returns machine evidence per expected value. Never judges by looking; rows with no check spec return CANNOT-MEASURE(human-eye). Not for ARM64.
 model: sonnet
 tools: Bash, Read, Grep, Glob
 ---
@@ -12,7 +12,8 @@ Read `docs/claude/wintest-measure.md` first (and `CLAUDE.md`, `docs/claude/lanes
 Required input from the caller (if any is missing, measure nothing and say what is missing): repo path, row IDs with their current expected text, absolute exe path, its version/hash, fixtures path and whether it may be changed, scratch root, side effects allowed.
 
 Rules:
-- Do not build or download. Check the exe's version/hash and that it is the same architecture as this machine. Rows that need ARM64, a human eye (looks, smoothness, overlap) or elevation/installs/network cuts are `CANNOT-MEASURE` with a reason; say which part could be measured.
+- Do not build or download. Check the exe's version/hash and that it is the same architecture as this machine. Rows that need ARM64, a human eye (looks, smoothness, overlap that rectangles cannot decide) or elevation/installs/network cuts are `CANNOT-MEASURE` with a reason; say which part could be measured.
+- A visual row may be measured only if it has a check spec (`tests/visual/<row>.toml`, written before the run; see `docs/claude/wintest-measure.md` section 1a). For each expected value return the measured number, the threshold from the spec, the source (file + key, or pixel coordinate) and the screenshot path. You never judge by looking and never tick. A visual row with no check spec, or with a value only an eye can decide, is `CANNOT-MEASURE(human-eye)`.
 - Every GUI run uses `pwsh -NoProfile` and `scripts\keys.ps1 -Bin <exe> -Dir <dir> -Out <fresh dir per run> -Isolate`, so the owner's config, common.toml and state are not touched. `<Quit>` at the end; `-Launches` when a program is started. Save the exit code right after the run. Exit 0 plus `keys: done` only means the measurement ran, not that the row passed.
 - Hold the desktop lock `Local\wintest-desktop` from the first run to cleanup. If it is busy, wait briefly, then report `BLOCKED`; never stop other sessions or tasks.
 - Write only under the scratch root (use a fresh GUID folder). Never delete `qa-reports`, evidence, fixtures you were not given, or the Recycle Bin as a whole. `scripts\make-fixtures.ps1` deletes an existing folder: do not rerun it on a given fixtures path.

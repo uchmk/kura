@@ -144,8 +144,13 @@ can see what each one rests on. A tick with no evidence behind it is worse than
 an unticked row: the row would have been checked eventually, and the tick means
 it never will be.
 
-**Never tick an appearance row.** If you are unsure which kind a row is, it is an
-appearance row.
+**Never tick an appearance row on a look, yours or a model's.** A row whose every
+expected value a machine measured in the same run, against thresholds written in
+`tests/visual/<row>.toml` before the run (ito docs/visual-test.md, version 1), is a
+measured row, not an appearance row (Tier 1; `docs/claude/lanes.md`). If a Vision
+run on that row said `FAIL` anywhere, do not tick it. Do not turn an existing `[~]`
+into `[x]` without a fresh Tier 1 run. If you are unsure which kind a row is, it is
+an appearance row.
 
 **But you may mark one `[~]` (since 2026-10-03, the owner's call).** `[~]` means
 "an agent judged this from a screenshot it took" -- not done, counted apart from
