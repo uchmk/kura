@@ -135,7 +135,7 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::ClickId(_)
         | Press::IdCheck(_) => None,
         Press::Clipboard(_) | Press::ClipboardHas(_) => None,
-        // ito's state, picture, state step needs two functions ito has not made public yet.
+        // ito's state, picture, state step: the pieces are public since ito v0.282.0, kura has not wired it up yet.
         Press::Snap { .. } => Some("kura does not support <Snap:> yet"),
     }
 }
@@ -1338,7 +1338,7 @@ mod tests {
     }
 
     /// `<Quit>` has gone in and the window takes a few frames to close: nothing more is pressed.
-    /// The table has no frame after a quit, so this one is kura's own.
+    /// The table's two quit rows cover the pacing; this one also holds a queued `j` back and feeds egui nothing.
     #[test]
     fn nothing_is_pressed_while_the_window_closes() {
         let mut rig = Rig::new("keys-quit-closing", true);

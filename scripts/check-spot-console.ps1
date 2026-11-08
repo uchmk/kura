@@ -19,7 +19,8 @@ kura runs with the machine's and the user's PATH, the one a normal launch has, n
 PATH of the shell that started this script. Git Bash puts `mingw64\bin` first and finds
 git's own `git.exe`; a normal launch finds `Git\cmd\git.exe`, a wrapper that starts the
 real one. With DETACHED_PROCESS the wrapper has no console, so Windows gives the inner
-`git.exe` one of its own: the two PATHs give different answers for 46.11a.
+`git.exe` one of its own: the two PATHs give different answers for 46.11a, so kura starts
+git's own exe, found once through `git --exec-path` (v0.159.2, #519).
 
 The watcher (C# through Add-Type, started BEFORE kura, stopped AFTER it):
   - a thread with a message pump and SetWinEventHook(EVENT_OBJECT_CREATE ..
@@ -42,8 +43,11 @@ counts as under kura when its parent is kura or one of kura's descendants.
 Checks (a line each; the last line is `check-spot-console: ok`, exit 0, only if all hold):
   measured   at least one `git.exe` was seen under kura (else the run proves nothing)
   46.11      no visible console-class window attributed to kura's tree appeared
-  46.11a     no conhost.exe / OpenConsole.exe seen under kura's tree (the machine's
-             conhost count before and after is printed as information only)
+  46.11a     no conhost.exe / OpenConsole.exe seen under kura's tree but the one of the
+             first git directly under kura: ito_proc::git_program() asks `git --exec-path`
+             once per process, through the wrapper when that is what PATH finds, and
+             that one call owns a console host (#519). A second host fails. (The
+             machine's conhost count before and after is printed as information only.)
   git        the Git section is there: with the cursor on row 11 `spot row:` is `Last change`,
              on row 14 it is `Commits`, for all six files
   keys       the run ended `keys: done`
@@ -63,8 +67,10 @@ events that was), and what happens on ARM64.
 -SelfTest proves the checks can fail, without kura: a helper root process in place of kura,
 watched the same way: a visible console must fail 46.11; CREATE_NO_WINDOW must fail
 46.11a and pass 46.11; DETACHED_PROCESS on git's own `git.exe` (not the wrapper in
-`Git\cmd`) must pass both; no process at all must fail "measured". Exit 0 only when
-all four came out as expected.
+`Git\cmd`) must pass both; a detached helper whose one git opens a console must pass
+46.11a (the allowance for the first git) and one whose two gits each open a console
+must fail it; no process at all must fail "measured". Exit 0 only when all six came
+out as expected. The two detached helpers put console windows on the screen for a moment.
 #>
 param(
     [string]$Out,
@@ -289,10 +295,17 @@ function Get-Verdict([int]$Root, $Procs, $Wins) {
     }
     $v.measured = ($gits.Count -ge 1)
     $v.p4611 = ($mine.Count -eq 0)
-    $v.p4611a = ($hosts.Count -eq 0)
+    # ito_proc::git_program() asks `git --exec-path` once per process, through PATH's wrapper when that is what is
+    # found, and that one call owns a console host (#519). It is the first git directly under the root: its host is allowed, no other.
+    $firstGit = @($gits | Where-Object { $_.Ppid -eq $Root } | Sort-Object Seen | Select-Object -First 1)
+    $probe = if ($firstGit.Count) { $firstGit[0].Pid } else { -1 }
+    $probeHosts = @($hosts | Where-Object { $_.Ppid -eq $probe })
+    $otherHosts = @($hosts | Where-Object { $_.Ppid -ne $probe })
+    $v.p4611a = ($otherHosts.Count -eq 0 -and $probeHosts.Count -le 1)
     $v.foreign = $foreign
     $v.gits = $gits.Count
     $v.hostsUnder = $hosts.Count
+    $v.hostsProbe = $probeHosts.Count
     $v.mine = $mine
     $v.treeSize = $tree.Count
     $v
@@ -302,7 +315,7 @@ function Write-Verdict($V, [string]$Label) {
     Write-Output ("{0}: git.exe seen under root {1}, process tree {2}" -f $Label, $V.gits, $V.treeSize)
     Write-Output ("{0}: visible console windows of the tree: {1}" -f $Label, @($V.mine).Count)
     foreach ($w in $V.mine) { Write-Output ("    t={0}ms {1} class={2} hwnd=0x{3:x} pid={4} title='{5}'" -f $w.T, $w.Ev, $w.Class, $w.Hwnd, $w.Pid, $w.Title) }
-    Write-Output ("{0}: conhost.exe / OpenConsole.exe under the tree: {1}" -f $Label, $V.hostsUnder)
+    Write-Output ("{0}: conhost.exe / OpenConsole.exe under the tree: {1} ({2} of the first git)" -f $Label, $V.hostsUnder, $V.hostsProbe)
     Write-Output ("{0}: console windows that are not the tree's: {1}" -f $Label, @($V.foreign).Count)
     foreach ($w in $V.foreign) { Write-Output ("    t={0}ms {1} class={2} hwnd=0x{3:x} pid={4} title='{5}'" -f $w.T, $w.Ev, $w.Class, $w.Hwnd, $w.Pid, $w.Title) }
 }
@@ -323,10 +336,14 @@ if ($SelfTest) {
     $NEW_CONSOLE = 0x10; $NO_WINDOW = 0x08000000; $DETACHED = 0x8
     # The helper: cmd running git and then staying a moment (so a console, if there is one, is up long enough to be seen).
     $viaCmd = "`"$cmd`" /D /C `"`"$git`" --version >nul & ping -n 2 127.0.0.1 >nul`""
+    # A detached cmd has no console, so each git it starts opens its own. The alias keeps git alive for a whole snapshot cycle.
+    $slowGit = "`"$ownGit`" -c `"alias.z=!ping -n 2 127.0.0.1`" z"
     $cases = @(
         @{ Name = 'visible console'; Cmd = $viaCmd; Flags = $NEW_CONSOLE; Want = @{ measured = $true; p4611 = $false } },
         @{ Name = 'CREATE_NO_WINDOW'; Cmd = $viaCmd; Flags = $NO_WINDOW; Want = @{ measured = $true; p4611 = $true; p4611a = $false } },
         @{ Name = 'DETACHED_PROCESS'; Cmd = "`"$ownGit`" -C `"$repo`" grep -c -e zzqqxx"; Flags = $DETACHED; Want = @{ measured = $true; p4611 = $true; p4611a = $true } },
+        @{ Name = 'one console, the first git'; Cmd = "`"$cmd`" /D /C `"$slowGit`""; Flags = $DETACHED; Want = @{ measured = $true; p4611a = $true; hostsProbe = 1 } },
+        @{ Name = 'a console per git'; Cmd = "`"$cmd`" /D /C `"$slowGit & $slowGit`""; Flags = $DETACHED; Want = @{ measured = $true; p4611a = $false; hostsProbe = 1 } },
         @{ Name = 'no process'; Cmd = $null; Flags = 0; Want = @{ measured = $false } }
     )
     $allOk = $true
@@ -454,7 +471,7 @@ function Say([bool]$Ok, [string]$Text) { if (-not $Ok) { $script:bad++ }; Write-
 Say $keysOk $(if ($timedOut) { "keys: timed out after $Timeout s" } else { $last })
 Say $v.measured ("measured: {0} git.exe seen under kura" -f $v.gits)
 Say $v.p4611 ("46.11: {0} visible console windows of the tree" -f @($v.mine).Count)
-Say $v.p4611a ("46.11a: {0} conhost.exe / OpenConsole.exe under the tree" -f $v.hostsUnder)
+Say $v.p4611a ("46.11a: {0} conhost.exe / OpenConsole.exe under the tree, {1} of them the first git's (one is allowed)" -f $v.hostsUnder, $v.hostsProbe)
 Say $gitOk 'git: the Git section is there for all six files'
 $gitLines | ForEach-Object { Write-Output $_ }
 Say ([SpotWatch]::WinEvents -ge 1) ('events: the window hook saw {0} window events' -f [SpotWatch]::WinEvents)

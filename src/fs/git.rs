@@ -418,7 +418,11 @@ pub(crate) struct Commit {
 }
 
 fn run(dir: &Path, args: &[&str]) -> Option<String> {
-    let mut cmd = Command::new("git");
+    // Git's own exe, not the first `git` on PATH: on Windows that one is the
+    // `Git\cmd\git.exe` wrapper, and a wrapper started with no console leaves
+    // the real git to open one, a `conhost.exe` per call (#519). The first
+    // call blocks on `git --exec-path`; every caller here is a worker.
+    let mut cmd = Command::new(ito_proc::git_program());
     cmd.arg("-C").arg(dir).args(args);
     // A repository owned by someone else makes git refuse with a long note
     // about `safe.directory`; the pager and the terminal are no use either.
