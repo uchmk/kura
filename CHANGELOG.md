@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.157.2] - 2026-11-08
+
+### 変更
+
+- ito を d6b6e4d（v0.277.0）に上げた。Rust の API は kura から見て変わらない（`pace::conformance` の 4 つが公開になっただけ）。
+- レーンのスクリプトに ito の `scripts/visual-check.py`（見た目の行の仕様 `tests/visual/<行>.toml` を 1 回の実行の証拠と照らして `machine/assertions.json` を書く）と `scripts/evidence.py`（実行のフォルダと `pre/intent.json` を作り、manifest・check・verdict を書く）が入った。verdict は候補で、`[x]` の判断はしない。
+
 ## [0.157.1] - 2026-11-08
 
 ### 変更
