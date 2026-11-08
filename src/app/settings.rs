@@ -132,6 +132,7 @@ impl App {
         match ito_theme::pick(&self.themes, &choice, &dark, &light, self.os_light) {
             Ok(t) => {
                 self.theme_said = None;
+                self.theme_name = Some(t.name.clone());
                 let c = t.colors;
                 if self.cfg.theme.common != c {
                     self.cfg.theme = Arc::new(self.cfg.theme.with_common(&c));

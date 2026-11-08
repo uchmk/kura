@@ -49,7 +49,7 @@ for what `--keys` cannot do -- the mouse, or a sequence that depends on what you
 pane: `--keys "<C-t><Wait:1500>git<Space>status<Enter><Wait:1000><C-S-Enter>"`. Do not pad with
 harmless keys any more; a wait says how long it waited.
 **Since v0.65.0 `<Now>`** presses the next key without waiting for the last to settle (`d<Now>w`, `j<Now>j`), and
-**since v0.67.0 `<Shot:name>`** saves the window as `name.png` beside the `KURA_KEYS_DONE` file, so the picture between
+**since v0.67.0 `<Shot:name>`** saves the window as `shots/name.png` (and `shots/name.json`) beside the `KURA_KEYS_DONE` file, so the picture between
 two keys comes from the same run (`<Shot:focused><C-t><Shot:unfocused>`), and **since v0.73.74 `<State:name>`** writes the
 state lines to `name.txt` there, so a script can read a state halfway and still end in `q` (`<F12><State:panel><Esc>q`, #230). **Since v0.74.2 end a script with `<Quit>`**
 rather than `q` wherever `q` means something else -- the compare view closes on it, a prompt types it, the pane sends it -- or

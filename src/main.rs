@@ -886,6 +886,8 @@ impl eframe::App for Kura {
         self.app.drain_channels(&ctx);
         // `theme = "system"` follows the OS turning light or dark.
         self.app.set_os_light(ctx.system_theme() == Some(egui::Theme::Light));
+        // The colours and language the window draws in, for ito's parts (the title bar below) and a `--keys` shot's record.
+        ui::settings::put_in_force(&self.app);
         self.answer_mcp(&ctx);
         self.record_geometry(&ctx);
         self.remember_place(&ctx);

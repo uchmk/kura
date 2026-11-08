@@ -18,7 +18,7 @@ A symbolic link needs Developer Mode or an elevated shell on Windows; without
 either New-Item fails and this script stops there, saying so.
 
   -Run    then press the row through scripts\keys.ps1: select a and b, `<A-d>`,
-          and take a screenshot of the view (`fx45.png` in keys.ps1's folder).
+          and take a screenshot of the view (`shots\fx45.png` in keys.ps1's folder).
           The `ln` row must read as differing (`~`), not `=`.
 
 Written on Linux, where it cannot make Windows links: not yet run on Windows.

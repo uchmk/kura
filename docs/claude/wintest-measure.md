@@ -21,8 +21,8 @@
 - 期待値 1 つにつき測った数 1 つ。**数・閾値・出どころ（ファイル＋キー、または画素の座標）**を報告する。
 - **AI Vision の答え・モデル同士の一致・自分が見た印象は、測定に数えない。**
 
-kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など。矩形は無い）、`<Shot:名前>` の PNG（窓全体）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
-画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON と矩形つきの state は kura からはまだ出ない（`src/main.rs` の `state_report`、`src/script_run.rs` の `take_shot`/`save_shot`）。
+kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など。矩形は無い）、`<Shot:名前>` の PNG（窓全体。`shots/名前.png`）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
+画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON（`shots/名前.json`。theme・lang・size・rect・component・ppp）は kura から出る（v0.156.0）。矩形つきの state はまだ出ない（`src/main.rs` の `state_report`、`src/script_run.rs` の `take_shot`/`save_shot`）。
 **ito から来るのを待つもの**: state JSON v1、`<Snap:>`、矩形つきの Tree、検査器、証拠の folder（ito の `docs/visual-test.md` 成果物 2・決定 5）。
 check spec が無い行、または今の道具では期待値のすべてを測れない行は、**目で見た行のまま**で、`[~]` までにする。
 

@@ -194,6 +194,9 @@ pub struct App {
     pub os_light: bool,
     /// The last problem said about common.toml's `theme`, to say it once.
     theme_said: Option<String>,
+    /// The name of the theme `resolve_theme` last put in force (`None` until one was), for ito-theme's record and
+    /// the `--keys` shot sidecar.
+    pub(crate) theme_name: Option<String>,
     /// What went wrong opening config.toml from the settings screen, said
     /// from the thread that tried.
     /// `(is an error, text)`.
@@ -430,6 +433,7 @@ impl App {
             themes_tx,
             os_light: false,
             theme_said: None,
+            theme_name: None,
             settings_rx,
             settings_tx,
             kura_jobs: None,

@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::app::App;
-use crate::keyscript::{self, Press};
+use crate::keyscript::{self, evidence, pace, review, Press};
 
 /// How long a step waits for `App::settled()`, and a `<Shot:>` for its picture.
 const DEFAULT_WAIT: Duration = Duration::from_secs(5);
@@ -73,6 +73,9 @@ struct Shot {
     step: usize,
     /// When the step went in; the picture is waited for from here.
     since: Instant,
+    /// The theme and language in force when the screenshot command was sent (empty until then).
+    theme: String,
+    lang: String,
 }
 
 pub(crate) struct ScriptRun {
@@ -126,6 +129,16 @@ pub(crate) struct ScriptRun {
     acted_idx: Option<usize>,
     /// When the window-reading step at the front of the queue first failed to find what it looks for.
     check_since: Option<Instant>,
+    /// The theme the last `<Theme:>` of this run asked for; empty when none did.
+    theme_requested: String,
+    /// The language the last `<Lang:>` of this run asked for; empty when none did.
+    lang_requested: String,
+    /// `run.json`'s record, written beside the done file (only with one).
+    run: evidence::Run,
+    /// The first `run.json` has been tried.
+    run_started: bool,
+    /// The last `run.json` has been written, or there is no folder for it.
+    run_closed: bool,
 }
 
 /// What kura cannot carry out: `None` for the steps it can (today, every parsed step). An exhaustive
@@ -272,6 +285,53 @@ pub(crate) fn save_shot(
     Ok(path.to_path_buf())
 }
 
+/// The file name of `<Shot:name>`: `name` without the `@preview` suffix.
+fn shot_file(name: &str) -> &str {
+    name.strip_suffix(keyscript::SHOT_PREVIEW).unwrap_or(name)
+}
+
+/// What a `shots/<name>.json` says about its picture, as plain values.
+struct Seen<'a> {
+    /// The file name, without `@preview`.
+    name: &'a str,
+    /// In force when the screenshot command was sent.
+    theme: &'a str,
+    lang: &'a str,
+    /// What the last `<Theme:>` / `<Lang:>` asked for; empty for none.
+    requested: (&'a str, &'a str),
+    /// The window in points.
+    size: [f32; 2],
+    /// The preview pane in points when the picture is its crop.
+    preview: Option<egui::Rect>,
+    pixels_per_point: f32,
+}
+
+/// The sidecar `path` (`shots/<name>.json`) beside a shot's picture.
+fn write_shot_json(path: &Path, seen: &Seen) -> Result<(), String> {
+    let [w, h] = seen.size;
+    let (component, rect) = match seen.preview {
+        Some(r) => ("preview", [r.min.x, r.min.y, r.width(), r.height()]),
+        None => ("window", [0.0, 0.0, w, h]),
+    };
+    let meta = review::Meta {
+        name: seen.name.to_owned(),
+        app: "kura".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        theme: seen.theme.to_owned(),
+        theme_requested: seen.requested.0.to_owned(),
+        lang: seen.lang.to_owned(),
+        lang_requested: seen.requested.1.to_owned(),
+        size: [w, h],
+        zoom: 1.0,
+        state: String::new(),
+        component: component.to_owned(),
+        rect,
+        time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
+        pixels_per_point: seen.pixels_per_point,
+    };
+    write_text(path, &meta.to_json())
+}
+
 /// What kura reads under `tag` (`PaneText`, `PreviewText`); `None` for a tag it does not have.
 fn reading(app: &App, tag: &str) -> Option<String> {
     match tag {
@@ -307,6 +367,9 @@ impl ScriptRun {
         if queue.iter().any(|(_, p)| matches!(p, Press::Announced(_) | Press::Tree(_))) {
             ito_a11y::record_announcements(true);
         }
+        let mut run = evidence::Run::new("kura::ScriptRun", steps.len());
+        run.app = "kura".into();
+        run.app_version = env!("CARGO_PKG_VERSION").into();
         Self {
             queue,
             labels: steps.iter().map(keyscript::label).collect(),
@@ -333,6 +396,11 @@ impl ScriptRun {
             acted: None,
             acted_idx: None,
             check_since: None,
+            theme_requested: String::new(),
+            lang_requested: String::new(),
+            run,
+            run_started: false,
+            run_closed: false,
         }
     }
 
@@ -404,10 +472,55 @@ impl ScriptRun {
         // Nothing waits any more, so `due` stops asking for frames.
         self.check_since = None;
         self.read_has_since = None;
-        let report = crate::state_report(app) + &keyscript::failed_report(label, &why, left);
+        let how = pace::How::Failed { step: label.to_owned(), why: why.clone() };
+        // An ending that already fails keeps its tail, whether or not `run.json` could be written.
+        let (tail, _) = self.keep_run(how, keyscript::failed_report(label, &why, left), left);
+        let report = crate::state_report(app) + &tail;
         self.write_done(&report);
         app.error(format!("{label}: {why}"));
         Outcome::Failed
+    }
+
+    /// The first `run.json`, `running`, at the first frame the player handles (ito's `start_run`). Only with a done
+    /// file. A failure to write it fails the run at `<run.json>`; there is no folder for the last one either.
+    fn start_run(&mut self, app: &mut App) -> Option<Outcome> {
+        if self.run_started || self.run_closed || self.done.is_none() {
+            return None;
+        }
+        self.run_started = true;
+        self.run.run_id = keyscript::current_run_id().map(str::to_owned);
+        if let Err(err) = self.run.write(&self.shot_dir) {
+            self.run_closed = true;
+            let left = self.left(None);
+            let why = format!("cannot write {}: {err}", evidence::FILE);
+            return Some(self.fail_as(app, evidence::STEP, left, why));
+        }
+        None
+    }
+
+    /// The run ends as `how` says: write the last `run.json` (ito's `keep`). `tail` is what follows the state report
+    /// in the done file. Returns the tail to write and whether a failure to write `run.json` turned a success into a
+    /// failure (the file on disk then stays at its `running` record). Nothing without a done file or a second time.
+    fn keep_run(&mut self, how: pace::How, tail: String, left: usize) -> (String, bool) {
+        if self.run_closed || self.done.is_none() {
+            return (tail, false);
+        }
+        self.run_closed = true;
+        self.run_started = true;
+        self.run.run_id = keyscript::current_run_id().map(str::to_owned);
+        let ended = pace::Ended { how, tail, say: None, failed: self.failed.load(Ordering::SeqCst), left };
+        self.run.end(&ended, evidence::now_ms());
+        let Err(err) = self.run.write(&self.shot_dir) else { return (ended.tail, false) };
+        let why = format!("cannot write {}: {err}", evidence::FILE);
+        {
+            use std::io::Write;
+            let _ = writeln!(std::io::stderr(), "keys: {why}");
+        }
+        self.failed.store(true, Ordering::SeqCst);
+        if matches!(ended.how, pace::How::Done) || ended.tail.ends_with("keys: done\n") {
+            return (keyscript::failed_report(evidence::STEP, &why, left), true);
+        }
+        (ended.tail, false)
     }
 
     /// Remember that step `idx` went in on a screen that had not settled.
@@ -454,6 +567,9 @@ impl ScriptRun {
     pub(crate) fn hook(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
         if self.finished || (self.queue.is_empty() && self.shot.is_none() && self.done.is_none()) {
             return Outcome::Continue;
+        }
+        if let Some(out) = self.start_run(app) {
+            return out;
         }
         if self.reads_window {
             keyscript::observe(ctx);
@@ -556,14 +672,16 @@ impl ScriptRun {
             self.finished = true;
             self.unsettled_end = late;
             let lines = self.unsettled_lines();
-            let tail = lines.as_deref().unwrap_or("keys: done\n");
+            let tail = lines.clone().unwrap_or_else(|| "keys: done\n".to_owned());
             if let Some(lines) = &lines {
                 self.failed.store(true, Ordering::SeqCst);
                 say_err(&lines.lines().collect::<Vec<_>>().join("; "));
             }
-            let ok = self.write_done(&(crate::state_report(app) + tail));
+            let how = if lines.is_some() { pace::How::Unsettled } else { pace::How::Done };
+            let (tail, run_failed) = self.keep_run(how, tail, 0);
+            let ok = self.write_done(&(crate::state_report(app) + &tail));
             self.note_progress();
-            return match (ok, lines.is_some()) {
+            return match (ok && !run_failed, lines.is_some()) {
                 (false, _) => Outcome::Failed,
                 (true, true) => Outcome::Unsettled,
                 (true, false) => Outcome::Continue,
@@ -691,7 +809,7 @@ impl ScriptRun {
             }
             // Taken in `ui`, which is where a viewport command can be sent.
             Press::Shot(name) => {
-                self.shot = Some(Shot { name, sent: false, step: idx, since: now });
+                self.shot = Some(Shot { name, sent: false, step: idx, since: now, theme: String::new(), lang: String::new() });
                 self.at = (frame, now);
             }
             // The window lays out again at the new size before the next step.
@@ -705,11 +823,13 @@ impl ScriptRun {
             // as the watcher would.
             Press::Theme(name) => {
                 self.act(ctx, now, idx);
+                self.theme_requested = name.clone();
                 app.write_common(vec![ito_common::CommonChange { table: None, key: "theme", value: format!("{name:?}") }]);
                 self.at = (frame, now);
             }
             Press::Lang(code) => {
                 self.act(ctx, now, idx);
+                self.lang_requested = code.clone();
                 app.write_common(vec![ito_common::CommonChange { table: None, key: "language", value: format!("{code:?}") }]);
                 self.at = (frame, now);
             }
@@ -933,10 +1053,9 @@ impl ScriptRun {
         self.inflight = Some(Inflight { frame, at: now, step });
     }
 
-    /// Where `<Shot:name>` saves (`name@preview` is the preview pane's crop of `name.png`).
+    /// Where `<Shot:name>` saves: `shots/name.png` beside the done file (`name@preview` is the preview pane's crop of `name.png`).
     fn shot_path(&self, name: &str) -> PathBuf {
-        let file = name.strip_suffix(keyscript::SHOT_PREVIEW).unwrap_or(name);
-        self.shot_dir.join(format!("{file}.png"))
+        self.shot_dir.join("shots").join(format!("{}.png", shot_file(name)))
     }
 
     /// `<Shot:name>`: ask for the picture, then save it when it arrives.
@@ -944,11 +1063,14 @@ impl ScriptRun {
         let Some(shot) = &mut self.shot else { return Outcome::Continue };
         if !shot.sent {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(shot.name.clone())));
+            // What is in force now is what the picture shows.
+            shot.theme = app.theme_name.clone().unwrap_or_default();
+            shot.lang = app.lang.clone();
             shot.sent = true;
             ctx.request_repaint();
             return Outcome::Continue;
         }
-        let (name, step) = (shot.name.clone(), shot.step);
+        let (name, step, in_force) = (shot.name.clone(), shot.step, (shot.theme.clone(), shot.lang.clone()));
         let image = ctx.input(|i| {
             i.raw.events.iter().find_map(|e| match e {
                 egui::Event::Screenshot { user_data, image, .. }
@@ -965,8 +1087,26 @@ impl ScriptRun {
         };
         // `name@preview` is the preview pane's rectangle, in the picture's pixels.
         let crop = name.ends_with(keyscript::SHOT_PREVIEW);
-        match save_shot(&image, crop, app.preview.rect, ctx.content_rect().width(), &self.shot_path(&name)) {
-            Ok(_) => {
+        let png = self.shot_path(&name);
+        let saved = png
+            .parent()
+            .map_or(Ok(()), |d| std::fs::create_dir_all(d).map_err(|e| format!("could not make {}: {e}", d.display())))
+            .and_then(|()| save_shot(&image, crop, app.preview.rect, ctx.content_rect().width(), &png))
+            .and_then(|_| {
+                let screen = ctx.content_rect();
+                let seen = Seen {
+                    name: shot_file(&name),
+                    theme: &in_force.0,
+                    lang: &in_force.1,
+                    requested: (&self.theme_requested, &self.lang_requested),
+                    size: [screen.width(), screen.height()],
+                    preview: if crop { app.preview.rect } else { None },
+                    pixels_per_point: ctx.pixels_per_point(),
+                };
+                write_shot_json(&png.with_extension("json"), &seen)
+            });
+        match saved {
+            Ok(()) => {
                 self.shot = None;
                 self.progress_at = Instant::now();
                 self.note_progress();
@@ -1016,9 +1156,11 @@ impl ScriptRun {
             self.failed.store(true, Ordering::SeqCst);
         }
         self.finished = true;
+        let how = if how == Ending::Closed { pace::How::Closed } else { pace::How::Quit };
+        let (tail, run_failed) = self.keep_run(how, tail, left);
         let ok = self.write_done(&(crate::state_report(app) + &tail));
         self.note_progress();
-        if !ok {
+        if !ok || run_failed {
             Outcome::Failed
         } else if lines.is_some() {
             Outcome::Unsettled
@@ -1206,6 +1348,231 @@ mod tests {
         }
     }
 
+    /// The picture of `name` arrives in one pass, and the player takes it.
+    fn deliver(rig: &mut Rig, run: &mut ScriptRun, name: &str) -> Outcome {
+        let ctx = rig.screen.ctx.clone();
+        // `ui` asks for the picture first, and takes it on a later pass.
+        ctx.begin_pass(egui::RawInput::default());
+        assert_eq!(run.take_shot(&ctx, &mut rig.screen.app), Outcome::Continue);
+        let _ = ctx.end_pass();
+        let image = std::sync::Arc::new(egui::ColorImage::filled([40, 30], egui::Color32::RED));
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(40.0, 30.0))),
+            events: vec![egui::Event::Screenshot {
+                viewport_id: egui::ViewportId::ROOT,
+                user_data: egui::UserData::new(name.to_owned()),
+                image,
+            }],
+            ..Default::default()
+        };
+        ctx.begin_pass(raw);
+        let out = run.take_shot(&ctx, &mut rig.screen.app);
+        let _ = ctx.end_pass();
+        out
+    }
+
+    /// A run with a done file in `out/`, the shot step sent and its picture delivered.
+    fn shot_run(label: &str, script: &str, name: &str, preview: Option<egui::Rect>) -> (Rig, ScriptRun, PathBuf) {
+        let mut rig = Rig::new(label, true);
+        let out = rig.dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let mut run = rig.run(script, Some(out.join("done.txt")), out.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue, "the shot is asked for");
+        rig.screen.app.preview.rect = preview;
+        assert_eq!(deliver(&mut rig, &mut run, name), Outcome::Continue);
+        (rig, run, out)
+    }
+
+    /// A file's text without spaces and newlines, to look for `"key":"value"` whatever the layout.
+    fn squeezed(path: &Path) -> String {
+        read(path).replace([' ', '\n'], "")
+    }
+
+    #[test]
+    fn a_shot_lands_in_shots_with_its_json() {
+        let (_rig, run, out) = shot_run("keys-shot-json", "<Shot:x>", "x", None);
+        assert!(run.shot.is_none());
+        assert!(out.join("shots").join("x.png").is_file());
+        assert!(!out.join("x.png").exists(), "not beside the done file any more");
+        let json = squeezed(&out.join("shots").join("x.json"));
+        assert!(json.contains("\"name\":\"x\""), "{json}");
+        assert!(json.contains("\"app\":\"kura\""), "{json}");
+        assert!(json.contains("\"component\":\"window\""), "{json}");
+    }
+
+    #[test]
+    fn a_preview_shot_is_the_previews_component_and_rect() {
+        let rect = egui::Rect::from_min_max(egui::pos2(10.0, 5.0), egui::pos2(30.0, 25.0));
+        let (_rig, _run, out) = shot_run("keys-shot-preview", "<Shot:x@preview>", "x@preview", Some(rect));
+        assert!(out.join("shots").join("x.png").is_file());
+        assert!(!out.join("shots").join("x@preview.png").exists());
+        let json = squeezed(&out.join("shots").join("x.json"));
+        assert!(json.contains("\"component\":\"preview\""), "{json}");
+        assert!(json.contains("\"name\":\"x\""), "{json}");
+    }
+
+    #[test]
+    fn a_shot_records_the_theme_and_language_in_force_and_asked_for() {
+        let mut rig = Rig::new("keys-shot-asked", true);
+        let out = rig.dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let mut run = rig.run("<Shot:y>", Some(out.join("done.txt")), out.clone());
+        run.theme_requested = "dark".into();
+        run.lang_requested = "ja".into();
+        rig.screen.app.theme_name = Some("dark".into());
+        rig.screen.app.lang = "ja".into();
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(deliver(&mut rig, &mut run, "y"), Outcome::Continue);
+        let json = squeezed(&out.join("shots").join("y.json"));
+        assert!(json.contains("\"theme\":\"dark\"") && json.contains("\"theme_requested\":\"dark\""), "{json}");
+        assert!(json.contains("\"lang\":\"ja\"") && json.contains("\"lang_requested\":\"ja\""), "{json}");
+    }
+
+    #[test]
+    fn a_file_named_shots_fails_the_shot_step() {
+        let mut rig = Rig::new("keys-shots-file", true);
+        let out = rig.dir.join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        std::fs::write(out.join("shots"), "in the way").unwrap();
+        let done = out.join("done.txt");
+        let mut run = rig.run("<Shot:x>", Some(done.clone()), out.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(deliver(&mut rig, &mut run, "x"), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed\n") && said.contains("step: <Shot:x>\n"), "{said}");
+        assert!(said.contains(&out.join("shots").display().to_string()), "names the path: {said}");
+        assert!(!out.join("x.png").exists() && !out.join("x.json").exists());
+        assert_eq!(read(&out.join("shots")), "in the way");
+    }
+
+    #[test]
+    fn run_json_is_written_running_at_the_first_frame() {
+        let mut rig = Rig::new("keys-runjson-start", true);
+        let mut run = rig.run("<Shot:x>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert!(!rig.dir.join("run.json").exists());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        let json = squeezed(&rig.dir.join("run.json"));
+        assert!(json.contains("\"status\":\"running\""), "{json}");
+        assert!(json.contains("\"app\":{\"name\":\"kura\""), "{json}");
+    }
+
+    #[test]
+    fn run_json_ends_done() {
+        let mut rig = Rig::new("keys-runjson-done", true);
+        let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        for _ in 0..8 {
+            if rig.step(&mut run, 6) != Outcome::Continue {
+                break;
+            }
+        }
+        assert!(body(&read(&rig.dir.join("done.txt"))).ends_with("keys: done\n"));
+        let json = squeezed(&rig.dir.join("run.json"));
+        assert!(json.contains("\"status\":\"done\""), "{json}");
+    }
+
+    #[test]
+    fn run_json_ends_failed_with_step_why_and_left() {
+        let mut rig = Rig::new("keys-runjson-failed", true);
+        let mut run = rig.run("<Shot:x>j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        assert_eq!(rig.step(&mut run, 7), Outcome::Failed);
+        let json = squeezed(&rig.dir.join("run.json"));
+        assert!(json.contains("\"status\":\"failed\""), "{json}");
+        assert!(json.contains("<Shot:x>") && json.contains("\"why\"") && json.contains("\"left\""), "{json}");
+    }
+
+    #[test]
+    fn run_json_ends_unsettled() {
+        let mut rig = Rig::new("keys-runjson-unsettled", false);
+        let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+        while rig.step(&mut run, 6) == Outcome::Continue {}
+        let json = squeezed(&rig.dir.join("run.json"));
+        assert!(json.contains("\"status\":\"unsettled\""), "{json}");
+    }
+
+    #[test]
+    fn run_json_ends_closed_and_quit() {
+        for (how, status) in [(Ending::Closed, "closed"), (Ending::Quit, "quit")] {
+            let mut rig = Rig::new("keys-runjson-ended", true);
+            let mut run = rig.run("j", Some(rig.dir.join("done.txt")), rig.dir.clone());
+            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+            run.queue.clear();
+            run.ended(&mut rig.screen.app, how);
+            let json = squeezed(&rig.dir.join("run.json"));
+            assert!(json.contains(&format!("\"status\":\"{status}\"")), "{status}: {json}");
+        }
+    }
+
+    /// run.json replaced by a folder after the start: the last write cannot go through.
+    fn block_run_json(dir: &Path) {
+        std::fs::remove_file(dir.join("run.json")).unwrap();
+        std::fs::create_dir(dir.join("run.json")).unwrap();
+    }
+
+    #[test]
+    fn a_final_run_json_that_cannot_be_written_fails_a_done_ending() {
+        let mut rig = Rig::new("keys-runjson-final", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        block_run_json(&rig.dir);
+        run.queue.clear();
+        assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed\n") && said.contains("step: <run.json>\n"), "{said}");
+        assert!(!said.contains("keys: done"), "{said}");
+        assert!(rig.flag());
+    }
+
+    #[test]
+    fn a_failing_ending_keeps_its_tail_when_run_json_cannot_be_written() {
+        let mut rig = Rig::new("keys-runjson-final-failing", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Shot:x>j", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        block_run_json(&rig.dir);
+        assert_eq!(rig.step(&mut run, 7), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("step: <Shot:x>\n"), "{said}");
+        assert!(!said.contains("step: <run.json>"), "{said}");
+    }
+
+    #[test]
+    fn a_quit_with_steps_left_keeps_its_tail_when_run_json_cannot_be_written() {
+        let mut rig = Rig::new("keys-runjson-quit-left", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("jjj", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+        block_run_json(&rig.dir);
+        run.ended(&mut rig.screen.app, Ending::Quit);
+        let said = read(&done);
+        assert!(said.contains("keys: quit\nleft: "), "{said}");
+        assert!(!said.contains("step: <run.json>"), "{said}");
+    }
+
+    #[test]
+    fn a_run_json_that_cannot_be_started_fails_the_run() {
+        let mut rig = Rig::new("keys-runjson-start-fails", true);
+        std::fs::create_dir(rig.dir.join("run.json")).unwrap();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
+        let said = read(&done);
+        assert!(said.contains("keys: failed\n") && said.contains("step: <run.json>\n"), "{said}");
+        assert!(rig.flag());
+    }
+
+    #[test]
+    fn no_run_json_without_a_done_file() {
+        let mut rig = Rig::new("keys-runjson-none", true);
+        let mut run = rig.run("j", None, rig.dir.clone());
+        for _ in 0..4 {
+            rig.step(&mut run, 6);
+        }
+        run.ended(&mut rig.screen.app, Ending::Quit);
+        assert!(!rig.dir.join("run.json").exists());
+    }
+
     #[test]
     fn a_write_that_fails_ends_the_run_failed() {
         for script in ["<State:a>", "<PaneText:a>", "<PreviewText:a>"] {
@@ -1213,6 +1580,8 @@ mod tests {
             let done = rig.dir.join("done.txt");
             let shot_dir = unwritable(&rig.dir);
             let mut run = rig.run(script, Some(done.clone()), shot_dir.clone());
+            // This is about the step's own write; run.json (also in `shot_dir`) is opted out of.
+            run.run_closed = true;
             assert_eq!(rig.step(&mut run, 0), Outcome::Failed, "{script}");
             let said = read(&done);
             assert!(said.contains("keys: failed\n"), "{script}: {said}");
@@ -1417,7 +1786,7 @@ mod tests {
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("step: <Shot:x>\n"), "{said}");
         assert!(body(&said).ends_with("left: 2 not pressed\n"), "the shot and the key after it: {said}");
-        assert!(!rig.dir.join("x.png").exists());
+        assert!(!rig.dir.join("shots").join("x.png").exists());
         assert!(rig.flag());
     }
 

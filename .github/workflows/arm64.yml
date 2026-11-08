@@ -75,7 +75,7 @@ jobs:
           if (-not (Test-Path $done)) { throw "kura exited $($p.ExitCode) and wrote no $done" }
           Get-Content -Raw $done
           if (-not ((Get-Content -Raw $done) -match 'keys: done')) { throw 'the script did not finish' }
-          if (-not (Test-Path (Join-Path $out 'windows-arm64.png'))) { throw 'no screenshot' }
+          if (-not (Test-Path (Join-Path $out 'shots\windows-arm64.png'))) { throw 'no screenshot' }
       - name: Keep the screenshot
         if: always()
         uses: actions/upload-artifact@v7

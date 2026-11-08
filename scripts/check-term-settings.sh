@@ -196,7 +196,7 @@ do_run() {
   local out="$work/out" cfg="$work/config/kura"
   chmod u+w "$cfg" 2>/dev/null
   # An earlier run's files must not be read as this run's (files only, as
-  # xrun.sh does; it also empties keys.done, *.txt, *.png, *.json, *.log).
+  # xrun.sh does; it also empties keys.done, *.txt, *.png, *.json, *.log, and its shots/ and state/).
   find "$out" -maxdepth 1 -type f -delete || { echo "could not empty $out" >&2; exit 2; }
   rm -f -- "$work/xrun.stderr" "$work/run-id" "$work/nonce"
   for f in a.txt b.txt c.txt; do printf '%s\n' "$f" >"$work/fixtures/$f"; done

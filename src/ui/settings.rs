@@ -789,10 +789,22 @@ struct Folder {
     dir: Option<PathBuf>,
 }
 
+/// Put in force, for ito's parts, the colours the window draws in (with the name of the theme when `resolve_theme` knows
+/// it) and the language it shows. The frame loop does this every frame, so the title bar and a `--keys` shot's record
+/// read what is on screen, settings screen or not.
+pub fn put_in_force(app: &App) {
+    let c = colors(&app.cfg.theme);
+    match &app.theme_name {
+        Some(name) => ito_theme::set_theme(&ito_theme::Theme { name: name.clone(), colors: c }),
+        None => ito_theme::set(c),
+    }
+    ito_i18n::set_in_force(&app.lang);
+}
+
 /// Draw the screen over `full`, in place of everything else.
 pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let c = colors(&app.cfg.theme);
-    ito_theme::set(c);
+    put_in_force(app);
     let w = Words::of(&app.lang);
     let k = KuraWords::of(&app.lang);
     let language = app.common.language.clone().unwrap_or_else(|| "auto".to_owned());

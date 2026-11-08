@@ -1743,9 +1743,10 @@ A step after a write to `common.toml`, `config.toml` or `keymap.toml` (`<Theme:>
 if it has not answered within 10 s the run fails with step `<config write>`.
 A key that is not drawn within 10 s (the window hidden, minimized or covered) fails the run at that step.
 
-`<Shot:name>` saves the window as it is at that point as `name.png`, beside the `KURA_KEYS_DONE`
-file (or in the folder kura was started from), and the next key waits until it is on disk
-(v0.67.0). `--keys "<Shot:before><C-t><Shot:after>"` gives the two pictures a comparison needs from
+`<Shot:name>` saves the window as it is at that point as `shots/name.png`, in a `shots` folder beside the `KURA_KEYS_DONE`
+file (or in the folder kura was started from), with `shots/name.json` next to it: the theme and language in force and the
+ones `<Theme:>` / `<Lang:>` asked for, the window's size, the rectangle and the component (`window`, or `preview`), and the
+next key waits until both are on disk (v0.67.0; the `shots` folder and the JSON since v0.156.0). `--keys "<Shot:before><C-t><Shot:after>"` gives the two pictures a comparison needs from
 one run. The name is letters, digits, `-` and `_`. `<Shot:name@preview>` saves only the preview pane's rectangle (v0.78.218).
 
 `<State:name>` writes what the `KURA_KEYS_DONE` file would say at that point to `name.txt` in the
@@ -1897,6 +1898,12 @@ A run that did not do what the script said does not end `keys: done`, and exits 
 - `keys: unsettled`, after lines naming the steps that went in after 5 seconds with the screen still not settled,
   and whether the script ended that way. The keys all went in, but not on the state the script assumed.
   Without `<Quit>` the window stays open as before, and kura exits 3 when it is closed.
+
+- A `shots` folder that cannot be made (a file of that name is in the way) fails the `<Shot:>` step too.
+- `run.json` (schema 1, `ito_keyscript::evidence`) is written beside `KURA_KEYS_DONE`: at the first frame as `running`, and again at
+  the end with `status` (`done`, `failed`, `unsettled`, `closed` or `quit`) and, for a failure, `step`, `why` and `left`. A failure to
+  write it turns a run that would have succeeded into a failure at `<run.json>` (exit 3); a run that already fails
+  (`unsettled`, or `quit` / `closed` with steps left) keeps its own ending, and the reason goes to stderr (v0.156.0).
 
 Without `KURA_KEYS_DONE` the exit code is the only report. A `keys: quit` or `keys: closed` run exits 3 too if a step
 before it went in unsettled.
