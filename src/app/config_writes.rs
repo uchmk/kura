@@ -205,7 +205,7 @@ mod tests {
 
     fn job(seq: u64, path: &Path, key: &'static str) -> KuraJob {
         let change = KuraChange { table: "ui", key: key.into(), value: Some("1".into()) };
-        KuraJob { seq, path: path.to_path_buf(), dirs: Vec::new(), changes: vec![change], keys: Vec::new(), webhooks: None }
+        KuraJob { seq, path: path.to_path_buf(), dirs: Vec::new(), changes: vec![change], keys: Vec::new(), webhooks: None, whole: None }
     }
 
     #[test]
@@ -214,6 +214,17 @@ mod tests {
         let merged = merge_jobs([job(1, a, "x"), job(2, a, "y"), job(3, b, "x"), job(4, a, "x")]);
         assert_eq!(merged.iter().map(|j| j.seq).collect::<Vec<_>>(), [2, 3, 4], "only consecutive same-path jobs merge");
         assert_eq!(merged[0].changes.len(), 2);
+    }
+
+    #[test]
+    fn merge_jobs_leaves_a_whole_job_alone() {
+        let a = Path::new("a.toml");
+        let mut reset = job(2, a, "x");
+        reset.changes.clear();
+        reset.whole = Some(Whole::Reset(Vec::new()));
+        let merged = merge_jobs([job(1, a, "x"), reset, job(3, a, "y")]);
+        assert_eq!(merged.iter().map(|j| j.seq).collect::<Vec<_>>(), [1, 2, 3], "kept in order, none merged");
+        assert!(merged[1].whole.is_some());
     }
 
     #[test]

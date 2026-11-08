@@ -57,7 +57,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
 - [ ] `--keys` の自動テスト化の段階 2: ito の uchmk/ito#203（観測の約束: ito-a11y の Test ID、ito-keyscript の世代・ID の手順・run ID・probe、ito-prefs の Shell ID）が入ったら、ito の `rev` を上げて kura 側を合わせる（段階 1 は v0.152.0: 設定の書き込みを待つ・`<config write>` で落ちる・`<Now>` は直後の 1 手順だけ）
-- [ ] `--keys` は設定の画面の Import（`ito_common::bundle::import`）と Reset（`*.bak-<秒>` に退避）の書き込みをまだ待たない。鍵で押せる Reset だけでも `ConfigWrites` に載せるか決める（v0.152.0 の監査で見つけた）
 
 ## マージで止めている実機の PR
 

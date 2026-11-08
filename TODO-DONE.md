@@ -2427,6 +2427,7 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
 - [x] （v0.103.0。ito v0.7.0 の `ito-testcheck` が checklists を生成し、レーンの共通のスクリプト 11 本の正は ito の `scripts/lanes/`。kura の `scripts/lanes.sh sync` が Cargo.toml の rev から写し、verify.sh の `lanes.sh check` が写しの食い違いで落ちる。アプリの値は `scripts/lanes.conf`）段階 5: 共通の道具を ito に移す
 - [x] （v0.103.1。ito v0.8.0 で `lanes.sh` も共通にし、`files=` で一部を取れるようにした。tsumugi v0.94.0 は 8 本・issue の流れ・`lane-boot.ps1`・ARM64 の CI、
   yagura v0.42.0 は 4 本・質問の issue と票・ARM64 の CI）段階 6: tsumugi・yagura に展開する
+- [x] `--keys` は設定の画面の Import（`ito_common::bundle::import`）と Reset（`*.bak-<秒>` に退避）の書き込みをまだ待たない。鍵で押せる Reset だけでも `ConfigWrites` に載せるか決める（v0.152.0 の監査で見つけた）→ v0.152.1: Export・Import・Reset を kura の書き込みのスレッドの仕事にし、`--keys` が待って失敗も拾う
 
 ### ARM64 の再テストの所見（#295）
 - [x] （v0.85.1。トーストの 1 行目のホームフォルダを `~` にした）（#295 の所見 2）設定ファイルが長いパスにあると警告のトーストが 3 行に折れてプレビューの先頭を覆う（33.7 の「1 行」に反する）。1 行目のパスを `~` や相対に短縮してから折る

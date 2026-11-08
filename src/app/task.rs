@@ -291,6 +291,26 @@ pub(super) struct KuraJob {
     /// Every `[[notify.webhooks]]` to write after the changes, in place of the
     /// ones there and of the old one address.
     pub(super) webhooks: Option<Vec<ito_notify::webhook::Place>>,
+    /// Set for a job that is not an edit of one file; then `path` is empty
+    /// and the job is never merged.
+    pub(super) whole: Option<Whole>,
+}
+
+/// A job on the kura writer that is not an edit of one file: the settings
+/// screen's Backup card and its Reset.
+pub(super) enum Whole {
+    Export {
+        file: PathBuf,
+        base: PathBuf,
+        app_dir: PathBuf,
+    },
+    Import {
+        file: PathBuf,
+        base: PathBuf,
+        app_dir: PathBuf,
+    },
+    /// config.toml and keymap.toml, moved aside if they are there.
+    Reset(Vec<PathBuf>),
 }
 
 /// What a write of config.toml came to: the rows written, as a toast says
@@ -299,7 +319,14 @@ pub(crate) struct KuraWritten {
     /// The job it answers; a merged write answers with the last one merged.
     pub(super) seq: u64,
     pub(super) said: String,
-    pub(super) read: Result<crate::config::Fresh, String>,
+    /// `Ok(None)`: nothing to read back (an Export, or a Reset that moved nothing).
+    pub(super) read: Result<Option<crate::config::Fresh>, String>,
+    /// common.toml and the themes read back after an Import, which may have written them.
+    pub(super) common: Option<(Themes, CommonRead)>,
+    /// What stopped an Import or a Reset. Either may have changed files before
+    /// it stopped, so the config is still read back and applied before this is
+    /// recorded.
+    pub(super) failed: Option<String>,
     /// Whether the file changed: an edit that leaves it as it was starts no
     /// watcher event to keep quiet, and says so instead of "Saved".
     pub(super) wrote: bool,
@@ -311,7 +338,7 @@ pub(super) fn merge_jobs(queued: impl IntoIterator<Item = KuraJob>) -> Vec<KuraJ
     let mut jobs: Vec<KuraJob> = Vec::new();
     for j in queued {
         match jobs.last_mut() {
-            Some(m) if m.path == j.path => {
+            Some(m) if m.path == j.path && m.whole.is_none() && j.whole.is_none() => {
                 m.changes.extend(j.changes);
                 m.keys.extend(j.keys);
                 m.webhooks = j.webhooks.or(m.webhooks.take());
@@ -331,8 +358,12 @@ pub(super) fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Opti
     let spawned = std::thread::Builder::new().name("kura-toml".into()).spawn(move || {
         while let Ok(first) = rx.recv() {
             let jobs = merge_jobs(std::iter::once(first).chain(rx.try_iter()));
-            for j in jobs {
-                let written = if j.keys.is_empty() { write_kura_toml(j) } else { write_keymap_toml(j) };
+            for mut j in jobs {
+                let written = match j.whole.take() {
+                    Some(w) => run_whole(j.seq, &j.dirs, w),
+                    None if j.keys.is_empty() => write_kura_toml(j),
+                    None => write_keymap_toml(j),
+                };
                 if done.send(written).is_err() {
                     return;
                 }
@@ -381,17 +412,33 @@ pub(super) fn common_writer(done: Sender<CommonWritten>, ctx: egui::Context) -> 
     spawned.ok().map(|_| tx)
 }
 
-/// Rename each of `files` that exists to `<name>.bak-<seconds>`; how many moved.
-pub(super) fn move_aside(files: &[PathBuf]) -> std::io::Result<usize> {
+/// Rename each of `files` that exists to `<name>.bak-<seconds>` (a second move
+/// in the same second gets `-2`, `-3`, ...); how many moved, and what stopped it.
+pub(super) fn move_aside(files: &[PathBuf]) -> (usize, std::io::Result<()>) {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    move_aside_at(files, secs)
+}
+
+/// [`move_aside`] at the second named here.
+pub(super) fn move_aside_at(files: &[PathBuf], secs: u64) -> (usize, std::io::Result<()>) {
     let mut moved = 0;
     for f in files.iter().filter(|f| f.exists()) {
-        let mut aside = f.clone().into_os_string();
-        aside.push(format!(".bak-{secs}"));
-        std::fs::rename(f, aside)?;
+        // Two moves in one second must not rename onto the first copy (on
+        // Windows that replaces it): take the first name that is free.
+        let named = |n: u32| {
+            let mut aside = f.clone().into_os_string();
+            aside.push(if n == 1 { format!(".bak-{secs}") } else { format!(".bak-{secs}-{n}") });
+            PathBuf::from(aside)
+        };
+        let Some(aside) = (1..=99).map(named).find(|p| matches!(p.try_exists(), Ok(false))) else {
+            return (moved, Err(std::io::Error::other(format!("no free name for {}.bak-{secs}", f.display()))));
+        };
+        if let Err(e) = std::fs::rename(f, aside) {
+            return (moved, Err(e));
+        }
         moved += 1;
     }
-    Ok(moved)
+    (moved, Ok(()))
 }
 
 /// Change the rows in config.toml and keep the rest of it -- comments, order,
@@ -441,7 +488,60 @@ pub(super) fn write_kura_toml(job: KuraJob) -> KuraWritten {
         ito_common::write_atomic(&job.path, new)?;
         Ok(Config::read_fresh(&job.dirs))
     })();
-    KuraWritten { seq: job.seq, said, read, wrote: true }
+    KuraWritten { seq: job.seq, said, read: read.map(Some), common: None, failed: None, wrote: true }
+}
+
+/// Run a job that is not an edit of one file, and read back what it changed.
+pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
+    let done = |said: String, read, common, failed, wrote| KuraWritten { seq, said, read, common, failed, wrote };
+    match w {
+        Whole::Export { file, base, app_dir } => {
+            match ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"), &ito_common::bundle::all) {
+                Ok(n) => done(format!("Wrote {n} settings files to {}", file.display()), Ok(None), None, None, false),
+                Err(e) => done(String::new(), Err(format!("Export failed: {e}")), None, None, false),
+            }
+        }
+        Whole::Import { file, base, app_dir } => {
+            // This writes common.toml and the themes itself, outside the
+            // common.toml writer, so a common.toml edit made in the same
+            // moment can land on either side of it. Accepted: `--keys` holds
+            // every step until all writes are answered, and by hand the file
+            // picker comes first.
+            let stamps = || crate::config::FILES.map(|f| ito_common::stamp(&app_dir.join(f)));
+            let before = stamps();
+            let imported = ito_common::bundle::import(&file, &base, &app_dir, "kura", &ito_common::bundle::all);
+            let read = Ok(Some(Config::read_fresh(dirs)));
+            let common = Some((super::read_themes(&base), ito_common::Common::read(&base)));
+            match imported {
+                Ok(r) => {
+                    let mut said = format!("Read {} settings files from {} ({} unchanged)", r.written.len(), file.display(), r.unchanged);
+                    for (name, why) in &r.skipped {
+                        said.push_str(&format!("; skipped {name}: {why}"));
+                    }
+                    // Only a file the config watcher watches starts an event
+                    // worth keeping quiet; `kura_wrote` is a one-shot ticket.
+                    let wrote = r.written.iter().any(|n| n.strip_prefix("app/").is_some_and(|f| crate::config::FILES.contains(&f)));
+                    done(said, read, common, None, wrote)
+                }
+                // It may have written some files before it stopped; the
+                // watcher reacts to the same stamps.
+                Err(e) => done(String::new(), read, common, Some(format!("Import failed: {e}")), stamps() != before),
+            }
+        }
+        Whole::Reset(files) => match move_aside(&files) {
+            (0, Ok(())) => done("Nothing to reset: no config.toml or keymap.toml".into(), Ok(None), None, None, false),
+            (n, Ok(())) => {
+                done(format!("Settings reset; {n} file(s) kept as *.bak-…"), Ok(Some(Config::read_fresh(dirs))), None, None, true)
+            }
+            // A rename that did happen still starts a watcher event; `wrote`
+            // keeps its "Reloaded" toast from covering the failure.
+            (n, Err(e)) => {
+                let failed =
+                    if n > 0 { format!("Reset failed after keeping {n} file(s) as *.bak-…: {e}") } else { format!("Reset failed: {e}") };
+                done(String::new(), Ok(Some(Config::read_fresh(dirs))), None, Some(failed), n > 0)
+            }
+        },
+    }
 }
 
 // The keymap.toml a test's Keys page writes: none unless the test names one,
@@ -484,7 +584,7 @@ pub(super) fn write_keymap_toml(job: KuraJob) -> KuraWritten {
         Ok(Config::read_fresh(&job.dirs))
     })();
     let said = if wrote { format!("Saved keymap.toml: {said}") } else { format!("keymap.toml already says so: {said}") };
-    KuraWritten { seq: job.seq, said, read, wrote }
+    KuraWritten { seq: job.seq, said, read: read.map(Some), common: None, failed: None, wrote }
 }
 
 pub struct Toast {

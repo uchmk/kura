@@ -203,7 +203,7 @@ impl App {
     /// [`App::write_kura`] to a file named here, reading the config back from
     /// `dirs`: what a test drives with a folder of its own.
     pub(crate) fn write_kura_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, changes: Vec<KuraChange>) {
-        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes, keys: Vec::new(), webhooks: None }, "config.toml");
+        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes, keys: Vec::new(), webhooks: None, whole: None }, "config.toml");
     }
 
     /// The `[[notify.webhooks]]` the Notifications page changed, written to
@@ -214,13 +214,22 @@ impl App {
             return;
         };
         self.send_kura_job(
-            KuraJob { seq: 0, path, dirs: crate::config::dirs_to_read(), changes: Vec::new(), keys: Vec::new(), webhooks: Some(places) },
+            KuraJob {
+                seq: 0,
+                path,
+                dirs: crate::config::dirs_to_read(),
+                changes: Vec::new(),
+                keys: Vec::new(),
+                webhooks: Some(places),
+                whole: None,
+            },
             "config.toml",
         );
     }
 
     /// Hand a job to the config.toml / keymap.toml writer, giving it its
-    /// number. `what` is the file, for the bookkeeping and the failure.
+    /// number. `what` is the file (or the settings screen's Export, Import or
+    /// Reset), for the bookkeeping and the failure.
     pub(super) fn send_kura_job(&mut self, mut job: KuraJob, what: &'static str) {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
@@ -283,7 +292,7 @@ impl App {
     /// [`App::write_keymap`] to a file named here, reading the config back
     /// from `dirs`.
     pub(crate) fn write_keymap_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, keys: Vec<ito_keymap::Edit>) {
-        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes: Vec::new(), keys, webhooks: None }, "keymap.toml");
+        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes: Vec::new(), keys, webhooks: None, whole: None }, "keymap.toml");
     }
 
     /// The writer's answer: the config it read back, applied with what a
@@ -297,17 +306,33 @@ impl App {
         }
     }
 
-    fn apply_kura_written(&mut self, w: KuraWritten) {
+    pub(crate) fn apply_kura_written(&mut self, w: KuraWritten) {
+        // Themes and common first: `take_config_saying` keeps the colors
+        // `set_common` resolved.
+        if let Some((themes, read)) = w.common {
+            self.set_themes(themes);
+            match read {
+                Ok(r) => self.set_common(Ok(r)),
+                Err(e) => self.fail_config_write(e),
+            }
+        }
+        // A half-done Import or Reset still applies the config; its failure
+        // comes last so the error is the newest toast.
+        let said = if w.failed.is_some() { String::new() } else { w.said };
         match w.read {
-            Ok(fresh) => {
+            Ok(Some(fresh)) => {
                 let mut cfg = Config::settle(&mut self.cfg, fresh);
                 cfg.take_term_env();
-                self.take_config_saying(cfg, Some(w.said));
+                self.take_config_saying(cfg, Some(said));
                 if w.wrote {
                     self.kura_wrote = Some(Instant::now());
                 }
             }
+            Ok(None) => self.toast(said),
             Err(e) => self.fail_config_write(e),
+        }
+        if let Some(e) = w.failed {
+            self.fail_config_write(e);
         }
     }
 
@@ -335,56 +360,54 @@ impl App {
     }
 
     /// Write the settings to a file, or read them back from one
-    /// (`ito_common::bundle`), on a thread of its own. The result is said by
-    /// `drain_channels`; common.toml and kura's files are read again by their watchers.
+    /// (`ito_common::bundle`), as a job on the kura writer. Only an Import reads
+    /// anything back (the config, common.toml and the themes, applied at once);
+    /// an Export reads nothing. `--keys` waits for either like any other write.
     pub fn settings_backup(&mut self, what: ito_prefs::Backup) {
         let (Some(base), Some(app_dir)) = (ito_common::base_dir(), ito_common::app_dir("kura")) else {
-            self.error("settings: there is no config folder");
+            self.fail_config_write("settings: there is no config folder".into());
             return;
         };
-        let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
-        std::thread::spawn(move || {
-            let said = match what {
-                ito_prefs::Backup::Export(file) => {
-                    ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"), &ito_common::bundle::all)
-                        .map(|n| format!("Wrote {n} settings files to {}", file.display()))
-                }
-                ito_prefs::Backup::Import(file) => ito_common::bundle::import(&file, &base, &app_dir, "kura", &ito_common::bundle::all)
-                    .map(|r| {
-                        let mut s = format!("Read {} settings files from {} ({} unchanged)", r.written.len(), file.display(), r.unchanged);
-                        for (name, why) in &r.skipped {
-                            s.push_str(&format!("; skipped {name}: {why}"));
-                        }
-                        s
-                    }),
-            };
-            let _ = tx.send(match said {
-                Ok(s) => (false, s),
-                Err(e) => (true, e),
-            });
-            ctx.request_repaint();
-        });
+        self.settings_backup_in(what, base, app_dir, crate::config::dirs_to_read());
+    }
+
+    /// [`App::settings_backup`] with the folders named here: what a test
+    /// drives with folders of its own.
+    pub(crate) fn settings_backup_in(&mut self, what: ito_prefs::Backup, base: PathBuf, app_dir: PathBuf, dirs: Vec<PathBuf>) {
+        let (whole, what) = match what {
+            ito_prefs::Backup::Export(file) => (Whole::Export { file, base, app_dir }, "settings export"),
+            ito_prefs::Backup::Import(file) => (Whole::Import { file, base, app_dir }, "settings import"),
+        };
+        self.send_kura_job(
+            KuraJob { seq: 0, path: PathBuf::new(), dirs, changes: Vec::new(), keys: Vec::new(), webhooks: None, whole: Some(whole) },
+            what,
+        );
     }
 
     /// Start over (the Advanced page's Reset): config.toml and keymap.toml are
-    /// moved aside as `*.bak-<seconds>`, on a thread, and the watchers read
-    /// the defaults back. common.toml and the themes are left alone.
+    /// moved aside as `*.bak-<seconds>` by the kura writer, which reads only the
+    /// config back without them and applies it at once; `--keys` waits for it.
+    /// common.toml and the themes are left alone.
     pub fn settings_reset(&mut self) {
-        let files: Vec<PathBuf> = self.own_config_in_force().into_iter().chain(Self::own_keymap()).collect();
-        // The watchers read the defaults back a moment later; their "Reloaded"
-        // toast would replace the one that says how many files were kept.
-        if files.iter().any(|f| f.exists()) {
-            self.kura_wrote = Some(Instant::now());
-        }
-        let (tx, ctx) = (self.settings_tx.clone(), self.ctx.clone());
-        std::thread::spawn(move || {
-            let _ = tx.send(match move_aside(&files) {
-                Ok(0) => (false, "Nothing to reset: no config.toml or keymap.toml".to_owned()),
-                Ok(n) => (false, format!("Settings reset; {n} file(s) kept as *.bak-…")),
-                Err(e) => (true, format!("Reset failed: {e}")),
-            });
-            ctx.request_repaint();
-        });
+        let files = self.own_config_in_force().into_iter().chain(Self::own_keymap()).collect();
+        self.settings_reset_files(files, crate::config::dirs_to_read());
+    }
+
+    /// [`App::settings_reset`] for the files named here, reading the config
+    /// back from `dirs`.
+    pub(crate) fn settings_reset_files(&mut self, files: Vec<PathBuf>, dirs: Vec<PathBuf>) {
+        self.send_kura_job(
+            KuraJob {
+                seq: 0,
+                path: PathBuf::new(),
+                dirs,
+                changes: Vec::new(),
+                keys: Vec::new(),
+                webhooks: None,
+                whole: Some(Whole::Reset(files)),
+            },
+            "settings reset",
+        );
     }
 
     /// Open the settings screen, or close it.

@@ -202,11 +202,12 @@ fn move_aside_renames_only_what_exists() {
     let dir = util::test_dir("move-aside");
     let (a, b) = (dir.join("config.toml"), dir.join("keymap.toml"));
     std::fs::write(&a, "x").unwrap();
-    assert_eq!(move_aside(&[a.clone(), b.clone()]).unwrap(), 1);
+    assert_eq!(move_aside(&[a.clone(), b.clone()]).0, 1);
     assert!(!a.exists());
     let kept: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
     assert!(kept.len() == 1 && kept[0].starts_with("config.toml.bak-"), "{kept:?}");
-    assert_eq!(move_aside(&[a, b]).unwrap(), 0);
+    let (n, r) = move_aside(&[a, b]);
+    assert!(n == 0 && r.is_ok());
 }
 
 /// The config.toml page writes its rows into the file in force, keeping the
@@ -691,4 +692,221 @@ fn details_follows_a_jump_made_before_the_last_one_landed() {
     settle(&mut a);
     assert_eq!(rows(&a), [("inner".to_string(), Some(900))]);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Two moves aside in one second keep both copies: the second does not
+/// rename onto the first.
+#[test]
+fn move_aside_keeps_both_copies_made_in_one_second() {
+    let dir = util::test_dir("move-aside-twice");
+    let f = dir.join("config.toml");
+    std::fs::write(&f, "first").unwrap();
+    assert_eq!(move_aside_at(std::slice::from_ref(&f), 1000).0, 1);
+    std::fs::write(&f, "second").unwrap();
+    assert_eq!(move_aside_at(std::slice::from_ref(&f), 1000).0, 1);
+    let kept = bak_of(&dir, "config.toml");
+    assert_eq!(kept.len(), 2, "{kept:?}");
+    let mut texts: Vec<_> = kept.iter().map(|p| std::fs::read_to_string(p).unwrap()).collect();
+    texts.sort();
+    assert_eq!(texts, ["first", "second"], "{kept:?}");
+}
+
+/// A folder holding a config.toml that sets the font size, and a keymap.toml.
+fn reset_dir(label: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let dir = util::test_dir(label);
+    let cfg = dir.join("cfg");
+    std::fs::create_dir_all(&cfg).unwrap();
+    std::fs::write(cfg.join("config.toml"), "[ui]\nfont_size = 19.0\n").unwrap();
+    std::fs::write(cfg.join("keymap.toml"), "# mine\n").unwrap();
+    (dir, cfg.join("config.toml"), cfg.join("keymap.toml"))
+}
+
+/// The copies `name` was moved to in `dir`.
+fn bak_of(dir: &Path, name: &str) -> Vec<PathBuf> {
+    let prefix = format!("{name}.bak-");
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with(&prefix)))
+        .collect();
+    v.sort();
+    v
+}
+
+fn toast_texts(a: &App) -> Vec<&str> {
+    a.toasts.iter().map(|t| t.text.as_str()).collect()
+}
+
+/// Reset is a write like the others: pending until the writer answers, then
+/// the files are aside, the defaults are read back and the toast says how many.
+#[test]
+fn reset_goes_through_the_writer_and_reads_the_defaults_back() {
+    let (dir, config, keymap) = reset_dir("settings-reset");
+    let cfg = config.parent().unwrap().to_path_buf();
+    let mut a = app_in(&dir);
+    a.cfg.ui.font_size = 19.0;
+    a.settings_reset_files(vec![config.clone(), keymap.clone()], vec![cfg.clone()]);
+    assert!(a.config_writes_pending());
+    answer_config_writes(&mut a);
+    assert!(!config.exists() && !keymap.exists());
+    assert_eq!(bak_of(&cfg, "config.toml").len(), 1);
+    assert_eq!(bak_of(&cfg, "keymap.toml").len(), 1);
+    assert_eq!(a.cfg.ui.font_size, crate::config::Ui::default().font_size, "the defaults are back");
+    assert!(a.toasts.iter().any(|t| t.text.starts_with("Settings reset; 2 file(s)")), "{:?}", toast_texts(&a));
+    assert_eq!(a.config_write_failed, None);
+    assert!(!a.config_writes_pending());
+}
+
+/// With nothing to move, Reset says so and fails nothing.
+#[test]
+fn reset_with_no_files_says_so() {
+    let dir = util::test_dir("settings-reset-none");
+    let mut a = app_in(&dir);
+    a.settings_reset_files(vec![dir.join("config.toml"), dir.join("keymap.toml")], vec![dir.clone()]);
+    answer_config_writes(&mut a);
+    assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Nothing to reset")), "{:?}", toast_texts(&a));
+    assert_eq!(a.config_write_failed, None);
+    assert!(!a.config_writes_pending());
+}
+
+/// A config.toml write sent before a Reset lands before it, and one sent
+/// after lands after it: the order of sending is the order of landing.
+#[test]
+fn reset_keeps_its_place_among_config_writes() {
+    let (dir, config, keymap) = reset_dir("settings-reset-order");
+    let cfg = config.parent().unwrap().to_path_buf();
+    let mut a = app_in(&dir);
+    a.write_kura_to(config.clone(), vec![cfg.clone()], vec![change("ui", "max_history", Some("77"))]);
+    a.settings_reset_files(vec![config.clone(), keymap], vec![cfg.clone()]);
+    a.write_kura_to(config.clone(), vec![cfg.clone()], vec![change("ui", "font_size", Some("21.0"))]);
+    answer_config_writes(&mut a);
+    let baks = bak_of(&cfg, "config.toml");
+    assert_eq!(baks.len(), 1, "{baks:?}");
+    let old = std::fs::read_to_string(&baks[0]).unwrap();
+    assert!(old.contains("max_history = 77"), "the earlier write landed before the reset: {old}");
+    let new = std::fs::read_to_string(&config).unwrap();
+    assert!(new.contains("font_size = 21.0") && !new.contains("max_history"), "the later write landed after it: {new}");
+    assert_eq!(a.config_write_failed, None);
+}
+
+/// A bundle that is not there fails the write, and the run can see it.
+#[test]
+fn import_of_a_missing_file_fails_the_write() {
+    let dir = util::test_dir("settings-import-missing");
+    let mut a = app_in(&dir);
+    a.settings_backup_in(ito_prefs::Backup::Import(dir.join("nope.toml")), dir.clone(), dir.join("kura"), vec![dir.join("kura")]);
+    assert!(a.config_writes_pending());
+    answer_config_writes(&mut a);
+    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Import failed:")), "{:?}", a.config_write_failed);
+    assert!(!a.config_writes_pending());
+}
+
+/// An export to a path that cannot be written fails the write.
+#[test]
+fn export_to_an_unwritable_path_fails_the_write() {
+    let dir = util::test_dir("settings-export-fails");
+    let blocker = dir.join("file");
+    std::fs::write(&blocker, "x").unwrap();
+    let mut a = app_in(&dir);
+    a.settings_backup_in(ito_prefs::Backup::Export(blocker.join("out.toml")), dir.clone(), dir.join("kura"), vec![dir.join("kura")]);
+    answer_config_writes(&mut a);
+    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Export failed:")), "{:?}", a.config_write_failed);
+    assert!(!a.config_writes_pending());
+}
+
+/// Export, change everything on disk, Import: the files, the theme and the
+/// language are back, applied without a restart.
+#[test]
+fn export_then_import_brings_the_settings_back() {
+    let dir = util::test_dir("settings-roundtrip");
+    let (base, app_dir) = (dir.join("uchmk"), dir.join("uchmk").join("kura"));
+    let themes = base.join("themes");
+    std::fs::create_dir_all(&themes).unwrap();
+    std::fs::create_dir_all(&app_dir).unwrap();
+    let (common, theme, config) = (base.join("common.toml"), themes.join("roundtrip.toml"), app_dir.join("config.toml"));
+    let common_text = "language = \"ja\"\ntheme = \"roundtrip\"\n";
+    std::fs::write(&common, common_text).unwrap();
+    std::fs::write(&theme, "name = \"roundtrip\"\n").unwrap();
+    std::fs::write(&config, "[ui]\nfont_size = 18.0\n").unwrap();
+    let bundle = dir.join("bundle.toml");
+    let mut a = app_in(&dir);
+    a.settings_backup_in(ito_prefs::Backup::Export(bundle.clone()), base.clone(), app_dir.clone(), vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    assert!(a.toasts.iter().any(|t| t.text.starts_with("Wrote ") && t.text.contains("settings files")), "{:?}", toast_texts(&a));
+    assert_eq!(a.config_write_failed, None);
+
+    std::fs::write(&common, "language = \"en\"\n").unwrap();
+    std::fs::remove_file(&theme).unwrap();
+    std::fs::write(&config, "[ui]\nfont_size = 12.0\n").unwrap();
+    a.settings_backup_in(ito_prefs::Backup::Import(bundle), base.clone(), app_dir.clone(), vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    assert_eq!(std::fs::read_to_string(&common).unwrap(), common_text);
+    assert!(theme.exists(), "the theme file is back");
+    assert!(a.kura_wrote.is_some(), "the watcher event for the written config.toml is kept quiet");
+    assert!(std::fs::read_to_string(&config).unwrap().contains("font_size = 18.0"));
+    assert_eq!(a.common.language.as_deref(), Some("ja"));
+    assert_eq!(a.cfg.ui.font_size, 18.0, "the config read back is applied");
+    assert!(a.themes.iter().any(|t| t.name == "roundtrip"), "the App knows the theme");
+    assert!(a.toasts.iter().any(|t| t.text.starts_with("Read ") && t.text.contains("settings files")), "{:?}", toast_texts(&a));
+    assert_eq!(a.config_write_failed, None);
+}
+
+/// A write that stopped part way still applies the config it read back, and
+/// then records the failure as the newest toast.
+#[test]
+fn a_write_that_failed_part_way_applies_the_config_then_fails() {
+    let (dir, config, _keymap) = reset_dir("settings-partial");
+    let cfg = config.parent().unwrap().to_path_buf();
+    let mut a = app_in(&dir);
+    a.cfg.ui.font_size = 11.0;
+    let w = KuraWritten {
+        seq: 0,
+        said: "ignored".into(),
+        read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
+        common: None,
+        failed: Some("Reset failed: boom".into()),
+        wrote: false,
+    };
+    a.apply_kura_written(w);
+    assert_eq!(a.cfg.ui.font_size, 19.0, "the config read back is applied");
+    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Reset failed:")), "{:?}", a.config_write_failed);
+    assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Reset failed:")), "{:?}", toast_texts(&a));
+}
+
+/// A move that stops part way says how many it moved, and leaves the rest.
+#[test]
+fn move_aside_reports_a_partial_count() {
+    let dir = util::test_dir("move-aside-partial");
+    let (a, b) = (dir.join("config.toml"), dir.join("keymap.toml"));
+    std::fs::write(&a, "a").unwrap();
+    std::fs::write(&b, "b").unwrap();
+    std::fs::write(dir.join("keymap.toml.bak-1000"), "taken").unwrap();
+    for n in 2..=99 {
+        std::fs::write(dir.join(format!("keymap.toml.bak-1000-{n}")), "taken").unwrap();
+    }
+    let (n, r) = move_aside_at(&[a.clone(), b.clone()], 1000);
+    assert_eq!(n, 1);
+    assert!(r.is_err_and(|e| e.to_string().contains("no free name")));
+    assert!(!a.exists() && b.exists(), "the first moved, the second stays");
+    assert_eq!(std::fs::read_to_string(dir.join("keymap.toml.bak-1000")).unwrap(), "taken");
+}
+
+/// A Reset that moved one file and then failed keeps the watcher quiet and
+/// says how many it kept.
+#[test]
+fn a_reset_that_kept_one_file_says_so_and_sets_the_ticket() {
+    let (dir, config, _keymap) = reset_dir("settings-partial-kept");
+    let cfg = config.parent().unwrap().to_path_buf();
+    let mut a = app_in(&dir);
+    let w = KuraWritten {
+        seq: 0,
+        said: String::new(),
+        read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
+        common: None,
+        failed: Some("Reset failed after keeping 1 file(s) as *.bak-…: boom".into()),
+        wrote: true,
+    };
+    a.apply_kura_written(w);
+    assert!(a.kura_wrote.is_some());
+    assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Reset failed after keeping 1 file(s)")), "{:?}", toast_texts(&a));
 }
