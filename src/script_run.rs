@@ -572,14 +572,8 @@ impl ScriptRun {
     }
 
     fn step(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
-        if let Some(out) = self.start_run(app) {
+        if let Some(out) = self.before_step(ctx, app) {
             return out;
-        }
-        if self.reads_window {
-            keyscript::observe(ctx);
-        }
-        if self.quitting {
-            return Outcome::Continue;
         }
         let viewport = (raw_input.viewport_id != egui::ViewportId::ROOT).then(|| format!("{:?}", raw_input.viewport_id));
         let status = app.config_writes.status(app.config_write_failed.as_deref());
@@ -591,7 +585,30 @@ impl ScriptRun {
             writes: Some(&status),
             generation: keyscript::generation(ctx),
         };
-        match self.pace.next(&f) {
+        self.advance(ctx, app, &f, |run, app, entry| run.carry_out(ctx, app, raw_input, entry, now))
+    }
+
+    /// What comes before a frame is handed to Pace: the first `run.json`, the window's reading (it must precede
+    /// `keyscript::generation`), and a quit that has already been taken. `Some` ends the frame there.
+    fn before_step(&mut self, ctx: &egui::Context, app: &mut App) -> Option<Outcome> {
+        if let Some(out) = self.start_run(app) {
+            return Some(out);
+        }
+        if self.reads_window {
+            keyscript::observe(ctx);
+        }
+        self.quitting.then_some(Outcome::Continue)
+    }
+
+    /// Ask Pace what the frame `f` holds and carry it out with `carry`. A seam so that a test can feed its own frame.
+    fn advance(
+        &mut self,
+        ctx: &egui::Context,
+        app: &mut App,
+        f: &pace::Frame,
+        carry: impl FnOnce(&mut Self, &mut App, &pace::Entry) -> (pace::Taken, Option<CommonEdit>),
+    ) -> Outcome {
+        match self.pace.next(f) {
             pace::Next::Hold { wake } => {
                 match wake {
                     None => {}
@@ -601,10 +618,10 @@ impl ScriptRun {
                 Outcome::Continue
             }
             pace::Next::Take(entry) => {
-                let (taken, edit) = self.carry_out(ctx, app, raw_input, &entry, now);
+                let (taken, edit) = carry(self, app, &entry);
                 // An action's first input goes in now: what the app copied and announced from here on is what
                 // `<Announced:>` looks at, and `<State:>` says how long ago it was. Once per script step.
-                if pace::conformance::acts_taken(&entry, &taken) && self.pace.act(now) {
+                if pace::conformance::acts_taken(&entry, &taken) && self.pace.act(f.now) {
                     self.since = Some(keyscript::mark(ctx));
                 }
                 // The same write the settings screen makes: common.toml, applied as the watcher would.
@@ -612,7 +629,7 @@ impl ScriptRun {
                     app.write_common(vec![ito_common::CommonChange { table: None, key, value }]);
                 }
                 let quit = matches!(taken, pace::Taken::Quit);
-                let ended = self.pace.taken(&f, taken);
+                let ended = self.pace.taken(f, taken);
                 ctx.request_repaint();
                 if quit {
                     self.quitting = true;
@@ -874,10 +891,15 @@ impl ScriptRun {
                 };
                 write_shot_json(&png.with_extension("json"), &seen)
             });
+        self.shot_result(app, saved, Instant::now())
+    }
+
+    /// The picture of `<Shot:>` was saved or could not be: tell Pace. A seam so that a test can feed its own answer.
+    fn shot_result(&mut self, app: &mut App, saved: Result<(), String>, now: Instant) -> Outcome {
         match saved {
             Ok(()) => {
                 self.shot = None;
-                self.pace.shot_saved(Instant::now());
+                self.pace.shot_saved(now);
                 Outcome::Continue
             }
             Err(why) => match self.pace.shot_failed(why) {
@@ -897,15 +919,20 @@ impl ScriptRun {
             Ending::Closed => pace::Ending::Closed,
             Ending::Quit => pace::Ending::Quit,
         };
-        let out = match self.pace.end(how, Instant::now(), Some(&status)) {
-            Some(e) => self.keep(app, e),
-            None => Outcome::Continue,
-        };
+        let out = self.ended_at(app, how, Instant::now(), Some(&status));
         let synced = self.sync(app);
         if out == Outcome::Continue {
             synced
         } else {
             out
+        }
+    }
+
+    /// Pace's end of the run at `now` (`writes` as of then), kept. A seam so that a test can pick the time.
+    fn ended_at(&mut self, app: &mut App, how: pace::Ending, now: Instant, writes: Option<&ito_common::writes::Status>) -> Outcome {
+        match self.pace.end(how, now, writes) {
+            Some(e) => self.keep(app, e),
+            None => Outcome::Continue,
         }
     }
 }
@@ -1032,6 +1059,132 @@ mod tests {
     /// A report without its `run:` line, to look at how the rest ends.
     fn body(report: &str) -> String {
         report.lines().filter(|l| !l.starts_with("run: ")).map(|l| format!("{l}\n")).collect()
+    }
+
+    /// kura's `--keys` glue as a subject of ito's Pace conformance table (`pace::conformance`), the way ito runs it on its
+    /// own `Runner`. The table checks the glue: the order of `act`, the mark and `taken`, `keep` and `ended`, the
+    /// viewport, the shot events and the closing. It does not check `carry_out` (how a step becomes a press) or the
+    /// `common.toml` edit: the answers come from the table.
+    struct KuraSubject;
+
+    impl pace::conformance::Subject for KuraSubject {
+        fn skips(&self) -> &[pace::conformance::Need] {
+            // kura writes no state JSON yet and refuses `<Snap:>`.
+            &[pace::conformance::Need::StateJson, pace::conformance::Need::Snap]
+        }
+
+        fn run(&mut self, case: &pace::conformance::Case) -> pace::conformance::Trace {
+            use pace::conformance::{Answer, ShotEvent, Trace};
+            let steps = keyscript::parse_with(case.script, &pace::conformance::dialect()).unwrap_or_else(|e| panic!("{}: {e}", case.name));
+            let mut rig = Rig::new(&format!("conformance-{}", case.name), true);
+            let done = rig.dir.join("done.txt");
+            let shot_dir = rig.dir.join("shots");
+            std::fs::create_dir_all(&shot_dir).unwrap();
+            let base = rig.t0;
+            let at = |ms: u64| base + Duration::from_millis(ms);
+            let mut run = ScriptRun::started(&steps, Some(done.clone()), shot_dir, rig.failed.clone(), base, |c| *c = case.config.clone());
+            // Nothing draws during a case, so the state `keep` prefixes the report with does not change.
+            let prefix = crate::state_report(&rig.screen.app);
+            let ctx = rig.screen.ctx.clone();
+            let app = &mut rig.screen.app;
+            let mut tr = Trace::default();
+            let mut end_ms = None;
+            for tick in &case.ticks {
+                assert!(tick.state.is_none(), "{}: a state event reached a subject that skips StateJson", case.name);
+                let now = at(tick.ms);
+                if let Some(event) = &tick.shot {
+                    let saved = match event {
+                        ShotEvent::Saved => Ok(()),
+                        ShotEvent::Failed(why) => Err((*why).to_owned()),
+                    };
+                    let _ = run.shot_result(app, saved, now);
+                    let _ = run.sync(app);
+                    if run.done.is_none() {
+                        end_ms = Some(tick.ms);
+                        break;
+                    }
+                }
+                if run.pace.finished() {
+                    continue;
+                }
+                run.since = None;
+                if run.before_step(&ctx, app).is_some() {
+                    continue;
+                }
+                let status = tick.writes.as_ref().map(|w| w.status(base));
+                let frame = pace::Frame {
+                    pass: tick.pass,
+                    now,
+                    viewport: tick.viewport,
+                    settled: tick.settled,
+                    writes: status.as_ref(),
+                    generation: tick.generation,
+                };
+                let mut idx = None;
+                run.advance(&ctx, app, &frame, |_, _, entry| {
+                    idx = Some(entry.idx);
+                    tr.takes.push((entry.idx, tick.ms, entry.kind == pace::Kind::Then));
+                    (tick.answer.clone().unwrap_or_else(|| Answer::default_for(entry)).taken(entry), None)
+                });
+                if let (Some(i), true) = (idx, run.since.is_some()) {
+                    tr.marks.push((i, tick.ms));
+                }
+                let _ = run.sync(app);
+                if run.done.is_none() {
+                    end_ms = Some(tick.ms);
+                    break;
+                }
+            }
+            if let Some((ms, how)) = case.end {
+                let _ = run.ended_at(app, how, at(ms), None);
+                if end_ms.is_none() && run.done.is_none() {
+                    end_ms = Some(ms);
+                }
+                if run.pace.end(how, at(ms), None).is_some() {
+                    tr.why = Some("a second end returned Some".to_owned());
+                }
+            }
+            if run.done.is_none() {
+                let own = body(&read(&done));
+                let tail =
+                    own.strip_prefix(&prefix).unwrap_or_else(|| panic!("{}: the report does not start with the state:\n{own}", case.name));
+                tr.tail = Some(tail.to_owned());
+            }
+            if run.run.status == evidence::Status::Failed && tr.why.is_none() {
+                tr.why = run.run.why.clone();
+            }
+            tr.ended_left = run.run.left;
+            tr.failed = run.pace.failed();
+            tr.left = run.pace.left();
+            tr.unsettled = run.pace.unsettled().to_vec();
+            tr.action_gen = run.pace.action_gen();
+            tr.end_ms = end_ms;
+            tr
+        }
+    }
+
+    #[test]
+    fn kura_meets_the_conformance_table() {
+        let cases = pace::conformance::cases();
+        let skipped = pace::conformance::skipped(&KuraSubject, &cases).len();
+        assert!(skipped * 2 <= cases.len(), "the table must not be passed by skipping it: {skipped} of {} skipped", cases.len());
+        pace::conformance::check(&mut KuraSubject, &cases).unwrap();
+    }
+
+    /// `<Quit>` has gone in and the window takes a few frames to close: nothing more is pressed.
+    /// The table has no frame after a quit, so this one is kura's own.
+    #[test]
+    fn nothing_is_pressed_while_the_window_closes() {
+        let mut rig = Rig::new("keys-quit-closing", true);
+        let mut run = rig.run("<Quit>j", None, rig.dir.clone());
+        rig.hook_by(&mut run, Duration::from_secs(1));
+        assert!(rig.screen.app.quit, "<Quit> has run");
+        assert!(!run.pace.finished(), "`j` is still queued, so only the quit guard can hold it back");
+        for _ in 0..4 {
+            let (out, events) = rig.hook_events(&mut run, Duration::from_secs(1));
+            assert_eq!(out, Outcome::Continue);
+            assert!(events.is_empty(), "{events:?}");
+        }
     }
 
     /// A path under a regular file: nothing can be created there, on any OS.
