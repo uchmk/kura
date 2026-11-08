@@ -38,7 +38,6 @@ pub use overlay::*;
 mod task;
 pub use task::*;
 mod config_writes;
-pub(crate) use config_writes::*;
 mod preview_state;
 pub use preview_state::*;
 mod split;
@@ -219,10 +218,9 @@ pub struct App {
     /// is for changes made elsewhere.
     common_answers: crossbeam_channel::Receiver<CommonWritten>,
     common_answers_tx: Sender<CommonWritten>,
-    /// Config writes sent and answered.
-    pub(crate) config_writes: ConfigWrites,
-    /// The first config write that failed, kept for a `--keys` run to end on.
-    pub(crate) config_write_failed: Option<String>,
+    /// Config writes sent and answered; it also keeps the first failure for a
+    /// `--keys` run to end on.
+    pub(crate) config_writes: ito_common::writes::Ledger,
     pub preview: PreviewSlot,
     pub max_preview: bool,
     /// The terminal pane has the window. A third of the height is right for a
@@ -443,8 +441,7 @@ impl App {
             common_jobs: None,
             common_answers,
             common_answers_tx,
-            config_writes: ConfigWrites::default(),
-            config_write_failed: None,
+            config_writes: ito_common::writes::Ledger::new(),
             cfg,
             tabs: vec![tab],
             active: 0,

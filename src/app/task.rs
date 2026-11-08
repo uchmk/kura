@@ -281,8 +281,9 @@ pub struct KuraChange {
 /// One write for the config.toml writer: the file, the folders to read the
 /// config from afterwards, and the changes in the order they were made.
 pub(super) struct KuraJob {
-    /// Which write this is, to match the answer to it.
-    pub(super) seq: u64,
+    /// The ledger's tickets for this write (several once jobs are merged);
+    /// they ride to the answer and are answered after the UI applies it.
+    pub(super) tickets: Vec<ito_common::writes::Ticket>,
     pub(super) path: PathBuf,
     pub(super) dirs: Vec<PathBuf>,
     pub(super) changes: Vec<KuraChange>,
@@ -319,8 +320,8 @@ pub(super) enum Whole {
 /// What a write of config.toml came to: the rows written, as a toast says
 /// them, and the config read back -- or what stopped it.
 pub(crate) struct KuraWritten {
-    /// The job it answers; a merged write answers with the last one merged.
-    pub(super) seq: u64,
+    /// The tickets of every job this write stands for.
+    pub(super) tickets: Vec<ito_common::writes::Ticket>,
     pub(super) said: String,
     /// `Ok(None)`: nothing to read back (an Export, or a Reset that moved nothing).
     pub(super) read: Result<Option<crate::config::Fresh>, String>,
@@ -356,7 +357,7 @@ fn split_read(read: Result<Option<ReadBack>, String>) -> (Option<crate::config::
 }
 
 /// Consecutive jobs for the same file as one write of the newest values. The
-/// merged job answers with the last one's `seq`.
+/// merged job carries every ticket of the jobs it stands for.
 pub(super) fn merge_jobs(queued: impl IntoIterator<Item = KuraJob>) -> Vec<KuraJob> {
     let mut jobs: Vec<KuraJob> = Vec::new();
     for j in queued {
@@ -366,7 +367,7 @@ pub(super) fn merge_jobs(queued: impl IntoIterator<Item = KuraJob>) -> Vec<KuraJ
                 m.keys.extend(j.keys);
                 m.webhooks = j.webhooks.or(m.webhooks.take());
                 m.dirs = j.dirs;
-                m.seq = j.seq;
+                m.tickets.extend(j.tickets);
             }
             _ => jobs.push(j),
         }
@@ -383,7 +384,7 @@ pub(super) fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Opti
             let jobs = merge_jobs(std::iter::once(first).chain(rx.try_iter()));
             for mut j in jobs {
                 let written = match j.whole.take() {
-                    Some(w) => run_whole(j.seq, &j.dirs, w),
+                    Some(w) => run_whole(std::mem::take(&mut j.tickets), &j.dirs, w),
                     None if j.keys.is_empty() => write_kura_toml(j),
                     None => write_keymap_toml(j),
                 };
@@ -399,14 +400,14 @@ pub(super) fn kura_writer(done: Sender<KuraWritten>, ctx: egui::Context) -> Opti
 
 /// One write for the common.toml writer.
 pub(super) struct CommonJob {
-    pub(super) seq: u64,
+    pub(super) ticket: ito_common::writes::Ticket,
     pub(super) base: PathBuf,
     pub(super) changes: Vec<ito_common::CommonChange>,
 }
 
 /// What a write of common.toml came to, with the themes read after it.
 pub(crate) struct CommonWritten {
-    pub(super) seq: u64,
+    pub(super) ticket: ito_common::writes::Ticket,
     pub(super) themes: Themes,
     pub(super) read: CommonRead,
 }
@@ -426,7 +427,7 @@ pub(super) fn common_writer(done: Sender<CommonWritten>, ctx: egui::Context) -> 
                 Err(e) => Err(format!("common.toml: {e}")),
             };
             let themes = super::read_themes(&base);
-            if done.send(CommonWritten { seq: job.seq, themes, read }).is_err() {
+            if done.send(CommonWritten { ticket: job.ticket, themes, read }).is_err() {
                 return;
             }
             ctx.request_repaint();
@@ -512,14 +513,14 @@ pub(super) fn write_kura_toml(job: KuraJob) -> KuraWritten {
         Ok(read_back(&job.dirs))
     })();
     let (stamps, read) = split_read(read.map(Some));
-    KuraWritten { seq: job.seq, said, read, common: None, failed: None, stamps, reread: false }
+    KuraWritten { tickets: job.tickets, said, read, common: None, failed: None, stamps, reread: false }
 }
 
 /// Run a job that is not an edit of one file, and read back what it changed.
-pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
+pub(super) fn run_whole(tickets: Vec<ito_common::writes::Ticket>, dirs: &[PathBuf], w: Whole) -> KuraWritten {
     let done = |said: String, read: Result<Option<ReadBack>, String>, common, failed| {
         let (stamps, read) = split_read(read);
-        KuraWritten { seq, said, read, common, failed, stamps, reread: false }
+        KuraWritten { tickets, said, read, common, failed, stamps, reread: false }
     };
     match w {
         Whole::Export { file, base, app_dir } => {
@@ -559,10 +560,7 @@ pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
                 done(String::new(), Ok(Some(read_back(dirs))), None, Some(failed))
             }
         },
-        Whole::Reread => {
-            let (stamps, fresh) = read_back(dirs);
-            KuraWritten { seq, said: String::new(), read: Ok(Some(fresh)), common: None, failed: None, stamps: Some(stamps), reread: true }
-        }
+        Whole::Reread => KuraWritten { reread: true, ..done(String::new(), Ok(Some(read_back(dirs))), None, None) },
     }
 }
 
@@ -607,7 +605,7 @@ pub(super) fn write_keymap_toml(job: KuraJob) -> KuraWritten {
     })();
     let (stamps, read) = split_read(read.map(Some));
     let said = if wrote { format!("Saved keymap.toml: {said}") } else { format!("keymap.toml already says so: {said}") };
-    KuraWritten { seq: job.seq, said, read, common: None, failed: None, stamps, reread: false }
+    KuraWritten { tickets: job.tickets, said, read, common: None, failed: None, stamps, reread: false }
 }
 
 pub struct Toast {

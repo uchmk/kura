@@ -76,7 +76,7 @@ fn the_settings_screen_writes_common_toml_and_applies_it() {
     // Nothing changed is nothing written.
     a.write_common(Vec::new());
     assert!(!a.config_writes_pending());
-    assert!(a.config_write_failed.is_none());
+    assert!(a.config_write_failed().is_none());
 }
 
 /// With no config folder there is nowhere to write, and the screen says so.
@@ -104,10 +104,6 @@ fn answer_config_writes(a: &mut App) {
 fn kura_written(a: &mut App) {
     let w = a.kura_rx.recv_timeout(Duration::from_secs(10)).expect("the writer answered");
     a.kura_written(w);
-    // A broken file is a failure some tests want; an answer to a write that
-    // never went out is not.
-    let failed = a.config_write_failed.as_deref().unwrap_or("");
-    assert!(!failed.contains("came out of order"), "{failed}");
 }
 
 fn change(table: &'static str, key: &'static str, value: Option<&str>) -> KuraChange {
@@ -753,7 +749,7 @@ fn reset_goes_through_the_writer_and_reads_the_defaults_back() {
     assert_eq!(bak_of(&cfg, "keymap.toml").len(), 1);
     assert_eq!(a.cfg.ui.font_size, crate::config::Ui::default().font_size, "the defaults are back");
     assert!(a.toasts.iter().any(|t| t.text.starts_with("Settings reset; 2 file(s)")), "{:?}", toast_texts(&a));
-    assert_eq!(a.config_write_failed, None);
+    assert_eq!(a.config_write_failed(), None);
     assert!(!a.config_writes_pending());
 }
 
@@ -765,7 +761,7 @@ fn reset_with_no_files_says_so() {
     a.settings_reset_files(vec![dir.join("config.toml"), dir.join("keymap.toml")], vec![dir.clone()]);
     answer_config_writes(&mut a);
     assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Nothing to reset")), "{:?}", toast_texts(&a));
-    assert_eq!(a.config_write_failed, None);
+    assert_eq!(a.config_write_failed(), None);
     assert!(!a.config_writes_pending());
 }
 
@@ -786,7 +782,7 @@ fn reset_keeps_its_place_among_config_writes() {
     assert!(old.contains("max_history = 77"), "the earlier write landed before the reset: {old}");
     let new = std::fs::read_to_string(&config).unwrap();
     assert!(new.contains("font_size = 21.0") && !new.contains("max_history"), "the later write landed after it: {new}");
-    assert_eq!(a.config_write_failed, None);
+    assert_eq!(a.config_write_failed(), None);
 }
 
 /// A bundle that is not there fails the write, and the run can see it.
@@ -797,7 +793,7 @@ fn import_of_a_missing_file_fails_the_write() {
     a.settings_backup_in(ito_prefs::Backup::Import(dir.join("nope.toml")), dir.clone(), dir.join("kura"), vec![dir.join("kura")]);
     assert!(a.config_writes_pending());
     answer_config_writes(&mut a);
-    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Import failed:")), "{:?}", a.config_write_failed);
+    assert!(a.config_write_failed().as_deref().is_some_and(|e| e.starts_with("Import failed:")), "{:?}", a.config_write_failed());
     assert!(!a.config_writes_pending());
 }
 
@@ -810,7 +806,7 @@ fn export_to_an_unwritable_path_fails_the_write() {
     let mut a = app_in(&dir);
     a.settings_backup_in(ito_prefs::Backup::Export(blocker.join("out.toml")), dir.clone(), dir.join("kura"), vec![dir.join("kura")]);
     answer_config_writes(&mut a);
-    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Export failed:")), "{:?}", a.config_write_failed);
+    assert!(a.config_write_failed().as_deref().is_some_and(|e| e.starts_with("Export failed:")), "{:?}", a.config_write_failed());
     assert!(!a.config_writes_pending());
 }
 
@@ -833,7 +829,7 @@ fn export_then_import_brings_the_settings_back() {
     a.settings_backup_in(ito_prefs::Backup::Export(bundle.clone()), base.clone(), app_dir.clone(), vec![app_dir.clone()]);
     answer_config_writes(&mut a);
     assert!(a.toasts.iter().any(|t| t.text.starts_with("Wrote ") && t.text.contains("settings files")), "{:?}", toast_texts(&a));
-    assert_eq!(a.config_write_failed, None);
+    assert_eq!(a.config_write_failed(), None);
 
     std::fs::write(&common, "language = \"en\"\n").unwrap();
     std::fs::remove_file(&theme).unwrap();
@@ -852,7 +848,7 @@ fn export_then_import_brings_the_settings_back() {
     assert_eq!(a.cfg.ui.font_size, 18.0, "the config read back is applied");
     assert!(a.themes.iter().any(|t| t.name == "roundtrip"), "the App knows the theme");
     assert!(a.toasts.iter().any(|t| t.text.starts_with("Read ") && t.text.contains("settings files")), "{:?}", toast_texts(&a));
-    assert_eq!(a.config_write_failed, None);
+    assert_eq!(a.config_write_failed(), None);
 }
 
 /// A write that stopped part way still applies the config it read back, and
@@ -864,7 +860,7 @@ fn a_write_that_failed_part_way_applies_the_config_then_fails() {
     let mut a = app_in(&dir);
     a.cfg.ui.font_size = 11.0;
     let w = KuraWritten {
-        seq: 0,
+        tickets: Vec::new(),
         said: "ignored".into(),
         read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
         common: None,
@@ -874,7 +870,7 @@ fn a_write_that_failed_part_way_applies_the_config_then_fails() {
     };
     a.apply_kura_written(w);
     assert_eq!(a.cfg.ui.font_size, 19.0, "the config read back is applied");
-    assert!(a.config_write_failed.as_deref().is_some_and(|e| e.starts_with("Reset failed:")), "{:?}", a.config_write_failed);
+    assert!(a.config_write_failed().as_deref().is_some_and(|e| e.starts_with("Reset failed:")), "{:?}", a.config_write_failed());
     assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Reset failed:")), "{:?}", toast_texts(&a));
 }
 
@@ -904,7 +900,7 @@ fn a_reset_that_kept_one_file_says_so_and_keeps_its_times() {
     let cfg = config.parent().unwrap().to_path_buf();
     let mut a = app_in(&dir);
     let w = KuraWritten {
-        seq: 0,
+        tickets: Vec::new(),
         said: String::new(),
         read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
         common: None,
@@ -1058,9 +1054,9 @@ fn watcher_events_make_one_reread_job() {
     a.watched_tx = Some(tx.clone());
     tx.send(Watched::Config).unwrap();
     tx.send(Watched::Config).unwrap();
-    let before = a.config_writes.answers();
+    let before = a.config_writes.status().answers;
     a.drain_watched();
     assert!(a.config_writes_pending());
     answer_config_writes(&mut a);
-    assert_eq!(a.config_writes.answers(), before + 1);
+    assert_eq!(a.config_writes.status().answers, before + 1);
 }

@@ -71,7 +71,7 @@ impl App {
     pub(crate) fn reread_config_in(&mut self, dirs: Vec<PathBuf>) {
         self.send_kura_job(
             KuraJob {
-                seq: 0,
+                tickets: Vec::new(),
                 path: PathBuf::new(),
                 dirs,
                 changes: Vec::new(),
@@ -179,13 +179,16 @@ impl App {
         if self.common_jobs.is_none() {
             self.common_jobs = common_writer(self.common_answers_tx.clone(), self.ctx.clone());
         }
-        let seq = self.config_writes.next_seq(Writer::Common);
-        let sent = self.common_jobs.as_ref().is_some_and(|tx| tx.send(CommonJob { seq, base, changes }).is_ok());
-        if sent {
-            self.config_writes.sent(Writer::Common, "common.toml", Instant::now());
-        } else {
+        let ticket = self.config_writes.sent("common.toml");
+        let unsent = match self.common_jobs.as_ref() {
+            Some(tx) => tx.send(CommonJob { ticket, base, changes }).err().map(|e| e.into_inner().ticket),
+            None => Some(ticket),
+        };
+        if let Some(ticket) = unsent {
             self.common_jobs = None;
-            self.fail_config_write("common.toml: could not start writing it".into());
+            let why = "common.toml: could not start writing it".to_owned();
+            self.error(why.clone());
+            ticket.failed(why);
         }
     }
 
@@ -220,7 +223,10 @@ impl App {
     /// [`App::write_kura`] to a file named here, reading the config back from
     /// `dirs`: what a test drives with a folder of its own.
     pub(crate) fn write_kura_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, changes: Vec<KuraChange>) {
-        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes, keys: Vec::new(), webhooks: None, whole: None }, "config.toml");
+        self.send_kura_job(
+            KuraJob { tickets: Vec::new(), path, dirs, changes, keys: Vec::new(), webhooks: None, whole: None },
+            "config.toml",
+        );
     }
 
     /// The `[[notify.webhooks]]` the Notifications page changed, written to
@@ -232,7 +238,7 @@ impl App {
         };
         self.send_kura_job(
             KuraJob {
-                seq: 0,
+                tickets: Vec::new(),
                 path,
                 dirs: crate::config::dirs_to_read(),
                 changes: Vec::new(),
@@ -251,13 +257,18 @@ impl App {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
-        job.seq = self.config_writes.next_seq(Writer::Kura);
-        let sent = self.kura_jobs.as_ref().is_some_and(|tx| tx.send(job).is_ok());
-        if sent {
-            self.config_writes.sent(Writer::Kura, what, Instant::now());
-        } else {
+        job.tickets = vec![self.config_writes.sent(what)];
+        let unsent = match self.kura_jobs.as_ref() {
+            Some(tx) => tx.send(job).err().map(|e| e.into_inner().tickets),
+            None => Some(std::mem::take(&mut job.tickets)),
+        };
+        if let Some(tickets) = unsent {
             self.kura_jobs = None;
-            self.fail_config_write(format!("{what}: could not start writing it"));
+            let why = format!("{what}: could not start writing it");
+            self.error(why.clone());
+            for t in tickets {
+                t.failed(why.clone());
+            }
         }
     }
 
@@ -309,17 +320,20 @@ impl App {
     /// [`App::write_keymap`] to a file named here, reading the config back
     /// from `dirs`.
     pub(crate) fn write_keymap_to(&mut self, path: PathBuf, dirs: Vec<PathBuf>, keys: Vec<ito_keymap::Edit>) {
-        self.send_kura_job(KuraJob { seq: 0, path, dirs, changes: Vec::new(), keys, webhooks: None, whole: None }, "keymap.toml");
+        self.send_kura_job(
+            KuraJob { tickets: Vec::new(), path, dirs, changes: Vec::new(), keys, webhooks: None, whole: None },
+            "keymap.toml",
+        );
     }
 
     /// The writer's answer: the config it read back, applied with what a
     /// broken file gave last time kept, or what stopped the write. The writes
     /// it stands for count as answered only once it has been applied.
-    pub(crate) fn kura_written(&mut self, w: KuraWritten) {
-        let seq = w.seq;
+    pub(crate) fn kura_written(&mut self, mut w: KuraWritten) {
+        let tickets = std::mem::take(&mut w.tickets);
         self.apply_kura_written(w);
-        if let Err(e) = self.config_writes.answered(Writer::Kura, seq) {
-            self.fail_config_write(e);
+        for t in tickets {
+            t.applied();
         }
     }
 
@@ -408,7 +422,15 @@ impl App {
             ito_prefs::Backup::Import(file) => (Whole::Import { file, base, app_dir }, "settings import"),
         };
         self.send_kura_job(
-            KuraJob { seq: 0, path: PathBuf::new(), dirs, changes: Vec::new(), keys: Vec::new(), webhooks: None, whole: Some(whole) },
+            KuraJob {
+                tickets: Vec::new(),
+                path: PathBuf::new(),
+                dirs,
+                changes: Vec::new(),
+                keys: Vec::new(),
+                webhooks: None,
+                whole: Some(whole),
+            },
             what,
         );
     }
@@ -427,7 +449,7 @@ impl App {
     pub(crate) fn settings_reset_files(&mut self, files: Vec<PathBuf>, dirs: Vec<PathBuf>) {
         self.send_kura_job(
             KuraJob {
-                seq: 0,
+                tickets: Vec::new(),
                 path: PathBuf::new(),
                 dirs,
                 changes: Vec::new(),

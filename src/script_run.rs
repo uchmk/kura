@@ -397,7 +397,7 @@ fn state_part(app: &App) -> state::App {
     let mut app_state = ito_mcp::serde_json::from_str::<state::Value>(&crate::mcp::state_json(app, overlay, view)).ok();
     if let Some(map) = app_state.as_mut().and_then(state::Value::as_object_mut) {
         map.insert("config_writes_pending".to_owned(), app.config_writes_pending().into());
-        map.insert("config_write_failed".to_owned(), app.config_write_failed.clone().into());
+        map.insert("config_write_failed".to_owned(), app.config_write_failed().into());
     }
     state::App {
         screen: Some(view.to_owned()),
@@ -687,7 +687,7 @@ impl ScriptRun {
             return out;
         }
         let viewport = (raw_input.viewport_id != egui::ViewportId::ROOT).then(|| format!("{:?}", raw_input.viewport_id));
-        let status = app.config_writes.status(app.config_write_failed.as_deref());
+        let status = app.config_writes.status();
         let f = pace::Frame {
             pass: frame,
             now,
@@ -813,7 +813,7 @@ impl ScriptRun {
                         self.cursor_icon,
                         if app.settled() { "yes" } else { "no" },
                         if app.config_writes_pending() { "yes" } else { "no" },
-                        app.config_write_failed.as_deref().unwrap_or("none"),
+                        app.config_write_failed().as_deref().unwrap_or("none"),
                     )
                     + &keyscript::since_action_line(self.pace.since_action(now));
                 match write_text(&path, &text) {
@@ -1273,7 +1273,7 @@ impl ScriptRun {
     /// `<Shot:>` still awaited is an unfinished step, whatever the queue says.
     /// The caller runs the close action of its path either way.
     pub(crate) fn ended(&mut self, app: &mut App, how: Ending) -> Outcome {
-        let status = app.config_writes.status(app.config_write_failed.as_deref());
+        let status = app.config_writes.status();
         let how = match how {
             Ending::Closed => pace::Ending::Closed,
             Ending::Quit => pace::Ending::Quit,
@@ -2259,8 +2259,6 @@ mod tests {
         assert!(!rig.flag());
     }
 
-    use crate::app::Writer;
-
     /// Past the 10 s a write may wait, counted from a send that happened a
     /// moment after the rig's clock started.
     const PAST_CONFIG_WAIT: u64 = 11;
@@ -2349,7 +2347,7 @@ mod tests {
             let mut rig = Rig::new("keys-ended-pending", true);
             let done = rig.dir.join("done.txt");
             let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
-            rig.screen.app.config_writes.sent(Writer::Kura, "keymap.toml", rig.t0);
+            let _t = rig.screen.app.config_writes.sent("keymap.toml");
             assert_eq!(run.ended(&mut rig.screen.app, how), Outcome::Failed, "{how:?}");
             let said = read(&done);
             assert!(said.contains("keys: failed\n") && said.contains("step: <config write>\n"), "{said}");
@@ -2378,30 +2376,48 @@ mod tests {
         assert_eq!(rig.step(&mut run, 0), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("step: <config write>\n") && said.contains("common.toml: no space"), "the first wins: {said}");
-        assert_eq!(rig.screen.app.config_write_failed.as_deref(), Some("common.toml: no space"));
+        assert_eq!(rig.screen.app.config_write_failed().as_deref(), Some("common.toml: no space"));
     }
 
     #[test]
     fn a_write_is_judged_by_its_own_age_not_the_one_before_it() {
         let mut rig = Rig::new("keys-two-writes", true);
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("<State:s>", Some(done), rig.dir.clone());
-        let start = rig.t0;
-        // A goes out at 0 s and is answered at 6 s; B goes out at 5 s and is answered at 11 s.
-        let a = rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", start);
-        let b = rig.screen.app.config_writes.sent(Writer::Common, "common.toml", start + Duration::from_secs(5));
-        assert_eq!(b, 1);
-        for sec in 1..=12u64 {
-            if sec == 7 {
-                rig.screen.app.config_writes.answered(Writer::Kura, a).unwrap();
-            }
-            if sec == 12 {
-                rig.screen.app.config_writes.answered(Writer::Common, b).unwrap();
-            }
-            assert_eq!(rig.step(&mut run, 1), Outcome::Continue, "no failure at {sec} s");
-        }
+        let mut run = rig.run("<State:s>", Some(done.clone()), rig.dir.clone());
+        // B goes out a moment after A, and A is answered.
+        let a = rig.screen.app.config_writes.sent("config.toml");
+        std::thread::sleep(Duration::from_millis(5));
+        let b = rig.screen.app.config_writes.sent("common.toml");
+        let since = |name: &str| rig.screen.app.config_writes.status().oldest.filter(|o| o.file == name).unwrap().since;
+        let since_a = since("config.toml");
+        a.applied();
+        let since_b = since("common.toml");
+        assert!(since_b > since_a);
+        // A's ten seconds are over, B's are not.
+        let wait = Duration::from_secs(10);
+        let target = since_b + wait - Duration::from_millis(1);
+        let by = target.saturating_duration_since(rig.t0);
+        assert_eq!(rig.hook_by(&mut run, by), Outcome::Continue, "B is judged by its own age");
         assert!(!rig.flag());
-        assert!(rig.dir.join("s.txt").exists(), "and the script went on once both were answered");
+        assert_eq!(rig.hook_by(&mut run, Duration::from_millis(1)), Outcome::Failed, "at B's ten seconds");
+        assert!(read(&done).contains("common.toml"));
+        b.applied();
+    }
+
+    #[test]
+    fn a_script_goes_on_only_when_both_writes_are_answered() {
+        let mut rig = Rig::new("keys-both-answered", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:s>", Some(done.clone()), rig.dir.clone());
+        let a = rig.screen.app.config_writes.sent("config.toml");
+        let b = rig.screen.app.config_writes.sent("common.toml");
+        a.applied();
+        assert_eq!(rig.hook_by(&mut run, Duration::from_secs(1)), Outcome::Continue, "B is still out");
+        assert!(!done.exists(), "the script waits for B");
+        b.applied();
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        assert!(read(&done).ends_with("keys: done\n"));
+        assert!(!rig.flag());
     }
 
     #[test]
@@ -2409,11 +2425,16 @@ mod tests {
         let mut rig = Rig::new("keys-never-answered", true);
         let done = rig.dir.join("done.txt");
         let mut run = rig.run("<State:s>", Some(done.clone()), rig.dir.clone());
-        let a = rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", rig.t0);
-        assert_eq!(rig.step(&mut run, 9), Outcome::Continue);
-        assert_eq!(rig.step(&mut run, 1), Outcome::Failed);
+        let ticket = rig.screen.app.config_writes.sent("config.toml");
+        let seq = ticket.seq().unwrap();
+        let since = rig.screen.app.config_writes.status().oldest.unwrap().since;
+        let target = since + Duration::from_secs(10);
+        let by = (target - Duration::from_millis(1)).saturating_duration_since(rig.t0);
+        assert_eq!(rig.hook_by(&mut run, by), Outcome::Continue);
+        assert_eq!(rig.hook_by(&mut run, Duration::from_millis(1)), Outcome::Failed);
         let said = read(&done);
-        assert!(said.contains(&format!("no answer from the config writer within 10 s of write #{a} (config.toml)")), "{said}");
+        assert!(said.contains(&format!("no answer from the config writer within 10 s of write #{seq} (config.toml)")), "{said}");
+        drop(ticket);
     }
 
     #[test]
@@ -2446,22 +2467,23 @@ mod tests {
         // An input goes in at 0 s.
         assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
         assert_eq!(secs(at(&run)), 0);
-        // It is drawn at 9 s; a write goes out then.
-        rig.screen.app.config_writes.sent(Writer::Kura, "config.toml", start + Duration::from_secs(9));
-        assert_eq!(rig.step(&mut run, 9), Outcome::Continue);
-        assert_eq!(secs(at(&run)), 9, "delivery is progress");
+        // A write goes out just after, and is drawn at 4 s. The ledger stamps
+        // writes with the real clock, so everything stays under the 10 s wait.
+        let ticket = rig.screen.app.config_writes.sent("config.toml");
+        assert_eq!(rig.step(&mut run, 4), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 4, "delivery is progress");
         // Frames drawn while the write is out move nothing.
         assert_eq!(rig.step(&mut run, 3), Outcome::Continue);
-        assert_eq!(rig.step(&mut run, 2), Outcome::Continue);
-        assert_eq!(secs(at(&run)), 9, "waiting for the answer is not progress");
-        // Answered at 18 s.
-        rig.screen.app.config_writes.answered(Writer::Kura, 1).unwrap();
-        assert_eq!(rig.step(&mut run, 4), Outcome::Continue);
-        assert_eq!(secs(at(&run)), 18, "an answer is progress");
+        assert_eq!(rig.step(&mut run, 1), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 4, "waiting for the answer is not progress");
+        // Answered at 9 s.
+        ticket.applied();
+        assert_eq!(rig.step(&mut run, 1), Outcome::Continue);
+        assert_eq!(secs(at(&run)), 9, "an answer is progress");
         let w = run.watch.as_ref().unwrap().lock().unwrap();
-        assert!(!crate::stalled(&w, start + Duration::from_secs(32)));
-        assert!(!crate::stalled(&w, start + Duration::from_secs(18) + keyscript::STALL));
-        assert!(crate::stalled(&w, start + Duration::from_secs(18 + 31)));
+        assert!(!crate::stalled(&w, start + Duration::from_secs(23)));
+        assert!(!crate::stalled(&w, start + Duration::from_secs(9) + keyscript::STALL));
+        assert!(crate::stalled(&w, start + Duration::from_secs(9 + 31)));
     }
 
     #[test]

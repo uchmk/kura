@@ -159,9 +159,7 @@ impl App {
                 Ok(read) => self.set_common(Ok(read)),
                 Err(e) => self.fail_config_write(e),
             }
-            if let Err(e) = self.config_writes.answered(Writer::Common, w.seq) {
-                self.fail_config_write(e);
-            }
+            w.ticket.applied();
         }
         // A launch reports at most once, and its watcher lets go of the channel
         // when it stops caring, so a disconnected one is finished with.
