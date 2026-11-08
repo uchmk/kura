@@ -28,13 +28,17 @@ impl App {
             }
             BookmarkOp::Jump => match self.bookmarks.iter().find(|b| b.key == key).cloned() {
                 Some(b) => self.cd(b.path, true),
-                None => self.error(format!("No bookmark `{key}`")),
+                None => {
+                    let text = crate::i18n::trf(&self.lang, "toast.bookmark_missing", &[&key]);
+                    self.error(text);
+                }
             },
             BookmarkOp::Delete => {
                 let before = self.bookmarks.len();
                 self.bookmarks.retain(|b| b.key != key);
                 if self.bookmarks.len() == before {
-                    self.error(format!("No bookmark `{key}`"));
+                    let text = crate::i18n::trf(&self.lang, "toast.bookmark_missing", &[&key]);
+                    self.error(text);
                 } else {
                     self.save_state();
                     let text = crate::i18n::trf(&self.lang, "toast.bookmark_deleted", &[&key]);
@@ -105,7 +109,8 @@ impl App {
     /// see what is bound to what without holding a key down to read the hint.
     pub(super) fn open_bookmark_list(&mut self) {
         if self.bookmarks.is_empty() {
-            self.error("No bookmarks yet — `bs` saves this directory under a letter");
+            let text = crate::i18n::tr(&self.lang, "toast.bookmarks_none");
+            self.error(text);
             return;
         }
         let mut items = Vec::new();
@@ -163,7 +168,8 @@ impl App {
             keys.push(String::new());
         }
         if items.is_empty() {
-            self.error("No bookmarks or history yet");
+            let text = crate::i18n::tr(&self.lang, "toast.bookmarks_history_none");
+            self.error(text);
             return;
         }
         let mut pick = PickOverlay {
@@ -453,6 +459,17 @@ mod tests {
         assert_eq!(put_bookmark(&mut l, "a", PathBuf::from("/x")), Put::Same);
         assert_eq!(put_bookmark(&mut l, "q", PathBuf::from("/x")), Put::Moved("a".into()));
         assert_eq!(keys(&l), ["q"]);
+    }
+
+    #[test]
+    fn the_missing_bookmark_messages_follow_the_language() {
+        assert_eq!(crate::i18n::trf("en", "toast.bookmark_missing", &["a"]), "No bookmark `a`");
+        assert_eq!(crate::i18n::trf("ja", "toast.bookmark_missing", &["a"]), "ブックマーク `a` はありません");
+        assert_eq!(crate::i18n::tr("en", "toast.bookmarks_none"), "No bookmarks yet — `bs` saves this directory under a letter");
+        assert!(crate::i18n::tr("ja", "toast.bookmarks_none").contains("`bs`"));
+        assert_eq!(crate::i18n::tr("ja", "toast.bookmarks_history_none"), "ブックマークも履歴もまだありません");
+        assert_eq!(crate::i18n::trf("en", "toast.bookmarks_remove_count", &["3"]), "3 bookmarks will be removed.");
+        assert_eq!(crate::i18n::trf("ja", "toast.bookmarks_remove_count", &["3"]), "3 件のブックマークを削除します");
     }
 
     #[test]

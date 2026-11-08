@@ -267,7 +267,7 @@ impl App {
             Act::BookmarkDeleteAll => {
                 self.overlay = Overlay::Confirm(ConfirmOverlay {
                     title: "Delete all bookmarks?".into(),
-                    body: vec![format!("{} bookmarks will be removed.", self.bookmarks.len())],
+                    body: vec![crate::i18n::trf(&self.lang, "toast.bookmarks_remove_count", &[&self.bookmarks.len().to_string()])],
                     options: vec![('y', "Yes".into()), ('n', "No".into())],
                     action: ConfirmAction::BookmarkDeleteAll,
                     dest: None,

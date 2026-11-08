@@ -11,6 +11,10 @@ bookmark_deleted = "Bookmark `{0}` deleted"
 request_timed_out = "The request from Claude timed out -- nothing was done"
 bug_report_link_copied = "Copied the bug report's link -- paste it into a browser"
 bookmarks_all_deleted = "All bookmarks deleted"
+bookmark_missing = "No bookmark `{0}`"
+bookmarks_none = "No bookmarks yet — `bs` saves this directory under a letter"
+bookmarks_history_none = "No bookmarks or history yet"
+bookmarks_remove_count = "{0} bookmarks will be removed."
 
 [details]
 accessed = "Date accessed"

@@ -268,6 +268,10 @@ bookmark_deleted = "ブックマーク `{0}` を削除"
 request_timed_out = "Claude からのリクエストが時間切れ -- 何も実行せず"
 bug_report_link_copied = "不具合報告のリンクをコピー -- ブラウザに貼り付け"
 bookmarks_all_deleted = "ブックマークを全部削除"
+bookmark_missing = "ブックマーク `{0}` はありません"
+bookmarks_none = "ブックマークはまだありません — `bs` でこのフォルダを文字に保存"
+bookmarks_history_none = "ブックマークも履歴もまだありません"
+bookmarks_remove_count = "{0} 件のブックマークを削除します"
 
 [details]
 accessed = "アクセス日時"
