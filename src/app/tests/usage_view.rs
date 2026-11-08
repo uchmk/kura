@@ -192,7 +192,7 @@ fn the_keys_page_starts_no_file_for_nothing() {
     kura_written(&mut a);
     assert!(!file.exists());
     assert_eq!(runs(&a, "p"), "paste");
-    assert!(a.kura_wrote.is_none(), "no watcher event to keep quiet");
+    assert!(a.kura_stamps.is_some(), "the writer read the config back even though nothing was written");
     assert!(!a.toasts.iter().any(|t| t.text.starts_with("Saved")), "nothing was saved");
 }
 
@@ -842,7 +842,11 @@ fn export_then_import_brings_the_settings_back() {
     answer_config_writes(&mut a);
     assert_eq!(std::fs::read_to_string(&common).unwrap(), common_text);
     assert!(theme.exists(), "the theme file is back");
-    assert!(a.kura_wrote.is_some(), "the watcher event for the written config.toml is kept quiet");
+    assert!(
+        a.kura_stamps.as_ref().is_some_and(|s| s.iter().any(|(p, _)| *p == app_dir.join("config.toml"))),
+        "the times of the folder it read back are kept: {:?}",
+        a.kura_stamps
+    );
     assert!(std::fs::read_to_string(&config).unwrap().contains("font_size = 18.0"));
     assert_eq!(a.common.language.as_deref(), Some("ja"));
     assert_eq!(a.cfg.ui.font_size, 18.0, "the config read back is applied");
@@ -865,7 +869,8 @@ fn a_write_that_failed_part_way_applies_the_config_then_fails() {
         read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
         common: None,
         failed: Some("Reset failed: boom".into()),
-        wrote: false,
+        stamps: None,
+        reread: false,
     };
     a.apply_kura_written(w);
     assert_eq!(a.cfg.ui.font_size, 19.0, "the config read back is applied");
@@ -891,10 +896,10 @@ fn move_aside_reports_a_partial_count() {
     assert_eq!(std::fs::read_to_string(dir.join("keymap.toml.bak-1000")).unwrap(), "taken");
 }
 
-/// A Reset that moved one file and then failed keeps the watcher quiet and
-/// says how many it kept.
+/// A Reset that moved one file and then failed says how many it kept, and
+/// keeps the times of the files it read back.
 #[test]
-fn a_reset_that_kept_one_file_says_so_and_sets_the_ticket() {
+fn a_reset_that_kept_one_file_says_so_and_keeps_its_times() {
     let (dir, config, _keymap) = reset_dir("settings-partial-kept");
     let cfg = config.parent().unwrap().to_path_buf();
     let mut a = app_in(&dir);
@@ -904,9 +909,158 @@ fn a_reset_that_kept_one_file_says_so_and_sets_the_ticket() {
         read: Ok(Some(Config::read_fresh(std::slice::from_ref(&cfg)))),
         common: None,
         failed: Some("Reset failed after keeping 1 file(s) as *.bak-…: boom".into()),
-        wrote: true,
+        stamps: Some(crate::config::stamps(std::slice::from_ref(&cfg))),
+        reread: false,
     };
     a.apply_kura_written(w);
-    assert!(a.kura_wrote.is_some());
+    assert_eq!(a.kura_stamps, Some(crate::config::stamps(std::slice::from_ref(&cfg))));
     assert!(a.toasts.last().is_some_and(|t| t.text.starts_with("Reset failed after keeping 1 file(s)")), "{:?}", toast_texts(&a));
+}
+
+fn reloaded(a: &App) -> bool {
+    a.toasts.iter().any(|t| t.text.starts_with("Reloaded"))
+}
+
+/// A folder with a config.toml written by kura's writer (the font size), answered.
+fn written_dir(label: &str) -> (App, PathBuf, PathBuf) {
+    let dir = util::test_dir(label);
+    let cfg = dir.join("cfg");
+    std::fs::create_dir_all(&cfg).unwrap();
+    let config = cfg.join("config.toml");
+    let mut a = app_in(&dir);
+    a.write_kura_to(config.clone(), vec![cfg.clone()], vec![change("ui", "font_size", Some("21.0"))]);
+    answer_config_writes(&mut a);
+    assert_eq!(a.cfg.ui.font_size, 21.0);
+    (a, cfg, config)
+}
+
+/// kura's own write, then the watcher's re-reads of it (one or two events):
+/// nothing is said and the written setting stays.
+#[test]
+fn a_reread_of_kuras_own_write_says_nothing() {
+    let (mut a, cfg, _config) = written_dir("reread-own");
+    a.toasts.clear();
+    for _ in 0..2 {
+        a.reread_config_in(vec![cfg.clone()]);
+        answer_config_writes(&mut a);
+        assert!(!reloaded(&a), "{:?}", toast_texts(&a));
+        assert_eq!(a.cfg.ui.font_size, 21.0);
+    }
+}
+
+/// The watcher's event arriving before the writer's answer is a job behind
+/// the write, so it neither toasts nor puts the older config back.
+#[test]
+fn a_reread_sent_right_after_a_write_keeps_the_write() {
+    let dir = util::test_dir("reread-before-answer");
+    let cfg = dir.join("cfg");
+    std::fs::create_dir_all(&cfg).unwrap();
+    let mut a = app_in(&dir);
+    a.write_kura_to(cfg.join("config.toml"), vec![cfg.clone()], vec![change("ui", "font_size", Some("22.0"))]);
+    a.reread_config_in(vec![cfg.clone()]);
+    a.toasts.clear();
+    answer_config_writes(&mut a);
+    assert!(!reloaded(&a), "{:?}", toast_texts(&a));
+    assert_eq!(a.cfg.ui.font_size, 22.0);
+}
+
+/// A change from outside has other times, so it toasts and applies; the next
+/// re-read with nothing changed is quiet.
+#[test]
+fn a_reread_of_an_outside_edit_says_reloaded_once() {
+    let (mut a, cfg, config) = written_dir("reread-outside");
+    a.reread_config_in(vec![cfg.clone()]);
+    answer_config_writes(&mut a);
+    let t = std::fs::metadata(&config).unwrap().modified().unwrap();
+    std::fs::write(&config, "[ui]\nfont_size = 23.0\n").unwrap();
+    // Not left to the file system's time resolution.
+    let f = std::fs::File::options().write(true).open(&config).unwrap();
+    f.set_modified(t + Duration::from_secs(10)).unwrap();
+    drop(f);
+    a.toasts.clear();
+    a.reread_config_in(vec![cfg.clone()]);
+    answer_config_writes(&mut a);
+    assert!(reloaded(&a), "{:?}", toast_texts(&a));
+    assert_eq!(a.cfg.ui.font_size, 23.0);
+    a.toasts.clear();
+    a.reread_config_in(vec![cfg]);
+    answer_config_writes(&mut a);
+    assert!(!reloaded(&a), "{:?}", toast_texts(&a));
+}
+
+/// With no read-back before it, a re-read has nothing to compare with.
+#[test]
+fn a_reread_with_no_earlier_read_back_says_reloaded() {
+    let dir = util::test_dir("reread-first");
+    let cfg = dir.join("cfg");
+    std::fs::create_dir_all(&cfg).unwrap();
+    let mut a = app_in(&dir);
+    assert!(a.kura_stamps.is_none());
+    a.reread_config_in(vec![cfg]);
+    answer_config_writes(&mut a);
+    assert!(reloaded(&a), "{:?}", toast_texts(&a));
+}
+
+/// An Export reads nothing back, so the times stay as they were.
+#[test]
+fn an_export_leaves_the_times_alone() {
+    let (mut a, cfg, _config) = written_dir("reread-export");
+    let before = a.kura_stamps.clone();
+    assert!(before.is_some());
+    let dir = cfg.parent().unwrap().to_path_buf();
+    let (base, app_dir) = (dir.join("uchmk"), dir.join("uchmk").join("kura"));
+    std::fs::create_dir_all(&app_dir).unwrap();
+    a.settings_backup_in(ito_prefs::Backup::Export(dir.join("bundle.toml")), base, app_dir, vec![cfg]);
+    answer_config_writes(&mut a);
+    assert!(a.toasts.iter().any(|t| t.text.starts_with("Wrote ")), "{:?}", toast_texts(&a));
+    assert_eq!(a.kura_stamps, before);
+}
+
+/// An Import that wrote config.toml, and a Reset that moved files, need no
+/// special rule: the re-read after them is quiet.
+#[test]
+fn a_reread_after_an_import_or_a_reset_is_quiet() {
+    let dir = util::test_dir("reread-import-reset");
+    let (base, app_dir) = (dir.join("uchmk"), dir.join("uchmk").join("kura"));
+    std::fs::create_dir_all(&app_dir).unwrap();
+    let config = app_dir.join("config.toml");
+    std::fs::write(&config, "[ui]\nfont_size = 18.0\n").unwrap();
+    let bundle = dir.join("bundle.toml");
+    let mut a = app_in(&dir);
+    a.settings_backup_in(ito_prefs::Backup::Export(bundle.clone()), base.clone(), app_dir.clone(), vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    std::fs::write(&config, "[ui]\nfont_size = 12.0\n").unwrap();
+    a.settings_backup_in(ito_prefs::Backup::Import(bundle), base, app_dir.clone(), vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    assert_eq!(a.cfg.ui.font_size, 18.0);
+    a.toasts.clear();
+    a.reread_config_in(vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    assert!(!reloaded(&a), "after an import: {:?}", toast_texts(&a));
+    assert_eq!(a.cfg.ui.font_size, 18.0);
+
+    a.settings_reset_files(vec![config.clone()], vec![app_dir.clone()]);
+    answer_config_writes(&mut a);
+    assert!(!config.exists());
+    a.toasts.clear();
+    a.reread_config_in(vec![app_dir]);
+    answer_config_writes(&mut a);
+    assert!(!reloaded(&a), "after a reset: {:?}", toast_texts(&a));
+}
+
+/// Any number of watcher events in one frame make one re-read job.
+#[test]
+fn watcher_events_make_one_reread_job() {
+    let dir = util::test_dir("reread-watcher");
+    let mut a = app_in(&dir);
+    let (tx, rx) = crossbeam_channel::unbounded();
+    a.watched_rx = Some(rx);
+    a.watched_tx = Some(tx.clone());
+    tx.send(Watched::Config).unwrap();
+    tx.send(Watched::Config).unwrap();
+    let before = a.config_writes.answers();
+    a.drain_watched();
+    assert!(a.config_writes_pending());
+    answer_config_writes(&mut a);
+    assert_eq!(a.config_writes.answers(), before + 1);
 }

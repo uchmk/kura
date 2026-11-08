@@ -16,9 +16,11 @@ impl App {
 
     /// Look every 2 seconds, on a thread of its own, at common.toml, which
     /// another uchmk app may have changed, and at kura's config files, which
-    /// are read again by themselves once saved (`<C-F5>` still does it at
-    /// once). A changed file is read on that thread and applied by
-    /// `drain_channels`, with no restart.
+    /// are read again once saved, without `<C-F5>`. A changed common.toml is
+    /// read on that thread. A change to kura's files is only reported: the
+    /// kura writer reads them again after every write queued before it, so
+    /// the re-read never puts back an older state than a write it follows.
+    /// `<C-F5>` reads on the UI thread, outside that queue.
     pub(super) fn start_watching(&mut self, base: &Path) {
         let (common_tx, common_rx) = crossbeam_channel::unbounded();
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -35,7 +37,7 @@ impl App {
                 alive &= to_common.send(ito_common::Common::read(&base)).is_ok();
             }
             if changed.iter().any(|p| *p != common) {
-                alive &= to_app.send(Watched::Config(Box::new(Config::read_fresh(&crate::config::dirs_to_read())))).is_ok();
+                alive &= to_app.send(Watched::Config).is_ok();
             }
             ctx.request_repaint();
             alive
@@ -46,25 +48,39 @@ impl App {
         self.watched_tx = Some(tx);
     }
 
-    /// What the watcher read of kura's own files, taken in.
+    /// What the watcher saw of kura's own files: one re-read on the kura
+    /// writer for any number of events.
     pub(super) fn drain_watched(&mut self) {
         let Some(rx) = &self.watched_rx else { return };
         let got: Vec<Watched> = rx.try_iter().collect();
+        let mut changed = false;
         for w in got {
             match w {
-                Watched::Config(fresh) => {
-                    let mut cfg = Config::settle(&mut self.cfg, *fresh);
-                    cfg.take_term_env();
-                    // The settings screen's own write, coming round again.
-                    if self.kura_wrote.take().is_some_and(|t| t.elapsed() < Duration::from_secs(5)) {
-                        self.take_config_saying(cfg, Some(String::new()));
-                    } else {
-                        self.take_config(cfg);
-                    }
-                }
+                Watched::Config => changed = true,
                 Watched::Failed(e) => self.warn(e),
             }
         }
+        if changed {
+            self.reread_config_in(crate::config::dirs_to_read());
+        }
+    }
+
+    /// Read kura's config files again as a job on the kura writer, after the
+    /// writes queued before it. Its answer is quiet when the files' times are
+    /// those of the last read-back (kura's own write coming round again).
+    pub(crate) fn reread_config_in(&mut self, dirs: Vec<PathBuf>) {
+        self.send_kura_job(
+            KuraJob {
+                seq: 0,
+                path: PathBuf::new(),
+                dirs,
+                changes: Vec::new(),
+                keys: Vec::new(),
+                webhooks: None,
+                whole: Some(Whole::Reread),
+            },
+            "config re-read",
+        );
     }
 
     /// Apply what common.toml said. A file that does not read keeps what was
@@ -323,9 +339,21 @@ impl App {
             Ok(Some(fresh)) => {
                 let mut cfg = Config::settle(&mut self.cfg, fresh);
                 cfg.take_term_env();
-                self.take_config_saying(cfg, Some(said));
-                if w.wrote {
-                    self.kura_wrote = Some(Instant::now());
+                // The times decide only the "Reloaded" toast: a re-read is
+                // always applied, and a config that fails to parse still
+                // warns. Times are not a content hash: an edit that keeps the
+                // mtime, or lands after kura's write but before the times of
+                // its read-back are taken, is applied without the toast.
+                let toast = if !w.reread {
+                    Some(said)
+                } else if w.stamps.is_some() && w.stamps == self.kura_stamps {
+                    Some(String::new())
+                } else {
+                    None
+                };
+                self.take_config_saying(cfg, toast);
+                if let Some(s) = w.stamps {
+                    self.kura_stamps = Some(s);
                 }
             }
             Ok(None) => self.toast(said),

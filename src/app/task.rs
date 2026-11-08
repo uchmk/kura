@@ -311,6 +311,9 @@ pub(super) enum Whole {
     },
     /// config.toml and keymap.toml, moved aside if they are there.
     Reset(Vec<PathBuf>),
+    /// The watcher saw kura's files change: read them again, after the writes
+    /// queued before it.
+    Reread,
 }
 
 /// What a write of config.toml came to: the rows written, as a toast says
@@ -327,9 +330,29 @@ pub(crate) struct KuraWritten {
     /// it stopped, so the config is still read back and applied before this is
     /// recorded.
     pub(super) failed: Option<String>,
-    /// Whether the file changed: an edit that leaves it as it was starts no
-    /// watcher event to keep quiet, and says so instead of "Saved".
-    pub(super) wrote: bool,
+    /// The watched files' times taken just before the config was read back;
+    /// `None` when nothing was read back.
+    pub(super) stamps: Option<crate::config::Stamps>,
+    /// A watcher's re-read: the UI picks the toast from the times.
+    pub(super) reread: bool,
+}
+
+type ReadBack = (crate::config::Stamps, crate::config::Fresh);
+
+/// The watched files' times, then the config read from them. An edit landing
+/// between the two shows as different times at the next poll.
+fn read_back(dirs: &[PathBuf]) -> ReadBack {
+    let stamps = crate::config::stamps(dirs);
+    (stamps, Config::read_fresh(dirs))
+}
+
+/// A read-back as the answer carries it: the times beside the config.
+fn split_read(read: Result<Option<ReadBack>, String>) -> (Option<crate::config::Stamps>, Result<Option<crate::config::Fresh>, String>) {
+    match read {
+        Ok(Some((s, f))) => (Some(s), Ok(Some(f))),
+        Ok(None) => (None, Ok(None)),
+        Err(e) => (None, Err(e)),
+    }
 }
 
 /// Consecutive jobs for the same file as one write of the newest values. The
@@ -486,19 +509,23 @@ pub(super) fn write_kura_toml(job: KuraJob) -> KuraWritten {
         };
         let new = head + &new;
         ito_common::write_atomic(&job.path, new)?;
-        Ok(Config::read_fresh(&job.dirs))
+        Ok(read_back(&job.dirs))
     })();
-    KuraWritten { seq: job.seq, said, read: read.map(Some), common: None, failed: None, wrote: true }
+    let (stamps, read) = split_read(read.map(Some));
+    KuraWritten { seq: job.seq, said, read, common: None, failed: None, stamps, reread: false }
 }
 
 /// Run a job that is not an edit of one file, and read back what it changed.
 pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
-    let done = |said: String, read, common, failed, wrote| KuraWritten { seq, said, read, common, failed, wrote };
+    let done = |said: String, read: Result<Option<ReadBack>, String>, common, failed| {
+        let (stamps, read) = split_read(read);
+        KuraWritten { seq, said, read, common, failed, stamps, reread: false }
+    };
     match w {
         Whole::Export { file, base, app_dir } => {
             match ito_common::bundle::export(&file, &base, &app_dir, "kura", env!("CARGO_PKG_VERSION"), &ito_common::bundle::all) {
-                Ok(n) => done(format!("Wrote {n} settings files to {}", file.display()), Ok(None), None, None, false),
-                Err(e) => done(String::new(), Err(format!("Export failed: {e}")), None, None, false),
+                Ok(n) => done(format!("Wrote {n} settings files to {}", file.display()), Ok(None), None, None),
+                Err(e) => done(String::new(), Err(format!("Export failed: {e}")), None, None),
             }
         }
         Whole::Import { file, base, app_dir } => {
@@ -507,10 +534,8 @@ pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
             // moment can land on either side of it. Accepted: `--keys` holds
             // every step until all writes are answered, and by hand the file
             // picker comes first.
-            let stamps = || crate::config::FILES.map(|f| ito_common::stamp(&app_dir.join(f)));
-            let before = stamps();
             let imported = ito_common::bundle::import(&file, &base, &app_dir, "kura", &ito_common::bundle::all);
-            let read = Ok(Some(Config::read_fresh(dirs)));
+            let read = Ok(Some(read_back(dirs)));
             let common = Some((super::read_themes(&base), ito_common::Common::read(&base)));
             match imported {
                 Ok(r) => {
@@ -518,29 +543,26 @@ pub(super) fn run_whole(seq: u64, dirs: &[PathBuf], w: Whole) -> KuraWritten {
                     for (name, why) in &r.skipped {
                         said.push_str(&format!("; skipped {name}: {why}"));
                     }
-                    // Only a file the config watcher watches starts an event
-                    // worth keeping quiet; `kura_wrote` is a one-shot ticket.
-                    let wrote = r.written.iter().any(|n| n.strip_prefix("app/").is_some_and(|f| crate::config::FILES.contains(&f)));
-                    done(said, read, common, None, wrote)
+                    done(said, read, common, None)
                 }
                 // It may have written some files before it stopped; the
-                // watcher reacts to the same stamps.
-                Err(e) => done(String::new(), read, common, Some(format!("Import failed: {e}")), stamps() != before),
+                // config is still read back.
+                Err(e) => done(String::new(), read, common, Some(format!("Import failed: {e}"))),
             }
         }
         Whole::Reset(files) => match move_aside(&files) {
-            (0, Ok(())) => done("Nothing to reset: no config.toml or keymap.toml".into(), Ok(None), None, None, false),
-            (n, Ok(())) => {
-                done(format!("Settings reset; {n} file(s) kept as *.bak-…"), Ok(Some(Config::read_fresh(dirs))), None, None, true)
-            }
-            // A rename that did happen still starts a watcher event; `wrote`
-            // keeps its "Reloaded" toast from covering the failure.
+            (0, Ok(())) => done("Nothing to reset: no config.toml or keymap.toml".into(), Ok(None), None, None),
+            (n, Ok(())) => done(format!("Settings reset; {n} file(s) kept as *.bak-…"), Ok(Some(read_back(dirs))), None, None),
             (n, Err(e)) => {
                 let failed =
                     if n > 0 { format!("Reset failed after keeping {n} file(s) as *.bak-…: {e}") } else { format!("Reset failed: {e}") };
-                done(String::new(), Ok(Some(Config::read_fresh(dirs))), None, Some(failed), n > 0)
+                done(String::new(), Ok(Some(read_back(dirs))), None, Some(failed))
             }
         },
+        Whole::Reread => {
+            let (stamps, fresh) = read_back(dirs);
+            KuraWritten { seq, said: String::new(), read: Ok(Some(fresh)), common: None, failed: None, stamps: Some(stamps), reread: true }
+        }
     }
 }
 
@@ -581,10 +603,11 @@ pub(super) fn write_keymap_toml(job: KuraJob) -> KuraWritten {
             ito_common::write_atomic(&job.path, new)?;
             wrote = true;
         }
-        Ok(Config::read_fresh(&job.dirs))
+        Ok(read_back(&job.dirs))
     })();
+    let (stamps, read) = split_read(read.map(Some));
     let said = if wrote { format!("Saved keymap.toml: {said}") } else { format!("keymap.toml already says so: {said}") };
-    KuraWritten { seq: job.seq, said, read: read.map(Some), common: None, failed: None, wrote }
+    KuraWritten { seq: job.seq, said, read, common: None, failed: None, stamps, reread: false }
 }
 
 pub struct Toast {

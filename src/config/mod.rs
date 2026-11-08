@@ -782,9 +782,31 @@ fn at(dir: &Path, name: &str) -> String {
 pub const FILES: [&str; 4] = ["yazi.toml", "keymap.toml", "theme.toml", OWN_FILE];
 
 /// Every config file that can be read, there or not yet: what the window
-/// watches to read them again by itself (since v0.99.0). None in a test.
+/// watches, so a change has them read again without `<C-F5>` (since v0.99.0).
+/// None in a test.
 pub fn watched_files() -> Vec<PathBuf> {
-    dirs_to_read().iter().flat_map(|d| FILES.iter().map(move |f| d.join(f))).collect()
+    files_in(&dirs_to_read())
+}
+
+/// [`FILES`] in each of `dirs`, folder by folder.
+pub fn files_in(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    dirs.iter().flat_map(|d| FILES.iter().map(move |f| d.join(f))).collect()
+}
+
+/// The times of the watched files, with their paths so two folders' files
+/// never compare equal by position.
+pub type Stamps = Vec<(PathBuf, Option<std::time::SystemTime>)>;
+
+/// The times of [`files_in`]`(dirs)`. Times are not a content hash: `None` is
+/// also what a file whose metadata cannot be read gives.
+pub fn stamps(dirs: &[PathBuf]) -> Stamps {
+    files_in(dirs)
+        .into_iter()
+        .map(|p| {
+            let t = ito_common::stamp(&p);
+            (p, t)
+        })
+        .collect()
 }
 
 /// Which of the two config files is being read.

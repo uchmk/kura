@@ -201,9 +201,11 @@ pub struct App {
     /// What it wrote, with the config read back after.
     kura_rx: crossbeam_channel::Receiver<KuraWritten>,
     kura_tx: Sender<KuraWritten>,
-    /// When that write was read back: the watcher sees the same change a
-    /// moment later, and its reload then says nothing the write did not.
-    kura_wrote: Option<Instant>,
+    /// The watched files' times when the writer last read the config in
+    /// force. A watcher re-read that finds the same times says nothing: no
+    /// time changed since, which is kura's own write coming round again (or
+    /// an edit that kept its time).
+    kura_stamps: Option<crate::config::Stamps>,
     /// The common.toml writer's thread, started at its first write.
     common_jobs: Option<Sender<CommonJob>>,
     /// What it wrote and read back, on a channel of its own: the watcher's
@@ -425,7 +427,7 @@ impl App {
             kura_jobs: None,
             kura_rx,
             kura_tx,
-            kura_wrote: None,
+            kura_stamps: None,
             common_jobs: None,
             common_answers,
             common_answers_tx,
@@ -832,11 +834,11 @@ fn completion_hits(entries: &[Entry], prefix: &str) -> Vec<String> {
     hits
 }
 
-/// What the watcher thread of [`App::start_watching`] read, or what failed
+/// What the watcher thread of [`App::start_watching`] saw, or what failed
 /// off the UI thread.
 enum Watched {
-    /// kura's own files changed; boxed, as a whole config is large.
-    Config(Box<crate::config::Fresh>),
+    /// kura's own files changed; the kura writer reads them again.
+    Config,
     Failed(String),
 }
 
