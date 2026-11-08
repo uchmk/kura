@@ -1034,13 +1034,21 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     // Key hints take what the two sides leave; they go first when it is short.
     // Whole hints only, as many as fit: a cut-off key name is worse than none.
     let mut at = hint_x;
-    for h in status_hints(app) {
+    // Each drawn hint is a hover-only widget with a Test ID (`status.hint.N`,
+    // its position among the hints with a key) so `--keys` can read what the
+    // bar names. `status_hints` returns at most three, one per name here.
+    const HINT_IDS: [&str; 3] = ["status.hint.0", "status.hint.1", "status.hint.2"];
+    for (h, test_id) in status_hints(app).into_iter().zip(HINT_IDS) {
         let g = painter.layout_no_wrap(h, f.clone(), theme.fg_dim);
         if at + g.size().x + 12.0 >= right_edge - right_g.size().x {
             break;
         }
         let w = g.size().x;
-        painter.galley(egui::pos2(at, cy - g.size().y / 2.0), g, theme.fg_dim);
+        let pos = egui::pos2(at, cy - g.size().y / 2.0);
+        let resp = ui.interact(Rect::from_min_size(pos, g.size()), ui.id().with(test_id), egui::Sense::hover());
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, g.text()));
+        ito_a11y::test_id_in(ui, &resp, test_id, Some(&g));
+        painter.galley(pos, g, theme.fg_dim);
         at += w + 16.0;
     }
 

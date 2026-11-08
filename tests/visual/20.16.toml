@@ -1,0 +1,63 @@
+# Row 20.16: the status bar names the preview's keys.
+#
+# Keys, from the `status-hints` fixture folder:
+#   <Size:1500x700><State:image>j<State:source>j<State:markdown>j<ReadHas:PreviewText=plain-text-marker><State:plain><Quit>
+#
+# An image names its zoom keys, a source file and a Markdown file name the
+# outline key, a plain text file names nothing. Markdown's first hint is the
+# render toggle, so its outline key is the second one. The hint texts are the
+# keymap's own spelling (`display_seq`), brackets included.
+#
+# The window is 1500 pt wide because hints are the first thing to go when the
+# status bar is short, and a preview with an outline also reserves the crumb
+# slot: measured on a 100% display, Markdown's outline hint first fits at
+# 1350 pt, so it is not drawn in the default 1280 pt window. This spec checks
+# what the bar names when it has the room. `pixels_per_point` is the display's
+# scale, so the spec has to follow it when the run is on another display.
+spec = 1
+row = "20.16"
+tier = 1
+fixtures = "status-hints"
+window = { size_pt = [1500, 700], pixels_per_point = 1.0 }
+
+[[point]]
+id = "image-zoom-in"
+state = "image"
+target = "status.hint.0"
+fail_looks_like = "画像のステータスバーにズームインのキーが出ていない、または文言が違う"
+expect = { present = true, visible = true, text = "<A-i> zoom in" }
+
+[[point]]
+id = "image-zoom-out"
+state = "image"
+target = "status.hint.1"
+fail_looks_like = "画像のステータスバーにズームアウトのキーが出ていない、または文言が違う"
+expect = { present = true, visible = true, text = "<A-o> out" }
+
+[[point]]
+id = "image-zoom-fit"
+state = "image"
+target = "status.hint.2"
+fail_looks_like = "画像のステータスバーにフィットのキーが出ていない、または文言が違う"
+expect = { present = true, visible = true, text = "<A-0> fit" }
+
+[[point]]
+id = "source-outline"
+state = "source"
+target = "status.hint.0"
+fail_looks_like = "ソースファイルのステータスバーにアウトラインのキーが出ていない"
+expect = { present = true, visible = true, text = "<BackTab> outline" }
+
+[[point]]
+id = "markdown-outline"
+state = "markdown"
+target = "status.hint.1"
+fail_looks_like = "Markdown のステータスバーにアウトラインのキーが出ていない（1 番目は表示切替）"
+expect = { present = true, visible = true, text = "<BackTab> outline" }
+
+[[point]]
+id = "plain-names-nothing"
+state = "plain"
+target = "status.hint.0"
+fail_looks_like = "アウトラインの無いテキストのステータスバーにキーの案内が出ている"
+expect = { present = false }

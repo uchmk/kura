@@ -3411,4 +3411,35 @@ mod tests {
         until_end(&mut rig, &mut run, 0, 10);
         assert!(run.due().is_none(), "a passed check clears the retry");
     }
+
+    /// Row 20.16: the status bar's key hints are widgets with Test IDs and their text, in the state JSON.
+    #[test]
+    fn status_hints_are_test_ids_with_their_text() {
+        use crate::preview::Payload;
+        let image = || Payload::Image {
+            width: 1,
+            height: 1,
+            source: (1, 1),
+            own: 1.0,
+            vector: false,
+            rgba: Default::default(),
+            caption: String::new(),
+        };
+        let hint = |preview: Option<Payload>, id: &str| -> Option<String> {
+            let mut rig = Rig::new("keys-status-hint", true);
+            let mut run = rig.run("<State:a>", Some(rig.dir.join("done.txt")), rig.dir.clone());
+            until_state_due(&mut rig, &mut run);
+            if let Some(p) = preview {
+                rig.screen.app.preview.state = crate::app::PreviewState::Ready(p);
+            }
+            assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+            let v = state_json_of(&rig.dir, "a");
+            let w = v["ui"].as_array().unwrap().iter().find(|w| w["test_id"] == id)?;
+            w["text"].as_str().map(str::to_owned)
+        };
+        let zoom_in = hint(Some(image()), "status.hint.0").expect("an image names its zoom keys");
+        assert!(zoom_in.ends_with(" zoom in"), "{zoom_in}");
+        let text = Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Default::default(), outline: Vec::new() };
+        assert_eq!(hint(Some(text), "status.hint.0"), None, "plain text names nothing");
+    }
 }

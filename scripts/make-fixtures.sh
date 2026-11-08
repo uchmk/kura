@@ -183,6 +183,18 @@ if command -v zip >/dev/null; then
     count "$root/spot-long" 2 'spot-long'
 fi
 
+# --- row 20.16: one file per preview kind the status bar's key hints differ on:
+# --- an image (zoom keys), a source file and a Markdown file (the outline key)
+# --- and a plain text file (nothing). Named so they list in this order.
+hints="$root/status-hints"
+mkdir -p "$hints"
+echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > "$hints/a-image.png"
+printf 'fn alpha() {}\n\nfn beta() {}\n' > "$hints/b-source.rs"
+printf '# First heading\n\nSome text.\n\n## Second heading\n' > "$hints/c-notes.md"
+printf 'plain-text-marker\nno outline in this file\n' > "$hints/d-plain.txt"
+echo '  status-hints/        a-image.png, b-source.rs, c-notes.md, d-plain.txt: the status bar names zoom / outline keys per kind (20.16)'
+count "$hints" 4 'status-hints'
+
 # --- names that have broken things before. Linux folders are case-sensitive,
 # --- so the case pair is two files here, as 24.3 wants.
 awkward="$root/awkward names"

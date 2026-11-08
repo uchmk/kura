@@ -205,6 +205,18 @@ New-Docx (Join-Path $spotLong 'long.docx') ([ordered]@{
 Write-Host '  spot-long\           long.docx (long sheet, has a thumb) and short.bin (short sheet, none): open spot on each (41.15)'
 Test-Count $spotLong 2 'spot-long'
 
+# --- row 20.16: one file per preview kind the status bar's key hints differ on:
+# --- an image (zoom keys), a source file and a Markdown file (the outline key)
+# --- and a plain text file (nothing). Named so they list in this order.
+$hints = New-Dir 'status-hints'
+$utf8 = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllBytes((Join-Path $hints 'a-image.png'), [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='))
+[System.IO.File]::WriteAllText((Join-Path $hints 'b-source.rs'), "fn alpha() {}`n`nfn beta() {}`n", $utf8)
+[System.IO.File]::WriteAllText((Join-Path $hints 'c-notes.md'), "# First heading`n`nSome text.`n`n## Second heading`n", $utf8)
+[System.IO.File]::WriteAllText((Join-Path $hints 'd-plain.txt'), "plain-text-marker`nno outline in this file`n", $utf8)
+Write-Host '  status-hints\        a-image.png, b-source.rs, c-notes.md, d-plain.txt: the status bar names zoom / outline keys per kind (20.16)'
+Test-Count $hints 4 'status-hints'
+
 # --- names that have broken things before.
 $awkward = New-Dir 'awkward names'
 foreach ($name in @(
