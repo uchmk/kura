@@ -2154,7 +2154,7 @@ mod tests {
         let mut run = rig.run("<C-,><Assert:Not on this screen>", Some(done.clone()), rig.dir.clone());
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.pace.left() == 1 && run.due().is_some() {
+            if run.pace.check_since().is_some() {
                 break;
             }
         }
@@ -2313,7 +2313,7 @@ mod tests {
         let mut run = rig.run("<C-,><Assert:Not on this screen>", Some(rig.dir.join("done.txt")), rig.dir.clone());
         for _ in 0..20 {
             rig.pass(&mut run, 0);
-            if run.pace.left() == 1 && run.due().is_some() {
+            if run.pace.check_since().is_some() {
                 break;
             }
         }

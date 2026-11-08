@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.158.2] - 2026-11-08
+
+### 変更
+
+- ito を 7a70aee（v0.280.0）に上げた。Rust の API は kura から見て変わらない（`Pace::check_since` が増えただけ）。kura のテストのうち 2 つは、待ちに入ったことを `Pace::check_since` で見るようにした。
+- レーンの `keys.ps1` に `-Evidence`、`xrun.sh` に `--evidence` が入った（1 回の実行の証拠のフォルダを作り、manifest を書く）。`scripts/lanes.conf` に置き場所 `evidence=C:\dev\filer-evidence` を足した。Linux のレーンは `--evidence-root` で渡す。`xrun.sh` はいつも `setsid` の下で動かすようになり、`setsid` と `ps` が要る。
+
 ## [0.158.1] - 2026-11-08
 
 ### 変更
