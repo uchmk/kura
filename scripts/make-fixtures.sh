@@ -147,6 +147,42 @@ else
     warn 'zip is missing: skipping outline.docx'
 fi
 
+# --- row 41.15: a .docx whose spot sheet has more rows than a short window
+# --- shows (core and app properties), next to a 16-byte binary file whose sheet
+# --- is short. The binary must stay binary: the text section is skipped only
+# --- for binary files, and the row needs this sheet short.
+mkdir -p "$root/spot-long"
+if command -v zip >/dev/null; then
+    ldocx="$(mktemp -d)"
+    mkdir -p "$ldocx/_rels" "$ldocx/word" "$ldocx/docProps"
+    cat > "$ldocx/[Content_Types].xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>
+XML
+    cat > "$ldocx/_rels/.rels" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>
+XML
+    cat > "$ldocx/word/document.xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>A body.</w:t></w:r></w:p></w:body></w:document>
+XML
+    cat > "$ldocx/docProps/core.xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><dc:title>A long property sheet</dc:title><dc:creator>Fixture author</dc:creator><cp:lastModifiedBy>Fixture editor</cp:lastModifiedBy><cp:revision>12</cp:revision><dcterms:created>2026-08-14T09:12:00Z</dcterms:created><dcterms:modified>2026-08-15T10:13:00Z</dcterms:modified></cp:coreProperties>
+XML
+    cat > "$ldocx/docProps/app.xml" <<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties><Application>Microsoft Office Word</Application><AppVersion>16.0000</AppVersion><Pages>9</Pages><Words>4231</Words></Properties>
+XML
+    rm -f "$root/spot-long/long.docx"
+    (cd "$ldocx" && zip -qX "$root/spot-long/long.docx" '[Content_Types].xml' _rels/.rels word/document.xml docProps/core.xml docProps/app.xml)
+    rm -rf "${ldocx:?}"
+else
+    warn 'zip is missing: skipping spot-long/long.docx'
+fi
+# Octal escapes in printf's format: no dependence on the shell's echo.
+printf '\000\001\002\003\000\001\002\003\000\001\002\003\000\001\002\003' > "$root/spot-long/short.bin"
+if command -v zip >/dev/null; then
+    echo '  spot-long/           long.docx (long sheet, has a thumb) and short.bin (short sheet, none): open spot on each (41.15)'
+    count "$root/spot-long" 2 'spot-long'
+fi
+
 # --- names that have broken things before. Linux folders are case-sensitive,
 # --- so the case pair is two files here, as 24.3 wants.
 awkward="$root/awkward names"

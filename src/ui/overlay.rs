@@ -1359,6 +1359,8 @@ pub fn spot(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
     let title = format!("Spot: {name} — <A-j>/<A-k> row · c copy · <Enter> open · j/k file · <Esc> close");
     let inner = modal_frame(ui, rect, &app.cfg.theme, &title, f, row_h);
     let theme = &app.cfg.theme;
+    let panel = ui.interact(inner, ui.id().with("spot-panel"), egui::Sense::hover());
+    ito_a11y::test_id_in(ui, &panel, "spot.panel", None);
     let painter = ui.painter_at(inner);
 
     if sections.is_empty() {
@@ -1446,6 +1448,8 @@ pub fn spot(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
             egui::pos2(inner.right() - 1.0, inner.top() + h * to),
         );
         painter.rect_filled(thumb, CornerRadius::same(2), theme.fg_dim);
+        let resp = ui.interact(thumb, ui.id().with("spot-thumb"), egui::Sense::hover());
+        ito_a11y::test_id_in(ui, &resp, "spot.scroll.thumb", None);
     }
 }
 

@@ -167,6 +167,9 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     // Rebuilt every frame as the panes are laid out.
     app.pane_rects.clear();
     app.preview.rect = None;
+    // A Test ID for the app's area under the title bar, ahead of the settings screen's early return so that screen has it too.
+    let root = ui.interact(full, ui.id().with("app-root"), egui::Sense::hover());
+    ito_a11y::test_id_in(ui, &root, "app.root", None);
 
     // The settings screen takes the whole window, so nothing behind it is laid out.
     if matches!(app.overlay, Overlay::Settings(_)) {
@@ -5554,5 +5557,82 @@ mod convert_tests {
         let frame = s.draw();
         assert!(frame.says("1 image(s) converted:"), "{:?}", frame.texts);
         assert_eq!(std::fs::read_dir(dir).unwrap().count(), 2);
+    }
+}
+
+/// The Test IDs `--keys` finds the visual checks' elements by.
+#[cfg(test)]
+mod test_ids {
+    use super::harness::Screen;
+    use super::panes::{ctrl_shift, esc, key, one};
+
+    fn ids(s: &Screen) -> Vec<ito_a11y::TestIdEntry> {
+        ito_a11y::take_test_ids(s.app_ctx(), egui::ViewportId::ROOT)
+    }
+
+    fn named<'a>(all: &'a [ito_a11y::TestIdEntry], name: &str) -> Option<&'a ito_a11y::TestIdEntry> {
+        all.iter().find(|e| e.name == name)
+    }
+
+    fn open_spot(s: &mut Screen) {
+        s.app_ctx().enable_accesskit();
+        s.draw();
+        s.feed(vec![key(egui::Key::Tab, egui::Modifiers::NONE)]);
+        assert!(matches!(s.app.overlay, crate::app::Overlay::Spot(_)), "the panel is up");
+        s.draw();
+    }
+
+    #[test]
+    fn the_window_has_app_root() {
+        let mut s = one("testid-root");
+        s.app_ctx().enable_accesskit();
+        s.draw();
+        let all = ids(&s);
+        let root = named(&all, "app.root").expect("app.root is registered");
+        assert_eq!(root.rect, s.rect());
+    }
+
+    #[test]
+    fn the_settings_screen_has_app_root() {
+        let mut s = one("testid-root-settings");
+        s.app_ctx().enable_accesskit();
+        s.draw();
+        s.app.toggle_settings();
+        s.draw();
+        assert!(matches!(s.app.overlay, crate::app::Overlay::Settings(_)));
+        assert!(named(&ids(&s), "app.root").is_some(), "app.root is registered on the settings screen");
+    }
+
+    #[test]
+    fn a_spot_that_fits_has_a_panel_and_no_thumb() {
+        let mut s = one("testid-spot-fits");
+        open_spot(&mut s);
+        let all = ids(&s);
+        assert!(named(&all, "spot.panel").is_some(), "spot.panel is registered");
+        assert!(named(&all, "spot.scroll.thumb").is_none(), "no thumb when everything fits");
+    }
+
+    #[test]
+    fn a_spot_that_scrolls_has_a_thumb_inside_the_panel() {
+        let mut s = one("testid-spot-scrolls").sized(1280.0, 200.0);
+        open_spot(&mut s);
+        let all = ids(&s);
+        let panel = named(&all, "spot.panel").expect("spot.panel is registered").rect;
+        let thumb = named(&all, "spot.scroll.thumb").expect("spot.scroll.thumb is registered when the lines overflow").rect;
+        assert!(panel.contains_rect(thumb), "thumb {thumb:?} inside panel {panel:?}");
+        assert!(panel.right() - thumb.right() <= 2.0, "thumb hugs the right edge: {thumb:?} in {panel:?}");
+        assert!(thumb.width() <= 4.0, "thumb is thin: {thumb:?}");
+    }
+
+    #[test]
+    fn the_state_names_the_pick_that_is_open() {
+        let mut s = one("testid-pick-title");
+        s.draw();
+        assert!(crate::mcp::state_json(&s.app, "", "").contains("\"pick_title\": null"));
+        s.feed(vec![key(egui::Key::P, ctrl_shift())]);
+        assert!(matches!(s.app.overlay, crate::app::Overlay::Pick(_)), "the palette is up");
+        assert!(crate::mcp::state_json(&s.app, "", "").contains("\"pick_title\": \"Commands\""));
+        s.feed(vec![esc()]);
+        assert!(crate::mcp::state_json(&s.app, "", "").contains("\"pick_title\": null"));
     }
 }

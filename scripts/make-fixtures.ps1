@@ -167,24 +167,43 @@ Write-Host '  to-pack\, sample.zip pack with E, unpack with e, and preview the l
 # --- outline (16.3, 16.3a, 16.3b). It names its styles `Heading1` / `Heading2`
 # --- in the paragraphs, so it needs no styles.xml.
 Add-Type -AssemblyName System.IO.Compression
+# Write a zip whose parts are UTF-8 without a BOM, in the order given.
+function New-Docx([string] $path, $parts) {
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    $file = [System.IO.File]::Open($path, 'Create')
+    $zip = New-Object System.IO.Compression.ZipArchive($file, [System.IO.Compression.ZipArchiveMode]::Create)
+    foreach ($part in $parts.GetEnumerator()) {
+        $entry = $zip.CreateEntry($part.Key)
+        $writer = New-Object System.IO.StreamWriter($entry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+        $writer.Write($part.Value)
+        $writer.Dispose()
+    }
+    $zip.Dispose()
+    $file.Dispose()
+}
 $docxParts = [ordered]@{
     '[Content_Types].xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
     '_rels/.rels' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'
     'word/document.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>First chapter</w:t></w:r></w:p><w:p><w:r><w:t>Some body text under the first chapter.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>A section inside it</w:t></w:r></w:p><w:p><w:r><w:t>More body text.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Second chapter</w:t></w:r></w:p></w:body></w:document>'
 }
-$docxPath = Join-Path $root 'outline.docx'
-Remove-Item -LiteralPath $docxPath -Force -ErrorAction SilentlyContinue
-$docxFile = [System.IO.File]::Open($docxPath, 'Create')
-$docxZip = New-Object System.IO.Compression.ZipArchive($docxFile, [System.IO.Compression.ZipArchiveMode]::Create)
-foreach ($part in $docxParts.GetEnumerator()) {
-    $entry = $docxZip.CreateEntry($part.Key)
-    $writer = New-Object System.IO.StreamWriter($entry.Open(), (New-Object System.Text.UTF8Encoding($false)))
-    $writer.Write($part.Value)
-    $writer.Dispose()
-}
-$docxZip.Dispose()
-$docxFile.Dispose()
+New-Docx (Join-Path $root 'outline.docx') $docxParts
 Write-Host '  outline.docx         Heading 1 / 2 / 1: <S-Tab> lists three entries (16.3)'
+
+# --- row 41.15: a .docx whose spot sheet has more rows than a short window
+# --- shows (core and app properties), next to a 16-byte binary file whose sheet
+# --- is short. The binary must stay binary: the text section is skipped only
+# --- for binary files, and the row needs this sheet short.
+$spotLong = New-Dir 'spot-long'
+New-Docx (Join-Path $spotLong 'long.docx') ([ordered]@{
+    '[Content_Types].xml' = $docxParts['[Content_Types].xml']
+    '_rels/.rels' = $docxParts['_rels/.rels']
+    'word/document.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>A body.</w:t></w:r></w:p></w:body></w:document>'
+    'docProps/core.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><dc:title>A long property sheet</dc:title><dc:creator>Fixture author</dc:creator><cp:lastModifiedBy>Fixture editor</cp:lastModifiedBy><cp:revision>12</cp:revision><dcterms:created>2026-08-14T09:12:00Z</dcterms:created><dcterms:modified>2026-08-15T10:13:00Z</dcterms:modified></cp:coreProperties>'
+    'docProps/app.xml' = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties><Application>Microsoft Office Word</Application><AppVersion>16.0000</AppVersion><Pages>9</Pages><Words>4231</Words></Properties>'
+})
+[System.IO.File]::WriteAllBytes((Join-Path $spotLong 'short.bin'), [byte[]](0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3))
+Write-Host '  spot-long\           long.docx (long sheet, has a thumb) and short.bin (short sheet, none): open spot on each (41.15)'
+Test-Count $spotLong 2 'spot-long'
 
 # --- names that have broken things before.
 $awkward = New-Dir 'awkward names'

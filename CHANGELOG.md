@@ -9,6 +9,14 @@
 
 ## [未リリース]
 
+## [0.160.1] - 2026-11-08
+
+### 追加
+
+- 窓の中の部品に Test ID を足した（`app.root`・`spot.panel`・`spot.scroll.thumb`）。`--keys` の state JSON の `ui[]` に矩形つきで載り、check spec から測れる。AccessKit が動いている間だけ働くので、普通の起動の見た目と動きは変わらない。
+- state JSON の `app_state` に `pick_title`（開いている pick の題）を足した。
+- `make-fixtures` に `spot-long` を足した（`long.docx` と `short.bin`）。行 41.15 の check spec `tests/visual/41.15.toml` がこれを使う。
+
 ## [0.160.0] - 2026-11-08
 
 ### 追加

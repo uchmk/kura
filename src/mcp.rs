@@ -347,6 +347,10 @@ pub fn state_json(app: &crate::app::App, overlay: &str, view: &str) -> String {
         "tabs": tabs,
         "view": view,
         "overlay": overlay,
+        "pick_title": match &app.overlay {
+            crate::app::Overlay::Pick(p) => Some(p.title.clone()),
+            _ => None,
+        },
     });
     ito_mcp::serde_json::to_string_pretty(&v).unwrap_or_default()
 }

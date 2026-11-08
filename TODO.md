@@ -54,7 +54,7 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 - [ ] わざと汚した作業フォルダから起動し、`rescue/` ブランチができること・状態の issue にコメントが付くこと・次の :20 で PR が出ることを見る【実機】
 - [ ] 次のリリースで `release-arm64` の issue が立ち、ARM64 の起動がそれを押して閉じ、`ARMTEST_DONE` で終わることを見る【実機】
 - [ ] v0.103.0 の `lane-boot.ps1` が `scripts/lanes.conf` の `state` を読み、今までと同じ `filer-wintest` の状態フォルダを使うこと（次の :20 の起動のログと状態の issue で見る）【実機】
-- [ ] 見た目の行のパイロット（59.5・41.15・49.4・54.18）: ito の uchmk/ito#205（state JSON v1・`<Snap:>`・矩形つきの Tree・Shot の付属 JSON・検査器・証拠のフォルダ）が出たら、`rev` を上げて state の中身を入れ、check spec を書いて回す【後】
+- [ ] 見た目の行のパイロット（59.5・41.15・49.4・54.18）: 41.15 は Test ID・fixture `spot-long`・`tests/visual/41.15.toml` が入ったので、証拠の実行と canary を回す。59.5 のクリックは uchmk/ito#209（タイトルバーの Test ID）、49.4 は uchmk/ito#210（ペインのプロンプトの印）、54.18 は uchmk/ito#211（設定の select）が出たら、`rev` を上げて check spec を書いて回す。結果は報告に書き、`[~]` を `[x]` にするかは持ち主が決める【後】
 
 ## マージで止めている実機の PR
 
