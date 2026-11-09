@@ -1587,6 +1587,13 @@ until it was reached, without touching what the keys saved (v0.78.64). Since v0.
 scale in common.toml: while `KURA_SCALE` is set, the run neither writes it nor follows it. A value that is not a number in
 that range is ignored with a red toast.
 
+`KURA_PIXELS_PER_POINT=1.5` is the absolute form: the `pixels_per_point` the run is to have, OS scale included
+(0.2 to 5.0, kept exactly as written, so `1.25` stays 1.25; no percent). `KURA_SCALE` is a zoom multiplied onto the OS
+scale, so it looks different on each monitor; this one divides by the scale of the monitor the window is on, and again
+when the window moves to a monitor of another scale, so a screenshot has the same scale anywhere. Like `KURA_SCALE`,
+the run neither writes common.toml's scale nor follows it, and zoom keys still step from there. If both are set, this
+one wins. A value that is not a number in that range is ignored with a red toast.
+
 For one run only, set `KURA_TERM_SHELL` before starting kura (v0.70.0). It wins over
 `[term] shell`, leaves every other setting as it is, and drops `[term] args`, which were written for
 the shell it replaces. The whole value is the program, so a path with spaces needs no quotes:

@@ -35,7 +35,7 @@ check spec が無い行、または今の道具では期待値のすべてを測
 - 読む順は `<State:名前>` が書く `名前.txt` と、`KURA_KEYS_DONE` の最終行 `keys: done`。**`keys: stalled` は結果ではない**（そのまま報告する）。
 - 終了コード 0 と `keys: done` は「測定が走った」だけで、行が通った証拠ではない。終了コードは走らせた直後に保存する。
 - 古い状態ファイルを使い回さない。期待値の 1 つずつに観測を対応させる（前提 → 操作 → 期待値ごとの観測）。
-- マウスは `SendInput`（`PostMessage` は届かない）。`f` は部分列で絞るので、絞ったあと `hovered:` を読み返す。表示倍率は OS で変えない（`KURA_SCALE`）。
+- マウスは `SendInput`（`PostMessage` は届かない）。`f` は部分列で絞るので、絞ったあと `hovered:` を読み返す。表示倍率は OS で変えない（`KURA_SCALE`。OS の倍率を含む絶対値で固定したいときは `KURA_PIXELS_PER_POINT`）。
 
 ## 3. 机・場所・後片付け
 

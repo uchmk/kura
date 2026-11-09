@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 815 件（TESTING.md の全 1010 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 816 件（TESTING.md の全 1011 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -278,6 +278,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **15.10** 100% から `<C-=>` を 1 回押し、`%APPDATA%\uchmk\common.toml` を開く（v0.99.0）→ トーストが `Scale 110%`、ファイルに `scale = 1.1` が入り、中のコメントは元のまま。隣に開いた yagura も 3 秒ほどで 110% になる — *`<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) → The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. yagura, open beside it, grows to 110% within about 3 seconds*
 - [ ] **15.11** common.toml に手で `scale = 1.5` と書いて保存（v0.99.0）→ キーを押さなくても 3 秒ほどで kura が 150% になる — *Write `scale = 1.5` into common.toml by hand and save (v0.99.0) → kura goes to 150% within about 3 seconds, with no key pressed*
 - [ ] **15.12** `$env:KURA_SCALE="130%"` で kura を起動し、`<C-=>` を押してから common.toml の `scale` を変える（v0.99.0）→ 130% で始まり `<C-=>` で 140% になるが、common.toml には**書かれず**、手の書き換えにも従わない。この起動の間は変数が倍率を決める — *Start kura with `$env:KURA_SCALE='130%'`, press `<C-=>`, then change `scale` in common.toml (v0.99.0) → It starts at 130% and `<C-=>` steps to 140%, but common.toml is **not** written, and the hand edit is not followed: the variable pins the scale for this run*
+- [ ] **15.13** `$env:KURA_PIXELS_PER_POINT` にモニターの表示倍率と違う値（150% のモニターなら 1.25、100% なら 1.5）を入れて kura を起動し、`<C-=>` を押し、キーから 5 秒より後に common.toml の `scale` を変える。対照として変数なしでも同じ手順を行う → キーを押す前の状態の `pixels_per_point` が変数の値で、キーを押しても common.toml の `scale` は**書かれず**、手の書き換えにも従わない。この起動の間は変数が倍率を決める。対照ではキーが `scale` を書き、同じ書き換えに従う — *Start kura with `$env:KURA_PIXELS_PER_POINT` set to a value other than the monitor's own scale (1.25 on a 150% monitor, 1.5 on a 100% one), press `<C-=>`, and more than 5 seconds after the key change `scale` in common.toml. Do the same without the variable as a control → The state's `pixels_per_point` reads the variable's value before the key, common.toml's `scale` is **not** written by the key, and the hand edit is not followed: the variable pins the scale for this run. In the control the key writes `scale` and the same edit is followed*
 
 ## 16. Word / Excel / PowerPoint
 

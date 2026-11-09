@@ -336,6 +336,14 @@ pub struct App {
     /// `KURA_SCALE` set the scale for this run, so common.toml's is neither
     /// written nor followed.
     scale_pinned: bool,
+    /// `KURA_PIXELS_PER_POINT`: the absolute `pixels_per_point` this run is to
+    /// have, OS scale included, so a picture has the same scale on any
+    /// monitor. `scale` is this divided by the monitor's native scale.
+    pixels_per_point_target: Option<f32>,
+    /// The native scale `scale` was last divided by. Only a change of it
+    /// (the window moved to another monitor) divides again, so a zoom key's
+    /// step survives until then.
+    pixels_per_point_native: Option<f32>,
     /// When a zoom key was last pressed. common.toml read back within a few
     /// seconds of that can hold a step the writer has not reached yet.
     scale_pressed: Option<Instant>,
@@ -528,6 +536,8 @@ impl App {
             ctx,
             scale: 1.0,
             scale_pinned: false,
+            pixels_per_point_target: None,
+            pixels_per_point_native: None,
             scale_pressed: None,
             scale_tx: None,
             watched_rx: None,

@@ -106,6 +106,76 @@ fn the_scale_variable_is_a_number_the_keys_reach() {
     assert!(b.toasts.iter().any(|t| t.text.contains("KURA_SCALE=5.1")));
 }
 
+/// `KURA_PIXELS_PER_POINT` is absolute: the zoom is the value over the
+/// monitor's native scale, so native times the scale is the value anywhere.
+#[test]
+fn the_absolute_scale_divides_by_the_native_scale() {
+    for (native, zoom) in [(1.5, 1.0), (1.0, 1.5), (2.0, 0.75)] {
+        let dir = crate::util::test_dir("ppp-divide");
+        let mut a = app_in(&dir);
+        a.start_pixels_per_point(Some("1.5"));
+        a.follow_pixels_per_point(native);
+        assert!((a.scale - zoom).abs() < 1e-6, "native {native}: {}", a.scale);
+        assert!((native * a.scale - 1.5).abs() < 1e-6, "native {native}");
+    }
+    let dir = crate::util::test_dir("ppp-exact");
+    let mut a = app_in(&dir);
+    a.start_pixels_per_point(Some(" 1.25 "));
+    a.follow_pixels_per_point(1.0);
+    assert_eq!(a.scale, 1.25, "kept exact, not snapped to tenths");
+}
+
+#[test]
+fn a_bad_absolute_scale_is_said_and_pins_nothing() {
+    for bad in ["abc", "0", "5.1", "NaN", "inf", "150%"] {
+        let dir = crate::util::test_dir("ppp-bad");
+        let mut a = app_in(&dir);
+        a.start_pixels_per_point(Some(bad));
+        assert!(!a.scale_pinned, "{bad} pins nothing");
+        a.follow_pixels_per_point(1.0);
+        assert_eq!(a.scale, 1.0, "{bad} changes nothing");
+        let want = format!("KURA_PIXELS_PER_POINT={bad}");
+        assert!(a.toasts.iter().any(|t| t.text.contains(&want)), "{bad} is named in a toast");
+    }
+    let dir = crate::util::test_dir("ppp-unset");
+    let mut a = app_in(&dir);
+    a.start_pixels_per_point(None);
+    a.start_pixels_per_point(Some("  "));
+    assert!(!a.scale_pinned && a.toasts.is_empty(), "unset or empty does nothing");
+}
+
+#[test]
+fn the_absolute_scale_holds_common_toml_off() {
+    let dir = crate::util::test_dir("ppp-pinned");
+    let mut a = app_in(&dir);
+    a.start_pixels_per_point(Some("1.5"));
+    a.follow_pixels_per_point(1.0);
+    assert!(a.scale_pinned);
+    a.set_common(Ok((ito_common::Common { scale: Some(2.0), ..Default::default() }, Vec::new())));
+    assert_eq!(a.scale, 1.5, "common.toml's scale is not followed");
+    // Without a base `write_scale` stops before it looks at the pin.
+    a.common_base = Some(dir.clone());
+    a.write_scale(2.0);
+    assert!(a.scale_tx.is_none(), "and nothing is written");
+}
+
+/// Only a change of the native scale divides again: a zoom key's step
+/// survives the frames in between.
+#[test]
+fn the_absolute_scale_divides_again_only_when_native_changes() {
+    use crate::config::cmd::ScaleTo;
+    let dir = crate::util::test_dir("ppp-moves");
+    let mut a = app_in(&dir);
+    a.start_pixels_per_point(Some("1.5"));
+    a.follow_pixels_per_point(1.0);
+    a.act(Act::Scale(ScaleTo::In));
+    assert!((a.scale - 1.6).abs() < 1e-6);
+    a.follow_pixels_per_point(1.0);
+    assert!((a.scale - 1.6).abs() < 1e-6, "same native: left alone");
+    a.follow_pixels_per_point(2.0);
+    assert_eq!(a.scale, 0.75, "a new native divides from the absolute value");
+}
+
 /// Since v0.99.0 another uchmk app's scale is followed, except just after
 /// a key here moved it.
 #[test]

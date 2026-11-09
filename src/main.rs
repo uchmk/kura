@@ -344,6 +344,7 @@ fn main() -> eframe::Result<()> {
             };
             if let Some(rs) = cc.wgpu_render_state.as_ref() {
                 let info = rs.adapter.get_info();
+                keyscript::set_wgpu_backend(info.backend.to_str());
                 used.adapter = info.name;
                 used.backend = format!("{:?}", info.backend);
                 used.device = format!("{:?}", info.device_type);
@@ -388,6 +389,7 @@ fn main() -> eframe::Result<()> {
             a.load_common();
             a.bold_font = has_bold;
             a.start_scaled(std::env::var("KURA_SCALE").ok().as_deref());
+            a.start_pixels_per_point(std::env::var("KURA_PIXELS_PER_POINT").ok().as_deref());
             a.cwd_file = cli.cwd_file;
             a.chooser_file = cli.chooser_file;
             let script_done = std::env::var_os("KURA_KEYS_DONE").filter(|_| !cli.keys.is_empty()).map(PathBuf::from);
@@ -873,6 +875,10 @@ impl eframe::App for Kura {
         let ctx = ui.ctx().clone();
 
         self.app.drain_channels(&ctx);
+        // `KURA_PIXELS_PER_POINT`: `None` early on; a later frame has it.
+        if let Some(native) = ctx.native_pixels_per_point() {
+            self.app.follow_pixels_per_point(native);
+        }
         // `theme = "system"` follows the OS turning light or dark.
         self.app.set_os_light(ctx.system_theme() == Some(egui::Theme::Light));
         // The colours and language the window draws in, for ito's parts (the title bar below) and a `--keys` shot's record.

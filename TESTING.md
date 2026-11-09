@@ -559,6 +559,7 @@ Since v0.99.0 the scale is `scale` in `%APPDATA%\uchmk\common.toml`, shared by e
 | 15.10 | `<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) | The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. yagura, open beside it, grows to 110% within about 3 seconds |
 | 15.11 | Write `scale = 1.5` into common.toml by hand and save (v0.99.0) | kura goes to 150% within about 3 seconds, with no key pressed |
 | 15.12 | Start kura with `$env:KURA_SCALE='130%'`, press `<C-=>`, then change `scale` in common.toml (v0.99.0) | It starts at 130% and `<C-=>` steps to 140%, but common.toml is **not** written, and the hand edit is not followed: the variable pins the scale for this run |
+| 15.13 | Start kura with `$env:KURA_PIXELS_PER_POINT` set to a value other than the monitor's own scale (1.25 on a 150% monitor, 1.5 on a 100% one), press `<C-=>`, and more than 5 seconds after the key change `scale` in common.toml. Do the same without the variable as a control | The state's `pixels_per_point` reads the variable's value before the key, common.toml's `scale` is **not** written by the key, and the hand edit is not followed: the variable pins the scale for this run. In the control the key writes `scale` and the same edit is followed |
 
 ## 16. Word, Excel and PowerPoint (v0.31.0)
 

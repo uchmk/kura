@@ -554,6 +554,37 @@ impl App {
         }
     }
 
+    /// `KURA_PIXELS_PER_POINT` for one run: an absolute `pixels_per_point`
+    /// (0.2 to 5.0, kept exact, no percent) that already includes the OS
+    /// scale, unlike `KURA_SCALE`'s zoom on top of it. common.toml's scale is
+    /// then left alone. The zoom is worked out per monitor by
+    /// [`Self::follow_pixels_per_point`]. A bad value is said in a toast and
+    /// sets nothing.
+    pub fn start_pixels_per_point(&mut self, text: Option<&str>) {
+        let Some(text) = text.map(str::trim).filter(|t| !t.is_empty()) else { return };
+        match text.parse::<f32>().ok().filter(|v| v.is_finite() && (0.2..=5.0).contains(v)) {
+            Some(v) => {
+                self.pixels_per_point_target = Some(v);
+                self.pixels_per_point_native = None;
+                self.scale_pinned = true;
+            }
+            None => self.error(format!("KURA_PIXELS_PER_POINT={text} is not a number from 0.2 to 5.0")),
+        }
+    }
+
+    /// Once per frame with the window's native scale: under
+    /// `KURA_PIXELS_PER_POINT`, divide the target by it when it is new (the
+    /// first time, or after the window moved to a monitor of another scale).
+    pub fn follow_pixels_per_point(&mut self, native: f32) {
+        let Some(target) = self.pixels_per_point_target else { return };
+        if self.pixels_per_point_native == Some(native) || !native.is_finite() || native <= 0.0 {
+            return;
+        }
+        self.pixels_per_point_native = Some(native);
+        self.set_scale(target / native);
+        self.ctx.request_repaint();
+    }
+
     pub(super) fn set_scale(&mut self, s: f32) {
         self.scale = s;
         self.ctx.set_zoom_factor(s);

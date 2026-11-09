@@ -59,6 +59,9 @@ struct Shot {
     pixels_per_point: f32,
     /// Seconds since the epoch when the request went out (the side JSON of a `<Snap:>` says this, as ito's does).
     sent_time: u64,
+    /// Where the picture is taken, read when the request went out (ito's `shot_frame` does the same): a monitor move
+    /// or a font change before the picture arrives must not rewrite it.
+    env: review::Env,
 }
 
 /// A state a `<Snap:>` has written.
@@ -72,6 +75,8 @@ struct SnapState {
 /// A `<Snap:>` picture that is saved.
 struct SnapShot {
     meta: review::Meta,
+    /// The `env` block, taken when the picture was requested.
+    env: review::Env,
     png_sha256: String,
     size_px: [u32; 2],
     requested_frame: u64,
@@ -986,6 +991,7 @@ impl ScriptRun {
             size: [0.0; 2],
             pixels_per_point: 1.0,
             sent_time: 0,
+            env: review::Env::default(),
         }
     }
 
@@ -1001,12 +1007,16 @@ impl ScriptRun {
             shot.size = [screen.width(), screen.height()];
             shot.pixels_per_point = ctx.pixels_per_point();
             shot.sent_time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+            // `Env::of` reads only the theme and scale of its `Meta`, plus ito's own statics (backend, font set).
+            shot.env =
+                review::Env::of(&review::Meta { theme: shot.theme.clone(), pixels_per_point: shot.pixels_per_point, ..Default::default() });
             shot.sent = true;
             ctx.request_repaint();
             return Outcome::Continue;
         }
         let (name, in_force, snap) = (shot.name.clone(), (shot.theme.clone(), shot.lang.clone()), shot.snap);
         let (requested_frame, size, pixels_per_point, sent_time) = (shot.requested_frame, shot.size, shot.pixels_per_point, shot.sent_time);
+        let env = shot.env.clone();
         let image = ctx.input(|i| {
             i.raw.events.iter().find_map(|e| match e {
                 egui::Event::Screenshot { user_data, image, .. }
@@ -1036,7 +1046,7 @@ impl ScriptRun {
             let received_frame = ctx.cumulative_pass_nr_for(egui::ViewportId::ROOT);
             let saved = self.store_snap_picture(&name, &image).map(|(png_sha256, size_px)| {
                 if let Some(run) = self.snap.as_mut() {
-                    run.shot = Some(SnapShot { meta, png_sha256, size_px, requested_frame, received_frame });
+                    run.shot = Some(SnapShot { meta, env, png_sha256, size_px, requested_frame, received_frame });
                 }
             });
             return self.shot_result(app, saved, Instant::now());
@@ -1203,7 +1213,7 @@ impl ScriptRun {
         capture.state_unchanged = Some(unchanged);
         capture.requested_frame = shot.requested_frame;
         capture.received_frame = shot.received_frame;
-        capture.env = review::Env::of(&shot.meta);
+        capture.env = shot.env.clone();
         let json = self.shot_dir.join("shots").join(format!("{a}.json"));
         evidence::write_durable(&json, shot.meta.to_json_with(&capture).as_bytes()).map_err(|e| format!("cannot write shots/{a}.json: {e}"))
     }
@@ -1449,7 +1459,14 @@ mod tests {
 
     /// What the shot handler would have kept of a saved picture.
     fn synthetic_snap_shot() -> SnapShot {
-        SnapShot { meta: review::Meta::default(), png_sha256: "0".repeat(64), size_px: [1, 1], requested_frame: 1, received_frame: 2 }
+        SnapShot {
+            meta: review::Meta::default(),
+            env: review::Env::default(),
+            png_sha256: "0".repeat(64),
+            size_px: [1, 1],
+            requested_frame: 1,
+            received_frame: 2,
+        }
     }
 
     impl pace::conformance::Subject for KuraSubject {

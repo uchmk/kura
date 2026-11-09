@@ -453,6 +453,7 @@ fn variables() -> Vec<(String, String)> {
             "KURA_TERM_SHELL",
             "KURA_TERM_ARGS",
             "KURA_SCALE",
+            "KURA_PIXELS_PER_POINT",
         ],
         "unset",
     )
