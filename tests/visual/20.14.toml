@@ -1,0 +1,79 @@
+# Row 20.14: the heading sits in a fixed slot beside the clock and the items to its left do not move.
+#
+# Keys, from the `status-crumb` fixture folder:
+#   <Size:1500x700><A-j><A-j><A-j><State:short><A-j><A-j><A-j><State:long><A-j><A-j><A-j><A-j><A-j><A-j><State:jp>j<ReadHas:PreviewText=no-outline-marker><State:none><Quit>
+#
+# The slot is 243.8 pt wide at this size and 199.7 pt from the right edge. The right group
+# ends 16 pt before it, whatever the heading is.
+# 
+# `elided` is the galley's own flag: egui draws the `…` exactly when it is set, because the
+# bar sets `overflow_character`. `text` is not the drawn string, and the outline clips a long
+# Markdown heading by itself, so a `…` in `text` says nothing about the slot.
+spec = 1
+row = "20.14"
+tier = 1
+fixtures = "status-crumb"
+window = { size_pt = [1500, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "crumb-short"
+state = "short"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "短い見出しが枠の中に出ていない、または `…` で切れている"
+expect = { text = "Short", elided = false, width_px = { min = 360, max = 372 }, right_gap_px = { min = 296, max = 303 } }
+
+[[point]]
+id = "crumb-long"
+state = "long"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "長い見出しの先頭が出ていない、枠の終わりで切れていない（`…` がない）、または枠の幅や位置が変わった"
+expect = { text = { contains = "A long heading" }, elided = true, width_px = { min = 360, max = 372 }, right_gap_px = { min = 296, max = 303 } }
+
+[[point]]
+id = "crumb-jp"
+state = "jp"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "日本語の見出しの先頭が出ていない、枠の終わりで切れていない（`…` がない）、または枠の幅や位置が変わった"
+expect = { text = { contains = "日本語の長い見出し" }, elided = true, width_px = { min = 360, max = 372 }, right_gap_px = { min = 296, max = 303 } }
+
+[[point]]
+id = "right-short"
+state = "short"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "見出しが短いときに左の項目の位置や中身が違う"
+expect = { text = "1/2   files 1.7 K   L15/125 11%   UTF-8 LF", right_gap_px = { min = 686, max = 693 }, left_gap_px = { min = 1028, max = 1035 }, gap = { to = "status.crumb", side = "right", min = 22, max = 26 } }
+
+[[point]]
+id = "right-long"
+state = "long"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "見出しが長くなって左の項目が動いた、または項目が消えた"
+expect = { text = "1/2   files 1.7 K   L29/125 23%   UTF-8 LF", right_gap_px = { min = 686, max = 693 }, left_gap_px = { min = 1028, max = 1035 }, gap = { to = "status.crumb", side = "right", min = 22, max = 26 } }
+
+[[point]]
+id = "right-jp"
+state = "jp"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "日本語の見出しで左の項目が動いた、または項目が消えた"
+expect = { text = "1/2   files 1.7 K   L59/125 47%   UTF-8 LF", right_gap_px = { min = 686, max = 693 }, left_gap_px = { min = 1028, max = 1035 }, gap = { to = "status.crumb", side = "right", min = 22, max = 26 } }
+
+[[point]]
+id = "crumb-gone"
+state = "none"
+target = "status.crumb"
+fail_looks_like = "アウトラインのないファイルで見出しの枠が残っている"
+expect = { present = false }
+
+[[point]]
+id = "right-takes-slot"
+state = "none"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "アウトラインのないファイルで、右の項目が空いた枠の分だけ右に寄っていない"
+expect = { text = "2/2   files 1.7 K   L1/1 100%   UTF-8 LF", right_gap_px = { min = 296, max = 303 } }

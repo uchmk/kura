@@ -1043,6 +1043,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
             job.wrap.overflow_character = Some('…');
             job.append(&c, 0.0, egui::TextFormat { font_id: f.clone(), color: theme.fg_dim, ..Default::default() });
             let g = painter.layout_job(job);
+            status_test_id(ui, area, "status.crumb", &g);
             painter.galley(egui::pos2(area.left(), cy - g.size().y / 2.0), g, theme.fg_dim);
         }
         right_edge = area.left() - 16.0;

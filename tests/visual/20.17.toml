@@ -1,0 +1,55 @@
+# Row 20.17: the default window outside a git repository draws both of Markdown's key hints, and the heading ends where its slot ends.
+#
+# Keys, from the `status-crumb` fixture folder:
+#   <Size:1280x800><A-j><A-j><A-j><A-j><A-j><A-j><State:long><A-j><A-j><A-j><A-j><A-j><A-j><State:jp><Quit>
+#
+# `elided` is the galley's own flag: egui draws the `…` exactly when it is set, because the
+# bar sets `overflow_character`. `text` is not the drawn string, and the outline clips a long
+# Markdown heading by itself, so a `…` in `text` says nothing about the slot.
+spec = 1
+row = "20.17"
+tier = 1
+fixtures = "status-crumb"
+window = { size_pt = [1280, 800], pixels_per_point = 1.5 }
+
+[[point]]
+id = "hint-0-long"
+state = "long"
+target = "status.hint.0"
+fail_looks_like = "`M source` が出ていない"
+expect = { text = "M source" }
+
+[[point]]
+id = "hint-1-long"
+state = "long"
+target = "status.hint.1"
+fail_looks_like = "`<BackTab> outline` が出ていない、または右の項目に重なっている"
+expect = { text = "<BackTab> outline", no_overlap = ["status.right"] }
+
+[[point]]
+id = "crumb-long"
+state = "long"
+target = "status.crumb"
+fail_looks_like = "見出しの先頭が出ていない、枠の終わりで切れていない（`…` がない）、または枠が 111.5 pt でない"
+expect = { text = { contains = "A long" }, elided = true, width_px = { min = 163, max = 172 } }
+
+[[point]]
+id = "hint-0-jp"
+state = "jp"
+target = "status.hint.0"
+fail_looks_like = "`M source` が出ていない"
+expect = { text = "M source" }
+
+[[point]]
+id = "hint-1-jp"
+state = "jp"
+target = "status.hint.1"
+fail_looks_like = "`<BackTab> outline` が出ていない、または右の項目に重なっている"
+expect = { text = "<BackTab> outline", no_overlap = ["status.right"] }
+
+[[point]]
+id = "crumb-jp"
+state = "jp"
+target = "status.crumb"
+fail_looks_like = "見出しの先頭が出ていない、枠の終わりで切れていない（`…` がない）、または枠が 111.5 pt でない"
+expect = { text = { contains = "日本語" }, elided = true, width_px = { min = 163, max = 172 } }

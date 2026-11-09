@@ -1,0 +1,38 @@
+# Row 20.17c: at 1460 pt both hints are drawn beside the branch.
+#
+# Keys, from the `status-crumb-git` fixture folder:
+#   <Size:1460x800><A-j><A-j><A-j><A-j><A-j><A-j><State:g1460><Quit>
+spec = 1
+row = "20.17c"
+tier = 1
+fixtures = "status-crumb-git"
+window = { size_pt = [1460, 800], pixels_per_point = 1.5 }
+
+[[point]]
+id = "hint-0"
+state = "g1460"
+target = "status.hint.0"
+fail_looks_like = "`M source` が出ていない"
+expect = { text = "M source" }
+
+[[point]]
+id = "hint-1"
+state = "g1460"
+target = "status.hint.1"
+fail_looks_like = "`<BackTab> outline` が出ていない、または右の項目に重なっている"
+expect = { text = "<BackTab> outline", no_overlap = ["status.right"] }
+
+[[point]]
+id = "branch"
+state = "g1460"
+target = "status.right"
+fail_looks_like = "ブランチの名前が右の項目に出ていない"
+expect = { text = { contains = "main" } }
+
+[[point]]
+id = "crumb"
+state = "g1460"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "長い見出しの先頭が出ていない、枠の終わりで切れていない（`…` がない）、または枠の幅が違う"
+expect = { text = { contains = "A long" }, elided = true, width_px = { min = 360, max = 372 } }

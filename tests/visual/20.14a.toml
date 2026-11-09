@@ -1,0 +1,46 @@
+# Row 20.14a: a function name sits in the same slot and the items to its left do not move.
+#
+# Keys, from the `status-crumb-src` fixture folder:
+#   <Size:1500x700><A-j><A-j><A-j><State:short><A-j><A-j><A-j><A-j><A-j><A-j><A-j><A-j><A-j><State:long><Quit>
+#
+# The slot and the right group are where they are in row 20.14; the left edge of the right
+# group differs because its text is a different width.
+# 
+# `elided` is the galley's own flag: egui draws the `…` exactly when it is set.
+spec = 1
+row = "20.14a"
+tier = 1
+fixtures = "status-crumb-src"
+window = { size_pt = [1500, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "crumb-short"
+state = "short"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "短い関数名が枠の中に出ていない、または切れている"
+expect = { text = "short", elided = false, width_px = { min = 360, max = 372 }, right_gap_px = { min = 296, max = 303 } }
+
+[[point]]
+id = "crumb-long"
+state = "long"
+target = "status.crumb"
+relative_to = "app.root"
+fail_looks_like = "長い関数名が出ていない、枠の終わりで切れていない（`…` がない）、または枠の幅や位置が変わった"
+expect = { text = { contains = "a_function_whose_name" }, elided = true, width_px = { min = 360, max = 372 }, right_gap_px = { min = 296, max = 303 } }
+
+[[point]]
+id = "right-short"
+state = "short"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "関数名が短いときに左の項目の位置や中身が違う"
+expect = { text = "1/1   files 2.1 K   L16/98 15%   UTF-8 LF", right_gap_px = { min = 686, max = 693 }, left_gap_px = { min = 1040, max = 1048 }, gap = { to = "status.crumb", side = "right", min = 22, max = 26 } }
+
+[[point]]
+id = "right-long"
+state = "long"
+target = "status.right"
+relative_to = "app.root"
+fail_looks_like = "関数名が長くなって左の項目が動いた、または項目が消えた"
+expect = { text = "1/1   files 2.1 K   L61/98 61%   UTF-8 LF", right_gap_px = { min = 686, max = 693 }, left_gap_px = { min = 1040, max = 1048 }, gap = { to = "status.crumb", side = "right", min = 22, max = 26 } }

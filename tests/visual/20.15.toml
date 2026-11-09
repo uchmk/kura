@@ -1,0 +1,51 @@
+# Row 20.15: the status bar names the toggle key and the view it switches to; a plain text file names nothing.
+#
+# Keys, from the `status-crumb` fixture folder:
+#   <Size:1500x700><State:rendered>M<State:source>j<ReadHas:PreviewText=no-outline-marker><State:other><Quit>
+spec = 1
+row = "20.15"
+tier = 1
+fixtures = "status-crumb"
+window = { size_pt = [1500, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "hint-source"
+state = "rendered"
+target = "status.hint.0"
+fail_looks_like = "切り替えのキーが出ていない、または行き先が違う"
+expect = { text = "M source", gap = { to = "status.details", side = "left", min = 16, max = 20 } }
+
+[[point]]
+id = "details-size"
+state = "rendered"
+target = "status.details"
+fail_looks_like = "キーの案内の左に権限とサイズが出ていない"
+expect = { text = { contains = "-rw  1.7 K  20" } }
+
+[[point]]
+id = "details-time"
+state = "rendered"
+target = "status.details"
+fail_looks_like = "キーの案内の左に時刻が出ていない"
+expect = { text = { contains = ":" } }
+
+[[point]]
+id = "hint-rendered"
+state = "source"
+target = "status.hint.0"
+fail_looks_like = "`M` を押しても行き先が変わらない"
+expect = { text = "M rendered" }
+
+[[point]]
+id = "plain-no-hint"
+state = "other"
+target = "status.hint.0"
+fail_looks_like = "テキストのファイルでキーの案内が出ている"
+expect = { present = false }
+
+[[point]]
+id = "plain-no-hint-2"
+state = "other"
+target = "status.hint.1"
+fail_looks_like = "テキストのファイルで 2 つ目のキーの案内が出ている"
+expect = { present = false }

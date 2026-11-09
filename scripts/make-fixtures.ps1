@@ -217,6 +217,57 @@ $utf8 = New-Object System.Text.UTF8Encoding $false
 Write-Host '  status-hints\        a-image.png, b-source.rs, c-notes.md, d-plain.txt: the status bar names zoom / outline keys per kind (20.16)'
 Test-Count $hints 4 'status-hints'
 
+# --- rows 20.14 and 20.17: a Markdown file whose headings are short, long and in
+# --- Japanese, far enough apart to scroll past one at a time, and a file with no
+# --- outline. `status-crumb-git` is the same Markdown file inside a repository on
+# --- a branch whose name does not depend on the machine's init.defaultBranch.
+$crumb = New-Dir 'status-crumb'
+$crumbFiller = (1..12 | ForEach-Object { "Line $_ of this section." }) -join "`n`n"
+$crumbMd = (@(
+    '# Short',
+    $crumbFiller,
+    '## A long heading that goes on well past anything the status bar has room for',
+    $crumbFiller,
+    '## 日本語の長い見出しはステータスバーの枠の中には収まらないので途中で切れるはずです',
+    $crumbFiller,
+    $crumbFiller,
+    $crumbFiller
+) -join "`n`n") + "`n"
+[System.IO.File]::WriteAllText((Join-Path $crumb 'a-headings.md'), $crumbMd, $utf8)
+[System.IO.File]::WriteAllText((Join-Path $crumb 'b-plain.txt'), "no-outline-marker`n", $utf8)
+Write-Host '  status-crumb\        a-headings.md (short, long and Japanese headings), b-plain.txt: the status bar''s heading slot (20.14, 20.17)'
+Test-Count $crumb 2 'status-crumb'
+
+$crumbSrc = New-Dir 'status-crumb-src'
+$crumbBody = (1..30 | ForEach-Object { "    let value_$_ = $_;" }) -join "`n"
+$crumbRs = @(
+    "fn short() {`n$crumbBody`n}",
+    "fn a_function_whose_name_goes_on_well_past_anything_the_status_bar_has_room_for() {`n$crumbBody`n}",
+    "fn tail() {`n$crumbBody`n}"
+) -join "`n`n"
+[System.IO.File]::WriteAllText((Join-Path $crumbSrc 'a-functions.rs'), "$crumbRs`n", $utf8)
+Write-Host '  status-crumb-src\    a-functions.rs (a short and a long function name): the status bar''s heading slot on a source file (20.14a)'
+Test-Count $crumbSrc 1 'status-crumb-src'
+
+$crumbGit = New-Dir 'status-crumb-git'
+[System.IO.File]::WriteAllText((Join-Path $crumbGit 'a-headings.md'), $crumbMd, $utf8)
+Push-Location $crumbGit
+try {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Warning 'git is not on PATH: skipping the status-crumb-git fixture'
+    } else {
+        git init -b main --quiet 2>&1 | Out-Null
+        git config user.email 'fixtures@example.invalid'
+        git config user.name 'Fixtures'
+        git add -A 2>&1 | Out-Null
+        git commit --quiet -m 'fixtures' 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "status-crumb-git: git commit failed ($LASTEXITCODE)" }
+        Write-Host '  status-crumb-git\    a-headings.md committed on branch main, nothing changed: the branch in the status bar (20.17a, 20.17b, 20.17c)'
+    }
+} finally {
+    Pop-Location
+}
+
 # --- names that have broken things before.
 $awkward = New-Dir 'awkward names'
 foreach ($name in @(

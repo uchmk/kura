@@ -1,0 +1,44 @@
+# Row 20.15a: a narrow window drops the key hints first.
+#
+# Keys, from the `status-crumb` fixture folder:
+#   <Size:1040x700><State:w1040><Quit>
+spec = 1
+row = "20.15a"
+tier = 1
+fixtures = "status-crumb"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "no-hint-0"
+state = "w1040"
+target = "status.hint.0"
+fail_looks_like = "狭い窓でキーの案内が出ている"
+expect = { present = false }
+
+[[point]]
+id = "no-hint-1"
+state = "w1040"
+target = "status.hint.1"
+fail_looks_like = "狭い窓で 2 つ目のキーの案内が出ている"
+expect = { present = false }
+
+[[point]]
+id = "details-size"
+state = "w1040"
+target = "status.details"
+fail_looks_like = "キーの案内より先に権限かサイズが消えている"
+expect = { text = { contains = "-rw  1.7 K  20" } }
+
+[[point]]
+id = "details-time"
+state = "w1040"
+target = "status.details"
+fail_looks_like = "キーの案内より先に時刻が消えている"
+expect = { text = { contains = ":" } }
+
+[[point]]
+id = "right-whole"
+state = "w1040"
+target = "status.right"
+fail_looks_like = "キーの案内より先に右の項目が消えている"
+expect = { text = "1/2   files 1.7 K   L1/125 0%   UTF-8 LF" }
