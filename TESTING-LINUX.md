@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 804 件（TESTING.md の全 999 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 805 件（TESTING.md の全 1000 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -367,6 +367,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **20.14** Markdown やソースを見出しをいくつか越えてスクロールし、アウトラインのないファイルも開く → 見出し・関数の名前は時計の隣の固定の幅に出て、名前の長さが変わっても左の項目（位置・サイズ・`L…`・文字コード）は動かない。アウトラインのないファイルでは枠が空く — *Scroll a Markdown or source file past several headings, then open a file with no outline → The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back*
 - [ ] **20.15** Markdown を開いて `M` を押す。`config.toml` の `[ui]` に `status_hints = false` を書いて試す → バーの左（サイズと時刻の後）に切り替えのキーと行き先（`M source`、次に `M rendered`）が出る。設定を切る・Markdown 以外のファイルでは何も出ない。窓が狭ければ最初に消える — *Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` → The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first*
 - [ ] **20.16** 画像を開き、次に関数のあるソースと見出しのある Markdown を開く → 画像はズームのキー（`A-i zoom in   A-o out   A-0 fit`）、ソースと Markdown はアウトラインのキー（`BackTab outline`）が出る。アウトラインのないテキストでは何も出ない — *Open an image, then a source file with functions or a Markdown file with headings → The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing*
+- [ ] **20.17** 既定の窓（幅 1280 pt）で、git のリポジトリの外の、長い見出し（日本語も）のある Markdown を開き、見出しを越えてスクロールする → Markdown のキーの案内が 2 つとも出る（`M source`、`<BackTab> outline`）。見出しは枠の終わりで `…` になる。git のリポジトリの中ではブランチがアウトラインの案内の場所を取るので、窓の幅が 1450 pt くらいになるまでは `M source` だけが出る — *In the default window (1280 pt wide), outside a git repository, open a Markdown file with a long heading, one in Japanese too, and scroll past the heading → Both of Markdown's key hints are drawn (`M source`, `<BackTab> outline`); the heading ends in `…` where its slot ends. Inside a git repository the branch takes the outline hint's room, so only `M source` is drawn until the window is about 1450 pt wide*
 
 ## 21. 書庫（zip / tar / 7z）
 

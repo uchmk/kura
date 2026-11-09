@@ -9,11 +9,12 @@
 # keymap's own spelling (`display_seq`), brackets included.
 #
 # The window is 1500 pt wide because hints are the first thing to go when the
-# status bar is short, and a preview with an outline also reserves the crumb
-# slot: measured on a 100% display, Markdown's outline hint first fits at
-# 1350 pt, so it is not drawn in the default 1280 pt window. This spec checks
-# what the bar names when it has the room. `pixels_per_point` is the display's
-# scale, so the spec has to follow it when the run is on another display.
+# status bar is short. The default 1280 pt window has room for Markdown's two
+# hints only outside a git repository: inside one the branch and its counts
+# take the outline hint's room, and measured at a scale of 1.5 that hint first
+# fits between 1440 and 1460 pt. This spec checks what the bar names when it
+# has the room. `pixels_per_point` is the display's scale, so the spec has to
+# follow it when the run is on another display.
 spec = 1
 row = "20.16"
 tier = 1

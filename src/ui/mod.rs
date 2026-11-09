@@ -1017,15 +1017,24 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         hover.on_hover_text(ito_common::Clock::full(&now, &app.lang));
         ui.ctx().request_repaint_after(ito_common::Clock::next_minute(&now));
     }
-    // The heading or function name gets a slot of its own, as wide as
-    // CRUMB_CHARS glyphs and anchored beside the clock, so its length never
-    // moves the items to its left. The slot is kept while the preview has an
-    // outline, even when nothing is above the top line yet.
+    // The heading or function name gets a slot of its own, anchored beside the
+    // clock, so its length never moves the items to its left. The slot is kept
+    // while the preview has an outline, even when nothing is above the top line
+    // yet. A name longer than the slot is cut where the slot ends, by width and
+    // not by count, because a CJK heading is twice as wide for its characters.
     if let Some(crumb) = crumb {
-        let slot = painter.layout_no_wrap("0".repeat(CRUMB_CHARS + 1), f.clone(), theme.fg_dim).size().x;
+        let glyph = painter.layout_no_wrap("0".to_owned(), f.clone(), theme.fg_dim).size().x;
+        let slot = crumb_slot(rect.width(), glyph);
         let area = Rect::from_min_max(egui::pos2(right_edge - slot, rect.top()), egui::pos2(right_edge, rect.bottom()));
         if let Some(c) = crumb {
-            painter.with_clip_rect(area).text(egui::pos2(area.left(), cy), Align2::LEFT_CENTER, c, f.clone(), theme.fg_dim);
+            let mut job = egui::text::LayoutJob::default();
+            job.wrap.max_width = slot;
+            job.wrap.max_rows = 1;
+            job.wrap.break_anywhere = true;
+            job.wrap.overflow_character = Some('…');
+            job.append(&c, 0.0, egui::TextFormat { font_id: f.clone(), color: theme.fg_dim, ..Default::default() });
+            let g = painter.layout_job(job);
+            painter.galley(egui::pos2(area.left(), cy - g.size().y / 2.0), g, theme.fg_dim);
         }
         right_edge = area.left() - 16.0;
     }
@@ -1142,22 +1151,31 @@ fn status_hint(app: &App) -> Option<String> {
     (!h.is_empty()).then(|| h.join("   "))
 }
 
-/// How many characters of the heading or function name the status bar shows.
-const CRUMB_CHARS: usize = 28;
+/// The widest the slot for the heading or function name gets, in glyphs.
+const CRUMB_MAX: f32 = 29.0;
+/// The narrowest it gets: enough to still tell one section from the next.
+const CRUMB_MIN: f32 = 12.0;
+/// Glyphs the rest of the bar wants beside the slot: the file's details,
+/// Markdown's two key hints, and the position of a CRLF file some hundreds of
+/// lines long.
+const CRUMB_BESIDE: f32 = 139.0;
+
+/// How wide the heading's slot is in a bar this wide, for a glyph this wide.
+///
+/// The slot gives way before the key hints do, since a hint names something
+/// you can press and the heading only says where you are. The window and the
+/// font alone decide it: what stands beside it changes as you scroll, and a
+/// slot that followed that would move everything to its left on every line.
+fn crumb_slot(bar: f32, glyph: f32) -> f32 {
+    (bar / glyph - CRUMB_BESIDE).clamp(CRUMB_MIN, CRUMB_MAX) * glyph
+}
 
 /// The last heading or declaration at or above the top line, trimmed of the
-/// outline's indent and cut to a length the status bar can spare.
+/// outline's indent. The bar cuts it to its slot when it draws it.
 fn preview_crumb(entries: &[crate::preview::TocEntry], top: usize, at: impl Fn(&crate::preview::TocEntry) -> usize) -> Option<String> {
     let e = entries.iter().rev().find(|e| at(e) <= top)?;
     let label = e.label.trim();
-    if label.is_empty() {
-        return None;
-    }
-    let mut s: String = label.chars().take(CRUMB_CHARS).collect();
-    if label.chars().count() > CRUMB_CHARS {
-        s.push('…');
-    }
-    Some(s)
+    (!label.is_empty()).then(|| label.to_owned())
 }
 
 /// What the status bar says of the preview: where it is scrolled to, how the
@@ -1494,8 +1512,6 @@ mod status_notes {
         assert_eq!(preview_crumb(&toc, 29, |e| e.line).as_deref(), Some("Usage"));
         assert_eq!(preview_crumb(&toc, 99, |e| e.line).as_deref(), Some("Notes"));
         assert_eq!(preview_crumb(&[heading("x", 5)], 4, |e| e.line), None, "above the first heading there is none");
-        let long = [heading(&"w".repeat(40), 0)];
-        assert_eq!(preview_crumb(&long, 0, |e| e.line).unwrap().chars().count(), 29, "cut with an ellipsis");
     }
 
     #[test]
@@ -1512,6 +1528,63 @@ mod status_notes {
         assert_eq!(status_hint(&s.app), Some(format!("{key} rendered")));
         s.app.cfg.ui.status_hints = false;
         assert_eq!(status_hint(&s.app), None, "the setting turns it off");
+    }
+
+    /// A hovered Markdown file with headings, as far as the status bar goes.
+    fn markdown_with_a_heading(label: &str, name: &str) -> super::harness::Screen {
+        let dir = crate::util::test_dir(name);
+        std::fs::write(dir.join("notes.md"), "x").unwrap();
+        let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(dir.join("notes.md")).unwrap()]);
+        let mut s = super::harness::Screen::open(dir.clone());
+        let a = s.app.active;
+        s.app.tabs[a].current = crate::core::folder::Folder::from_entries(dir, entries, true);
+        s.app.clock.show = true;
+        let doc = Doc { lines: Vec::new(), toc: vec![heading(label, 0)], toc_cols: 0, body_cols: 80 };
+        let extent = Extent { total: 1200, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
+        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent });
+        s.app.render_markdown = true;
+        s
+    }
+
+    /// Markdown with headings names two keys, and the heading's slot used to
+    /// leave room for only the first of them in the default window (#522).
+    #[test]
+    fn the_default_window_has_room_for_both_of_markdowns_key_hints() {
+        let mut s = markdown_with_a_heading("Intro", "status-hint-room");
+        let toggle = overlay::key_for(&s.app, &crate::config::cmd::Act::ToggleRender).expect("bound by default");
+        let outline = overlay::key_for(&s.app, &crate::config::cmd::Act::ToggleOutline).expect("bound by default");
+        let f = s.draw();
+        assert!(f.says(&format!("{toggle} source")), "{:?}", f.texts);
+        assert!(f.says(&format!("{outline} outline")), "{:?}", f.texts);
+    }
+
+    /// The slot follows the window and the font: a wide window keeps all of
+    /// it, a narrow one keeps some, and the preview has no say.
+    #[test]
+    fn the_headings_slot_gives_way_only_in_a_narrow_window() {
+        let glyph = 8.4;
+        assert_eq!(crumb_slot(2560.0, glyph), CRUMB_MAX * glyph, "room to spare");
+        assert_eq!(crumb_slot(1500.0, glyph), CRUMB_MAX * glyph, "as it was before the slot gave way");
+        assert!(crumb_slot(1280.0, glyph) < crumb_slot(1350.0, glyph), "narrower as the window narrows");
+        assert_eq!(crumb_slot(520.0, glyph), CRUMB_MIN * glyph, "never down to nothing");
+        assert_eq!(crumb_slot(2560.0, glyph * 2.0), crumb_slot(1280.0, glyph) * 2.0, "a larger font is the same bar, scaled");
+    }
+
+    /// A heading longer than its slot ends in an ellipsis wherever the slot
+    /// ends, double-width characters included: the cut used to count
+    /// characters, so a Japanese heading ran off the slot with none.
+    #[test]
+    fn a_long_heading_is_cut_where_the_slot_ends() {
+        for (label, name) in [("w".repeat(40), "status-crumb-ascii"), ("見出し".repeat(14), "status-crumb-wide")] {
+            let mut s = markdown_with_a_heading(&label, name);
+            let f = s.draw();
+            let shown = f.drawn(&label).expect("the heading is drawn");
+            assert!(shown.ends_with('…'), "{shown}");
+            assert!(shown.chars().count() < label.chars().count(), "{shown}");
+        }
+        let mut s = markdown_with_a_heading("Intro", "status-crumb-short");
+        let f = s.draw();
+        assert_eq!(f.drawn("Intro"), Some("Intro"), "a short one is left alone");
     }
 
     #[test]

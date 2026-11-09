@@ -680,6 +680,7 @@ was that a gentle turn moved nothing at all.
 | 20.14 | Scroll a Markdown or source file past several headings, then open a file with no outline | The heading or function name sits in a fixed slot beside the clock: the items to its left (position, sizes, `L…`, encoding) do not move as the name changes length; a file with no outline gives the slot back |
 | 20.15 | Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` | The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first |
 | 20.16 | Open an image, then a source file with functions or a Markdown file with headings | The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing |
+| 20.17 | In the default window (1280 pt wide), outside a git repository, open a Markdown file with a long heading, one in Japanese too, and scroll past the heading | Both of Markdown's key hints are drawn (`M source`, `<BackTab> outline`); the heading ends in `…` where its slot ends. Inside a git repository the branch takes the outline hint's room, so only `M source` is drawn until the window is about 1450 pt wide |
 
 ## 21. Archives (v0.2.0)
 
