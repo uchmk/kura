@@ -227,7 +227,7 @@ pub fn server() -> Server {
         .tool(Tool::new(
             "kura_state",
             "What the user's kura window is showing: the current folder, the path under the cursor, \
-             the selected paths and the open tabs. Use it when the user says \"this file\", \"here\" \
+             the selected paths, the open tabs and the toasts on screen (toasts) and the last 16 since the window opened (toast_log). Use it when the user says \"this file\", \"here\" \
              or \"the selected files\".",
             |_| ask(Request::State),
         ))
@@ -331,6 +331,11 @@ pub fn run() -> ! {
     std::process::exit(code)
 }
 
+/// A toast's text on one line: its line breaks become ` / `, as in the state report.
+fn one_line(text: &str) -> String {
+    text.lines().collect::<Vec<_>>().join(" / ")
+}
+
 /// The window's answer to `kura_state`, as pretty JSON.
 pub fn state_json(app: &crate::app::App, overlay: &str, view: &str) -> String {
     /// A selection of every file in a big folder is not worth the tokens.
@@ -345,6 +350,8 @@ pub fn state_json(app: &crate::app::App, overlay: &str, view: &str) -> String {
         "selected": selected,
         "selected_count": tab.selected.len(),
         "tabs": tabs,
+        "toasts": app.toasts.iter().map(|t| one_line(&t.text)).collect::<Vec<_>>(),
+        "toast_log": app.toast_log.iter().map(|t| one_line(t)).collect::<Vec<_>>(),
         "view": view,
         "overlay": overlay,
         "pick_title": match &app.overlay {

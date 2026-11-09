@@ -5858,4 +5858,16 @@ mod test_ids {
         s.feed(vec![esc()]);
         assert!(crate::mcp::state_json(&s.app, "", "").contains("\"pick_title\": null"));
     }
+
+    #[test]
+    fn the_state_lists_the_toasts() {
+        let mut s = one("testid-state-toasts");
+        s.draw();
+        let v: ito_mcp::serde_json::Value = ito_mcp::serde_json::from_str(&crate::mcp::state_json(&s.app, "", "")).unwrap();
+        assert_eq!(v["toasts"].as_array().map(Vec::len), Some(s.app.toasts.len()));
+        s.app.toast("first\nsecond");
+        let v: ito_mcp::serde_json::Value = ito_mcp::serde_json::from_str(&crate::mcp::state_json(&s.app, "", "")).unwrap();
+        assert_eq!(v["toasts"].as_array().and_then(|a| a.last()).and_then(|t| t.as_str()), Some("first / second"));
+        assert_eq!(v["toast_log"].as_array().and_then(|a| a.last()).and_then(|t| t.as_str()), Some("first / second"));
+    }
 }

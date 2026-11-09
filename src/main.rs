@@ -1204,6 +1204,15 @@ fn toast_kind(text: &str) -> &str {
     text.lines().next().unwrap_or("").split(':').next().unwrap_or("").trim()
 }
 
+/// The help panel's text, written beside the `--keys` done file as `<done>.help`.
+/// `None` when the write fails.
+fn write_help_file(app: &App, done: &std::ffi::OsStr) -> Option<PathBuf> {
+    let mut path = done.to_owned();
+    path.push(".help");
+    let path = PathBuf::from(path);
+    std::fs::write(&path, ui::overlay::help_text(app).0).ok().map(|_| path)
+}
+
 /// What `KURA_KEYS_DONE` holds once `--keys` is done: the state a check reads
 /// afterwards, one `name: value` per line. Reading it any other way meant
 /// pressing a key, and a key changes what it reads (#103, proposal 3).
@@ -1435,6 +1444,15 @@ fn state_report(app: &App) -> String {
             }
         }
     }
+    // The help panel's rows are painted, and `C` there would take the real
+    // clipboard: so the text goes beside `KURA_KEYS_DONE` for a run to read.
+    if matches!(app.overlay, app::Overlay::Help) {
+        if let Some(done) = std::env::var_os("KURA_KEYS_DONE") {
+            if let Some(path) = write_help_file(app, &done) {
+                lines.push(format!("help file: {}", path.display()));
+            }
+        }
+    }
     // How many frames were drawn: 47's question is whether an idle window
     // keeps drawing, which `(Get-Process).CPU` answered with a second tool
     // (#201).
@@ -1445,6 +1463,12 @@ fn state_report(app: &App) -> String {
     // (#268). The last ten.
     for t in app.tasks.iter().rev().take(10).collect::<Vec<_>>().into_iter().rev() {
         lines.push(format!("task: {} {} {}/{} files", t.label, t.state.label(), t.files_done, t.files));
+        // The first three errors, the ones the tasks panel paints
+        // (`ui/overlay.rs`): their wording was only in the picture. A line
+        // break inside one becomes ` / `, as in `toasts:`.
+        for e in t.errors.iter().take(3) {
+            lines.push(format!("task error: {}", e.lines().collect::<Vec<_>>().join(" / ")));
+        }
     }
     for t in active {
         lines.push(format!("job: {} [{}] {}/{} files", t.label, t.state.label(), t.files_done, t.files));
@@ -2033,6 +2057,25 @@ mod tests {
         let report = state_report(&app);
         assert!(report.lines().any(|l| l == "jobs: 0 running") && !report.contains("job:"), "{report}");
         assert!(report.lines().any(|l| l == "task: Copy 1 item(s) into x done 12/40 files"), "a finished job stays in the list: {report}");
+        // The tasks panel paints three errors; so does the report, a line break becomes ` / `.
+        app.tasks[0].errors = vec!["a: one\nsecond".into(), "b".into(), "c".into(), "d".into()];
+        let report = state_report(&app);
+        let errors: Vec<&str> = report.lines().filter_map(|l| l.strip_prefix("task error: ")).collect();
+        assert_eq!(errors, ["a: one / second", "b", "c"], "{report}");
+        let at = |s: &str| report.lines().position(|l| l.starts_with(s)).unwrap();
+        assert_eq!(at("task error: a"), at("task: Copy") + 1, "right after its task: {report}");
+    }
+
+    /// `help file:` text comes from a helper that takes the done path, so no
+    /// process-wide variable is set.
+    #[test]
+    fn the_help_text_is_written_beside_the_done_file() {
+        let dir = crate::util::test_dir("state-help");
+        let app = App::new(crate::config::Config::load(), dir.clone(), egui::Context::default());
+        let path = write_help_file(&app, dir.join("done").as_os_str()).expect("written");
+        assert_eq!(path, dir.join("done.help"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), ui::overlay::help_text(&app).0);
+        assert!(write_help_file(&app, dir.join("no-such-dir").join("done").as_os_str()).is_none());
     }
 
     /// #212, #224: the spot panel's row under the cursor and its place.
