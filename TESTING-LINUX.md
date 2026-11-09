@@ -1070,14 +1070,14 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **64.3** In `<F3>` press `j` → The list's cursor moves to the next file (the preview changes file); the layer is not used 〔未訳〕
 - [ ] **64.4** In `T` and in `<F3>`, look at the left edge of a text file; drag a selection from the first line to the last and copy → Line numbers in a dim right-aligned column, matching the lines (also after scrolling); the copy holds the text only, no numbers 〔未訳〕
 - [ ] **64.5** Press `~` in `T` → The help lists "keys while the preview is maximized" 〔未訳〕
-- [ ] **64.6** Save two bookmarks (`ba`, `bq`), press `bb`, then `q` → The list closes and the folder of `q` opens; no letter reaches the filter 〔未訳〕
+- [ ] **64.6** Save two bookmarks (`bsa`, `bsq`), press `bb`, then `q` → The list closes and the folder of `q` opens; no letter reaches the filter 〔未訳〕
 - [ ] **64.7** Press `bb`, then `/`, then type part of a path → The hint changes to "type to filter"; letters now filter the list (the `/` itself is not typed); `<Enter>` opens the chosen row 〔未訳〕
 
 ## 65. One bookmark per folder (v0.144.0)
 
-- [ ] **65.1** In a folder press `ba`, then `bq` → A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]`. Automated: `scripts/check-bookmarks.sh` (Linux CI). 〔未訳〕
-- [ ] **65.2** In the same folder press `bq` again → A toast says it is already bookmarked as `q`; nothing else changes. Automated: `scripts/check-bookmarks.sh` (Linux CI). 〔未訳〕
-- [ ] **65.3** `common.toml` に `language = "ja"` を書き、同じフォルダーで `ba`、`bq`、もう一度 `bq`、続けて `bd` と `q` を押す（v0.146.10）→ トーストが日本語で出る: `ブックマーク `a` を保存`、`ブックマークを `a` から `q` へ移動`、`すでに `q` にブックマーク済み`、`ブックマーク `q` を削除`。`language = "en"` なら従来の英語。自動: `scripts/check-bookmarks.sh`（Linux の CI） — *With `language = "ja"` in `common.toml`, press `ba`, `bq` in the same folder, `bq` again, then `bd` and `q` (v0.146.10) → The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before. Automated: `scripts/check-bookmarks.sh` (Linux CI).*
+- [ ] **65.1** In a folder press `bsa`, then `bsq` → A toast says the bookmark moved from `a` to `q`; `bb` lists the folder once, as `[q]`. Automated: `scripts/check-bookmarks.sh` (Linux CI). 〔未訳〕
+- [ ] **65.2** In the same folder press `bsq` again → A toast says it is already bookmarked as `q`; nothing else changes. Automated: `scripts/check-bookmarks.sh` (Linux CI). 〔未訳〕
+- [ ] **65.3** `common.toml` に `language = "ja"` を書き、同じフォルダーで `bsa`、`bsq`、もう一度 `bsq`、続けて `bd` と `q` を押す（v0.146.10）→ トーストが日本語で出る: `ブックマーク `a` を保存`、`ブックマークを `a` から `q` へ移動`、`すでに `q` にブックマーク済み`、`ブックマーク `q` を削除`。`language = "en"` なら従来の英語。自動: `scripts/check-bookmarks.sh`（Linux の CI） — *With `language = "ja"` in `common.toml`, press `bsa`, `bsq` in the same folder, `bsq` again, then `bd` and `q` (v0.146.10) → The toasts are Japanese: `ブックマーク `a` を保存`, `ブックマークを `a` から `q` へ移動`, `すでに `q` にブックマーク済み`, `ブックマーク `q` を削除`. With `language = "en"` they read as before. Automated: `scripts/check-bookmarks.sh` (Linux CI).*
 - [ ] **65.4** `language = "ja"` で `bD` を押し、`y` で答える（v0.146.10）→ 確認に答えると `ブックマークを全部削除` のトーストが出て、ブックマークの一覧が空になる。自動: `scripts/check-bookmarks.sh`（Linux の CI） — *With `language = "ja"`, press `bD`, then `y` (v0.146.10) → The confirm is answered and a toast says `ブックマークを全部削除`; the bookmark list is empty. Automated: `scripts/check-bookmarks.sh` (Linux CI).*
 
 ## 66. Line numbers in rendered Markdown (v0.145.0)
