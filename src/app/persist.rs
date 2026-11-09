@@ -113,7 +113,9 @@ impl App {
                 let unproven = dir != home;
                 let mut tab = Tab::new(dir, sort, hidden, linemode);
                 if unproven {
-                    tab.pending_cd = Some(PendingCd { from: home.to_path_buf(), pushed: false, fallback: true, reveal: None });
+                    // No `fallback`: that reads a failure as "this was a file" and stops at the
+                    // parent, and a saved tab was a folder when it was saved.
+                    tab.pending_cd = Some(PendingCd { from: home.to_path_buf(), pushed: false, fallback: false, reveal: None });
                 }
                 tab
             })

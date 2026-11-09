@@ -23,6 +23,14 @@ fn every_tab_and_the_one_in_front_come_back() {
 }
 
 #[test]
+fn a_saved_folder_that_has_gone_lands_on_home_not_on_its_parent() {
+    let text = app("/gone/one").session_text().expect("the session serializes");
+    let mut b = app("/home");
+    assert!(b.restore_session(&text, Path::new("/home"), Restore::Tabs));
+    assert_eq!(b.tabs[0].cd_failed(), crate::core::tab::CdFallout::Revert { to: PathBuf::from("/home"), asked: None });
+}
+
+#[test]
 fn a_file_that_is_not_a_session_changes_nothing() {
     let mut a = app("/home");
     assert!(!a.restore_session("tabs = 3", Path::new("/home"), Restore::Tabs));
