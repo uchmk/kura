@@ -1,0 +1,28 @@
+# Row 69.5: the details view's Usage column shows a bar for a measured row.
+#
+# Keys, from the `section69-d` fixture folder:
+#   <Size:1200x700>ma<Wait:1500><Snap:bar><Quit>
+#
+# `big` holds the largest total, so it sorts to row 0 under the cursor and its
+# fill spans the whole track. The cells carry test ids only on the hovered row.
+# The fill is 2 pt = 3 px high at 1.5, so `inset_px = 1` leaves its middle row.
+spec = 1
+row = "69.5"
+tier = 1
+fixtures = "section69-d"
+window = { size_pt = [1200, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "usage-cell"
+snap = "bar"
+target = "details.cell.usage"
+fail_looks_like = "カーソルの行に使用量のセルが無い（列が落ちている、計測が始まっていない）"
+expect = { present = true }
+
+[[point]]
+id = "usage-bar"
+snap = "bar"
+target = "details.cell.usage.bar"
+relative_to = "details.cell.usage"
+fail_looks_like = "棒が無い、セルからはみ出す、進捗の色（blue）で塗られていない"
+expect = { present = true, inside = true, color_token = { token = "blue", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }

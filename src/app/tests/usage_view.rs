@@ -1060,3 +1060,130 @@ fn watcher_events_make_one_reread_job() {
     answer_config_writes(&mut a);
     assert_eq!(a.config_writes.status().answers, before + 1);
 }
+
+/// A measuring fed by hand: `feed` pushes one batch and drains it.
+fn manual(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg> {
+    a.start_usage();
+    let (tx, h) = crate::fs::usage::test_handle();
+    a.usage = Some(h);
+    tx
+}
+
+fn feed(a: &mut App, tx: &crossbeam_channel::Sender<crate::fs::usage::Msg>, rows: &[(&str, u64)]) {
+    let v = rows
+        .iter()
+        .map(|&(n, b)| {
+            let e = crate::fs::Entry { path: PathBuf::from(n), name: n.into(), kind: crate::fs::entry::Kind::Dir, ..Default::default() };
+            (e, b, 1, true)
+        })
+        .collect();
+    tx.send(crate::fs::usage::Msg::Sized(v)).unwrap();
+    a.drain_usage();
+}
+
+fn hovered(a: &App) -> Option<&str> {
+    a.tabs[a.active].current.hovered_name()
+}
+
+/// #525: the wanted row is found at the top, then a bigger folder arrives.
+#[test]
+fn a_wanted_row_found_at_the_top_is_followed_when_it_sinks() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    a.usage_want = Some("b".into());
+    feed(&mut a, &tx, &[("b", 100)]);
+    assert_eq!(hovered(&a), Some("b"));
+    feed(&mut a, &tx, &[("c", 500)]);
+    assert_eq!(a.tabs[a.active].current.cursor, 1);
+    assert_eq!(hovered(&a), Some("b"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// #525: batches landing above and below the wanted row leave the cursor on it.
+#[test]
+fn a_wanted_row_found_lower_stays_under_the_cursor() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    a.usage_want = Some("m".into());
+    feed(&mut a, &tx, &[("a", 900), ("m", 500), ("z", 100)]);
+    assert_eq!(hovered(&a), Some("m"));
+    feed(&mut a, &tx, &[("b", 700), ("y", 50)]);
+    assert_eq!(hovered(&a), Some("m"));
+    feed(&mut a, &tx, &[("c", 800), ("d", 300), ("e", 1000)]);
+    assert_eq!(hovered(&a), Some("m"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A fresh view keeps the top row, the biggest so far, through the batches.
+#[test]
+fn a_fresh_view_stays_on_the_biggest_row() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    for (i, n) in ["a", "b", "c", "d"].into_iter().enumerate() {
+        feed(&mut a, &tx, &[(n, 100 * (i as u64 + 1)), ("tiny", 1)]);
+        assert_eq!(a.tabs[a.active].current.cursor, 0);
+        assert_eq!(hovered(&a), Some(n));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The same with a filter set, where `view` is not the identity: read through
+/// the old `view`, row 0 is `x5` once the batch has moved the entries.
+#[test]
+fn a_fresh_filtered_view_stays_on_its_top_row() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    a.tabs[a.active].current.filter = Some(Filter::new("x".into()).unwrap());
+    feed(&mut a, &tx, &[("y1", 50), ("x1", 10)]);
+    assert_eq!(hovered(&a), Some("x1"));
+    feed(&mut a, &tx, &[("x9", 900), ("x5", 500)]);
+    assert_eq!(a.tabs[a.active].current.cursor, 0);
+    assert_eq!(hovered(&a), Some("x9"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A cursor the user moved stays on its file through later batches.
+#[test]
+fn a_moved_cursor_stays_on_its_file() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    feed(&mut a, &tx, &[("a", 900), ("b", 500), ("c", 100)]);
+    a.tabs[a.active].current.cursor = 1;
+    assert_eq!(hovered(&a), Some("b"));
+    feed(&mut a, &tx, &[("d", 700), ("e", 50)]);
+    assert_eq!(hovered(&a), Some("b"));
+    feed(&mut a, &tx, &[("f", 2000)]);
+    assert_eq!(hovered(&a), Some("b"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A new measuring starts fresh: a want placed in the last one does not carry over.
+#[test]
+fn measuring_again_forgets_a_placed_want() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    a.usage_want = Some("c".into());
+    feed(&mut a, &tx, &[("a", 900), ("c", 100)]);
+    assert!(a.usage_placed);
+    assert_eq!(hovered(&a), Some("c"));
+    drop(tx);
+    let tx = manual_again(&mut a);
+    assert!(!a.usage_placed);
+    feed(&mut a, &tx, &[("p", 10)]);
+    feed(&mut a, &tx, &[("q", 20)]);
+    assert_eq!(hovered(&a), Some("q"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn manual_again(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg> {
+    a.measure_here();
+    let (tx, h) = crate::fs::usage::test_handle();
+    a.usage = Some(h);
+    tx
+}

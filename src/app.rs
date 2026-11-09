@@ -314,6 +314,8 @@ pub struct App {
     /// The folder `h` came up out of, put under the cursor once the parent's
     /// walk reports it.
     usage_want: Option<String>,
+    /// Whether `usage_want` has put the cursor on its row in this measuring.
+    usage_placed: bool,
     /// The tab that was in Details when a jump ended its usage view: it is
     /// measured again once it has landed (see [`App::follow_usage`]).
     usage_follow: Option<usize>,
@@ -531,6 +533,7 @@ impl App {
             archive_rx: None,
             archive_preview_rx: None,
             usage_want: None,
+            usage_placed: false,
             usage_follow: None,
             term_pending: None,
             ctx,

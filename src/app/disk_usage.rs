@@ -76,6 +76,7 @@ impl App {
         tab.current = folder;
         self.usage = Some(handle);
         self.usage_max = 0;
+        self.usage_placed = false;
         self.usage_linemode = Some(tab.linemode);
         if tab.linemode != crate::fs::entry::Linemode::All {
             tab.linemode = crate::fs::entry::Linemode::Usage;
@@ -102,6 +103,8 @@ impl App {
             let details = self.tabs[self.active].linemode == crate::fs::entry::Linemode::All;
             let sort = self.tabs[self.active].sort;
             let f = &mut self.tabs[self.active].current;
+            // Read before the list moves: `view` indexes into `entries`.
+            let held = (self.usage_placed || f.cursor > 0).then(|| f.hovered_name().map(str::to_owned)).flatten();
             let entries = Arc::make_mut(&mut f.entries);
             for (mut e, bytes, _files, whole) in batch {
                 e.usage = Some(bytes);
@@ -123,8 +126,17 @@ impl App {
             }
             self.usage_max = entries.iter().map(Entry::usage_bytes).max().unwrap_or(0);
             f.rebuild(true);
+            match held {
+                Some(name) => {
+                    f.select_name(&name);
+                }
+                // Nobody placed it: the top row, even with a filter, where rebuild's stale read can land lower.
+                None => f.cursor = 0,
+            }
             if let Some(name) = self.usage_want.take() {
-                if !f.select_name(&name) {
+                if f.select_name(&name) {
+                    self.usage_placed = true;
+                } else {
                     self.usage_want = Some(name);
                 }
             }

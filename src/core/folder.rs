@@ -150,9 +150,16 @@ impl Folder {
     }
 
     pub fn resort(&mut self, sort: &SortSpec, show_hidden: bool) {
+        // Read before the sort: `view` indexes into `entries`. By path: a search view can hold several files of one name.
+        let keep = self.hovered().map(|e| e.path.clone());
         let entries = Arc::make_mut(&mut self.entries);
         sort.apply(entries);
         self.rebuild(show_hidden);
+        if let Some(path) = keep {
+            if let Some(row) = self.view.iter().position(|&i| self.entries.get(i as usize).is_some_and(|e| e.path == path)) {
+                self.cursor = row;
+            }
+        }
     }
 
     /// Move the cursor. `page` is the number of rows that fit on screen.
@@ -264,6 +271,32 @@ mod stale_view {
                 );
             }
         }
+    }
+
+    fn reversed() -> crate::fs::SortSpec {
+        crate::fs::SortSpec { reverse: true, ..Default::default() }
+    }
+
+    /// `view` indexes into `entries`, so the hovered file has to be read before
+    /// the sort moves them.
+    #[test]
+    fn resort_keeps_the_cursor_on_its_file() {
+        let mut f = Folder::from_entries(PathBuf::from("d"), listing(12), true);
+        f.cursor = 2;
+        f.resort(&reversed(), true);
+        assert_eq!(f.hovered().map(|e| e.name.as_str()), Some("f2"));
+        assert_ne!(f.cursor, 2, "the sort did move it");
+    }
+
+    /// A search view can hold several files of one name: identity is the path.
+    #[test]
+    fn resort_tells_same_named_files_apart() {
+        let mk = |p: &str, n: &str| Entry { path: PathBuf::from(p), name: n.into(), ext: None, kind: Kind::File, ..Default::default() };
+        let v = Arc::new(vec![mk("a/x", "x"), mk("b/x", "x"), mk("c/y", "y"), mk("d/z", "z")]);
+        let mut f = Folder::from_entries(PathBuf::from("d"), v, true);
+        f.cursor = 1;
+        f.resort(&reversed(), true);
+        assert_eq!(f.hovered().map(|e| e.path.clone()), Some(PathBuf::from("b/x")));
     }
 
     /// `at()` reads the same way and is called from the drawing code, where a

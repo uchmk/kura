@@ -158,6 +158,13 @@ fn link_key(_md: &std::fs::Metadata) -> Option<(u64, u64)> {
     None
 }
 
+/// A handle no walker backs, for tests that feed `drain_usage` by hand.
+#[cfg(test)]
+pub(crate) fn test_handle() -> (crossbeam_channel::Sender<Msg>, Handle) {
+    let (tx, rx) = crossbeam_channel::unbounded();
+    (tx, Handle { rx, cancel: Arc::new(AtomicBool::new(false)) })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

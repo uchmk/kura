@@ -230,14 +230,16 @@ pub fn draw(
                 if col == 10 && entry.usage.is_some() && st.usage_max > 0 {
                     let track = Rect::from_min_size(cell.left_bottom() - Vec2::new(0.0, 3.0), Vec2::new(cell.width(), 2.0));
                     cp.rect_filled(track, CornerRadius::ZERO, st.theme.border);
-                    cp.rect_filled(
-                        Rect::from_min_size(
-                            track.min,
-                            Vec2::new(track.width() * (entry.usage_bytes() as f32 / st.usage_max as f32).min(1.0), 2.0),
-                        ),
-                        CornerRadius::ZERO,
-                        st.theme.progress_fg,
+                    let fill = Rect::from_min_size(
+                        track.min,
+                        Vec2::new(track.width() * (entry.usage_bytes() as f32 / st.usage_max as f32).min(1.0), 2.0),
                     );
+                    cp.rect_filled(fill, CornerRadius::ZERO, st.theme.progress_fg);
+                    if hovered && fill.width() > 0.0 {
+                        let bar_id = ui.id().with(("list-usage-bar", rect.left() as i32, rect.top() as i32));
+                        let resp = ui.interact(fill, bar_id, egui::Sense::hover());
+                        ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.cell.usage.bar"), None);
+                    }
                 }
             }
             right_w = columns.first().map_or(0.0, |c| rect.width() - c.1);

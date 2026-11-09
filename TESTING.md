@@ -1970,11 +1970,11 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.2 | Press `m a` again | Back to the three columns with the preview, and the line mode that was set before |
 | 69.3 | From 69.1, press `m n` | Back to the three columns, no line mode |
 | 69.4 | From 69.1, press `<Esc>` | Back to the three columns. With a selection or a `/` filter open, the first `<Esc>` closes that and stays in details; the next one leaves |
-| 69.5 | In the details view, `gu` and wait | Stays in the table; the Usage column fills with bars and totals. `<Esc>` leaves the measuring and the table stays |
-| 69.6 | Narrow the window, then use a long Japanese file name | Columns drop from the right (Name, Date modified and Size stay); the name is cut inside its own column; the heading row stays when scrolling |
+| 69.5 | In the details view (`m a`), wait for the measuring, then press `gu` | `m a` has already started the measuring, so `gu` changes nothing: the table stays and the Usage column fills with bars and totals. `<Esc>` leaves the measuring and the table |
+| 69.6 | Narrow the window, then use a long Japanese file name | Columns drop in a fixed order as the window narrows (Date accessed first, then Owner, Dimensions, Date created, Permissions, Extension, Type, Date modified, Size; Usage last; Name never); the name is cut inside its own column; the heading row stays when scrolling |
 | 69.7 | `language = "ja"`, `m a` | Headings read 名前・更新日時・作成日時・種類・サイズ・権限・拡張子・使用量; a folder reads `ファイル フォルダー`, `.json` reads `JSON ファイル` |
 | 69.8 | Light and dark themes in the details view | Heading row, rows and bars use the theme's colours; the cursor row is clear in both |
-| 69.9 | (v0.148.0) In a folder of a few hundred files in a window about 1200 px wide, press `m a` | `gu` starts by itself and the Usage column fills; Name, Date modified, Date created, Date accessed, Type, Size, Usage are visible without dropping Usage first; `<Esc>` or `m a` stops the measuring and leaves the table |
+| 69.9 | (v0.148.0) In a folder of a few hundred files in a window 1200 pt wide, press `m a` | `gu` starts by itself and the Usage column fills; Date accessed is the first column to go when width runs short and Usage the last, so Name and Usage are visible; `<Esc>` or `m a` stops the measuring and leaves the table |
 | 69.10 | (v0.148.0) Widen the window | Dimensions, Owner, Permissions and Extension appear; a `.png`/`.jpg` shows `1920 × 1080` after a moment, an SVG or a text file shows nothing there; Owner reads the account name (Windows: the user name for a local account and `DOMAIN\user` for a domain account, from v0.151.4; Linux/macOS: the user name) |
 | 69.11 | (v0.148.0) `,t` `,T` `,p` `,P` `,u` `,U` `,o` `,O` `,d` `,D` `,l` `,L` in the details view | The list re-sorts (type / permissions / measured usage / owner / image pixels / accessed time); rows with no value stay last in both directions; the heading shows ▲ or ▼ on the sorted column; the UI never freezes, even in a folder of thousands of files |
 | 69.12 | (v0.148.0) `m o` | The right-hand value of every row is the owner |
@@ -1985,6 +1985,7 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.17 | (v0.151.4) In the details view, jump away with `g h`, `H` / `L` and a bookmark | The new folder is measured and its Usage column fills; no row of the folder it left appears in the list. `m a` or `<Esc>` right after a jump leaves the table and nothing is measured later |
 | 69.18 | (v0.151.4) `gu` in the normal view (not details), then `g h` | The usage view closes; the home folder shows as a plain listing and nothing is measured |
 | 69.19 | (v0.151.4) Windows: the Owner column for your own files, `C:\Windows\System32` and, if you have one, a domain account's files | Your files read just the user name (no computer name); system files read `SYSTEM`, `Administrators` or `TrustedInstaller` without `NT AUTHORITY\` / `BUILTIN\` / `NT SERVICE\`; a domain account keeps `DOMAIN\user` |
+| 69.20 | (v0.160.19) In a plain list and in the details view, put the cursor on a file below the first row, then press `,T` and `,t` | The cursor stays on that file at its new row (until v0.160.18 it kept the row number and landed on another file) |
 
 ## 70. Convert images, `c i` (v0.149.0)
 
