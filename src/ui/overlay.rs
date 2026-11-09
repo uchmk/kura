@@ -970,6 +970,8 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
         _ => return,
     };
     let inner = modal_frame(ui, rect, &app.cfg.theme, &title, f, row_h);
+    let panel = ui.interact(inner, ui.id().with("pick-panel"), egui::Sense::hover());
+    ito_a11y::test_id_in(ui, &panel, "pick.panel", None);
     let theme_fg = app.cfg.theme.fg;
     let theme_dim = app.cfg.theme.fg_dim;
     let hovered_bg = app.cfg.theme.hovered_bg;

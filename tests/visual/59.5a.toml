@@ -1,7 +1,7 @@
 # Row 59.5a: clicking the title bar's palette box opens the command palette.
 #
 # Keys, from any folder:
-#   <Size:900x500><State:before><ClickId:titlebar.search><State:palette><Esc><Quit>
+#   <Size:900x500><State:before><ClickId:titlebar.search><State:palette><Id:pick.panel><Esc><Quit>
 #
 # The click is the --keys player's event at the box's click point, found by its
 # test id. It is not an OS mouse click.

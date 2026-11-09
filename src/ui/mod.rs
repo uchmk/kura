@@ -5812,6 +5812,18 @@ mod test_ids {
     }
 
     #[test]
+    fn an_open_pick_has_a_panel() {
+        let mut s = one("testid-pick-panel");
+        s.app_ctx().enable_accesskit();
+        s.draw();
+        assert!(named(&ids(&s), "pick.panel").is_none(), "no panel before the palette opens");
+        s.feed(vec![key(egui::Key::P, ctrl_shift())]);
+        assert!(matches!(s.app.overlay, crate::app::Overlay::Pick(_)), "the palette is up");
+        s.draw();
+        assert!(named(&ids(&s), "pick.panel").is_some(), "pick.panel is registered");
+    }
+
+    #[test]
     fn a_spot_that_fits_has_a_panel_and_no_thumb() {
         let mut s = one("testid-spot-fits");
         open_spot(&mut s);
