@@ -1411,6 +1411,30 @@ fn state_report(app: &App) -> String {
     if let Some(hint) = app.name_hint() {
         lines.push(format!("name hint: {hint}"));
     }
+    // The size the interface is drawn with (`ui/mod.rs`), read from the same setting.
+    lines.push(format!("font size: {}", app.cfg.ui.font_size));
+    // What the status bar and the list paint for a repository: the branch, the
+    // counts and the mark of each row. The cached status only, no git run.
+    if let Some(g) = app.git_status(&tab.cwd) {
+        const MAX: usize = 40;
+        // The bar shows the branch and its counts only with a branch; the list marks its rows either way.
+        if !g.branch.is_empty() {
+            lines.push(format!("git branch: {}", g.branch));
+            let counts = ui::git_counts(g.states.values().copied());
+            if !counts.is_empty() {
+                lines.push(format!("git counts: {counts}"));
+            }
+        }
+        let marks: Vec<String> = tab
+            .current
+            .view
+            .iter()
+            .filter_map(|&i| tab.current.entries.get(i as usize))
+            .filter_map(|e| g.get(&e.name).mark().map(|m| format!("{}={m}", e.name)))
+            .take(MAX)
+            .collect();
+        lines.push(format!("git marks: {}", if marks.is_empty() { "none".into() } else { marks.join(" | ") }));
+    }
     // What the preview says about itself, as the pane writes it under the
     // picture, or why there is none (#223).
     match &app.preview.state {
@@ -1492,6 +1516,16 @@ fn state_report(app: &App) -> String {
     // `since last action: N ms`, which says how soon after the last key the
     // reading was taken.
     lines.push(format!("preview: {}", if app.preview.early { "early" } else { "whole" }));
+    // The notes the status bar paints for the preview (`L1/500 0% | UTF-8 LF`),
+    // and a log's own note under its text: both from the functions that paint.
+    let notes = ui::preview_parts(app).0;
+    if !notes.is_empty() {
+        lines.push(format!("preview status: {}", notes.join(" | ")));
+    }
+    if let app::PreviewState::Ready(preview::Payload::Log { view }) = &app.preview.state {
+        let note = ui::preview::log_note(tab.preview_offset, view.index.lines(), view.index.is_done(), view.index.progress());
+        lines.push(format!("preview note: {note}"));
+    }
     // How long the text on show is (`5237+` when the read was cut): the top
     // above is the last place to scroll to, which is not the line count
     // (#262).
@@ -2248,6 +2282,27 @@ mod tests {
         assert_eq!(said[0], "compare row 1: = same | same");
         assert_eq!(said[1], "compare row 2: ~ the ⟦price⟧ is firm | the ⟦cost⟧ is firm", "{said:?}");
         assert_eq!(said[2], "compare row 3: ~ gone | new", "nothing in common: the whole row is the change");
+    }
+
+    /// The read-outs for what is only painted: font size, git, preview notes.
+    #[test]
+    fn the_state_reads_out_font_size_and_notes_that_are_painted() {
+        let dir = crate::util::test_dir("state-readouts");
+        let mut app = App::new(crate::config::Config::load(), dir.clone(), egui::Context::default());
+        app.cfg.ui.font_size = 16.5;
+        let report = state_report(&app);
+        assert!(report.lines().any(|l| l == "font size: 16.5"), "{report}");
+        app.cfg.ui.font_size = 14.0;
+        assert!(state_report(&app).lines().any(|l| l == "font size: 14"));
+        assert!(!report.contains("git branch:") && !report.contains("git marks:"), "outside a repository: {report}");
+        assert!(!report.contains("preview status:") && !report.contains("preview note:"), "no preview: {report}");
+    }
+
+    /// The log note is one function for the painting and the report.
+    #[test]
+    fn the_log_note_reads_done_and_indexing() {
+        assert_eq!(ui::preview::log_note(2, 10, true, 1.0), "line 3 of 10");
+        assert_eq!(ui::preview::log_note(2, 10, false, 0.42), "line 3 · indexing 42%");
     }
 
     /// `KURA_KEYS_DONE`: what a check reads after `--keys`, without pressing

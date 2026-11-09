@@ -1111,7 +1111,7 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
 
 /// `M3 +2 ?1`: how many rows of a repository's listing are in each state,
 /// worst first. Empty when nothing has changed.
-fn git_counts(states: impl Iterator<Item = crate::fs::git::State>) -> String {
+pub(crate) fn git_counts(states: impl Iterator<Item = crate::fs::git::State>) -> String {
     use crate::fs::git::State;
     let mut n = [0usize; 5];
     for s in states {
@@ -1260,7 +1260,7 @@ fn preview_notes(app: &App) -> Vec<String> {
 
 /// The notes, and the heading slot: `Some` when the preview has an outline
 /// (the slot is then reserved), holding the heading when there is one.
-fn preview_parts(app: &App) -> (Vec<String>, Option<Option<String>>) {
+pub(crate) fn preview_parts(app: &App) -> (Vec<String>, Option<Option<String>>) {
     use crate::preview::Payload;
     let crate::app::PreviewState::Ready(payload) = &app.preview.state else { return (Vec::new(), None) };
     let tab = &app.tabs[app.active];

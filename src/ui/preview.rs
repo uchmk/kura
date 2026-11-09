@@ -108,6 +108,15 @@ pub fn selected_text(ctx: &egui::Context) -> Option<String> {
     ctx.data(|d| d.get_temp::<String>(egui::Id::new(SELECTED)))
 }
 
+/// The note under a log preview: where the top is, or how far indexing has got.
+/// The painting and `<State:>`'s `preview note:` both use it.
+pub(crate) fn log_note(offset: usize, total: usize, done: bool, progress: f32) -> String {
+    match done {
+        true => format!("line {} of {}", offset + 1, total),
+        false => format!("line {} · indexing {:.0}%", offset + 1, progress * 100.0),
+    }
+}
+
 /// The preview pane: what it shows, and the mouse picking up its text. A
 /// selection goes when the pane scrolls or shows something else.
 ///
@@ -241,11 +250,7 @@ fn draw_pane(
                 } else {
                     painter.text(rect.left_top() + Vec2::new(PAD, 8.0), Align2::LEFT_TOP, "…", st.font.clone(), st.theme.fg_dim);
                 }
-                let pct = view.index.progress();
-                let mut note = match view.index.is_done() {
-                    true => format!("line {} of {}", offset + 1, total),
-                    false => format!("line {} · indexing {:.0}%", offset + 1, pct * 100.0),
-                };
+                let mut note = log_note(offset, total, view.index.is_done(), view.index.progress());
                 let cut = more.iter().skip(rel).take(rows(rect, st)).filter(|&&n| n > 0).count();
                 if cut > 0 {
                     note += &format!(" · {} cut at {}", cut, crate::util::human_size(crate::preview::logindex::MAX_LINE_BYTES as u64));
