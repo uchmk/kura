@@ -474,6 +474,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 font: f.clone(),
                 row_h,
                 active: false,
+                focused: false,
                 linemode: crate::fs::entry::Linemode::None,
                 sort: None,
                 usage_max: 0,
@@ -668,6 +669,7 @@ fn draw_parent(app: &mut App, ui: &mut Ui, rect: Rect, ctx: &PaneCtx, queued: &m
             font: f.clone(),
             row_h,
             active: false,
+            focused: false,
             linemode: crate::fs::entry::Linemode::None,
             sort: None,
             usage_max: 0,
@@ -713,6 +715,7 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
         // The outline has the keys while it is focused; dim the cursor. The
         // pane without the keys is dimmed for the same reason.
         active: focused && app.preview.outline.is_none(),
+        focused,
         linemode,
         sort: Some(app.tabs[idx].sort),
         usage_max: app.usage_max,

@@ -21,6 +21,8 @@ fn palette(theme: &Theme) -> ito_pane::Palette {
         cursor: theme.cwd.fg.unwrap_or(theme.fg),
         on_cursor: theme.bg,
         ansi: None,
+        mark_ok: theme.common.success(),
+        mark_failed: theme.common.err,
     }
 }
 

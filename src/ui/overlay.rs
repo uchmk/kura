@@ -811,6 +811,23 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
         }
     }
     ito_help::draw(&painter, inner, &lines, app.help_scroll, &style);
+    // Test IDs for the headings on screen: `help.heading.<n>`, n = the headings before it in the whole list.
+    let mut heads = 0;
+    for (i, line) in lines.iter().enumerate() {
+        let ito_help::Line::Head(t) = line else { continue };
+        let n = heads;
+        heads += 1;
+        if i < app.help_scroll || i >= app.help_scroll + visible {
+            continue;
+        }
+        let y = inner.top() + (i - app.help_scroll) as f32 * row_h;
+        let at = Rect::from_min_size(egui::pos2(inner.left() + 4.0, y), Vec2::new((inner.width() - 8.0).max(0.0), row_h));
+        let resp = ui.interact(at, ui.id().with(("help-heading", n)), egui::Sense::hover());
+        // The text as ito-help draws it, cut to the panel when it does not fit.
+        let drawn = ito_help::fit(&painter, t, &style.font, inner.width() - 8.0);
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, drawn.as_str()));
+        ito_a11y::test_id_in(ui, &resp, &format!("help.heading.{n}"), None);
+    }
 
     // Going somewhere means looking at it, so the panel gets out of the way.
     if let Some(act) = went {
@@ -1031,6 +1048,12 @@ pub fn pick(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     let before = p.query.clone();
     let pick_id = egui::Id::new("kura-pick");
     let selected = selection_at_press(ui, pick_id);
+    // The hint shows while the query is empty. Registered before the field so the field stays on top of it.
+    if p.query.is_empty() {
+        let hint_resp = ui.interact(field, ui.id().with("pick-hint"), egui::Sense::hover());
+        hint_resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, hint));
+        ito_a11y::test_id_in(ui, &hint_resp, "pick.hint", None);
+    }
     let resp = ui.put(
         field,
         egui::TextEdit::singleline(&mut p.query)

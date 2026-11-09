@@ -836,9 +836,16 @@ fn text_with(
         let gutter = (digits as f32 + 1.0) * st.cell + PAD;
         for i in 0..end - start {
             let n = (start + i + 1).to_string();
-            let g = painter.layout_no_wrap(n, st.font.clone(), st.theme.fg_dim);
+            let g = painter.layout_no_wrap(n.clone(), st.font.clone(), st.theme.fg_dim);
             let x = rect.left() + PAD + digits as f32 * st.cell - g.size().x;
-            painter.galley(pos2(x, rect.top() + i as f32 * st.row_h), g, st.theme.fg_dim);
+            let at = pos2(x, rect.top() + i as f32 * st.row_h);
+            if i == 0 {
+                // A hover-only hook for the checklist: the number as drawn. It takes no click or drag, so selecting text is not disturbed.
+                let hook = ui.interact(Rect::from_min_size(at, g.size()), ui.id().with("preview-gutter-first"), egui::Sense::hover());
+                hook.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, n.as_str()));
+                ito_a11y::test_id_in(ui, &hook, "preview.gutter.first", Some(&g));
+            }
+            painter.galley(at, g, st.theme.fg_dim);
         }
         Rect::from_min_max(pos2(rect.left() + gutter, rect.top()), rect.max)
     } else {

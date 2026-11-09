@@ -19,6 +19,9 @@ pub struct ListStyle<'a> {
     pub row_h: f32,
     /// Dimmed columns (parent / preview) get a quieter cursor.
     pub active: bool,
+    /// This list is the focused tab's (not the other side of a split, nor the parent column). Only the test IDs read it,
+    /// so that two details tables on screen never share an ID.
+    pub focused: bool,
     pub linemode: crate::fs::entry::Linemode,
     pub sort: Option<crate::fs::SortSpec>,
     /// The largest total in the disk-usage view, which every row's bar is drawn
@@ -69,6 +72,8 @@ pub fn draw(
     let cell_width = painter.layout_no_wrap("M".into(), st.font.clone(), st.theme.fg).size().x;
     let columns = if details { detail_columns(rect.width(), cell_width) } else { Vec::new() };
     let mut header_clicked = None;
+    // Test IDs of the details table: `details.head.<key>`, `details.cell.<key>`; the unfocused side of a split says `details.other.…`.
+    let id_root = if st.focused { "details" } else { "details.other" };
     if details {
         let name_width = columns.first().map_or(rect.width(), |c| c.1);
         let header = |col: usize| {
@@ -101,6 +106,10 @@ pub fn draw(
             let hit = Rect::from_min_size(egui::pos2(rect.left() + x, rect.top()), Vec2::new(width, st.row_h));
             let id = ui.id().with(("list-header", rect.left() as i32, rect.top() as i32, col));
             let resp = ui.interact(hit, id, egui::Sense::click());
+            let label = header(col);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label.as_str()));
+            let key = DETAIL_KEYS[col].trim_start_matches("details.");
+            ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.head.{key}"), None);
             if resp.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -197,6 +206,13 @@ pub fn draw(
             for &(col, offset, width) in &columns {
                 let cell = Rect::from_min_size(egui::pos2(rect.left() + offset + 4.0, y), Vec2::new(width - 8.0, st.row_h));
                 let text = detail_text(entry, col, st.lang);
+                if hovered {
+                    let key = DETAIL_KEYS[col].trim_start_matches("details.");
+                    let cell_id = ui.id().with(("list-cell", rect.left() as i32, rect.top() as i32, col));
+                    let resp = ui.interact(cell, cell_id, egui::Sense::hover());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text.as_str()));
+                    ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.cell.{key}"), None);
+                }
                 let cp = painter.with_clip_rect(cell);
                 if col == 5 {
                     // Number and unit are two columns: the numbers end at one x and
@@ -302,6 +318,12 @@ pub fn draw(
         let galley = painter.layout_job(job);
         let name_rect = Rect::from_min_max(row_rect.min, egui::pos2((row_rect.right() - right_w).max(row_rect.left()), row_rect.bottom()));
         painter.with_clip_rect(name_rect).galley(egui::pos2(x, y + (st.row_h - galley.size().y) / 2.0), galley, base_color);
+        if details && hovered {
+            let cell_id = ui.id().with(("list-cell", rect.left() as i32, rect.top() as i32, 0usize));
+            let resp = ui.interact(name_rect, cell_id, egui::Sense::hover());
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, name.as_str()));
+            ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.cell.name"), None);
+        }
     }
 
     // Scrollbar hint when the list overflows.

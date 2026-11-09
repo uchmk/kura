@@ -73,6 +73,20 @@ impl Linemode {
         })
     }
 
+    /// The spelling a config file uses (`parse` reads it back).
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::All => "all",
+            Self::Size => "size",
+            Self::Usage => "usage",
+            Self::Mtime => "mtime",
+            Self::Btime => "btime",
+            Self::Permissions => "permissions",
+            Self::Owner => "owner",
+        }
+    }
+
     /// Whether the scan worker has to count directory children for this.
     ///
     /// Only `size` shows that count, and counting is a `read_dir` per visible

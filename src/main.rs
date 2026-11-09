@@ -1370,6 +1370,7 @@ fn state_report(app: &App) -> String {
     // The panes that are not overlays (#165): `T` and `<F3>`'s quick look.
     lines.push(format!("max preview: {}", if app.max_preview { "on" } else { "off" }));
     lines.push(format!("quick: {}", if app.quick { "on" } else { "off" }));
+    lines.push(format!("linemode: {}", app.tab().linemode.name()));
     // What the settings came from, so a `<C-F5>` reload reads as a value
     // (#165): every file read, or `none`.
     let read: Vec<String> = app.cfg.loaded.iter().map(|p| p.display().to_string()).collect();
@@ -2215,6 +2216,7 @@ mod tests {
             "focus: list",
             "max preview: off",
             "quick: off",
+            "linemode: none",
             "yank: empty",
             "tab: 1 of 1",
             "overlay: none",
