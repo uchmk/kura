@@ -113,12 +113,12 @@ fn parse_cli() -> Cli {
                 // Before the script is parsed, so even a parse refusal carries the run's id (#203).
                 if std::env::var_os("KURA_KEYS_DONE").is_some() {
                     if let Err(why) = keyscript::run_id("KURA") {
-                        refuse_run_id(&why);
+                        refuse_keys(&why, keyscript::FAILED_EXIT);
                     }
                 }
                 match keyscript::parse(&script) {
                     Ok(keys) => match keys.iter().find(|k| keyscript::press(k).is_none()) {
-                        Some(k) => refuse_keys(&format!("{k:?} cannot be typed")),
+                        Some(k) => refuse_keys(&format!("{k:?} cannot be typed"), 2),
                         None => {
                             // A step a newer ito adds before kura carries it out would be skipped, and the run
                             // would still read as a success: `Script::checked` refuses it here, as failed.
@@ -128,7 +128,7 @@ fn parse_cli() -> Cli {
                             }
                         }
                     },
-                    Err(why) => refuse_keys(&why),
+                    Err(why) => refuse_keys(&why, 2),
                 }
             }
             "--help" | "-h" => {
@@ -427,24 +427,15 @@ fn main() -> eframe::Result<()> {
     result
 }
 
-/// A `--keys` script that cannot be pressed: said on the command line, and
-/// written to `KURA_KEYS_DONE` for a run started detached, which has no
-/// command line to read (#193).
-fn refuse_keys(why: &str) -> ! {
+/// A `--keys` run refused before any window: said on the command line, and written to `KURA_KEYS_DONE` for a run
+/// started detached, which has no command line to read (#193). `exit` is 2 for a script that cannot be pressed, as for
+/// any bad command line, and `keyscript::FAILED_EXIT` for a `KURA_KEYS_RUN_ID` that is not a run id.
+fn refuse_keys(why: &str, exit: i32) -> ! {
     say(&format!("kura: --keys: {why}"));
     if let Some(done) = std::env::var_os("KURA_KEYS_DONE") {
         let _ = std::fs::write(done, keyscript::with_current_run(&keyscript::refused_report(why)));
     }
-    std::process::exit(2);
-}
-
-/// `KURA_KEYS_RUN_ID` is not a run id: refused before any window, with the failed exit code.
-fn refuse_run_id(why: &str) -> ! {
-    say(&format!("kura: --keys: {why}"));
-    if let Some(done) = std::env::var_os("KURA_KEYS_DONE") {
-        let _ = std::fs::write(done, keyscript::with_current_run(&keyscript::refused_report(why)));
-    }
-    std::process::exit(keyscript::FAILED_EXIT);
+    std::process::exit(exit);
 }
 
 /// The window's icon, rasterized from SVG at `px` square.

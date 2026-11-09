@@ -562,6 +562,16 @@ impl ScriptRun {
         out
     }
 
+    /// `sync` after a step that came to `out`: it always runs, and `out` stands unless it is `Continue`.
+    fn synced(&mut self, app: &mut App, out: Outcome) -> Outcome {
+        let synced = self.sync(app);
+        if out == Outcome::Continue {
+            synced
+        } else {
+            out
+        }
+    }
+
     /// The first `run.json`, `running`, at the first frame the player handles (ito's `start_run`). Only with a done
     /// file. A failure to write it fails the run at `<run.json>`.
     fn start_run(&mut self, app: &mut App) -> Option<Outcome> {
@@ -674,12 +684,7 @@ impl ScriptRun {
             return Outcome::Continue;
         }
         let out = self.step(ctx, app, raw_input, frame, now);
-        let synced = self.sync(app);
-        if out == Outcome::Continue {
-            synced
-        } else {
-            out
-        }
+        self.synced(app, out)
     }
 
     fn step(&mut self, ctx: &egui::Context, app: &mut App, raw_input: &mut egui::RawInput, frame: u64, now: Instant) -> Outcome {
@@ -773,6 +778,14 @@ impl ScriptRun {
             Ok(()) => Taken::Done,
             Err(why) => Taken::Again { why },
         };
+        // A click where a window-reading step found its target; Pace tries again until it is found.
+        let mut click = |found: Result<egui::Pos2, String>, right: bool, double: bool| match found {
+            Ok(pos) => {
+                raw_input.events.extend(click_events(pos, right, double));
+                input(Vec::new())
+            }
+            Err(why) => Taken::Again { why },
+        };
         let mut edit = None;
         let taken = match &entry.press {
             Press::Events(events) => {
@@ -818,11 +831,8 @@ impl ScriptRun {
                     + &keyscript::since_action_line(self.pace.since_action(now));
                 match write_text(&path, &text) {
                     Ok(()) => {
-                        // The JSON is built in `state_after_draw`, from what the pass draws.
-                        self.state_out = Some((name.clone(), entry.idx));
                         self.state_settled = self.pace.take_settled();
-                        self.state_due = true;
-                        Taken::State { name: name.clone() }
+                        self.state_taken(name.clone(), entry.idx)
                     }
                     Err(why) => Taken::Failed(why),
                 }
@@ -885,50 +895,25 @@ impl ScriptRun {
                     before: None,
                     shot: None,
                 });
-                let n = format!("{name}-before");
-                self.state_out = Some((n.clone(), entry.idx));
-                self.state_due = true;
-                Taken::State { name: n }
+                self.state_taken(format!("{name}-before"), entry.idx)
             }
             Press::Snap { name, stage: keyscript::SnapStage::Shot } => {
                 self.shot = Some(Self::pending_shot(name, true));
                 Taken::Shot { path: self.shot_path(name).to_string_lossy().into_owned() }
             }
-            Press::Snap { name, stage: keyscript::SnapStage::After } => {
-                let n = format!("{name}-after");
-                self.state_out = Some((n.clone(), entry.idx));
-                self.state_due = true;
-                Taken::State { name: n }
-            }
+            Press::Snap { name, stage: keyscript::SnapStage::After } => self.state_taken(format!("{name}-after"), entry.idx),
             // The window-reading steps. Each needs a tree drawn after the last action; Pace waits for
             // what it looks for, then fails the run with the reason.
-            Press::ClickText { right, text } => match self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)) {
-                Ok(pos) => {
-                    raw_input.events.extend(click_events(pos, *right, false));
-                    input(Vec::new())
-                }
-                Err(why) => Taken::Again { why },
-            },
-            Press::DClickText(text) => match self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)) {
-                Ok(pos) => {
-                    raw_input.events.extend(click_events(pos, false, true));
-                    input(Vec::new())
-                }
-                Err(why) => Taken::Again { why },
-            },
-            Press::ClickId(name) => {
-                let found = self.fresh(ctx).and_then(|o| match o.id(name)? {
+            Press::ClickText { right, text } => click(self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)), *right, false),
+            Press::DClickText(text) => click(self.fresh(ctx).and_then(|_| keyscript::locate(ctx, text)), false, true),
+            Press::ClickId(name) => click(
+                self.fresh(ctx).and_then(|o| match o.id(name)? {
                     Some(node) => node.click_at.clone(),
                     None => Err(format!("no widget has the test ID `{name}`")),
-                });
-                match found {
-                    Ok(pos) => {
-                        raw_input.events.extend(click_events(pos, false, false));
-                        input(Vec::new())
-                    }
-                    Err(why) => Taken::Again { why },
-                }
-            }
+                }),
+                false,
+                false,
+            ),
             Press::Assert { text, present } => verdict(self.fresh(ctx).and_then(|_| keyscript::check(ctx, text, *present))),
             Press::Is { prop, text } => verdict(self.fresh(ctx).and_then(|_| keyscript::check_is(ctx, *prop, text))),
             Press::IdCheck(check) => verdict(self.fresh(ctx).and_then(|o| check.check(&o))),
@@ -956,6 +941,13 @@ impl ScriptRun {
         (taken, edit)
     }
 
+    /// A `<State:>` or a stage of a `<Snap:>` is out: `state_after_draw` builds its JSON from what the pass draws.
+    fn state_taken(&mut self, name: String, idx: usize) -> pace::Taken {
+        self.state_out = Some((name.clone(), idx));
+        self.state_due = true;
+        pace::Taken::State { name }
+    }
+
     /// The window as a reading step may judge it: seen after the last input was drawn, in the main
     /// window, and not minimized (ito's `Runner::fresh`).
     fn fresh(&self, ctx: &egui::Context) -> Result<keyscript::Observation, String> {
@@ -979,12 +971,7 @@ impl ScriptRun {
     /// `<Shot:name>`: ask for the picture, then save it when it arrives.
     pub(crate) fn take_shot(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
         let out = self.shot_step(ctx, app);
-        let synced = self.sync(app);
-        if out == Outcome::Continue {
-            synced
-        } else {
-            out
-        }
+        self.synced(app, out)
     }
 
     /// A `<Shot:>` (or the picture stage of a `<Snap:>`) that has not been asked for yet.
@@ -1260,12 +1247,7 @@ impl ScriptRun {
             Ok(()) => Outcome::Continue,
             Err(why) => self.state_failed(app, &why),
         };
-        let synced = self.sync(app);
-        if out == Outcome::Continue {
-            synced
-        } else {
-            out
-        }
+        self.synced(app, out)
     }
 
     /// The window was closed (the title bar's x) or the app quit while the
@@ -1279,12 +1261,7 @@ impl ScriptRun {
             Ending::Quit => pace::Ending::Quit,
         };
         let out = self.ended_at(app, how, Instant::now(), Some(&status));
-        let synced = self.sync(app);
-        if out == Outcome::Continue {
-            synced
-        } else {
-            out
-        }
+        self.synced(app, out)
     }
 
     /// Pace's end of the run at `now` (`writes` as of then), kept. A seam so that a test can pick the time.
