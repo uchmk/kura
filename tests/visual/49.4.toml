@@ -1,0 +1,80 @@
+# Row 49.4: after `dir` (exit 0) and `Get-Item nothing-here` (an error), a thin bar sits in the
+# pane's left margin beside each, green for the first and red for the second, and none is
+# drawn inside a full-screen program.
+#
+# Run with KURA_TERM_SHELL=pwsh and KURA_TERM_ARGS=-NoProfile. Keys, from the fixture folder:
+#   <Size:900x700><C-t><ReadHas:PaneText=PS R:>
+#   <Paste:function prompt { ... the OSC 133 prompt from TESTING.md ... }><Enter><Wait:1500>
+#   <Paste:dir><Enter><ReadHas:PaneText=b-plain.txt>
+#   <Paste:Get-Item nothing-here><Enter><ReadHas:PaneText=Get-Item:><Wait:1500>
+#   <Snap:after-failed><PaneText:after-failed>
+#   <Paste:nvim --clean><Enter><ReadHas:PaneText=[No Name]><Wait:800>
+#   <Snap:in-nvim><PaneText:in-nvim>:q!<Enter><Wait:1000><Quit>
+#
+# `[No Name]` is nvim's own status line, so a run whose nvim never came up fails at that step and
+# gives no verdict. `--clean` keeps the owner's nvim config out of it; the row just says `nvim`.
+#
+# The prompt is set before either command, so the only blocks that can have ended are `dir` and
+# `Get-Item`, in that order. Exactly two bars with these two colours is what ties each bar to its
+# command: the pane has no per-row test IDs to compare a bar's position with.
+#
+# The numbers come from ito-pane's view.rs, not from a run: a bar is 2 pt wide, 2 pt in from the
+# pane's left edge, and one row tall less 1 pt at each end. The pane spans the window's width, so
+# its left edge is the window's. At 1.5 that is 3 px wide and 3 px in. A row is at least about
+# 13 pt, so a bar of one row is at least 15 px tall.
+spec = 1
+row = "49.4"
+tier = 1
+fixtures = "status-crumb"
+window = { size_pt = [900, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "ok-bar-green"
+snap = "after-failed"
+target = "pane.mark.0"
+fail_looks_like = "成功した dir の横のバーが緑ではない（文字が重なっている場合も含む）"
+expect = { present = true, color_token = { token = "success", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+
+[[point]]
+id = "failed-bar-red"
+snap = "after-failed"
+target = "pane.mark.1"
+fail_looks_like = "失敗した Get-Item の横のバーが赤ではない（文字が重なっている場合も含む）"
+expect = { present = true, color_token = { token = "err", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+
+[[point]]
+id = "ok-bar-thin-in-left-margin"
+snap = "after-failed"
+target = "pane.mark.0"
+relative_to = "app.root"
+fail_looks_like = "dir のバーが細くない、ペインの左の余白にない、1 行分の高さがない"
+expect = { present = true, width_px = { min = 2, max = 4 }, height_px = { min = 15 }, left_gap_px = { min = 2, max = 4 } }
+
+[[point]]
+id = "failed-bar-thin-in-left-margin"
+snap = "after-failed"
+target = "pane.mark.1"
+relative_to = "app.root"
+fail_looks_like = "Get-Item のバーが細くない、ペインの左の余白にない、1 行分の高さがない"
+expect = { present = true, width_px = { min = 2, max = 4 }, height_px = { min = 15 }, left_gap_px = { min = 2, max = 4 } }
+
+[[point]]
+id = "failed-bar-below-ok-bar"
+snap = "after-failed"
+target = "pane.mark.0"
+fail_looks_like = "2 本のバーが重なっている、順番が逆、左端がそろっていない"
+expect = { present = true, gap = { to = "pane.mark.1", side = "below", min = 0, max = 6 }, aligned = { with = "pane.mark.1", edge = "left", tol_px = 0.5 } }
+
+[[point]]
+id = "only-two-bars"
+snap = "after-failed"
+target = "pane.mark.2"
+fail_looks_like = "打っていないコマンドの分までバーが出ている"
+expect = { present = false }
+
+[[point]]
+id = "no-bar-in-full-screen"
+snap = "in-nvim"
+target = "pane.mark.0"
+fail_looks_like = "nvim の全画面の中にバーが残っている"
+expect = { present = false }

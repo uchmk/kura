@@ -1,0 +1,37 @@
+# Copies of a real 49.4 run with one thing broken. visual-check must answer FAIL for each.
+#
+# A bar that is not drawn at all has no canary here: other points read its rectangle, so the run
+# answers ERROR, not FAIL. That also blocks a mark, but make-canary counts only FAIL.
+
+[[canary]]
+name = "ok-bar-red"
+[[canary.edit]]
+snap = "after-failed"
+op = "paint"
+target = "pane.mark.0"
+token = "err"
+
+[[canary]]
+name = "failed-bar-green"
+[[canary.edit]]
+snap = "after-failed"
+op = "paint"
+target = "pane.mark.1"
+token = "success"
+
+[[canary]]
+name = "ok-bar-off-the-margin"
+[[canary.edit]]
+snap = "after-failed"
+op = "shift"
+target = "pane.mark.0"
+dx = 40
+dy = 0
+
+[[canary]]
+name = "bar-inside-nvim"
+[[canary.edit]]
+snap = "in-nvim"
+op = "copy_from"
+target = "pane.mark.0"
+from = "after-failed-after"
