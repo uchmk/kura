@@ -1,0 +1,24 @@
+# Row 59.5a: clicking the title bar's palette box opens the command palette.
+#
+# Keys, from any folder:
+#   <Size:900x500><State:before><ClickId:titlebar.search><State:palette><Esc><Quit>
+#
+# The click is the --keys player's event at the box's click point, found by its
+# test id. It is not an OS mouse click.
+spec = 1
+row = "59.5a"
+tier = 1
+fixtures = "any"
+window = { size_pt = [900, 500], pixels_per_point = 1.5 }
+
+[[point]]
+id = "closed-before"
+state = "before"
+fail_looks_like = "パレットの箱を押す前から何かのオーバーレイが開いている"
+expect = { no_overlay = true }
+
+[[point]]
+id = "click-opens-commands"
+state = "palette"
+fail_looks_like = "パレットの箱を押してもコマンド パレットが開かない、別のピッカーが開く"
+expect = { overlay = "pick", app_state = { pick_title = "Commands" } }
