@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 805 件（TESTING.md の全 1000 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 809 件（TESTING.md の全 1004 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -408,6 +408,9 @@ fsutil hardlink list <新しくできたパス>
 - [ ] **20.15** Markdown を開いて `M` を押す。`config.toml` の `[ui]` に `status_hints = false` を書いて試す → バーの左（サイズと時刻の後）に切り替えのキーと行き先（`M source`、次に `M rendered`）が出る。設定を切る・Markdown 以外のファイルでは何も出ない。窓が狭ければ最初に消える — *Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` → The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first*
 - [~] **20.16** 画像を開き、次に関数のあるソースと見出しのある Markdown を開く → 画像はズームのキー（`A-i zoom in   A-o out   A-0 fit`）、ソースと Markdown はアウトラインのキー（`BackTab outline`）が出る。アウトラインのないテキストでは何も出ない — *Open an image, then a source file with functions or a Markdown file with headings → The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing*
 - [ ] **20.17** 既定の窓（幅 1280 pt）で、git のリポジトリの外の、長い見出し（日本語も）のある Markdown を開き、見出しを越えてスクロールする → Markdown のキーの案内が 2 つとも出る（`M source`、`<BackTab> outline`）。見出しは枠の終わりで `…` になる。git のリポジトリの中ではブランチがアウトラインの案内の場所を取るので、窓の幅が 1450 pt くらいになるまでは `M source` だけが出る — *In the default window (1280 pt wide), outside a git repository, open a Markdown file with a long heading, one in Japanese too, and scroll past the heading → Both of Markdown's key hints are drawn (`M source`, `<BackTab> outline`); the heading ends in `…` where its slot ends. Inside a git repository the branch takes the outline hint's room, so only `M source` is drawn until the window is about 1450 pt wide*
+- [ ] **20.18** Markdown のファイルにカーソルを置き、窓を幅 760 pt まで狭める → 左の項目と右の項目は重ならず、モードの表示の下にももぐらない。項目は丸ごと消える。ファイルの権限、文字コード、時刻は消え、サイズ、一覧の位置（`3/4`）、フォルダの合計、行（`L1/5 0%`）は残る — *With the cursor on a Markdown file, narrow the window to 760 pt → The left details and the right items do not overlap, and neither runs under the mode chip. Fields have gone whole: the file's permissions, the encoding and the time are gone, while its size, the list position (`3/4`), the folder's size and the line (`L1/5 0%`) stay*
+- [ ] **20.18a** さらに最小の 520 pt まで狭める → 右の項目は一覧の位置（`3/4`）だけが残る。左の項目は丸ごと消え、どれも重ならず、モードの表示の下にももぐらない — *Go on narrowing it to the 520 pt minimum → Of the right items only the list position (`3/4`) is left. The left details have gone whole, and nothing overlaps or runs under the mode chip*
+- [ ] **20.18b** 幅 1500 pt まで広げ直す → 全部の項目が戻る。左に権限・サイズ・時刻、右の端に文字コード（`UTF-8 LF`）が出て、どれも重ならない — *Widen it again to 1500 pt → Every field is back: the permissions, size and time on the left, the encoding (`UTF-8 LF`) at the end of the right group, and nothing overlaps*
 
 ## 21. 書庫（zip / tar / 7z）
 
@@ -1048,7 +1051,8 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **59.2** バーの空いたところをドラッグする → 窓が動く。ダブルクリックで最大化し、もう一度で戻る — *Drag the empty part of the bar → The window moves; double-click maximizes and restores it*
 - [ ] **59.3** 最小化、最大化、元に戻す、閉じるを順にクリックする → それぞれ名前どおりに動く。閉じると kura が終わり、窓の場所を保存する — *Click minimize, maximize, restore, then close → Each does what it says; close ends kura and saves the window's place*
 - [ ] **59.4** 窓の各辺と各隅をドラッグする → その辺から窓の大きさが変わる — *Drag each edge and corner of the window → The window resizes from that edge*
-- [~] **59.5** パレットの箱をクリックし、続けて `Ctrl+Shift+P` を押す → どちらでもコマンド パレットが開く — *Click the palette box, and press `Ctrl+Shift+P` → The command palette opens both ways*
+- [~] **59.5** `Ctrl+Shift+P` を押す → コマンド パレットが開く — *Press `Ctrl+Shift+P` → The command palette opens*
+- [~] **59.5a** パレットの箱をクリックする → コマンド パレットが開く — *Click the palette box → The command palette opens*
 - [x] **59.6** トーストの出ること（`y`）をして、ベルを見る → ベルに 1 のバッジが付く。トーストは消えるが、ベルの一覧には残る — *Do something that toasts (`y`), then look at the bell → The bell has a badge of 1; the toast fades but the bell's list still has it*
 - [ ] **59.7** ベルをクリックする → 下に一覧が下がり、新しい順で、未読は明るい。`Esc` か外のクリックで閉じ、Mark all read でバッジが消える — *Click the bell → A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge*
 - [ ] **59.8** エラーのトーストを出す（開けないファイルを開く）→ 読むまでバッジは赤い — *Cause an error toast (open a file that cannot open) → The badge is red until it is read*

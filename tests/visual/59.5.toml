@@ -1,11 +1,10 @@
-# Row 59.5, keyboard half: Ctrl+Shift+P opens the command palette.
+# Row 59.5: Ctrl+Shift+P opens the command palette.
 #
 # Keys, from any folder:
 #   <Size:900x500><State:before><C-S-p><State:palette><Esc><Quit>
 #
-# The row also asks for a click on the title bar's palette box. That half needs
-# the box's test id (uchmk/ito#209) and is not in this spec, so this spec alone
-# does not settle the row.
+# Clicking the title bar's palette box is row 59.5a. It needs the box's test id
+# (uchmk/ito#209) and has no spec yet.
 spec = 1
 row = "59.5"
 tier = 1

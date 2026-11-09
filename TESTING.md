@@ -681,6 +681,9 @@ was that a gentle turn moved nothing at all.
 | 20.15 | Open a Markdown file, then press `M`; set `status_hints = false` under `[ui]` in `config.toml` | The left of the bar, after the size and time, names the toggle key and the view it switches to (`M source`, then `M rendered`); with the setting off, or on a non-Markdown file, nothing is named; a narrow window drops it first |
 | 20.16 | Open an image, then a source file with functions or a Markdown file with headings | The image names its zoom keys (`A-i zoom in   A-o out   A-0 fit`); the source file and the Markdown file name the outline key (`BackTab outline`); a plain text file names nothing |
 | 20.17 | In the default window (1280 pt wide), outside a git repository, open a Markdown file with a long heading, one in Japanese too, and scroll past the heading | Both of Markdown's key hints are drawn (`M source`, `<BackTab> outline`); the heading ends in `…` where its slot ends. Inside a git repository the branch takes the outline hint's room, so only `M source` is drawn until the window is about 1450 pt wide |
+| 20.18 | With the cursor on a Markdown file, narrow the window to 760 pt | The left details and the right items do not overlap, and neither runs under the mode chip. Fields have gone whole: the file's permissions, the encoding and the time are gone, while its size, the list position (`3/4`), the folder's size and the line (`L1/5 0%`) stay |
+| 20.18a | Go on narrowing it to the 520 pt minimum | Of the right items only the list position (`3/4`) is left. The left details have gone whole, and nothing overlaps or runs under the mode chip |
+| 20.18b | Widen it again to 1500 pt | Every field is back: the permissions, size and time on the left, the encoding (`UTF-8 LF`) at the end of the right group, and nothing overlaps |
 
 ## 21. Archives (v0.2.0)
 
@@ -1828,7 +1831,8 @@ The window has no OS title bar: kura draws its own (ito-titlebar) and keeps a li
 | 59.2 | Drag the empty part of the bar | The window moves; double-click maximizes and restores it |
 | 59.3 | Click minimize, maximize, restore, then close | Each does what it says; close ends kura and saves the window's place |
 | 59.4 | Drag each edge and corner of the window | The window resizes from that edge |
-| 59.5 | Click the palette box, and press `Ctrl+Shift+P` | The command palette opens both ways |
+| 59.5 | Press `Ctrl+Shift+P` | The command palette opens |
+| 59.5a | Click the palette box | The command palette opens |
 | 59.6 | Do something that toasts (`y`), then look at the bell | The bell has a badge of 1; the toast fades but the bell's list still has it |
 | 59.7 | Click the bell | A list hangs under it, newest first, unread bright; `Esc` or a click outside closes it; Mark all read clears the badge |
 | 59.8 | Cause an error toast (open a file that cannot open) | The badge is red until it is read |

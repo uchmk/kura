@@ -1,0 +1,49 @@
+# Row 20.18: at 760 pt the status bar drops whole fields instead of overlapping them.
+#
+# Keys, from the `status-hints` fixture folder (`c-notes.md` is entry 3 of 4):
+#   <Size:760x700>jj<State:w760><Quit>
+#
+# A spec checks one window size, so the three widths of this check are three
+# rows: 20.18 (760 pt), 20.18a (520 pt) and 20.18b (1500 pt). The texts come
+# from the fixture. `pixels_per_point` is the display's scale, so the spec has
+# to follow it when the run is on another display.
+spec = 1
+row = "20.18"
+tier = 1
+fixtures = "status-hints"
+window = { size_pt = [760, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "details-kept"
+state = "w760"
+target = "status.details"
+fail_looks_like = "左の項目の権限か時刻が残っている、またはサイズが消えている"
+expect = { present = true, visible = true, text = "47 B" }
+
+[[point]]
+id = "details-apart"
+state = "w760"
+target = "status.details"
+fail_looks_like = "左の項目が右の項目かモードの表示に重なっている"
+expect = { no_overlap = ["status.right", "status.mode"] }
+
+[[point]]
+id = "right-kept"
+state = "w760"
+target = "status.right"
+fail_looks_like = "右の項目の文字コードが残っている、または位置・フォルダの合計・行のどれかが消えている"
+expect = { present = true, visible = true, text = "3/4   files 187 B   L1/5 0%" }
+
+[[point]]
+id = "right-apart"
+state = "w760"
+target = "status.right"
+fail_looks_like = "右の項目がモードの表示の下にもぐっている"
+expect = { no_overlap = ["status.mode"] }
+
+[[point]]
+id = "hint-apart"
+state = "w760"
+target = "status.hint.0"
+fail_looks_like = "キーの案内が左右の項目に重なっている"
+expect = { no_overlap = ["status.details", "status.right"] }

@@ -1,0 +1,42 @@
+# Row 20.18a: at the 520 pt minimum the position stays and the left details are gone.
+#
+# Keys, from the `status-hints` fixture folder (`c-notes.md` is entry 3 of 4):
+#   <Size:760x700>jj<Size:520x700><State:w520><Quit>
+#
+# A spec checks one window size, so the three widths of this check are three
+# rows: 20.18 (760 pt), 20.18a (520 pt) and 20.18b (1500 pt). The texts come
+# from the fixture. `pixels_per_point` is the display's scale, so the spec has
+# to follow it when the run is on another display.
+spec = 1
+row = "20.18a"
+tier = 1
+fixtures = "status-hints"
+window = { size_pt = [520, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "details-gone"
+state = "w520"
+target = "status.details"
+fail_looks_like = "幅 520 pt で左の項目が残っている"
+expect = { present = false }
+
+[[point]]
+id = "position-kept"
+state = "w520"
+target = "status.right"
+fail_looks_like = "一覧の位置が消えている、またはほかの項目が残っている"
+expect = { present = true, visible = true, text = "3/4" }
+
+[[point]]
+id = "right-apart"
+state = "w520"
+target = "status.right"
+fail_looks_like = "一覧の位置がモードの表示の下にもぐっている"
+expect = { no_overlap = ["status.mode"] }
+
+[[point]]
+id = "hint-apart"
+state = "w520"
+target = "status.hint.0"
+fail_looks_like = "キーの案内が一覧の位置かモードの表示に重なっている"
+expect = { no_overlap = ["status.right", "status.mode"] }

@@ -903,6 +903,14 @@ fn clone_view(f: &Folder) -> Folder {
 
 // ---------------------------------------------------------------- status
 
+/// A hover-only widget over a piece of the status bar, with a Test ID so
+/// `--keys` can read where it is.
+fn status_test_id(ui: &Ui, rect: Rect, id: &'static str, g: &egui::Galley) {
+    let resp = ui.interact(rect, ui.id().with(id), egui::Sense::hover());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, g.text()));
+    ito_a11y::test_id_in(ui, &resp, id, Some(g));
+}
+
 fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     let theme = &app.cfg.theme;
     let painter = ui.painter_at(rect);
@@ -924,24 +932,22 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     if let Some(bg) = mode_style.bg {
         painter.rect_filled(chip, CornerRadius::same(3), bg);
     }
+    status_test_id(ui, chip, "status.mode", &g);
     painter.galley(egui::pos2(x, cy - g.size().y / 2.0), g, theme.fg);
     x += chip.width() + 10.0;
 
-    let mut left = String::new();
+    // The hovered file's details, kept as fields until the room is known.
+    let mut left: Vec<(String, Keep)> = Vec::new();
     if let Some(e) = tab.current.hovered() {
-        left.push_str(&list::permissions(e));
-        left.push_str("  ");
+        left.push((list::permissions(e), Keep::Permissions));
         if !e.is_dir_like() {
-            left.push_str(&util::human_size(e.len));
-            left.push_str("  ");
+            left.push((util::human_size(e.len), Keep::Size));
         }
-        left.push_str(&util::fmt_time(e.modified, "%Y-%m-%d %H:%M"));
+        left.push((util::fmt_time(e.modified, "%Y-%m-%d %H:%M"), Keep::Time));
     }
-    let left_w = painter.text(egui::pos2(x, cy), Align2::LEFT_CENTER, left, f.clone(), theme.fg_dim).width();
-    let hint_x = x + left_w + 12.0;
 
     // Right side: task progress, filter/find state, position.
-    let mut right: Vec<String> = Vec::new();
+    let mut right: Vec<(String, Keep)> = Vec::new();
     if let Some(t) = running_task(app) {
         let mut s = format!("{} {:>3.0}%", t.kind.verb(), t.fraction() * 100.0);
         if t.state == crate::app::TaskState::Paused {
@@ -958,34 +964,37 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         if waiting > 0 {
             s.push_str(&format!("  +{waiting}"));
         }
-        right.push(s);
+        right.push((s, Keep::Work));
     }
     if let Some(h) = &app.search {
-        right.push(match h.via {
-            crate::config::cmd::SearchVia::Content => format!("grepping {}…", h.query),
-            crate::config::cmd::SearchVia::Name => format!("searching {}…", h.query),
-            crate::config::cmd::SearchVia::Fuzzy => format!("fuzzy searching {}…", h.query),
-        });
+        right.push((
+            match h.via {
+                crate::config::cmd::SearchVia::Content => format!("grepping {}…", h.query),
+                crate::config::cmd::SearchVia::Name => format!("searching {}…", h.query),
+                crate::config::cmd::SearchVia::Fuzzy => format!("fuzzy searching {}…", h.query),
+            },
+            Keep::Work,
+        ));
     }
     // The branch, when the directory is in a repository at all.
     if let Some(g) = app.git_status(&tab.cwd) {
         if !g.branch.is_empty() {
             let counts = git_counts(g.states.values().copied());
-            right.push(if counts.is_empty() { format!(" {} ", g.branch) } else { format!(" {}  {counts} ", g.branch) });
+            right.push((if counts.is_empty() { format!(" {} ", g.branch) } else { format!(" {}  {counts} ", g.branch) }, Keep::Branch));
         }
     }
     if let Some(fl) = &tab.current.filter {
         if !fl.query.is_empty() {
-            right.push(format!("filter: {}", fl.query));
+            right.push((format!("filter: {}", fl.query), Keep::Work));
         }
     }
     if let Some(fd) = &tab.finder {
         if !fd.query.is_empty() {
-            right.push(format!("find: {}", fd.query));
+            right.push((format!("find: {}", fd.query), Keep::Work));
         }
     }
     if !app.yank.paths.is_empty() {
-        right.push(format!("{} {}", app.yank.paths.len(), if app.yank.cut { "cut" } else { "copied" },));
+        right.push((format!("{} {}", app.yank.paths.len(), if app.yank.cut { "cut" } else { "copied" },), Keep::Marks));
     }
     let pos = if waiting(tab) {
         "…".to_string()
@@ -994,15 +1003,15 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
     } else {
         format!("{}/{}", tab.current.cursor + 1, tab.current.view.len())
     };
-    right.push(pos);
+    right.push((pos, Keep::Position));
     if let Some(s) = folder_summary(&tab.current) {
-        right.push(s);
+        right.push((s, Keep::Folder));
     }
     if let Some(s) = selection_summary(tab) {
-        right.push(s);
+        right.push((s, Keep::Marks));
     }
     let (notes, crumb) = preview_parts(app);
-    right.extend(notes);
+    right.extend(notes.into_iter().enumerate().map(|(i, n)| (n, if i == 0 { Keep::Line } else { Keep::Encoding })));
     // The clock sits at the very end, in the strongest text colour; the
     // other items end where it begins.
     let mut right_edge = rect.right() - 10.0;
@@ -1038,8 +1047,32 @@ fn draw_status(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId) {
         }
         right_edge = area.left() - 16.0;
     }
-    let right_g = painter.layout_no_wrap(right.join("   "), f.clone(), theme.fg_dim);
-    painter.galley(egui::pos2(right_edge - right_g.size().x, cy - right_g.size().y / 2.0), right_g.clone(), theme.fg_dim);
+    // Both sides are fields dropped whole, lowest rank first, until they fit
+    // between the mode chip and the right edge. Each field is measured with the
+    // separator that follows it, so the separators also keep the sides apart.
+    let measure = |t: &str| painter.layout_no_wrap(t.to_owned(), f.clone(), theme.fg_dim).size().x;
+    let (left_sep, right_sep) = (measure("  "), measure("   "));
+    let widths: Vec<(f32, Keep)> =
+        left.iter().map(|(t, k)| (measure(t) + left_sep, *k)).chain(right.iter().map(|(t, k)| (measure(t) + right_sep, *k))).collect();
+    let kept = fit_status(&widths, right_edge - x);
+    let (kept_left, kept_right) = kept.split_at(left.len());
+    let join = |fields: &[(String, Keep)], kept: &[bool], sep: &str| {
+        fields.iter().zip(kept).filter(|(_, k)| **k).map(|((t, _), _)| t.as_str()).collect::<Vec<_>>().join(sep)
+    };
+    let left_g = painter.layout_no_wrap(join(&left, kept_left, "  "), f.clone(), theme.fg_dim);
+    let left_w = left_g.size().x;
+    let hint_x = x + left_w + 12.0;
+    if !left_g.text().is_empty() {
+        let pos = egui::pos2(x, cy - left_g.size().y / 2.0);
+        status_test_id(ui, Rect::from_min_size(pos, left_g.size()), "status.details", &left_g);
+        painter.galley(pos, left_g, theme.fg_dim);
+    }
+    let right_g = painter.layout_no_wrap(join(&right, kept_right, "   "), f.clone(), theme.fg_dim);
+    let right_pos = egui::pos2(right_edge - right_g.size().x, cy - right_g.size().y / 2.0);
+    if !right_g.text().is_empty() {
+        status_test_id(ui, Rect::from_min_size(right_pos, right_g.size()), "status.right", &right_g);
+    }
+    painter.galley(right_pos, right_g.clone(), theme.fg_dim);
     // Key hints take what the two sides leave; they go first when it is short.
     // Whole hints only, as many as fit: a cut-off key name is worse than none.
     let mut at = hint_x;
@@ -1168,6 +1201,40 @@ const CRUMB_BESIDE: f32 = 139.0;
 /// slot that followed that would move everything to its left on every line.
 fn crumb_slot(bar: f32, glyph: f32) -> f32 {
     (bar / glyph - CRUMB_BESIDE).clamp(CRUMB_MIN, CRUMB_MAX) * glyph
+}
+
+/// The fields of the status bar, in the order they go when the bar is too
+/// short for all of them: the first variant goes first.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum Keep {
+    Permissions, // the hovered file's permissions
+    Encoding,    // preview notes after the first (`UTF-8 LF`)
+    Time,        // the hovered file's modified time
+    Folder,      // folder_summary (`files 581 B`)
+    Branch,      // git branch and counts
+    Size,        // the hovered file's size
+    Line,        // the first preview note (`L1/62 0%`, `PNG 800×600`)
+    Marks,       // yank and selection_summary
+    Work,        // running task, search, filter, find
+    Position,    // `3/3`, stays longest
+}
+
+/// Which fields stay on a bar with `room` for them. Each field is its width
+/// and its rank; a field is dropped whole, lowest rank first, until the rest
+/// fit. Fields of one rank go in the order given.
+fn fit_status(fields: &[(f32, Keep)], room: f32) -> Vec<bool> {
+    let mut keep = vec![true; fields.len()];
+    let mut total: f32 = fields.iter().map(|f| f.0).sum();
+    let mut order: Vec<usize> = (0..fields.len()).collect();
+    order.sort_by_key(|&i| fields[i].1);
+    for i in order {
+        if total <= room {
+            break;
+        }
+        keep[i] = false;
+        total -= fields[i].0;
+    }
+    keep
 }
 
 /// The last heading or declaration at or above the top line, trimmed of the
@@ -1568,6 +1635,65 @@ mod status_notes {
         assert!(crumb_slot(1280.0, glyph) < crumb_slot(1350.0, glyph), "narrower as the window narrows");
         assert_eq!(crumb_slot(520.0, glyph), CRUMB_MIN * glyph, "never down to nothing");
         assert_eq!(crumb_slot(2560.0, glyph * 2.0), crumb_slot(1280.0, glyph) * 2.0, "a larger font is the same bar, scaled");
+    }
+
+    /// One field of each rank, 10 wide each, in the order of the enum.
+    fn every_rank() -> Vec<(f32, Keep)> {
+        use Keep::*;
+        [Permissions, Encoding, Time, Folder, Branch, Size, Line, Marks, Work, Position].into_iter().map(|k| (10.0, k)).collect()
+    }
+
+    #[test]
+    fn everything_stays_when_the_bar_has_room_for_it() {
+        let fields = every_rank();
+        assert_eq!(fit_status(&fields, 200.0), vec![true; 10]);
+        assert_eq!(fit_status(&fields, 100.0), vec![true; 10], "room exactly equal to the sum");
+        assert_eq!(fit_status(&[], 0.0), Vec::<bool>::new());
+    }
+
+    #[test]
+    fn a_little_short_drops_only_the_permissions() {
+        let keep = fit_status(&every_rank(), 95.0);
+        assert!(!keep[0]);
+        assert!(keep[1..].iter().all(|&k| k));
+    }
+
+    #[test]
+    fn fields_go_in_the_order_of_their_rank_as_the_room_shrinks() {
+        let fields = every_rank();
+        for dropped in 1..=10 {
+            let keep = fit_status(&fields, 100.0 - 10.0 * dropped as f32 + 1.0);
+            let expect: Vec<bool> = (0..10).map(|i| i >= dropped).collect();
+            assert_eq!(keep, expect, "{dropped} dropped: {:?}", fields.iter().map(|f| f.1).collect::<Vec<_>>());
+        }
+        assert_eq!(fit_status(&fields, 10.0).iter().position(|&k| k), Some(9), "the position stays longest");
+    }
+
+    #[test]
+    fn two_fields_of_one_rank_go_in_the_order_given() {
+        let fields = [(10.0, Keep::Work), (10.0, Keep::Work), (10.0, Keep::Position)];
+        assert_eq!(fit_status(&fields, 25.0), vec![false, true, true]);
+        assert_eq!(fit_status(&fields, 15.0), vec![false, false, true]);
+    }
+
+    #[test]
+    fn a_dropped_field_is_not_brought_back_because_a_later_one_is_small() {
+        // Dropping Permissions leaves 41, still over 40, so Time goes too (the
+        // next rank). The small Size field was never a candidate.
+        let fields = [(50.0, Keep::Permissions), (30.0, Keep::Time), (1.0, Keep::Size), (10.0, Keep::Position)];
+        assert_eq!(fit_status(&fields, 40.0), vec![false, false, true, true]);
+        // A field that would fit in the room left over is not brought back:
+        // Permissions (10) goes, Time (100) has to go too, and the 15 left
+        // over stay empty although Permissions would fit in them now.
+        let fields = [(10.0, Keep::Permissions), (100.0, Keep::Time), (5.0, Keep::Position)];
+        assert_eq!(fit_status(&fields, 20.0), vec![false, false, true]);
+    }
+
+    #[test]
+    fn room_for_nothing_keeps_nothing() {
+        assert_eq!(fit_status(&every_rank(), 0.0), vec![false; 10]);
+        assert_eq!(fit_status(&every_rank(), 9.0), vec![false; 10]);
+        assert_eq!(fit_status(&every_rank(), -5.0), vec![false; 10]);
     }
 
     /// A heading longer than its slot ends in an ellipsis wherever the slot

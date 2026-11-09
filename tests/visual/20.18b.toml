@@ -1,0 +1,64 @@
+# Row 20.18b: widened again, every field of the status bar is back.
+#
+# Keys, from the `status-hints` fixture folder (`c-notes.md` is entry 3 of 4):
+#   <Size:760x700>jj<Size:520x700><Size:1500x700><State:wide><Quit>
+#
+# A spec checks one window size, so the three widths of this check are three
+# rows: 20.18 (760 pt), 20.18a (520 pt) and 20.18b (1500 pt). The texts come
+# from the fixture. `pixels_per_point` is the display's scale, so the spec has
+# to follow it when the run is on another display.
+spec = 1
+row = "20.18b"
+tier = 1
+fixtures = "status-hints"
+window = { size_pt = [1500, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "permissions-back"
+state = "wide"
+target = "status.details"
+fail_looks_like = "広げ直しても権限が戻らない"
+expect = { present = true, visible = true, text = { contains = "-rw" } }
+
+[[point]]
+id = "size-back"
+state = "wide"
+target = "status.details"
+fail_looks_like = "広げ直してもサイズが戻らない"
+expect = { text = { contains = "47 B" } }
+
+# The time is the fixture file's own and varies; only it has a colon.
+[[point]]
+id = "time-back"
+state = "wide"
+target = "status.details"
+fail_looks_like = "広げ直しても時刻が戻らない"
+expect = { text = { contains = ":" } }
+
+[[point]]
+id = "details-apart"
+state = "wide"
+target = "status.details"
+fail_looks_like = "左の項目が右の項目かモードの表示に重なっている"
+expect = { no_overlap = ["status.right", "status.mode"] }
+
+[[point]]
+id = "right-back"
+state = "wide"
+target = "status.right"
+fail_looks_like = "広げ直しても右の項目が全部戻らない"
+expect = { present = true, visible = true, text = "3/4   files 187 B   L1/5 0%   UTF-8 LF" }
+
+[[point]]
+id = "right-apart"
+state = "wide"
+target = "status.right"
+fail_looks_like = "右の項目がモードの表示の下にもぐっている"
+expect = { no_overlap = ["status.mode"] }
+
+[[point]]
+id = "hint-apart"
+state = "wide"
+target = "status.hint.0"
+fail_looks_like = "キーの案内が左右の項目に重なっている"
+expect = { no_overlap = ["status.details", "status.right"] }

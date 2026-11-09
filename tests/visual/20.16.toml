@@ -19,7 +19,7 @@ spec = 1
 row = "20.16"
 tier = 1
 fixtures = "status-hints"
-window = { size_pt = [1500, 700], pixels_per_point = 1.0 }
+window = { size_pt = [1500, 700], pixels_per_point = 1.5 }
 
 [[point]]
 id = "image-zoom-in"
