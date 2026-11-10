@@ -57,8 +57,8 @@ is not a pass: `check-spot-console: inconclusive`, exit 3, with what appeared. R
 Exit 1: a check failed. Exit 2: the setup failed (no kura, no git, no 64-bit PowerShell,
 the test repository could not be built, the watcher could not start).
 
-NOT covered: the status marks in the list and the branch name (no --keys reading
-shows them: `<State:>` has no git lines), a Windows Terminal that has taken over
+NOT covered: the status marks in the list and the branch name (this script does not
+read them; `<State:>` has `git marks:` and `git branch:` lines for that), a Windows Terminal that has taken over
 consoles when the window is not found by class, a process that lives for less than
 one snapshot cycle (about 13 ms here: 5 ms of sleep and 8 ms of reading), a window
 that has gone before the callback reads its class (the watcher prints how many SHOW
@@ -475,7 +475,7 @@ Say $v.p4611a ("46.11a: {0} conhost.exe / OpenConsole.exe under the tree, {1} of
 Say $gitOk 'git: the Git section is there for all six files'
 $gitLines | ForEach-Object { Write-Output $_ }
 Say ([SpotWatch]::WinEvents -ge 1) ('events: the window hook saw {0} window events' -f [SpotWatch]::WinEvents)
-Write-Output 'not covered: status marks and the branch name (no --keys reading shows them), a process shorter than one snapshot cycle, a window gone before its class was read'
+Write-Output 'not covered: status marks and the branch name (this script does not read them), a process shorter than one snapshot cycle, a window gone before its class was read'
 if ($bad) { Write-Output 'check-spot-console: FAILED'; exit 1 }
 if (@($v.foreign).Count) { Write-Output 'check-spot-console: inconclusive (a console window that is not the tree''s appeared meanwhile; run it again)'; exit 3 }
 Write-Output 'check-spot-console: ok'

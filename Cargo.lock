@@ -2504,7 +2504,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.160.26"
+version = "0.160.27"
 dependencies = [
  "ab_glyph",
  "chrono",
