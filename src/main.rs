@@ -304,8 +304,12 @@ fn main() -> eframe::Result<()> {
     let common = ito_common::base_dir().map(|b| ito_common::Common::read(&b).map(|(c, _)| c).unwrap_or_default()).unwrap_or_default();
     let prefs = common.window_or_default();
     let mono_font = common.mono_font_or_default();
-    let saved = ito_common::window::Saved::load((cli.keys.is_empty() && ito_prefs::keeps_place(&prefs)).then(Config::state_dir));
-    viewport = saved.viewport(viewport);
+    // A key script's window keeps no place and leaves none. Told not to keep
+    // its place, the window opens as new, and is followed again once that is
+    // turned back on.
+    let saved = ito_common::window::Saved::load(cli.keys.is_empty().then(Config::state_dir));
+    let opened = if ito_prefs::keeps_place(&prefs) { saved.clone() } else { ito_common::window::Saved::load(None) };
+    viewport = opened.viewport(viewport);
     if prefs.always_on_top {
         viewport = viewport.with_always_on_top();
     }
@@ -329,7 +333,7 @@ fn main() -> eframe::Result<()> {
         "Kura",
         options,
         Box::new(move |cc| {
-            saved.put(cc);
+            opened.put(cc);
             let mut cfg = cfg;
             // Filled as the run sets itself up, and written down at the end of
             // it: `kura env` cannot work either of these out for itself.
@@ -845,8 +849,9 @@ impl Kura {
 
 impl eframe::App for Kura {
     fn on_exit(&mut self) {
-        // Written now, held still or not: the process is about to end.
-        if let Some(t) = self.place.as_mut() {
+        // Written now, held still or not: the process is about to end. Not
+        // when the keeping was turned off during this session.
+        if let Some(t) = self.place.as_mut().filter(|_| ito_prefs::keeps_place(&self.app.common.window_or_default())) {
             t.close(ito_common::window::Seen::of(&self.app.ctx));
         }
     }

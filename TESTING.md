@@ -1795,11 +1795,11 @@ home folder.
 
 | # | Do | Expect |
 | --- | --- | --- |
-| 56.1 | General, Window card: turn "Remember window position" off, move and resize the window, close and start kura again (v0.124.0) | The window opens at its default place and size, and `window.json` in kura's state folder is not rewritten. Turning it back on and moving the window again keeps it across a restart |
-| 56.2 | Turn "Always on top" on, then focus another window (v0.124.0) | kura stays above it at once, with no restart; off, and it goes behind again |
-| 56.3 | "Forget saved position", close and start kura (v0.124.0) | A toast says it was forgotten and the next start is at the default place |
+| 56.1 | General, Window card: turn "Remember the window's place" off, move and resize the window, close and start kura again (v0.124.0, v0.160.28) | The window opens at its default place and size, and `window.toml` in kura's state folder is not rewritten. Turning it back on and moving the window again keeps it across a restart |
+| 56.2 | Turn "Keep above other windows" on, then focus another window (v0.124.0) | kura stays above it at once, with no restart; off, and it goes behind again |
+| 56.3 | "Forget the saved place", close and start kura (v0.124.0) | A toast says it was forgotten and the next start is at the default place |
 | 56.4 | General, Start at sign-in card: turn it on, check Task Manager > Startup apps and `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; turn it off (v0.125.0) | An entry for kura appears and goes; the screen does not stall when it opens, and the switch shows the real state after reopening the screen |
-| 56.5 | About page (v0.126.0) | Version, system line and the licences (JetBrains Mono's SIL OFL since v0.128.0) are shown; "Report a problem" opens the bug form as `Ctrl+,` → Bug report did before |
+| 56.5 | About page (v0.126.0) | Version, system line and the licences (JetBrains Mono's SIL OFL since v0.128.0) are shown; "Report a bug" opens the same `Report a bug` confirmation as `<F12>` (section 26 checks the form itself) |
 | 56.6 | Advanced, Backup card: Export, change the theme, then Import the same file (v0.127.0) | `kura-settings.toml` appears in your home folder; Import brings the theme back and a toast says so. kura's own `config.toml` and keymap are part of the bundle, and nothing outside the keep list (v0.127.1) is overwritten |
 | 56.7 | General, Monospace font card: switch Bundled to System and back (v0.128.0) | The file list, preview and terminal pane change face at once (JetBrains Mono ↔ the system's font), with no restart; Japanese and icons still draw. With `[ui] fonts = [...]` in config.toml the card changes nothing, since your own fonts win |
 | 56.8 | In another uchmk app change the Monospace font, with kura open (v0.128.0) | kura follows within 3 seconds |
