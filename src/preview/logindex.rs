@@ -728,6 +728,11 @@ impl LogView {
         (s.first, s.lines.clone(), s.more.clone())
     }
 
+    /// The lines read for the pane so far, oldest first, asking for nothing more. For `<PreviewText:>`.
+    pub fn shown_lines(&self) -> Vec<String> {
+        self.shown.lock().unwrap().lines.clone()
+    }
+
     /// Look for `matcher` through the whole file on a thread; `n`/`N` read the
     /// result from [`Self::found`] as it grows.
     pub fn find(&self, query: &str, matcher: Matcher) {
@@ -899,6 +904,24 @@ last
             let i = index("li-u16", &b);
             assert_eq!(i.read(0, 9), vec!["あ", "い", "う"], "big endian: {be}");
         }
+    }
+
+    #[test]
+    fn shown_lines_hold_the_first_window_once_it_has_landed() {
+        let text: String = (0..500).map(|n| format!("row {n}\n")).collect();
+        let v = LogView::new(index("li-shown", text.as_bytes()));
+        assert!(v.shown_lines().is_empty());
+        let ctx = egui::Context::default();
+        v.window(0, 30, &ctx);
+        for _ in 0..2000 {
+            if !v.shown_lines().is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let got = v.shown_lines();
+        assert!(got.len() >= 30, "{}", got.len());
+        assert_eq!(&got[..3], ["row 0", "row 1", "row 2"]);
     }
 
     #[test]

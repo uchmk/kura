@@ -1148,9 +1148,9 @@ fn compare_row_line(n: usize, row: &diff::Row) -> String {
 
 /// What the preview pane holds, as text: a text file's lines whole (not only
 /// the rows on screen), a rendered Markdown document's lines, a hex dump's
-/// rows, a card's `label: value` rows, the error or the caption. For
-/// `<PreviewText:name>` -- the body of a preview was read from eleven
-/// pictures, as words (#165).
+/// rows, a card's `label: value` rows, the error or the caption; for a big
+/// log, only the lines its pane has read so far. For `<PreviewText:name>` --
+/// the body of a preview was read from eleven pictures, as words (#165).
 fn preview_text(state: &app::PreviewState) -> String {
     let joined = |spans: &[preview::Span]| spans.iter().map(|s| s.text.as_str()).collect::<String>();
     let mut out = match state {
@@ -1164,6 +1164,7 @@ fn preview_text(state: &app::PreviewState) -> String {
         }
         app::PreviewState::Ready(preview::Payload::Image { caption, .. }) => caption.clone(),
         app::PreviewState::Ready(preview::Payload::Error(e)) => e.clone(),
+        app::PreviewState::Ready(preview::Payload::Log { view }) => view.shown_lines().join("\n"),
         _ => "(no preview)".to_owned(),
     };
     out.push('\n');
