@@ -1339,6 +1339,13 @@ mod tests {
             run.hook(&ctx, &mut self.screen.app, &mut raw, self.frame, self.t0)
         }
 
+        /// Seconds to `step` to land just past the oldest unanswered write's wait. The wait counts from the
+        /// real instant of the send, so a fixed number falls short when a loaded machine is slow to reach it.
+        fn secs_past_config_wait(&self) -> u64 {
+            let since = self.screen.app.config_writes.status().oldest.unwrap().since;
+            (since + pace::CONFIG_WAIT).saturating_duration_since(self.t0).as_secs() + 1
+        }
+
         /// The hook alone (nothing is drawn), `by` after the last, on a frame later than any drawn so far.
         fn hook_by(&mut self, run: &mut ScriptRun, by: Duration) -> Outcome {
             self.hook_events(run, by).0
@@ -2253,10 +2260,6 @@ mod tests {
         assert!(!rig.flag());
     }
 
-    /// Past the 10 s a write may wait, counted from a send that happened a
-    /// moment after the rig's clock started.
-    const PAST_CONFIG_WAIT: u64 = 11;
-
     #[test]
     fn a_held_answer_holds_the_script_and_fails_it_at_ten_seconds() {
         let mut rig = Rig::new("keys-held-answer", true);
@@ -2271,7 +2274,8 @@ mod tests {
         assert!(!rig.dir.join("mid.txt").exists(), "State is not written");
         assert!(!rig.screen.app.quit, "<Quit> has not run");
         assert!(!rig.flag());
-        assert_eq!(rig.step(&mut run, PAST_CONFIG_WAIT - 5), Outcome::Failed);
+        let past = rig.secs_past_config_wait();
+        assert_eq!(rig.step(&mut run, past), Outcome::Failed);
         let said = read(&done);
         assert!(said.contains("keys: failed\n") && said.contains("step: <config write>\n"), "{said}");
         assert!(said.contains("no answer from the config writer within 10 s of write #1 (common.toml)"), "{said}");
@@ -2292,7 +2296,8 @@ mod tests {
             assert_eq!(rig.step(&mut run, 1), Outcome::Continue);
             assert!(!rig.dir.join("after.txt").exists());
         }
-        assert_eq!(rig.step(&mut run, PAST_CONFIG_WAIT - 5), Outcome::Failed);
+        let past = rig.secs_past_config_wait();
+        assert_eq!(rig.step(&mut run, past), Outcome::Failed);
         assert!(!rig.dir.join("after.txt").exists());
         assert!(read(&done).contains("step: <config write>\n"));
     }
