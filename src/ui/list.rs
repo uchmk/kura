@@ -99,6 +99,11 @@ pub fn draw(
                 text
             }
         };
+        // Test-only id over the whole heading band; registered first so the column click targets stay on top.
+        let head_band = Rect::from_min_size(rect.min, Vec2::new(rect.width(), st.row_h));
+        let head_id = ui.id().with(("list-head-row", rect.left() as i32, rect.top() as i32));
+        let head_resp = ui.interact(head_band, head_id, egui::Sense::hover());
+        ito_a11y::test_id_in(ui, &head_resp, &format!("{id_root}.head"), None);
         for (col, x, width) in std::iter::once((0, 0.0, name_width)).chain(columns.iter().copied()) {
             let cell = Rect::from_min_size(egui::pos2(rect.left() + x + 4.0, rect.top()), Vec2::new((width - 8.0).max(0.0), st.row_h));
             painter.with_clip_rect(cell).text(cell.left_center(), Align2::LEFT_CENTER, header(col), st.font.clone(), st.theme.fg_dim);
@@ -325,6 +330,9 @@ pub fn draw(
             let resp = ui.interact(name_rect, cell_id, egui::Sense::hover());
             resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, name.as_str()));
             ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.cell.name"), None);
+            let row_id = ui.id().with(("list-cursor-row", rect.left() as i32, rect.top() as i32));
+            let row_resp = ui.interact(row_rect, row_id, egui::Sense::hover());
+            ito_a11y::test_id_in(ui, &row_resp, &format!("{id_root}.row.cursor"), None);
         }
     }
 
@@ -341,6 +349,9 @@ pub fn draw(
     // Interaction
     let id = ui.id().with(("list", rect.left() as i32, rect.top() as i32));
     let resp = ui.interact(rect, id, egui::Sense::click_and_drag());
+    if details {
+        ito_a11y::test_id_in(ui, &resp, &format!("{id_root}.rows"), None);
+    }
     // `hover_pos` is the fallback: a press that egui reports without an
     // interaction position still names the row the pointer is over.
     if let Some(pos) = resp.interact_pointer_pos().or_else(|| resp.hover_pos()) {

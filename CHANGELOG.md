@@ -9,6 +9,13 @@
 
 ## [未リリース]
 
+## [0.160.30] - 2026-11-10
+
+### 追加
+
+- 行 69.8（詳細表示のライト・ダーク）の check spec `tests/visual/69.8.toml`（Tier 2）とカナリア `tests/visual/69.8.canary.toml` を足した。
+- 詳細表示の見出しの帯・カーソルの行・一覧の本体に、テスト用の id（`details.head`・`details.row.cursor`・`details.rows`）を足した。描画と操作は変わらない。
+
 ## [0.160.29] - 2026-11-10
 
 ### 変更

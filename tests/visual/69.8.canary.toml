@@ -1,0 +1,50 @@
+# Copies of a real 69.8 run with one thing broken, each for Vision to fail (no machine checker).
+# Paint is opaque, so the failures imitated are a blank cursor row, a blank heading and blank rows.
+# Rectangles are in pixels at 1040 x 700 pt and scale 1.5 with the five-file fixture of 69.8.toml:
+# heading y 141-175.5, cursor row y 175.5-210, rows 2-5 y 210-348, band x 9-1551.
+
+[[canary]]
+name = "dark-cursor-row-blank"
+vision = ["cursor-row-dark"]
+[[canary.edit]]
+snap = "dark"
+op = "paint"
+rect = [9, 175, 1551, 210]
+token = "bg"
+
+[[canary]]
+name = "light-cursor-row-blank"
+vision = ["cursor-row-light"]
+[[canary.edit]]
+snap = "light"
+op = "paint"
+rect = [9, 175, 1551, 210]
+token = "bg"
+
+[[canary]]
+name = "dark-heading-and-rows-blank"
+vision = ["heading-dark", "rows-dark"]
+[[canary.edit]]
+snap = "dark"
+op = "paint"
+rect = [9, 141, 1551, 175]
+token = "bg"
+[[canary.edit]]
+snap = "dark"
+op = "paint"
+rect = [9, 210, 1551, 348]
+token = "bg"
+
+[[canary]]
+name = "light-heading-and-rows-blank"
+vision = ["heading-light", "rows-light"]
+[[canary.edit]]
+snap = "light"
+op = "paint"
+rect = [9, 141, 1551, 175]
+token = "bg"
+[[canary.edit]]
+snap = "light"
+op = "paint"
+rect = [9, 210, 1551, 348]
+token = "bg"

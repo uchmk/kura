@@ -1,0 +1,116 @@
+# Row 69.8: the details view in the dark and the light theme.
+#
+# Fixture section69-8, a folder holding only these files (filler byte 0x41):
+#   big.bin 12 MiB, mid.bin 1 MiB, note.bin 1 KiB, photo.bin 64 KiB, small.bin 4 KiB
+# Only .bin files: the Type column clips a long type name such as a folder's, and a clipped
+# cell in the picture would come back as something unexpected.
+#
+# Keys: <Size:1040x700>ma<Wait:7000><Theme:dark><Wait:400><Snap:dark><Theme:light><Wait:400><Snap:light><Quit>
+# The 7 s wait lets the "in total" toast end (toasts live 6 s).
+#
+# The machine reads the theme, the backgrounds and the bar's colour. Whether the cursor row
+# stands out and whether the heading and the rows can be read is what Vision answers.
+
+spec = 1
+row = "69.8"
+tier = 2
+fixtures = "section69-8"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "dark-screen"
+snap = "dark"
+expect = { dark = true, screen = "usage", no_overlay = true, no_toast = true }
+fail_looks_like = "The app is not in the dark theme or not on the disk usage view, or a popup or a toast covers the list."
+
+[[point]]
+id = "dark-head-bg"
+snap = "dark"
+target = "details.head"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.6, inset_px = 1 } }
+fail_looks_like = "The heading row is not on the theme's background."
+
+[[point]]
+id = "dark-rows-bg"
+snap = "dark"
+target = "details.rows"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.8, inset_px = 1 } }
+fail_looks_like = "The list body is not on the theme's background."
+
+[[point]]
+id = "dark-bar"
+snap = "dark"
+target = "details.cell.usage.bar"
+relative_to = "details.cell.usage"
+expect = { present = true, inside = true, color_token = { token = "blue", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+fail_looks_like = "The cursor row's usage bar is missing, outside its cell, or not in the theme's blue."
+
+[[point]]
+id = "light-screen"
+snap = "light"
+expect = { dark = false, screen = "usage", no_overlay = true, no_toast = true }
+fail_looks_like = "The app is not in the light theme or not on the disk usage view, or a popup or a toast covers the list."
+
+[[point]]
+id = "light-head-bg"
+snap = "light"
+target = "details.head"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.6, inset_px = 1 } }
+fail_looks_like = "The heading row is not on the theme's background."
+
+[[point]]
+id = "light-rows-bg"
+snap = "light"
+target = "details.rows"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.8, inset_px = 1 } }
+fail_looks_like = "The list body is not on the theme's background."
+
+[[point]]
+id = "light-bar"
+snap = "light"
+target = "details.cell.usage.bar"
+relative_to = "details.cell.usage"
+expect = { present = true, inside = true, color_token = { token = "blue", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+fail_looks_like = "The cursor row's usage bar is missing, outside its cell, or not in the theme's blue."
+
+[[vision]]
+id = "cursor-row-dark"
+snap = "dark"
+target = "details.row.cursor"
+question = "The table has a heading row at its top. Is the first row directly below the heading row drawn on a coloured band that sets it clearly apart from the rows under it, with its text readable on that band?"
+fail_looks_like = "The first row below the heading looks the same as the rows under it, or it is blank, so nothing shows which row is the current one."
+
+[[vision]]
+id = "heading-dark"
+snap = "dark"
+target = "details.head"
+question = "Does the table have a heading row at its top, with a readable column title above each column?"
+fail_looks_like = "The heading row is missing or blank, or the column titles cannot be read against the background."
+
+[[vision]]
+id = "rows-dark"
+snap = "dark"
+target = "details.rows"
+question = "Below the first row of the table, are the other file rows shown, with their names and columns readable against the background?"
+fail_looks_like = "The rows below the first row are missing or blank, or their text cannot be read against the background."
+
+[[vision]]
+id = "cursor-row-light"
+snap = "light"
+target = "details.row.cursor"
+question = "The table has a heading row at its top. Is the first row directly below the heading row drawn on a coloured band that sets it clearly apart from the rows under it, with its text readable on that band?"
+fail_looks_like = "The first row below the heading looks the same as the rows under it, or it is blank, so nothing shows which row is the current one."
+
+[[vision]]
+id = "heading-light"
+snap = "light"
+target = "details.head"
+question = "Does the table have a heading row at its top, with a readable column title above each column?"
+fail_looks_like = "The heading row is missing or blank, or the column titles cannot be read against the background."
+
+[[vision]]
+id = "rows-light"
+snap = "light"
+target = "details.rows"
+question = "Below the first row of the table, are the other file rows shown, with their names and columns readable against the background?"
+fail_looks_like = "The rows below the first row are missing or blank, or their text cannot be read against the background."
