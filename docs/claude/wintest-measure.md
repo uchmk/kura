@@ -14,7 +14,7 @@
 
 ### 1a. 矩形と画素を測る（Tier 1。2026-11-08 承認）
 
-見た目の行でも、期待値のすべてを機械が測った行は `[x]` になりうる（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 2）。測定に数えるのは次だけ。
+見た目の行でも、期待値のすべてを機械が測った行は `[x]` になりうる（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 3）。測定に数えるのは次だけ。
 
 - **同じ実行の** `<State:>` / state JSON の値、UI 要素の矩形、その実行の PNG から読んだ画素（矩形から割り出した座標）、持ち主が承認した基準画像との差。
 - 閾値は、その行の check spec（`tests/visual/<行>.toml`）に**実行の前に**書いたもの。見たあとで決めた閾値は数えない。
@@ -30,15 +30,15 @@ check spec が無い行、または今の道具では期待値のすべてを測
 
 ### 1b. AI の判定で合格にする（Tier 2。2026-11-10 承認）
 
-機械だけでは決まらない見た目の観点は、check spec に `tier = 2` と観点（`[[vision]]`）を**実行の前に**書き、AI Vision の答えを機械の証拠と突き合わせて判定する（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 2）。
+機械だけでは決まらない見た目の観点は、check spec に `tier = 2` と観点（`[[vision]]`）を**実行の前に**書き、AI Vision の答えを機械の証拠と突き合わせて判定する（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 3）。
 
 - 書くもの: `tests/visual/<行>.toml`（`tier = 2`、機械の `[[point]]` を 1 つ以上、`[[vision]]` は `id`・`snap`・`target`・`question`・`fail_looks_like`、文字を読む観点は `reads = true`）と `tests/visual/<行>.canary.toml`（`vision` を持つカナリア。`paint` だけで、`fail_looks_like` のとおりの壊れ方を作る。どの観点もどれかのカナリアに入れる）。2 つとも**実行の前にコミット**する。
 - `[[vision]]` の `snap` は機械の `[[point]]` の `snap` と同じもの、`target` はその snap で見えている test id。
 - 窓の長辺（`max(size_pt)` × `pixels_per_point`）は 1568 px まで。1.5 倍なら 1045 pt まで。
 - 流れ: `visual-check.py` → `make-canary.py` → `evidence.py vision-prep --run <dir> --spec <spec>` → 画像 1 枚ごとに新しい `vision` の subagent（渡すのは `vision/input/<id>.png` と `vision/input/<id>.md` のパスだけ。`vision/key.json` と `canary/` は見せない）→ `evidence.py vision-record --run <dir> --image <id> --answer <生の JSON> --model <モデル>` → `evidence.py verdict`。
-- `ai-pass-candidate`（終了コード 0）だけが合格の候補。機械の FAIL は Vision で覆さない。印を付けるのは main モデルで、`wintest` と `vision` の subagent は付けない。
+- `ai-pass-candidate`（終了コード 0）だけが合格の候補。機械の FAIL は Vision で覆さない。印は main モデルが証拠を読んでから `evidence.py mark --run <dir> --row <行> --mark x --decided-by "<読んだものと判断>"` で書き、`wintest` と `vision` の subagent は付けない。Vision を当てるのは verdict を書く 1 回だけで、当てる回は Vision の答えを見る前に決める。
 - **悪い答えを取り直しで消さない。**同じ行・同じ spec・同じカナリアの toml・同じ版（`revision`）の別の回（同じ親のフォルダーの兄弟）に、実の画像の `PASS` 以外（場所なし・観点の欠け・`unexpected` を含む）かカナリアの見逃しの答えが残っていると `undecidable` になる。解除は、コードか spec かカナリアの toml を変えて新しい回を作るか、持ち主が自分で `[x]` を付けること。古い回のフォルダーを消さない。
-- 持ち主に渡すもの（`[~]` まで）: 基準画像、Tier 3 の観点、判定不能、高リスクの画面（削除・上書き・Reset の確認、サインインの開始、権限・セキュリティ、初回起動）、大きなデザインの変更、機械全体の操作（54.19・56.4）、OS が描くもの（通知、OS のダイアログ、IME の候補、タイトルバー、タスク マネージャー）、Tier の格上げと閾値を緩めること、check spec の無い初見の画面、Linux の画素の判定。
+- 持ち主に渡すもの（`[~]` まで）: 基準画像、Tier 3 の観点、判定不能、大きなデザインの変更、機械全体の操作（54.19・56.4）、OS が描くもの（通知、OS のダイアログ、IME の候補、タイトルバー、タスク マネージャー）、Tier の格上げと閾値を緩めること、check spec の無い初見の画面、Linux の画素の判定。
 
 ## 2. GUI の走らせ方
 

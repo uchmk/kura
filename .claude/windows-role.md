@@ -147,7 +147,7 @@ it never will be.
 
 **Never tick an appearance row on a look, yours or a model's.** A row whose every
 expected value a machine measured in the same run, against thresholds written in
-`tests/visual/<row>.toml` before the run (ito docs/visual-test.md, version 2), is a
+`tests/visual/<row>.toml` before the run (ito docs/visual-test.md, version 3), is a
 measured row, not an appearance row (Tier 1; `docs/claude/lanes.md`). If a Vision
 run on that row said `FAIL` anywhere, do not tick it. A `tier = 2` row whose
 `evidence.py verdict` is `ai-pass-candidate` (machine preconditions -- same run,
@@ -156,8 +156,11 @@ aspect, the cross-check and the canaries caught, all in the same run, and no bad
 answer left in another run of the same row, spec, canary toml and revision) is
 ticked the same way once you have read its evidence (Tier 2; the
 pull-request line is `<row> tier2 [x] <folder>\verdict-<row>.json`). A Vision
-answer alone, or models agreeing, never ticks a row; undecidable, split or
-high-risk screens stay `[~]` for the owner. Do not turn an existing `[~]` into
+answer alone, or models agreeing, never ticks a row; undecidable or split
+results stay `[~]` for the owner. High-risk screens (delete, overwrite and
+Reset confirmations, start at sign-in, permissions and security, first run) are
+ticked under the same conditions; rows that need approval to run at all (54.19,
+56.4) and screens with no check spec go to the owner. Do not turn an existing `[~]` into
 `[x]` without a fresh Tier 1 or Tier 2 run. If you are unsure which kind a row is,
 it is an appearance row.
 
