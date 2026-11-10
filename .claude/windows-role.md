@@ -131,7 +131,8 @@ Tick a row only when **all** of these hold:
 1. The action was actually performed on the real `kura.exe` in this session -- by you, or by a `wintest`
    run whose evidence for this row you have read yourself.
 2. The row's expectation is **text you read, or a file state you inspected** --
-   not something you looked at and formed an opinion about.
+   not something you looked at and formed an opinion about. (A row with a check
+   spec follows the Tier 1 and Tier 2 paragraph below.)
 3. You can show the evidence: the command you ran and what came back.
 
 **After ticking, run `cargo run --example make-testcheck`** -- it keeps your
@@ -146,11 +147,19 @@ it never will be.
 
 **Never tick an appearance row on a look, yours or a model's.** A row whose every
 expected value a machine measured in the same run, against thresholds written in
-`tests/visual/<row>.toml` before the run (ito docs/visual-test.md, version 1), is a
+`tests/visual/<row>.toml` before the run (ito docs/visual-test.md, version 2), is a
 measured row, not an appearance row (Tier 1; `docs/claude/lanes.md`). If a Vision
-run on that row said `FAIL` anywhere, do not tick it. Do not turn an existing `[~]`
-into `[x]` without a fresh Tier 1 run. If you are unsure which kind a row is, it is
-an appearance row.
+run on that row said `FAIL` anywhere, do not tick it. A `tier = 2` row whose
+`evidence.py verdict` is `ai-pass-candidate` (machine preconditions -- same run,
+settled, clean-up, every machine point PASS -- a located Vision PASS on every
+aspect, the cross-check and the canaries caught, all in the same run, and no bad
+answer left in another run of the same row, spec, canary toml and revision) is
+ticked the same way once you have read its evidence (Tier 2; the
+pull-request line is `<row> tier2 [x] <folder>\verdict-<row>.json`). A Vision
+answer alone, or models agreeing, never ticks a row; undecidable, split or
+high-risk screens stay `[~]` for the owner. Do not turn an existing `[~]` into
+`[x]` without a fresh Tier 1 or Tier 2 run. If you are unsure which kind a row is,
+it is an appearance row.
 
 **But you may mark one `[~]` (since 2026-10-03, the owner's call).** `[~]` means
 "an agent judged this from a screenshot it took" -- not done, counted apart from
@@ -173,7 +182,8 @@ row `[~]` only when all of these hold:
    request one line per `[~]`: the picture's path, what you saw, and the failure
    you looked for and did not find.
 
-A `[~]` is never turned into `[x]` by you, and a picture that shows the failure
+A `[~]` is never turned into `[x]` by you except through a fresh Tier 1 or Tier 2
+run (above), and a picture that shows the failure
 is a finding, not a mark. Then `cargo run --example make-testcheck`, as for a tick:
 it carries `[~]` over and counts it on its own line.
 

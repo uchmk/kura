@@ -14,7 +14,7 @@
 
 ### 1a. 矩形と画素を測る（Tier 1。2026-11-08 承認）
 
-見た目の行でも、期待値のすべてを機械が測った行は `[x]` になりうる（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 1）。測定に数えるのは次だけ。
+見た目の行でも、期待値のすべてを機械が測った行は `[x]` になりうる（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 2）。測定に数えるのは次だけ。
 
 - **同じ実行の** `<State:>` / state JSON の値、UI 要素の矩形、その実行の PNG から読んだ画素（矩形から割り出した座標）、持ち主が承認した基準画像との差。
 - 閾値は、その行の check spec（`tests/visual/<行>.toml`）に**実行の前に**書いたもの。見たあとで決めた閾値は数えない。
@@ -22,11 +22,23 @@
 - **AI Vision の答え・モデル同士の一致・自分が見た印象は、測定に数えない。**
 
 kura に**今ある**道具: `<State:名前>` の文字（`cwd:`・`hovered:`・`overlay:`・`view:` など）と state JSON v1（`state/名前.json`。v0.159.0）、`<Snap:名前>`（v0.160.0。1 手で `state/名前-before.json`・`shots/名前.png`・`state/名前-after.json`・`shots/名前.json` を残す）、検査器 `scripts/visual-check.py`、証拠の folder（`keys.ps1 -Evidence`）、`<Shot:名前>` の PNG（窓全体。`shots/名前.png`）、`<Shot:名前@preview>`（プレビュー欄の矩形で切った PNG）、
-画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON（`shots/名前.json`。theme・lang・size・rect・component・ppp）は kura から出る（v0.156.0）。**部品の矩形はまだ出ない。**kura はまだ部品に test id を付けていないので state の `ui[]` が空で、検査器は `ui[] is empty` の ERROR にする。check spec を書く前に、その行の部品に `ito_a11y::test_id` を付ける。
+画素は PNG からスクリプトで読み、座標と値をファイルに残す（目で拾った数は測定に数えない）。`Shot` の付属 JSON（`shots/名前.json`。theme・lang・size・rect・component・ppp）は kura から出る（v0.156.0）。部品の矩形は state の `ui[]` に出る。出るのは `ito_a11y::test_id_in` を付けた部品だけなので、check spec が指す部品に test id が無ければ、書く前に付ける。
 **ito から来るのを待つもの**: ito の部品の中にある test id（タイトルバーの箱、ターミナルペインのプロンプトの印）。
-check spec が無い行、または今の道具では期待値のすべてを測れない行は、**目で見た行のまま**で、`[~]` までにする。
+check spec が無い行、または今の道具では期待値のすべてを測れない行は、**目で見た行のまま**で、`[~]` までにする（次の 1b の条件がそろう行を除く）。
 
 画素の判定は **Windows / macOS の実機だけ**。**Linux のレーン（Xvfb）では画素を判定しない**（CPU 描画は実機の描画の代わりにならない）。
+
+### 1b. AI の判定で合格にする（Tier 2。2026-11-10 承認）
+
+機械だけでは決まらない見た目の観点は、check spec に `tier = 2` と観点（`[[vision]]`）を**実行の前に**書き、AI Vision の答えを機械の証拠と突き合わせて判定する（[lanes.md](lanes.md#x-の規則正)。条件は ito の `docs/visual-test.md` 版 2）。
+
+- 書くもの: `tests/visual/<行>.toml`（`tier = 2`、機械の `[[point]]` を 1 つ以上、`[[vision]]` は `id`・`snap`・`target`・`question`・`fail_looks_like`、文字を読む観点は `reads = true`）と `tests/visual/<行>.canary.toml`（`vision` を持つカナリア。`paint` だけで、`fail_looks_like` のとおりの壊れ方を作る。どの観点もどれかのカナリアに入れる）。2 つとも**実行の前にコミット**する。
+- `[[vision]]` の `snap` は機械の `[[point]]` の `snap` と同じもの、`target` はその snap で見えている test id。
+- 窓の長辺（`max(size_pt)` × `pixels_per_point`）は 1568 px まで。1.5 倍なら 1045 pt まで。
+- 流れ: `visual-check.py` → `make-canary.py` → `evidence.py vision-prep --run <dir> --spec <spec>` → 画像 1 枚ごとに新しい `vision` の subagent（渡すのは `vision/input/<id>.png` と `vision/input/<id>.md` のパスだけ。`vision/key.json` と `canary/` は見せない）→ `evidence.py vision-record --run <dir> --image <id> --answer <生の JSON> --model <モデル>` → `evidence.py verdict`。
+- `ai-pass-candidate`（終了コード 0）だけが合格の候補。機械の FAIL は Vision で覆さない。印を付けるのは main モデルで、`wintest` と `vision` の subagent は付けない。
+- **悪い答えを取り直しで消さない。**同じ行・同じ spec・同じカナリアの toml・同じ版（`revision`）の別の回（同じ親のフォルダーの兄弟）に、実の画像の `PASS` 以外（場所なし・観点の欠け・`unexpected` を含む）かカナリアの見逃しの答えが残っていると `undecidable` になる。解除は、コードか spec かカナリアの toml を変えて新しい回を作るか、持ち主が自分で `[x]` を付けること。古い回のフォルダーを消さない。
+- 持ち主に渡すもの（`[~]` まで）: 基準画像、Tier 3 の観点、判定不能、高リスクの画面（削除・上書き・Reset の確認、サインインの開始、権限・セキュリティ、初回起動）、大きなデザインの変更、機械全体の操作（54.19・56.4）、OS が描くもの（通知、OS のダイアログ、IME の候補、タイトルバー、タスク マネージャー）、Tier の格上げと閾値を緩めること、check spec の無い初見の画面、Linux の画素の判定。
 
 ## 2. GUI の走らせ方
 

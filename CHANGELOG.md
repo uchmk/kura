@@ -9,6 +9,14 @@
 
 ## [未リリース]
 
+## [0.160.29] - 2026-11-10
+
+### 変更
+
+- ito を v0.290.0 に上げ、レーンのスクリプト（`evidence.py`・`make-canary.py`・`merge-lanes.py`・`visual-check.py`）を合わせた。
+- 確認項目の規則を ito の `docs/visual-test.md` 版 2 に合わせた（AI 判定合格＝Tier 2）。`tier = 2` の check spec を持つ行は、`evidence.py verdict` が `ai-pass-candidate` を出し、main モデルが証拠を読んだときだけ `[x]` にできる。
+- `vision` の subagent の定義を版 2 のもの（画像 1 枚と問いだけを受け取る）に置き換えた。
+
 ## [0.160.28] - 2026-11-10
 
 ### 変更
