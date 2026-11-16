@@ -1249,6 +1249,18 @@ fn state_report(app: &App) -> String {
     }
     if let app::Overlay::Settings(ov) = &app.overlay {
         lines.push(format!("settings page: {}", ui::settings::page_name(ov.state.page)));
+        // The keyboard picture on the Keys page (ito#240): the keys picked on
+        // it (or by "Find by key"), the modifiers clicked down, and the
+        // common.toml layout it is drawn for.
+        if ui::settings::page_name(ov.state.page) == "keys" {
+            let k = &ov.keys_edit;
+            let m = k.kb_latch;
+            let held: Vec<&str> =
+                [(m.ctrl, "ctrl"), (m.alt, "alt"), (m.shift, "shift"), (m.sup, "cmd")].into_iter().filter(|p| p.0).map(|p| p.1).collect();
+            lines.push(format!("keys by key: {}", crate::config::keys::render_seq(&k.by_key)));
+            lines.push(format!("keys latch: {}", held.join("+")));
+            lines.push(format!("keys keyboard: {}", app.common.keyboard_or_auto().as_str()));
+        }
     }
     // What a picker is offering, in the order on screen, and the row under
     // its cursor (#196): `overlay: pick` alone said a list was open, not what
@@ -2147,6 +2159,26 @@ mod tests {
         app.overlay = app::Overlay::Settings(app::SettingsOverlay::default());
         let report = state_report(&app);
         assert!(report.lines().any(|l| l == "settings page: general"), "{report}");
+        assert!(!report.contains("keys by key:"), "the keyboard lines are for the Keys page");
+    }
+
+    /// ito#240: on the Keys page the state names the keys picked on the
+    /// keyboard picture, the modifiers clicked down and the layout.
+    #[test]
+    fn the_state_names_the_keyboard_pictures_keys() {
+        let dir = crate::util::test_dir("state-settings-kb");
+        let mut app = App::new(crate::config::Config::load(), dir, egui::Context::default());
+        let mut ov = app::SettingsOverlay::default();
+        ov.state.page = (0..16).find(|&p| ui::settings::page_name(p) == "keys").expect("a Keys page");
+        ov.keys_edit.by_key = ["g", "h"].map(|k| crate::config::keys::Key::parse(k).unwrap()).to_vec();
+        ov.keys_edit.kb_latch.shift = true;
+        ov.keys_edit.kb_latch.ctrl = true;
+        app.overlay = app::Overlay::Settings(ov);
+        let report = state_report(&app);
+        assert!(report.lines().any(|l| l == "settings page: keys"), "{report}");
+        assert!(report.lines().any(|l| l == "keys by key: gh"), "{report}");
+        assert!(report.lines().any(|l| l == "keys latch: ctrl+shift"), "{report}");
+        assert!(report.lines().any(|l| l.starts_with("keys keyboard: ")), "{report}");
     }
 
     /// #197, #201: what kura put on the clipboard, and the frames drawn.

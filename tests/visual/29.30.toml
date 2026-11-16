@@ -1,0 +1,48 @@
+# Row 29.30 (the wide form only): the Keys page draws a keyboard above the table, with the
+# Ins..PgDn block at the right of the main block.
+#
+# Keys, from any folder:
+#   <Size:1400x800><C-,><C-Tab><C-Tab><C-Tab><Id:settings.keys.kb><State:wide><Quit>
+#
+# `<C-,>` opens the settings on the General page and the side-nav rows have no node to click
+# by text, so three `<C-Tab>` reach the Keys page (General, Theme, kura, Keys). The state's
+# `settings page: keys` and `keys keyboard:` lines are in the `<State:>` text. 1400 pt is wide
+# enough for the wide form (the unit test in src/ui/settings.rs draws it at the same width).
+# `pixels_per_point` is the display's scale (150 % here); a run on another display follows it.
+#
+# The middle (about 900 pt) and narrow (about 600 pt) forms and the dark theme need a person's
+# eye, or a spec of their own once measured; this one proves `Extras::wide` is wired.
+spec = 1
+row = "29.30"
+tier = 1
+fixtures = "any"
+window = { size_pt = [1400, 800], pixels_per_point = 1.5 }
+
+[[point]]
+id = "keyboard-drawn"
+state = "wide"
+target = "settings.keys.kb"
+relative_to = "app.root"
+fail_looks_like = "Keys のページにキーボードの絵が出ていない"
+expect = { present = true, inside = true }
+
+[[point]]
+id = "home-right-of-backspace"
+state = "wide"
+target = "settings.keys.kb.key.home"
+fail_looks_like = "Home のかたまりが本体の右に無い（中くらいの形に畳まれている。広いページになっていない）"
+expect = { present = true, gap = { to = "settings.keys.kb.key.backspace", side = "left", min = 0 } }
+
+[[point]]
+id = "home-above-space"
+state = "wide"
+target = "settings.keys.kb.key.home"
+fail_looks_like = "Home が Space の行より下にある（右のかたまりが本体の下の帯になっている）"
+expect = { gap = { to = "settings.keys.kb.key.space", side = "below", min = 0 } }
+
+[[point]]
+id = "no-prefix-before-click"
+state = "wide"
+target = "settings.keys.kb.prefix"
+fail_looks_like = "何も押していないのに続きの絵（‹ の見出し）が出ている"
+expect = { present = false }

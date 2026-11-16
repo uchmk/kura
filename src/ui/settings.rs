@@ -947,6 +947,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut backup = Vec::new();
     let mut advanced = Vec::new();
     let mono_font = app.common.mono_font_or_default();
+    let keyboard = app.common.keyboard_or_auto();
     let backup_file = ito_common::home_dir().unwrap_or_default().join("kura-settings.toml");
     let mut toggled = None;
     let mut test: Option<(ito_prefs::Test, ito_prefs::Notify)> = None;
@@ -955,117 +956,127 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
     child.set_clip_rect(full);
     child.style_mut().visuals = c.visuals();
-    let out = ito_prefs::show(&mut child, c, &mut state, &nav, keys, |ui, page, l| match page {
-        GENERAL => {
-            section(ui, l, &w.language.to_uppercase(), |ui| {
-                changes.extend(language_row(ui, l, w, &language, k.language_note));
-            });
-            section(ui, l, &w.scale.to_uppercase(), |ui| {
-                changes.extend(scale_row(ui, l, w, scale, k.scale_note));
-            });
-            changes.extend(clock_card(ui, l, w, &clock));
-            changes.extend(ito_prefs::mono_font_card(ui, l, mw, mono_font));
-            let out = ito_prefs::window_card(ui, l, mw, &window);
-            changes.extend(out.changes);
-            forget |= out.forget;
-            toggled = ito_prefs::startup_card(ui, l, mw, startup);
-        }
-        THEME => {
-            let choice = (theme.as_str(), dark.as_str(), light.as_str());
-            changes.extend(ito_prefs::theme_page(ui, l, w, &themes, choice, k.theme_note, |ui| sample(ui, &look)));
-        }
-        KURA => kura_page(ui, l, k, &lang, &now, &mut drafts, &mut shell_edit, &mut kura, &mut bad),
-        KEYS => {
-            let now = keymap.layers();
-            let layer_name = |n: &str| k.layers.iter().find(|(id, _)| *id == n).map_or_else(|| n.to_owned(), |(_, w)| (*w).to_owned());
-            let tr = |d: &str| crate::i18n::tr_desc(&lang, d);
-            let table = ito_prefs::KeyTable {
-                now: &now,
-                built_in: crate::config::Keymap::built_in_layers(),
-                noop: "noop",
-                own: &own_keymap,
-                layer_name: &layer_name,
-                tr: &tr,
-                extra: &|_, _| Vec::new(),
-                unbound: &[],
-                sup: false,
-            };
-            key_edits.extend(ito_prefs::keys_page(ui, l, kw, &table, keys_edit).unwrap_or_default());
-        }
-        NOTIFY => {
-            let mut n = notify.page(&ito_prefs::DONE_FAILED);
-            let ends = [
-                ito_prefs::End { name: k.notify_done, color: l.c.done, sound: k.notify_done_sound },
-                ito_prefs::End { name: k.notify_failed, color: l.c.err, sound: k.notify_failed_sound },
-            ];
-            let defaults = crate::config::NotifyCfg::new(&ito_prefs::DONE_FAILED).page(&ito_prefs::DONE_FAILED);
-            if let Some(what) = ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
-                test = Some((what, n.clone()));
+    let out = ito_prefs::show_with(
+        &mut child,
+        c,
+        &mut state,
+        &nav,
+        keys,
+        ito_prefs::Extras { wide: &[KEYS], ..Default::default() },
+        |ui, page, l| match page {
+            GENERAL => {
+                section(ui, l, &w.language.to_uppercase(), |ui| {
+                    changes.extend(language_row(ui, l, w, &language, k.language_note));
+                });
+                section(ui, l, &w.scale.to_uppercase(), |ui| {
+                    changes.extend(scale_row(ui, l, w, scale, k.scale_note));
+                });
+                changes.extend(clock_card(ui, l, w, &clock));
+                changes.extend(ito_prefs::mono_font_card(ui, l, mw, mono_font));
+                let out = ito_prefs::window_card(ui, l, mw, &window);
+                changes.extend(out.changes);
+                forget |= out.forget;
+                toggled = ito_prefs::startup_card(ui, l, mw, startup);
             }
-            webhooks = notify.webhooks_of(&ito_prefs::DONE_FAILED, &n);
-            kura.extend(notify.edits(&ito_prefs::DONE_FAILED, &n).into_iter().map(|(key, value)| KuraChange {
-                table: "notify",
-                key: key.into(),
-                value: Some(value),
-            }));
-        }
-        ABOUT => {
-            let system = ito_bugreport::os_line();
-            // kura's own licence first (`Cargo.toml`), then the face's.
-            let license = format!("kura: {}\n\n{}", env!("CARGO_PKG_LICENSE"), ito_fonts::LICENSE);
-            let about = ito_prefs::About { version: env!("CARGO_PKG_VERSION"), commit: None, system: &system, license: Some(&license) };
-            if ito_prefs::about_page(ui, l, mw, w, "kura", &about).contains(&ito_prefs::AboutAction::Report) {
-                queued.push(Act::BugReport);
+            THEME => {
+                let choice = (theme.as_str(), dark.as_str(), light.as_str());
+                changes.extend(ito_prefs::theme_page(ui, l, w, &themes, choice, k.theme_note, |ui| sample(ui, &look)));
             }
-        }
-        _ => {
-            section(ui, l, k.folders, |ui| {
-                for (i, f) in folders.iter().enumerate() {
-                    if i > 0 {
-                        sep(ui, l);
-                    }
-                    let path = f.dir.as_ref().map_or_else(|| k.no_folder.to_owned(), |d| d.display().to_string());
-                    let note = format!("{}\n{path}", f.note);
-                    let (copied, opened) = row(ui, l, f.name, &note, |ui| {
-                        if f.dir.is_none() {
-                            return (false, false);
+            KURA => kura_page(ui, l, k, &lang, &now, &mut drafts, &mut shell_edit, &mut kura, &mut bad),
+            KEYS => {
+                let now = keymap.layers();
+                let layer_name = |n: &str| k.layers.iter().find(|(id, _)| *id == n).map_or_else(|| n.to_owned(), |(_, w)| (*w).to_owned());
+                let tr = |d: &str| crate::i18n::tr_desc(&lang, d);
+                let table = ito_prefs::KeyTable {
+                    now: &now,
+                    built_in: crate::config::Keymap::built_in_layers(),
+                    noop: "noop",
+                    own: &own_keymap,
+                    layer_name: &layer_name,
+                    tr: &tr,
+                    extra: &|_, _| Vec::new(),
+                    unbound: &[],
+                    sup: false,
+                };
+                let out = ito_prefs::keys_page_kb(ui, l, kw, &table, keys_edit, keyboard);
+                key_edits.extend(out.edits);
+                changes.extend(out.common);
+            }
+            NOTIFY => {
+                let mut n = notify.page(&ito_prefs::DONE_FAILED);
+                let ends = [
+                    ito_prefs::End { name: k.notify_done, color: l.c.done, sound: k.notify_done_sound },
+                    ito_prefs::End { name: k.notify_failed, color: l.c.err, sound: k.notify_failed_sound },
+                ];
+                let defaults = crate::config::NotifyCfg::new(&ito_prefs::DONE_FAILED).page(&ito_prefs::DONE_FAILED);
+                if let Some(what) = ito_prefs::notify_page(ui, l, w, &ends, &mut n, &defaults, &mut drafts) {
+                    test = Some((what, n.clone()));
+                }
+                webhooks = notify.webhooks_of(&ito_prefs::DONE_FAILED, &n);
+                kura.extend(notify.edits(&ito_prefs::DONE_FAILED, &n).into_iter().map(|(key, value)| KuraChange {
+                    table: "notify",
+                    key: key.into(),
+                    value: Some(value),
+                }));
+            }
+            ABOUT => {
+                let system = ito_bugreport::os_line();
+                // kura's own licence first (`Cargo.toml`), then the face's.
+                let license = format!("kura: {}\n\n{}", env!("CARGO_PKG_LICENSE"), ito_fonts::LICENSE);
+                let about = ito_prefs::About { version: env!("CARGO_PKG_VERSION"), commit: None, system: &system, license: Some(&license) };
+                if ito_prefs::about_page(ui, l, mw, w, "kura", &about).contains(&ito_prefs::AboutAction::Report) {
+                    queued.push(Act::BugReport);
+                }
+            }
+            _ => {
+                section(ui, l, k.folders, |ui| {
+                    for (i, f) in folders.iter().enumerate() {
+                        if i > 0 {
+                            sep(ui, l);
                         }
-                        // Right to left: Open ends the row.
-                        let opened = button(ui, l, k.open);
-                        let copied = button(ui, l, k.copy);
-                        (copied, opened)
-                    });
-                    if copied {
-                        copy = Some(path.clone());
+                        let path = f.dir.as_ref().map_or_else(|| k.no_folder.to_owned(), |d| d.display().to_string());
+                        let note = format!("{}\n{path}", f.note);
+                        let (copied, opened) = row(ui, l, f.name, &note, |ui| {
+                            if f.dir.is_none() {
+                                return (false, false);
+                            }
+                            // Right to left: Open ends the row.
+                            let opened = button(ui, l, k.open);
+                            let copied = button(ui, l, k.copy);
+                            (copied, opened)
+                        });
+                        if copied {
+                            copy = Some(path.clone());
+                        }
+                        if opened {
+                            // Out of the screen and into the folder, in the list.
+                            queued.push(Act::Settings);
+                            queued.push(Act::Cd { target: path, interactive: false });
+                        }
                     }
-                    if opened {
-                        // Out of the screen and into the folder, in the list.
-                        queued.push(Act::Settings);
-                        queued.push(Act::Cd { target: path, interactive: false });
+                });
+                advanced.extend(ito_prefs::advanced_card(ui, l, mw, true));
+                backup.extend(ito_prefs::backup_card(ui, l, mw, &backup_file));
+                section(ui, l, k.problems, |ui| {
+                    if warnings.is_empty() {
+                        row(ui, l, k.no_problems, k.no_problems_note, |_| ());
                     }
-                }
-            });
-            advanced.extend(ito_prefs::advanced_card(ui, l, mw, true));
-            backup.extend(ito_prefs::backup_card(ui, l, mw, &backup_file));
-            section(ui, l, k.problems, |ui| {
-                if warnings.is_empty() {
-                    row(ui, l, k.no_problems, k.no_problems_note, |_| ());
-                }
-                for (i, text) in warnings.iter().enumerate() {
-                    if i > 0 {
-                        sep(ui, l);
+                    for (i, text) in warnings.iter().enumerate() {
+                        if i > 0 {
+                            sep(ui, l);
+                        }
+                        ui.add_space(8.0);
+                        ui.label(RichText::new(text).monospace().size(12.0).color(l.c.wait));
+                        ui.add_space(8.0);
                     }
-                    ui.add_space(8.0);
-                    ui.label(RichText::new(text).monospace().size(12.0).color(l.c.wait));
-                    ui.add_space(8.0);
-                }
-                sep(ui, l);
-                if row(ui, l, k.reload, k.reload_note, |ui| button(ui, l, k.reload_button)) {
-                    queued.push(Act::ConfigReload);
-                }
-            });
-        }
-    });
+                    sep(ui, l);
+                    if row(ui, l, k.reload, k.reload_note, |ui| button(ui, l, k.reload_button)) {
+                        queued.push(Act::ConfigReload);
+                    }
+                });
+            }
+        },
+    );
     if let Overlay::Settings(ov) = &mut app.overlay {
         // Keys taken on the Keys page stop with it: left to another page
         // by a click, they would keep Esc and Ctrl+Tab from the screen.
@@ -1409,6 +1420,84 @@ mod tests {
         s.draw();
         assert!(!matches!(s.app.overlay, Overlay::Settings(_)), "Esc closes the screen");
         crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = None);
+    }
+
+    /// The test IDs a frame drew, with AccessKit on so they are recorded.
+    fn kb_ids(s: &mut crate::ui::harness::Screen, events: Vec<egui::Event>) -> Vec<ito_a11y::TestIdEntry> {
+        s.app_ctx().enable_accesskit();
+        s.feed(events);
+        ito_a11y::take_test_ids(s.app_ctx(), egui::ViewportId::ROOT)
+    }
+
+    fn kb_rect(ids: &[ito_a11y::TestIdEntry], name: &str) -> Option<egui::Rect> {
+        ids.iter().find(|e| e.name == name).map(|e| e.rect)
+    }
+
+    /// The Keys page draws ito's keyboard picture, in the wide form at the
+    /// width of tests/visual/29.30.toml (the Ins..PgDn block at the right, so
+    /// `Extras::wide` is wired), and a click
+    /// on `g` shows its follow-ups and filters the table to `g`.
+    #[test]
+    fn the_keys_page_draws_the_keyboard_and_a_click_filters_the_table() {
+        let dir = crate::util::test_dir("settings-keyboard");
+        let mut s = crate::ui::harness::Screen::open(dir.clone()).sized(1400.0, 800.0);
+        crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = Some(dir.join("keymap.toml")));
+        s.app.overlay = Overlay::Settings(Default::default());
+        if let Overlay::Settings(ov) = &mut s.app.overlay {
+            ov.state.page = KEYS;
+        }
+        kb_ids(&mut s, Vec::new());
+        let ids = kb_ids(&mut s, Vec::new());
+        let r = |name: &str| kb_rect(&ids, name).unwrap_or_else(|| panic!("{name} is drawn"));
+        assert!(kb_rect(&ids, "settings.keys.kb").is_some());
+        let (home, back, space) = (r("settings.keys.kb.key.home"), r("settings.keys.kb.key.backspace"), r("settings.keys.kb.key.space"));
+        assert!(home.min.x >= back.max.x, "Home is right of Backspace: {home:?} {back:?}");
+        assert!(home.min.y < space.min.y, "Home is above Space: {home:?} {space:?}");
+        assert!(kb_rect(&ids, "settings.keys.kb.prefix").is_none());
+
+        let at = r("settings.keys.kb.key.keyg").center();
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        kb_ids(&mut s, vec![egui::Event::PointerMoved(at)]);
+        kb_ids(&mut s, vec![button(true)]);
+        kb_ids(&mut s, vec![button(false)]);
+        let ids = kb_ids(&mut s, Vec::new());
+        assert!(kb_rect(&ids, "settings.keys.kb.prefix").is_some(), "g has follow-ups, so the picture shows them");
+        let Overlay::Settings(ov) = &s.app.overlay else { panic!("the screen stays open") };
+        let g = ito_keys::Key::parse("g").expect("g is a key");
+        assert_eq!(ov.keys_edit.by_key, vec![g], "the table is filtered to g");
+        crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = None);
+    }
+
+    /// The window widths row 29.30 names: about 1100 pt gets the middle form
+    /// (the Ins..PgDn block as a strip under the main block, keys still big
+    /// enough for a description) and about 800 pt the narrow one (small keys
+    /// with legends and marks only). 1400 pt is the wide form, above.
+    #[test]
+    fn the_keyboard_folds_at_the_widths_testing_names() {
+        let form = |width: f32| {
+            let dir = crate::util::test_dir("settings-keyboard-widths");
+            let mut s = crate::ui::harness::Screen::open(dir.clone()).sized(width, 800.0);
+            crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = Some(dir.join("keymap.toml")));
+            s.app.overlay = Overlay::Settings(Default::default());
+            if let Overlay::Settings(ov) = &mut s.app.overlay {
+                ov.state.page = KEYS;
+            }
+            kb_ids(&mut s, Vec::new());
+            let ids = kb_ids(&mut s, Vec::new());
+            crate::app::TEST_KEYMAP.with(|t| *t.borrow_mut() = None);
+            let r = |name: &str| kb_rect(&ids, name).unwrap_or_else(|| panic!("{name} is drawn at {width}"));
+            let (home, space, g) = (r("settings.keys.kb.key.home"), r("settings.keys.kb.key.space"), r("settings.keys.kb.key.keyg"));
+            (home.min.y > space.max.y, g.width())
+        };
+        let (under, key) = form(1100.0);
+        assert!(under && key >= 40.0, "middle at 1100 pt: Home under Space, keys {key} pt wide");
+        let (under, key) = form(800.0);
+        assert!(under && key < 40.0, "narrow at 800 pt: keys {key} pt wide");
     }
 
     /// What was typed and the range it takes are said, in either language.
