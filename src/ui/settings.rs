@@ -692,6 +692,10 @@ fn kura_page(
         bad_name: base.bad_name,
         save: base.save,
         cancel: base.cancel,
+        name: base.name,
+        empty: base.empty,
+        missing: base.missing,
+        twice: base.twice,
     };
     let shell =
         ito_prefs::Shell { program: &now.shell, auto: &now.shell_auto, shells: &now.shells, args: &now.shell_args, env: &now.shell_env };
