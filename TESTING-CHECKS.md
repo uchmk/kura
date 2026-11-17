@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 822 件（TESTING.md の全 1017 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 823 件（TESTING.md の全 1018 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -604,6 +604,7 @@ fsutil hardlink list <新しくできたパス>
 - [ ] **29.32** Keys のページで Shift を押したままにし、次に絵の Shift をクリック（`g` が `G` になる）、Ctrl、Alt（Mac は Cmd）の順にクリックする。続けて「⌨ Find by key」を押して `G` を押す（v0.161.0）→ 修飾キーを押している間、クリックで固定した間は、その層の割り当てを絵が見せる。「Find by key」で `G` を押すと Shift が点いて、絵が押したキーに付いてくる — *On the Keys page hold Shift; then click the Shift key on the picture (`g` shows `G`), then Ctrl, then Alt (Cmd on a Mac); then "⌨ Find by key" and press `G` (v0.161.0) → While a modifier is held, or latched by a click, the picture shows that layer's bindings. After "Find by key" and `G`, Shift lights up and the picture follows the key pressed*
 - [ ] **29.33** Keys のページで配列の選択を Auto、US、JIS の順に変え、そのたびに設定のフォルダの `uchmk/common.toml` を見る（v0.161.0）→ JIS では ¥、ろ、変換、無変換、かな が出て、US では出ない。common.toml は JIS で `keyboard = "jis"`、US で `us` になり、コメントは残る。Auto は検出した配列の名前を出し、JIS の PC では JIS を選ぶ — *On the Keys page set the keyboard layout select to Auto, then US, then JIS; look at `uchmk/common.toml` in the config folder after each pick (v0.161.0) → JIS shows ¥, ろ, 変換, 無変換 and かな; US shows none of them. common.toml has `keyboard = "jis"` after JIS and `us` after US, keeping its comments. Auto names the layout it detected, and on a JIS PC Auto picks JIS*
 - [ ] **29.34** macOS: Keys のページのキーボード（v0.161.0）→ キーに ⌘ が出る。Mac の JIS は 英数 と かな があって 半/全 が無い。¥ と `\` の位置を見る。JIS の Mac で Auto が JIS を検出する — *macOS: the Keys page's keyboard (v0.161.0) → ⌘ is on the keys. Mac JIS shows 英数 and かな and no 半/全; check where ¥ and `\` sit. Auto detects JIS on a JIS Mac*
+- [x] **29.35** Keys のページで、絵で空のキー（一覧の `I`）にポインターを置き、次に `0` をクリックする。検索に `quit` と打って消し、「続けて選ぶモードを抜ける…」の行の「0 にする」を押す。ライトとダーク、約 1400 pt と 800 pt、英語と日本語で見る（v0.162.0）→ ホバーで、そのキーが空いていて、クリックで操作を選べると出る。クリックすると、`0` が一覧で空いていて操作を選ぶよう求める薄い 1 行が出て、表は一覧の層の操作（キーの無いものも）になり、行ごとに「0 にする」のボタンが付く（狭いとチップの下）。`quit` で当てはまる行だけが残る。ボタンで kura の `keymap.toml` にその `run` の `on = "0"` が足され、トーストが出る。表はその行になって、ほかのキーの隣に `0`（変えた印つき）が並び、絵の `0` にその操作が出る — *On the Keys page hover a key the picture shows empty (`I` in list), then click `0`; type `quit` in the search, clear it, and press "Give it 0" on the "Exit visual mode…" row; look in light and dark, at about 1400 pt and 800 pt, in English and Japanese (v0.162.0) → The hover says the key is free and that a click picks an operation. After the click a dim line says `0` is free in list and asks for the operation, and the table lists the list layer's operations, those with no key too, each with a "Give it 0" button (under the chips when narrow); `quit` leaves the rows that match. The button adds `on = "0"` with that `run` to kura's `keymap.toml` and a toast says so; the table then shows that row with `0` (marked changed) beside its other keys, and the picture shows the operation on `0`*
 
 ## 30. プロンプトでの右クリック貼り付け
 
