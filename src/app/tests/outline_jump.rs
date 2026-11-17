@@ -24,6 +24,7 @@ fn it_stops_where_the_pane_does() {
         map: Vec::new(),
         extent: crate::preview::Extent { truncated: false, total: 500, ..Default::default() },
         outline: vec![toc(0), toc(120), toc(480)],
+        tabs: Default::default(),
     });
     // The furthest the pane can be scrolled, as the last draw worked out.
     a.preview.max_offset = 300;
@@ -57,6 +58,7 @@ fn a_page_scrolls_the_text_and_the_cursor_follows() {
         map: Vec::new(),
         extent: crate::preview::Extent { truncated: false, total: 500, ..Default::default() },
         outline: (0..50).map(|k| toc(k * 10)).collect(),
+        tabs: Default::default(),
     });
     a.preview.max_offset = 400;
     a.tabs[a.active].page_rows = 40;

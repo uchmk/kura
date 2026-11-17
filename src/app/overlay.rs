@@ -23,6 +23,10 @@ pub enum InputKind {
     PreviewFind,
     /// A line number to scroll the maximized preview to.
     PreviewGoto,
+    /// A line, or `line:column`, to open this file at in the editor.
+    OpenAt {
+        path: PathBuf,
+    },
     /// The name of the archive to pack the selection into.
     Compress,
     Shell {

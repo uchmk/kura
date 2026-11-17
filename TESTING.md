@@ -2029,3 +2029,16 @@ kura reads each toast to the screen reader through `ito-a11y`: once per raise, w
 | 72.4 | A rendered Markdown file in the column with numbers on | source line numbers on the first row of each source line; the text is laid out narrower, not under the numbers. |
 | 72.5 | On a file press `<F2>` | the rename prompt, with the name up to its extension selected (as `r`). |
 | 72.6 | In the list on a long text file press `<C-g>`, type `120`, `<Enter>` | the preview column scrolls to line 120 (with `#` on, its number is the top one); on a folder or image → the toast says it works on a text file. |
+
+## 73. Open the editor at a line (v0.164.0)
+
+`<Enter>`, `o` and `O` in `T` and `<F3>` open the editor at the line on screen (a `<C-g>` jump or a find hit wins while the view has not moved, and a hit brings its column). `<C-S-g>` asks for `120` or `120:5` and opens the hovered file there. `/` `?` `n` `N` search the text in `<F3>` as in `T`.
+
+| # | Do | Expect |
+|---|----|--------|
+| 73.1 | In `T` on a long text file scroll down with `j` a few screens, press `<Enter>` (an editor with `[line_args]`, or VS Code / Notepad++) | the editor opens at the line that was at the top of the screen, not at line 1. `o` the same; `O` shows the opener list and the one you pick also gets the line. |
+| 73.2 | In `T` on a 300-line file press `<C-g>`, type `295`, `<Enter>`, then `<Enter>` again without scrolling; then scroll once and `<Enter>` | the first time the editor opens at line 295, though the view stops short of it; after scrolling it opens at the new top line. |
+| 73.3 | In `T` press `/`, type a word that sits after some leading spaces or a tab, `<Enter>`, then `<Enter>` on the file (VS Code opens with `-g path:line:col`) | the editor opens at the line of the hit and at its column in the file (a tab counts as one character); `n` to the next hit and `<Enter>` → that hit. |
+| 73.4 | In `<F3>` on a text file: scroll, then `<Enter>`; then `<C-g>` `295` and `<Enter>`; then `/`, a word, `<Enter>`, and `n` / `N` | each opens the editor at the line on screen, at 295, and at the hit; hits are marked and `n` / `N` step through them; `j` still moves the list; a `/` in the list afterwards takes `n` back. |
+| 73.5 | On a file in the list press `<C-S-g>`, type `120:5`, `<Enter>`; again with `１２０` (full-width digits); with several files marked; on a folder | the hovered file alone opens at line 120, column 5 (then at line 120); the marked ones are not opened with it; a folder gives the toast `Open at line works on a file`; `abc` gives `Open at line: enter a line number, or line:column`. |
+| 73.6 | Open a huge log (8 MB or more), press `T` (`#` if the numbers are off), then `:100000` `<Enter>`; then `/`, a word found far down, `<Enter>` and `n` | the gutter starts at 100000, the file's own line (not 1 or a number counted from the lines read so far), and follows each hit; `--keys` reports the same line in `open at:` |

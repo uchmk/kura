@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-326 keys. How many are checked is not written here, so that two pull requests ticking
+327 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -60,6 +60,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-n>` — Show or hide the preview's minimap · `minimap`
 - [x] `#` — Show or hide the preview's line numbers · `preview_numbers`
 - [x] `<C-g>` — Go to a line of the preview · `preview_goto`
+- [ ] `<C-S-g>` — Open the hovered file in the editor at a line (120 or 120:5) · `open_at`
 - [x] `<A-/>` — Find in a huge log shown in the preview (n / N step through the hits) · `preview_find`
 - [x] `<A-f>` — Follow the end of a huge log as it grows (tail -f) · `preview_follow`
 - [x] `<A-y>` — Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen · `preview_copy_line`
@@ -120,8 +121,8 @@ The file list: what is in front of you unless an overlay is.
 
 ### Find / filter / search
 
-- [x] `/` — Find next file · `find --smart`
-- [x] `?` — Find previous file · `find --previous --smart`
+- [x] `/` — Find next file (in quick look: find in the text) · `find --smart`
+- [x] `?` — Find previous file (in quick look: find in the text) · `find --previous --smart`
 - [x] `n` — Go to the next found file · `find_arrow`
 - [x] `N` — Go to the previous found file · `find_arrow --previous`
 - [x] `f` — Filter the files · `filter --smart`

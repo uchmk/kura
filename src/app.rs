@@ -991,6 +991,10 @@ mod preview_scroll;
 mod preview_numbers;
 
 #[cfg(test)]
+#[path = "app/tests/open_at.rs"]
+mod open_at;
+
+#[cfg(test)]
 #[path = "app/tests/extract_message.rs"]
 mod extract_message;
 

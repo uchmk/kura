@@ -706,7 +706,14 @@ impl App {
     }
 
     pub(super) fn find_arrow(&mut self, prev: bool) {
-        if self.tabs[self.active].finder.is_none() && !self.log_needle.is_empty() && (self.log_view().is_some() || self.text_findable()) {
+        // In `T` and `<F3>` the newest search owns `n` and `N`: a find made in the preview (`log_needle`)
+        // until a list find or a body search is made, which clears it. In the column a list find keeps
+        // them, as it did before `<F3>` could find.
+        let in_view = self.max_preview || self.quick;
+        if !self.log_needle.is_empty()
+            && (self.log_view().is_some() || self.text_findable())
+            && (in_view || self.tabs[self.active].finder.is_none())
+        {
             return self.log_step(prev);
         }
         if self.find_in_body(prev) {
@@ -750,9 +757,15 @@ impl App {
             self.enter();
             return;
         }
+        self.open_paths(&entry, paths, interactive, line);
+    }
+
+    /// Open `paths` the way `entry` (the hovered file, or the one a prompt named) is opened:
+    /// its type picks the opener. `line` is only passed when the one path is `entry` itself.
+    pub(super) fn open_paths(&mut self, entry: &Entry, paths: Vec<PathBuf>, interactive: bool, line: Option<crate::exec::Pos>) {
         let line = line.filter(|_| paths.len() == 1 && paths[0] == entry.path);
-        let mime = crate::mime::guess(&entry);
-        let from = exec::openers_from(&self.cfg.yazi, &entry, mime);
+        let mime = crate::mime::guess(entry);
+        let from = exec::openers_from(&self.cfg.yazi, entry, mime);
         let openers: Vec<(String, bool, bool, String)> = from.iter().map(|(o, _)| (o.run.clone(), o.block, o.orphan, o.label())).collect();
 
         if interactive {

@@ -3438,7 +3438,8 @@ mod tests {
         };
         let zoom_in = hint(Some(image()), "status.hint.0").expect("an image names its zoom keys");
         assert!(zoom_in.ends_with(" zoom in"), "{zoom_in}");
-        let text = Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Default::default(), outline: Vec::new() };
+        let text =
+            Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Default::default(), outline: Vec::new(), tabs: Default::default() };
         assert_eq!(hint(Some(text), "status.hint.0"), None, "plain text names nothing");
     }
 }

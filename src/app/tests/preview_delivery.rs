@@ -149,7 +149,7 @@ fn a_first_screen_is_shown_but_not_cached() {
     app.preview.key = Some(key.clone());
     app.preview.state = PreviewState::Loading;
     app.preview.in_flight = true;
-    let text = || Payload::Text { lines: vec![], map: vec![], extent: Default::default(), outline: vec![] };
+    let text = || Payload::Text { lines: vec![], map: vec![], extent: Default::default(), outline: vec![], tabs: Default::default() };
 
     app.on_preview(preview::Response { key: key.clone(), payload: text(), partial: true }, &ctx);
     assert!(matches!(app.preview.state, PreviewState::Ready(Payload::Text { .. })));

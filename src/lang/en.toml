@@ -15,6 +15,9 @@ bookmark_missing = "No bookmark `{0}`"
 bookmarks_none = "No bookmarks yet — `bs` saves this directory under a letter"
 bookmarks_history_none = "No bookmarks or history yet"
 bookmarks_remove_count = "{0} bookmarks will be removed."
+open_at_not_file = "Open at line works on a file"
+open_at_bad_input = "Open at line: enter a line number, or line:column"
+open_at_changed = "Open at line: the file under the cursor changed"
 
 [details]
 accessed = "Date accessed"

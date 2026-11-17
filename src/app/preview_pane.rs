@@ -70,6 +70,10 @@ impl App {
         // this, walking onto the next image shows a corner of it at 8x.
         let rule = crate::config::PreviewRule::for_path(&self.cfg.preview, &entry.path).cloned();
         if self.preview.key.as_ref().is_none_or(|k| k.path != entry.path) {
+            // `n` starts from the top of the next file, and `<Enter>` opens at what is on show.
+            let tab = &mut self.tabs[self.active];
+            tab.find_at = None;
+            tab.jump = None;
             self.preview.outline = None;
             self.preview.zoom = None;
             self.preview.pan = egui::Vec2::ZERO;

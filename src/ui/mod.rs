@@ -52,11 +52,14 @@ pub const TERM_SHARE: f32 = 0.35;
 /// looked for while a huge log is on show.
 fn preview_find(app: &App) -> Option<&ito_match::Matcher> {
     let body = app.tabs[app.active].finder.as_ref().filter(|f| f.body).and_then(|f| f.matcher.as_ref());
-    body.or(match app.preview.state {
+    let own = match app.preview.state {
         PreviewState::Ready(Payload::Log { .. }) => app.log_matcher.as_ref(),
-        PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }) if app.max_preview && !app.quick => app.log_matcher.as_ref(),
+        PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }) if app.max_preview || app.quick => app.log_matcher.as_ref(),
         _ => None,
-    })
+    };
+    // The newest search is the one marked: a find made in the preview wins over the body search's
+    // pattern until a new body search clears it.
+    own.or(body)
 }
 
 fn term_height(full_h: f32, chrome: f32, row_h: f32, share: f32) -> f32 {
@@ -558,8 +561,18 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
             let lines = drawn.lines;
             let max = lines.saturating_sub(1);
             app.preview.max_offset = max;
-            if app.tabs[app.active].preview_offset > max {
-                app.tabs[app.active].preview_offset = max;
+            let tab = &mut app.tabs[app.active];
+            if tab.preview_offset > max {
+                // The content shrank under a view that was where the jump left it; it is still there.
+                let was = tab.preview_offset;
+                tab.preview_offset = max;
+                if let Some(j) = tab.jump.as_mut().filter(|j| j.offset == was) {
+                    j.offset = max;
+                }
+            }
+            // Any scroll moved the view off the line a jump sent it to.
+            if tab.jump.as_ref().is_some_and(|j| j.offset != tab.preview_offset) {
+                tab.jump = None;
             }
             // A panel over the panes owns the wheel; see `Overlay::is_modal`.
             if ui.rect_contains_pointer(rect) && !app.overlay.is_modal() {
@@ -1590,7 +1603,7 @@ mod status_notes {
         let mut s = super::harness::Screen::open(crate::util::test_dir("status-hint"));
         assert_eq!(status_hint(&s.app), None, "no Markdown, no hint");
         let doc = Doc { lines: Vec::new(), toc: Vec::new(), toc_cols: 0, body_cols: 80 };
-        let md = Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Extent::default() };
+        let md = Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Extent::default(), tabs: Default::default() };
         s.app.preview.state = crate::app::PreviewState::Ready(md);
         s.app.render_markdown = true;
         let key = overlay::key_for(&s.app, &crate::config::cmd::Act::ToggleRender).expect("bound by default");
@@ -1612,7 +1625,13 @@ mod status_notes {
         s.app.clock.show = true;
         let doc = Doc { lines: Vec::new(), toc: vec![heading(label, 0)], toc_cols: 0, body_cols: 80 };
         let extent = Extent { total: 1200, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
-        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent });
+        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown {
+            doc,
+            source: Vec::new(),
+            map: Vec::new(),
+            extent,
+            tabs: Default::default(),
+        });
         s.app.render_markdown = true;
         s
     }
@@ -1733,7 +1752,8 @@ mod status_notes {
         let h = status_hint(&s.app).expect("an image has hints");
         assert!(h.contains("zoom in") && h.contains("out") && h.contains("fit"), "{h}");
 
-        let text = |outline| Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Extent::default(), outline };
+        let text =
+            |outline| Payload::Text { lines: Vec::new(), map: Vec::new(), extent: Extent::default(), outline, tabs: Default::default() };
         s.app.preview.state = crate::app::PreviewState::Ready(text(Vec::new()));
         assert_eq!(status_hint(&s.app), None, "plain text has nothing to name");
         s.app.preview.state = crate::app::PreviewState::Ready(text(vec![heading("fn main", 0)]));
@@ -1753,7 +1773,13 @@ mod status_notes {
             body_cols: 80,
         };
         let extent = Extent { total: 20, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
-        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent });
+        s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown {
+            doc,
+            source: Vec::new(),
+            map: Vec::new(),
+            extent,
+            tabs: Default::default(),
+        });
         s.app.preview.max_offset = 4;
 
         s.app.render_markdown = true;
@@ -2443,6 +2469,7 @@ mod whole_frame {
             map: (0..400).map(|i| MapRow { indent: (i % 8) as u16, len: 40, color: None }).collect(),
             extent: Extent { truncated: false, total: 400, ..Default::default() },
             outline: Vec::new(),
+            tabs: Default::default(),
         });
         s
     }
@@ -2692,6 +2719,7 @@ mod panes {
             map: Vec::new(),
             extent: Extent { truncated: false, total: 200, ..Default::default() },
             outline: Vec::new(),
+            tabs: Default::default(),
         })
     }
 

@@ -193,7 +193,7 @@ pub fn command_line(run: &str, paths: &[PathBuf], at: Option<Pos>, custom: &Line
     at.and_then(|p| at_line(run, paths, p, custom)).unwrap_or_else(|| substitute(run, paths))
 }
 
-pub use ito_openin::lines::{editor_key, template_is_valid, LineArgs, Pos};
+pub use ito_openin::lines::{editor_key, template_is_valid, Col, LineArgs, Pos};
 
 /// The toast note for a line the opener cannot take; empty when no line was asked for or it is passed.
 pub fn no_line_note(run: &str, paths: &[PathBuf], at: Option<Pos>, custom: &LineArgs) -> String {

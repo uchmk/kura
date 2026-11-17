@@ -19,7 +19,7 @@ fn app() -> App {
 
 fn text(n: usize) -> PreviewState {
     let lines = (0..n).map(|i| vec![Span { text: format!("line {i}"), ..Default::default() }]).collect();
-    PreviewState::Ready(Payload::Text { lines, map: Vec::new(), extent: Default::default(), outline: Vec::new() })
+    PreviewState::Ready(Payload::Text { lines, map: Vec::new(), extent: Default::default(), outline: Vec::new(), tabs: Default::default() })
 }
 
 fn bound(section: &[keymap::Binding], key: &str) -> Vec<Act> {

@@ -127,7 +127,9 @@ impl App {
 
             Act::Open { interactive, hovered } => {
                 let _ = hovered;
-                self.open(interactive, None);
+                // In `T` and `<F3>` the editor starts at the line on screen.
+                let at = self.viewed_pos();
+                self.open(interactive, at);
             }
             Act::Yank { cut } => self.yank(cut),
             Act::Unyank => {
@@ -160,6 +162,9 @@ impl App {
             Act::Linemode(m) => self.set_linemode(m),
             Act::Sort { by, reverse, dir_first } => self.sort(by, reverse, dir_first),
 
+            // Quick look has no keymap layer of its own, so its `/` and `?` are the
+            // list's. The list is not what is being read there: the text is.
+            Act::Find { prev, .. } if self.quick && !self.max_preview => self.preview_search(prev, false),
             Act::Find { prev, smart, insensitive } => {
                 let _ = (smart, insensitive);
                 self.open_input(InputKind::Find { prev }, if prev { "Find previous" } else { "Find next" }, String::new());
@@ -235,6 +240,7 @@ impl App {
             Act::TermFind { prev, repeat } => self.term_search(prev, repeat),
             Act::PreviewFind { prev, repeat } => self.preview_search(prev, repeat),
             Act::PreviewGoto => self.preview_goto(),
+            Act::OpenAt => self.open_at(),
             Act::PreviewFollow => self.preview_follow(),
             Act::PreviewCopyLine => self.preview_copy_line(),
             Act::TermScroll(step) => self.term_scroll(step),
@@ -416,11 +422,10 @@ impl App {
         }
     }
 
-    /// Whether the maximized preview (`T`) shows text that `preview_find`
-    /// can search: plain text, or Markdown as source or rendered.
+    /// Whether the maximized preview (`T`) or quick look (`<F3>`) shows text that
+    /// `preview_find` can search: plain text, or Markdown as source or rendered.
     pub(super) fn text_findable(&self) -> bool {
-        self.max_preview
-            && !self.quick
+        (self.max_preview || self.quick)
             && matches!(self.preview.state, PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }))
     }
 
@@ -437,6 +442,7 @@ impl App {
                     self.log_needle = text.to_owned();
                     self.log_matcher = Some(m);
                     self.tabs[self.active].find_at = None;
+                    self.tabs[self.active].jump = None;
                     self.log_step(false);
                 }
                 Err(e) => self.toast(format!("Find: {e}")),
@@ -448,6 +454,7 @@ impl App {
                 self.log_needle = text.to_owned();
                 self.log_matcher = Some(m.clone());
                 self.tabs[self.active].find_at = None;
+                self.tabs[self.active].jump = None;
                 view.find(text, m);
                 self.toast("Searching...");
             }
@@ -459,6 +466,15 @@ impl App {
     pub(super) fn log_step(&mut self, prev: bool) {
         let Some(view) = self.log_view() else { return self.text_step(prev) };
         let found = view.found();
+        // A log that came on show after the find was made (`j` in quick look) has not
+        // been searched for it yet.
+        if found.query != self.log_needle {
+            if let Some(m) = self.log_matcher.clone() {
+                view.find(&self.log_needle, m);
+                self.toast("Searching...");
+            }
+            return;
+        }
         let tab = &self.tabs[self.active];
         let next = next_hit(&found.lines, tab.find_at, tab.preview_offset, prev);
         match next {
@@ -466,6 +482,7 @@ impl App {
                 self.tabs[self.active].find_at = Some(l as usize);
                 self.tabs[self.active].preview_offset = (l as usize).saturating_sub(3);
                 view.focus(l as usize);
+                self.set_jump(crate::exec::Pos::line(l as usize + 1));
                 let bytes = view.index.line_bytes(l as usize);
                 if bytes > crate::preview::logindex::MAX_LINE_BYTES as u64 {
                     self.toast(format!("Long line ({} KB): showing around the match", bytes.div_ceil(1024)));
@@ -489,12 +506,14 @@ impl App {
         };
         match next.copied() {
             Some(row) => {
+                let pos = self.hit_pos(row, &m);
                 let wrapped = at.is_some_and(|a| if prev { row >= a } else { row <= a });
                 let max = self.preview.max_offset;
                 let tab = &mut self.tabs[self.active];
                 tab.find_at = Some(row);
                 let top = row.saturating_sub(3);
                 tab.preview_offset = if max > 0 { top.min(max) } else { top };
+                self.set_jump(pos);
                 if wrapped {
                     self.toast("Search wrapped");
                 }
@@ -513,7 +532,10 @@ impl App {
     }
 
     pub(super) fn preview_goto_submit(&mut self, text: &str) {
-        let Ok(n) = text.trim().parse::<usize>() else {
+        // A `:column` is accepted and ignored: the view scrolls to a line. `0` goes to the top, as it did
+        // before the column was accepted.
+        let typed = if text.trim() == "0" { "1" } else { text };
+        let Some((n, _)) = parse_line_col(typed) else {
             return self.toast("Go to line: enter a line number");
         };
         let line = n.saturating_sub(1);
@@ -522,6 +544,7 @@ impl App {
             self.tabs[self.active].preview_offset = line;
             self.tabs[self.active].find_at = Some(line);
             view.focus(line);
+            self.set_jump(crate::exec::Pos::line(n));
             return;
         }
         let row = match &self.preview.state {
@@ -530,6 +553,124 @@ impl App {
         };
         let max = self.preview.max_offset;
         self.tabs[self.active].preview_offset = if max > 0 { row.min(max) } else { row };
+        // Not clamped: a truncated preview does not know how long the file is, the editor does.
+        self.set_jump(crate::exec::Pos::line(n));
+    }
+
+    /// Remember that the preview was just sent to `pos` of the hovered file.
+    fn set_jump(&mut self, pos: crate::exec::Pos) {
+        let path = self.tabs[self.active].current.hovered().map(|e| e.path.clone());
+        let tab = &mut self.tabs[self.active];
+        tab.jump = path.map(|path| crate::core::tab::Jump { path, pos, offset: tab.preview_offset });
+    }
+
+    /// Where in the file preview row `row`, which the find `m` hit, is: its line, and the column of
+    /// the first hit in it as the file has it (a tab counts as one character, not as the spaces it
+    /// was shown as). No column for rendered Markdown, whose rows are blocks, or when the line
+    /// cannot be recovered.
+    fn hit_pos(&self, row: usize, m: &ito_match::Matcher) -> crate::exec::Pos {
+        use crate::exec::{Col, Pos};
+        let hit = |lines: &[Vec<crate::preview::Span>], tabs: &crate::preview::TabStops| -> Pos {
+            let text: String = lines.get(row).map(|l| l.iter().map(|s| s.text.as_str()).collect()).unwrap_or_default();
+            let col = m.ranges(&text).iter().map(|r| r.start).min().and_then(|b| {
+                let shown = text.get(..b)?.chars().count();
+                let (line, at) = tabs.source(row, &text, shown)?;
+                Some(Col::in_line(&line, at + 1))
+            });
+            Pos { line: row + 1, col }
+        };
+        match &self.preview.state {
+            PreviewState::Ready(Payload::Text { lines, tabs, .. }) => hit(lines, tabs),
+            PreviewState::Ready(Payload::Markdown { doc, .. }) if self.render_markdown => Pos::line(doc.src_for_line(row) + 1),
+            PreviewState::Ready(Payload::Markdown { source, tabs, .. }) => hit(source, tabs),
+            _ => Pos::line(row + 1),
+        }
+    }
+
+    /// The place `<Enter>` opens the editor at: the line at the top of the text on show in `T`
+    /// or `<F3>`, unless `<C-g>` or a find step sent the view somewhere and it has not moved since
+    /// (then that line, and the column of a find hit). `None` when no text of the hovered file
+    /// is on show.
+    pub(crate) fn viewed_pos(&self) -> Option<crate::exec::Pos> {
+        if !(self.max_preview || self.quick) {
+            return None;
+        }
+        let tab = &self.tabs[self.active];
+        let entry = tab.current.hovered()?;
+        // The payload on show is the hovered file's: during the preview debounce it is still the last one's.
+        if self.preview.key.as_ref().is_none_or(|k| k.path != entry.path) {
+            return None;
+        }
+        // A Word file's text or an archive's listing is not the file's lines: no line to open at,
+        // and the opener (Word, the archive tool) would only be told it could not take one.
+        if !crate::preview::shows_own_lines(&entry.path) {
+            return None;
+        }
+        if let Some(j) = tab.jump.as_ref().filter(|j| j.path == entry.path && j.offset == tab.preview_offset) {
+            return Some(j.pos);
+        }
+        let top = tab.preview_offset;
+        let line = match &self.preview.state {
+            PreviewState::Ready(Payload::Markdown { doc, .. }) if self.render_markdown => doc.src_for_line(top),
+            PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. } | Payload::Log { .. }) => top,
+            _ => return None,
+        };
+        Some(crate::exec::Pos::line(line + 1))
+    }
+
+    /// `<C-S-g>`: ask for a line (and column) and open the hovered file in the editor there.
+    pub(super) fn open_at(&mut self) {
+        let hovered = self.tabs[self.active].current.hovered().cloned();
+        let Some(entry) = hovered.filter(|e| !e.is_dir_like() && self.archive_view.is_none()) else {
+            let text = crate::i18n::tr(&self.lang, "toast.open_at_not_file");
+            return self.toast(text);
+        };
+        let prefill = match self.viewed_pos() {
+            Some(p) => match p.col {
+                Some(c) => format!("{}:{}", p.line, c.chars),
+                None => p.line.to_string(),
+            },
+            None => String::new(),
+        };
+        self.open_input(InputKind::OpenAt { path: entry.path }, "Open at line (120 or 120:5)", prefill);
+    }
+
+    pub(super) fn open_at_submit(&mut self, path: &Path, text: &str) {
+        let Some((line, col)) = parse_line_col(text) else {
+            let text = crate::i18n::tr(&self.lang, "toast.open_at_bad_input");
+            return self.toast(text);
+        };
+        // The list may have been re-sorted, or the file removed, while the prompt was open.
+        let hovered = self.tabs[self.active].current.hovered().cloned();
+        let Some(entry) = hovered.filter(|e| e.path == path && !e.is_dir_like()) else {
+            let text = crate::i18n::tr(&self.lang, "toast.open_at_changed");
+            return self.toast(text);
+        };
+        let col = col.map(|c| self.typed_col(&entry.path, line, c));
+        // The one hovered file, not the selection.
+        self.open_paths(&entry, vec![entry.path.clone()], false, Some(crate::exec::Pos { line, col }));
+    }
+
+    /// A typed column, in characters, as the pair the editors want. The byte half needs the line's text,
+    /// which is only known when that line of the file is on show; otherwise it is taken to be one
+    /// byte a character, which is exact for ASCII.
+    fn typed_col(&self, path: &Path, line: usize, chars: usize) -> crate::exec::Col {
+        use crate::exec::Col;
+        let on_show = self.preview.key.as_ref().is_some_and(|k| k.path == path);
+        let held = match &self.preview.state {
+            PreviewState::Ready(Payload::Text { lines, tabs, .. }) if on_show => Some((lines, tabs)),
+            PreviewState::Ready(Payload::Markdown { source, tabs, .. }) if on_show => Some((source, tabs)),
+            _ => None,
+        };
+        let row = line.saturating_sub(1);
+        let source = held.and_then(|(lines, tabs)| {
+            let shown: String = lines.get(row)?.iter().map(|s| s.text.as_str()).collect();
+            tabs.line(row, &shown)
+        });
+        match source {
+            Some(text) => Col::in_line(&text, chars),
+            None => Col::new(chars, chars),
+        }
     }
 
     /// Search the terminal's scrollback, or step to the next match.
@@ -896,6 +1037,31 @@ fn next_hit(lines: &[u32], find_at: Option<usize>, top: usize, prev: bool) -> Op
     match prev {
         true => lines.iter().rev().copied().find(|&l| (l as usize) < from),
         false => lines.iter().copied().find(|&l| (l as usize) > from || (find_at.is_none() && l as usize >= top)),
+    }
+}
+
+/// A line, or `line:column`, as typed for `<C-S-g>` and `<C-g>`: both counted from 1, the column in
+/// characters. Full-width digits and colon (a Japanese IME) are read as the ASCII ones. Nothing
+/// else is accepted: no sign, no inner space, no zero.
+pub(crate) fn parse_line_col(text: &str) -> Option<(usize, Option<usize>)> {
+    let norm: String = text
+        .trim() // also U+3000, the full-width space
+        .chars()
+        .map(|c| match c {
+            '\u{ff10}'..='\u{ff19}' => char::from(b'0' + (c as u32 - 0xff10) as u8),
+            '\u{ff1a}' => ':',
+            c => c,
+        })
+        .collect();
+    let number = |s: &str| -> Option<usize> {
+        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        s.parse::<usize>().ok().filter(|&n| n > 0)
+    };
+    match norm.split_once(':') {
+        None => Some((number(&norm)?, None)),
+        Some((l, c)) => Some((number(l)?, Some(number(c)?))),
     }
 }
 

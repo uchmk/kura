@@ -83,10 +83,23 @@ pub struct Tab {
     pub preview_offset: usize,
     /// The line of a huge log the last preview-find step landed on.
     pub find_at: Option<usize>,
+    /// Where the last `<C-g>` or find step put the preview, for opening the editor there.
+    pub jump: Option<Jump>,
     /// Rows that fit in the list, measured by the renderer each frame.
     pub page_rows: usize,
     /// The jump this tab is still waiting on, if any.
     pub pending_cd: Option<PendingCd>,
+}
+
+/// A place in a file the preview was sent to (`<C-g>`, a find hit), which `<Enter>` opens the
+/// editor at while the view has not been moved since.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Jump {
+    pub path: PathBuf,
+    /// The line in the file (from 1) and the column when the hit gave one.
+    pub pos: crate::exec::Pos,
+    /// `preview_offset` right after the jump; any other value means the view was scrolled.
+    pub offset: usize,
 }
 
 impl Tab {
@@ -107,6 +120,7 @@ impl Tab {
             linemode,
             preview_offset: 0,
             find_at: None,
+            jump: None,
             page_rows: 20,
             pending_cd: None,
         }

@@ -122,10 +122,14 @@ impl App {
                         None => base.to_owned(),
                     };
                 }
-                let tab = &mut self.tabs[self.active];
                 if title.is_some() {
                     return;
                 }
+                // The newest search owns `n` and `N`: this one, not a find made in the preview.
+                self.log_needle.clear();
+                self.log_matcher = None;
+                let tab = &mut self.tabs[self.active];
+                tab.find_at = None;
                 tab.finder = Some(Finder { query, matcher: matcher.clone(), prev, names: true, ..Default::default() });
                 let Some(matcher) = matcher else { return };
                 let len = tab.current.view.len();
@@ -159,6 +163,7 @@ impl App {
             InputKind::TermFind => self.term_find(&text, true),
             InputKind::PreviewFind => self.preview_find_submit(&text),
             InputKind::PreviewGoto => self.preview_goto_submit(&text),
+            InputKind::OpenAt { path } => self.open_at_submit(&path, &text),
             InputKind::Rename { from } => self.do_rename(&from, &text),
             InputKind::Bulk { paths } => self.do_bulk_rename(&paths, &text),
             InputKind::Filter => { /* already applied live */ }

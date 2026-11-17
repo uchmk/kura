@@ -320,7 +320,7 @@ Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `bac
 `hardlink`, `remove`, `create`, `rename`, `copy`, `shell`, `hidden`, `linemode`, `sort`, `find`,
 `find_arrow`, `filter`, `search`, `help`, `tasks_show`, `spot`, `noop`, plus `undo`, `redo`, `jump`,
 `bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `preview_numbers` (`#`: show or hide the preview's line numbers; `[ui] line_numbers` starts the column with them), `config_reload`, `palette`,
-`menu`, `extract`, `compress`, `convert [webp|png|jpeg]`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`, `<C-g>` from the list; in rendered Markdown it is the source line), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
+`menu`, `extract`, `compress`, `convert [webp|png|jpeg]`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`, `<C-g>` from the list; in rendered Markdown it is the source line), `open_at` (`<C-S-g>`: ask for `120` or `120:5` and open the hovered file in the editor there; full-width digits and `：` are read too), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
 `split`, `pane_focus`, `toggle_render`, `toggle_outline`, `usage`, `settings` and `bug-report` (the last
 three this project's own). `select` and `select_all` are accepted as `toggle --state=on` /
 `toggle_all --state=on`. In the `[input]` section: `close --submit` (and the `*_do` spellings),
@@ -498,6 +498,13 @@ arguments, which must name `{path}` exactly once. They take the place of the ope
 placeholder, so the rest of its command line (`nvim -O %s`) is kept. The path is quoted for you,
 together with whatever sits next to it in the same word — `{path}:{line}` comes out as
 `"C:\a b\x.txt:123"`, never as a broken pair of words.
+
+Where the line comes from: the outline (`<Enter>` on a heading or symbol), `<Enter>` / `o` / `O` in `T` and `<F3>` (the line at the top of the text on show), and
+`<C-S-g>` (typed). In `T` and `<F3>`, a jump made with `<C-g>` or a find step counts as the line on show while the view has not moved; a find hit also
+passes its column, counted in the file's own characters (a tab is one character, not the spaces it is drawn as), as `{col}` (characters) and `{bcol}`
+(bytes). A column typed after `<C-S-g>` (`120:5`) is in characters; its `{bcol}` is exact when that line is on show, and one byte a character otherwise.
+In rendered Markdown a find hit gives the source line of its block, without a column. Only the hovered file gets the position, never the rest of a selection.
+A Word, Excel or PowerPoint file and an archive, whose preview is text read out of them rather than their own lines, open without one.
 
 ## Markdown preview
 
@@ -930,7 +937,7 @@ found on a real machine.)
 
 `<F3>` shows the hovered file big, over the panes — the same preview, with room to read it. The
 keys are not taken while it is up, so `j` and `k` keep walking the list and the panel follows them
-down it; `<A-j>` / `<A-k>` scroll it. `<F3>` again, `<Esc>` or `q` closes it — `q` is what closes
+down it; `<A-j>` / `<A-k>` scroll it. `/` and `?` search the text in it as they do in `T` (matches are marked, `n` / `N` step; the newest search, in the text or in the list, owns the prompt and `n` / `N`), and `<Enter>`, `o` and `O` open the editor at the line on screen. `<F3>` again, `<Esc>` or `q` closes it — `q` is what closes
 every other panel, and it used to reach `mgr`'s `quit` and end the process with the panel still on
 screen.
 
@@ -1284,7 +1291,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `R` | bulk rename: one rule over everything selected, previewed as you type |
 | `<A-d>` | compare two files side by side |
 | `<F3>` | quick look: the hovered file, big, over the panes |
-| `T` | maximize the preview column, or put it back. In it: `/` finds (`n` / `N` step, round the ends), `:` or `<C-g>` goes to a line |
+| `T` | maximize the preview column, or put it back. In it: `/` finds (`n` / `N` step, round the ends), `:` or `<C-g>` goes to a line; `<Enter>`, `o` and `O` open the editor at the line on screen |
 | `ci` | Convert selected images (JPEG / PNG / lossless WebP) |
 | `e` `E` | extract the selected archives / compress the selection |
 | `<A-c>` `<A-m>` | copy / move the selection to the other pane |
@@ -1313,6 +1320,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `<A-n>` | show or hide the preview's minimap |
 | `#` | show or hide the preview's line numbers (the column's; in `T` and `<F3>` theirs) |
 | `<C-g>` | go to a line of the preview, also from the list |
+| `<C-S-g>` | open the hovered file in the editor at a line (`120`) or line and column (`120:5`) |
 | `<S-Tab>` | move the keys into the preview's outline and back |
 | `<Tab>` | spot: details of the hovered file |
 | `<C-S-p>` | command palette: fuzzy-search every key binding and run it |
@@ -1853,7 +1861,7 @@ toasts: Copied: /tmp/work/a.txt | Yanked 1 item
 keys: done
 ```
 
-Four read-outs for what is only painted: `font size: 14` is the interface font size from the settings (`16.5` for a fractional one), always; inside a git repository `git branch: main`, `git counts: M3 +2 ?1` (the status bar's text, left out when clean) and `git marks: a.txt=M | b.txt=?` (the rows of the listing that carry a mark, in order, at most 40, or `none`); `preview status: L1/500 0% | UTF-8 LF` the notes the status bar shows for the preview, when there are any; and for a log `preview note: line 3 of 10` (or `line 3 · indexing 42%` while it is being indexed), the note under its text.
+Four read-outs for what is only painted: `font size: 14` is the interface font size from the settings (`16.5` for a fractional one), always; inside a git repository `git branch: main`, `git counts: M3 +2 ?1` (the status bar's text, left out when clean) and `git marks: a.txt=M | b.txt=?` (the rows of the listing that carry a mark, in order, at most 40, or `none`); `preview status: L1/500 0% | UTF-8 LF` the notes the status bar shows for the preview, when there are any; `open at: 120:5` (or `open at: none`), the line and column `<Enter>` would open the editor at; and for a log `preview note: line 3 of 10` (or `line 3 · indexing 42%` while it is being indexed), the note under its text.
 
 `toast kind` is the last toast cut at its first `:` (`Command failed`, `Open failed`), so a wording check reads one short line (v0.78.165); empty when there is no toast (v0.78.171). `yank` is the register as the header says it -- `1 cut`, `2 copied` or `empty` (v0.75.15). Since v0.78.2: `focus` is where the next key goes (`list`, `pane`, `outline` or `overlay`), `pane cursor: col,row` the terminal's cursor while the pane is open, `pane title: …` the title the pane reports (an empty one still prints the line; v0.85.7), `max preview` and `quick` whether `T` and the quick look are up, `config` every config file read (`|`-separated, or `none`), and `mcp: …` the door `kura mcp` reads through (v0.85.9; `off` when `[mcp] enable = false`). Since v0.78.84 `parent: a | b…c.log | …` gives the parent column's rows as drawn, each cut to the column's width (cut at 40 rows), while the column is on screen. Since v0.78.81, after an opener or a `shell` command ran, `launched: 12345 <line>` gives the PID of the process it started (the shell the line runs in, whose child is the program; `-` when there is none) and the line, so a check can stop that process and not every one of the same name. `overlay` is one of `none`, `input`, `confirm`, `pick`, `help`, `tasks`, `spot`, `diff`; `view` is
 `usage`, `archive` or `search` while one of those views stands in for the listing, else `list` (v0.64.0); `archive` is the archive and the level

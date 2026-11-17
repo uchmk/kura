@@ -1540,6 +1540,17 @@ fn state_report(app: &App) -> String {
     if !notes.is_empty() {
         lines.push(format!("preview status: {}", notes.join(" | ")));
     }
+    // Where `<Enter>` would open the editor now (`T` and `<F3>`): the line on screen, or the one a jump or find hit left.
+    lines.push(format!(
+        "open at: {}",
+        match app.viewed_pos() {
+            Some(p) => match p.col {
+                Some(c) => format!("{}:{}", p.line, c.chars),
+                None => p.line.to_string(),
+            },
+            None => "none".to_owned(),
+        }
+    ));
     if let app::PreviewState::Ready(preview::Payload::Log { view }) = &app.preview.state {
         let note = ui::preview::log_note(tab.preview_offset, view.index.lines(), view.index.is_done(), view.index.progress());
         lines.push(format!("preview note: {note}"));
@@ -2229,6 +2240,7 @@ mod tests {
             map: Vec::new(),
             extent: Default::default(),
             outline: Vec::new(),
+            tabs: Default::default(),
         });
         assert_eq!(preview_text(&text), "fn main\n}\n");
         let meta = app::PreviewState::Ready(preview::Payload::Meta { rows: vec![("Name".into(), "a.bin".into())] });
@@ -2490,6 +2502,7 @@ mod tests {
             map: Vec::new(),
             extent: Default::default(),
             outline: vec![toc("fn alpha", 3), toc("  fn beta", 41)],
+            tabs: Default::default(),
         });
         assert!(state_report(&app).lines().any(|l| l == "preview lines: 0"), "the text's own count (#262)");
         assert!(!state_report(&app).contains("outline:"), "no line while the list has the keys");

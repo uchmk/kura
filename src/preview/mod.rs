@@ -313,6 +313,85 @@ pub struct Extent {
     pub eol: Eol,
 }
 
+/// Whether the text preview of `path` is the file's own lines, so that a row of it is a line of
+/// the file: not for Word, Excel and PowerPoint (the text read out of the document) or an archive
+/// (its table of contents), which `preview` shows as text too.
+pub fn shows_own_lines(path: &std::path::Path) -> bool {
+    let ext = path.extension().and_then(|e| e.to_str());
+    office::Kind::of(ext).is_none() && crate::fs::archive::Format::from_path(path).is_none()
+}
+
+/// Where the tabs of a text file were, before the preview expanded them to spaces.
+///
+/// The preview shows tab-expanded lines, so a character count taken on a displayed line is
+/// not the column in the file. This keeps, for each source line that held a tab, the character
+/// index of each tab, which is enough to turn a displayed column back into a source one without
+/// reading the file again. Cheap to clone: the table is shared.
+#[derive(Clone, Debug, Default)]
+pub struct TabStops {
+    width: usize,
+    lines: Arc<[(u32, Box<[u32]>)]>,
+}
+
+impl TabStops {
+    /// The tab positions of `text`, the lines `width` expands to.
+    pub fn of(text: &str, width: usize) -> TabStops {
+        let mut lines = Vec::new();
+        for (i, line) in text.lines().enumerate() {
+            if !line.contains('\t') {
+                continue;
+            }
+            let at: Vec<u32> = line.chars().enumerate().filter(|(_, c)| *c == '\t').map(|(k, _)| k as u32).collect();
+            lines.push((i as u32, at.into_boxed_slice()));
+        }
+        TabStops { width: width.max(1), lines: lines.into() }
+    }
+
+    /// Row `row` of the preview, as `display` shows it, back as the line in the file, with the
+    /// character index (from 0) in it that display character `at` belongs to. `None` when the
+    /// line cannot be recovered; never a guess.
+    pub fn source(&self, row: usize, display: &str, at: usize) -> Option<(String, usize)> {
+        let (line, found) = self.walk(row, display, at)?;
+        found.map(|s| (line, s))
+    }
+
+    /// The line in the file that row `row` of the preview, `display`, was made from.
+    pub fn line(&self, row: usize, display: &str) -> Option<String> {
+        self.walk(row, display, usize::MAX).map(|w| w.0)
+    }
+
+    fn walk(&self, row: usize, display: &str, at: usize) -> Option<(String, Option<usize>)> {
+        let Ok(k) = self.lines.binary_search_by_key(&(row as u32), |l| l.0) else {
+            return Some((display.to_owned(), Some(at)));
+        };
+        let tabs = &self.lines[k].1;
+        let shown: Vec<char> = display.chars().collect();
+        let (mut d, mut s) = (0, 0);
+        let mut out = String::with_capacity(display.len());
+        let mut found = None;
+        while d < shown.len() {
+            let n = if tabs.binary_search(&(s as u32)).is_ok() {
+                let n = self.width - (d % self.width);
+                // The run of spaces the tab became must all be there.
+                if d + n > shown.len() || shown[d..d + n].iter().any(|c| *c != ' ') {
+                    return None;
+                }
+                out.push('\t');
+                n
+            } else {
+                out.push(shown[d]);
+                1
+            };
+            if (d..d + n).contains(&at) {
+                found = Some(s);
+            }
+            d += n;
+            s += 1;
+        }
+        Some((out, found))
+    }
+}
+
 /// The line endings a text file uses.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum Eol {
@@ -394,6 +473,8 @@ pub enum Payload {
         map: Vec<MapRow>,
         extent: Extent,
         outline: Vec<TocEntry>,
+        /// Where the tabs were, for the column of a hit.
+        tabs: TabStops,
     },
     /// A text file too big to read whole: indexed by line on a thread, shown by
     /// the lines around the top of the pane. Plain, not coloured.
@@ -408,6 +489,8 @@ pub enum Payload {
         source: Vec<Vec<Span>>,
         map: Vec<MapRow>,
         extent: Extent,
+        /// Where the tabs of `source` were.
+        tabs: TabStops,
     },
     /// Raw RGBA plus its dimensions; the UI turns this into a texture. The
     /// caption goes under it (the source size, a font's name, ...).
@@ -717,7 +800,7 @@ fn office_text(doc: office::Read1, req: &Request, syntax: &mut text::Highlighter
     match text::plain(&doc.lines.join("\n"), office_extent(total, doc.truncated)) {
         // The extent `plain` worked out is the one to keep -- it counted the
         // lines it was actually handed.
-        Payload::Text { lines, map, extent, .. } => Payload::Text { lines, map, extent, outline: doc.outline },
+        Payload::Text { lines, map, extent, .. } => Payload::Text { lines, map, extent, outline: doc.outline, tabs: Default::default() },
         other => other,
     }
 }
@@ -800,7 +883,13 @@ fn archive_listing(path: &std::path::Path) -> Payload {
         })
         .collect();
     let map = minimap(&lines);
-    Payload::Text { lines, map, extent: Extent { truncated: more, total, ..Default::default() }, outline: Vec::new() }
+    Payload::Text {
+        lines,
+        map,
+        extent: Extent { truncated: more, total, ..Default::default() },
+        outline: Vec::new(),
+        tabs: Default::default(),
+    }
 }
 
 fn meta(path: &std::path::Path, _req: &Request, note: &str) -> Payload {

@@ -48,6 +48,10 @@ impl App {
         folder.state = LoadState::Ready;
         tab.current = folder;
         tab.finder = Some(finder);
+        tab.find_at = None;
+        // The newest search owns `n` and `N`.
+        self.log_needle.clear();
+        self.log_matcher = None;
         self.search = Some(handle);
         self.preview.state = PreviewState::Empty;
         self.preview.key = None;

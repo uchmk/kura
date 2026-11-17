@@ -211,7 +211,7 @@ fn draw_pane(
                 painter.galley(rect.left_top() + Vec2::new(PAD, 8.0), g, st.theme.progress_error);
                 0
             }
-            Payload::Text { lines, map, extent, outline } => {
+            Payload::Text { lines, map, extent, outline, .. } => {
                 let (body, strip) = split_minimap(rect, map, st);
                 note_minimap(ui, rect, map, strip.is_some(), offset, rows(body, st), st);
                 let mut drawn = code(ui, &painter, body, lines, outline, *extent, offset, st);
@@ -237,7 +237,8 @@ fn draw_pane(
                 });
                 let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
                 if offset >= first && !spans.is_empty() {
-                    text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), st);
+                    let numbers = (first, total.max(first + spans.len()));
+                    text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), numbers, st);
                     // A line cut at the length limit says how much is not shown, at the right edge (no sideways scroll).
                     for (i, &n) in more.iter().skip(rel).take(rows(rect, st)).enumerate().filter(|(_, &n)| n > 0) {
                         let label = format!("⋯ +{}", crate::util::human_size(n));
@@ -258,7 +259,7 @@ fn draw_pane(
                 painter.text(pos2(rect.left() + PAD, rect.bottom() - st.row_h), Align2::LEFT_TOP, note, st.font.clone(), st.theme.fg_dim);
                 total
             }
-            Payload::Markdown { doc, source, map, extent } => {
+            Payload::Markdown { doc, source, map, extent, .. } => {
                 // Rendered Markdown gets no minimap: `map` describes the source,
                 // and a rendered line is not the same line, so the viewport box
                 // would point at the wrong place. Its "Contents" column already
@@ -790,7 +791,7 @@ fn split_marked(line: &[Span], marks: &[Range<usize>]) -> Vec<(usize, Range<usiz
 
 /// Highlighted source, one file line per row.
 fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> usize {
-    text_with(ui, painter, rect, lines, extent, offset, None, st)
+    text_with(ui, painter, rect, lines, extent, offset, None, (0, lines.len()), st)
 }
 
 /// The marks of a search that runs across line ends, cut per line: `lines` are
@@ -821,6 +822,8 @@ fn spanning_marks(m: &Matcher, lines: &[String]) -> Vec<Vec<Range<usize>>> {
 }
 
 /// [`text`], with the marks of each line given (by index into `lines`) instead of found line by line.
+/// `numbers` is `(base, last)`: `lines[0]` is the file's line `base + 1` and the file has `last` lines, which
+/// sizes the gutter. A huge log hands over only the lines read around the view, from its `first`.
 #[allow(clippy::too_many_arguments)]
 fn text_with(
     ui: &Ui,
@@ -830,6 +833,7 @@ fn text_with(
     extent: Extent,
     offset: usize,
     given: Option<&[Vec<Range<usize>>]>,
+    numbers: (usize, usize),
     st: &PreviewStyle<'_>,
 ) -> usize {
     let start = offset.min(lines.len().saturating_sub(1));
@@ -837,10 +841,11 @@ fn text_with(
     // The line-number gutter: drawn first, not noted (so not selectable), and
     // the text moves right of it.
     let rect = if st.numbers && !lines.is_empty() {
-        let digits = lines.len().to_string().len().max(3);
+        let (base, last) = numbers;
+        let digits = last.max(base + lines.len()).to_string().len().max(3);
         let gutter = (digits as f32 + 1.0) * st.cell + PAD;
         for i in 0..end - start {
-            let n = (start + i + 1).to_string();
+            let n = (base + start + i + 1).to_string();
             let g = painter.layout_no_wrap(n.clone(), st.font.clone(), st.theme.fg_dim);
             let x = rect.left() + PAD + digits as f32 * st.cell - g.size().x;
             let at = pos2(x, rect.top() + i as f32 * st.row_h);
@@ -1485,6 +1490,7 @@ mod chrome {
             lines,
             extent: Extent { truncated: total != n, total, ..Default::default() },
             outline,
+            tabs: Default::default(),
         })
     }
 
@@ -1767,6 +1773,43 @@ mod focus_rule_frame {
         let f = s.draw();
         assert_eq!(across(&f).len(), 1, "and so is the terminal's, from the same file: {:?}", f.strokes);
         assert!(down(&f).is_empty(), "while the outline's is not lit any more");
+    }
+}
+
+/// A huge log is read a window at a time; its gutter still counts the file's lines (67.5, 64.4).
+#[cfg(test)]
+mod log_gutter_frame {
+    use super::chrome::*;
+
+    #[test]
+    fn a_huge_logs_gutter_counts_from_the_files_first_line() {
+        let dir = crate::util::test_dir("log-gutter-file");
+        let f = dir.join("big.log");
+        std::fs::write(&f, (1..=5000).map(|i| format!("row {i}\n")).collect::<String>()).unwrap();
+        let index = crate::preview::logindex::LogIndex::start(&f).unwrap();
+        while !index.is_done() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let view = crate::preview::logindex::LogView::new(index);
+        let mut s = screen("log-gutter", crate::app::PreviewState::Ready(crate::preview::Payload::Log { view }));
+        s.app.max_preview = true;
+        s.app.max_numbers = true;
+        let active = s.app.active;
+        s.app.tabs[active].preview_offset = 3999;
+        // The reader thread fills the window after the first frame asks for it.
+        let mut drawn = None;
+        for _ in 0..300 {
+            let f = s.draw();
+            if f.texts.iter().any(|t| t == "row 4000") {
+                drawn = Some(f);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let f = drawn.expect("the lines around line 4000 were read");
+        let at = f.texts.iter().position(|t| t == "4000").unwrap_or_else(|| panic!("no 4000 in the gutter: {:?}", f.texts));
+        assert_eq!(f.texts.get(at + 1).map(String::as_str), Some("4001"), "{:?}", f.texts);
+        assert!(!f.texts.iter().any(|t| t == "1" || t == "2"), "the gutter counted from the window: {:?}", f.texts);
     }
 }
 
@@ -2125,6 +2168,7 @@ mod minimap_hover_frame {
             source: plain(n),
             map: rows(n),
             extent: Extent { truncated: false, total: n, ..Default::default() },
+            tabs: Default::default(),
         });
         let mut s = screen("hover-md", state);
         let theme = s.app.cfg.theme.clone();

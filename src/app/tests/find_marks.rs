@@ -13,7 +13,7 @@ fn app_in(dir: &Path) -> App {
 
 fn text(lines: &[&str]) -> PreviewState {
     let lines = lines.iter().map(|l| vec![Span { text: (*l).to_owned(), ..Default::default() }]).collect();
-    PreviewState::Ready(Payload::Text { lines, map: Vec::new(), extent: Default::default(), outline: Vec::new() })
+    PreviewState::Ready(Payload::Text { lines, map: Vec::new(), extent: Default::default(), outline: Vec::new(), tabs: Default::default() })
 }
 
 fn typed(a: &mut App, prev: bool, query: &str) {
@@ -156,7 +156,8 @@ fn markdown_matches_are_found_in_what_is_drawn() {
         ..Default::default()
     };
     let source = vec![vec![span("intro", false)], vec![span("blank", false)], vec![span("the **automated**_ids()", false)]];
-    a.preview.state = PreviewState::Ready(Payload::Markdown { doc, source, map: Vec::new(), extent: Default::default() });
+    a.preview.state =
+        PreviewState::Ready(Payload::Markdown { doc, source, map: Vec::new(), extent: Default::default(), tabs: Default::default() });
     a.render_markdown = true;
     assert_eq!(a.body_matches(), [1], "rendered: the second line, split over three spans");
     a.render_markdown = false;
@@ -186,7 +187,13 @@ fn a_match_over_a_wrapped_line_is_found_on_both_halves() {
     let one = |a: usize, b: usize| std::iter::once(a..b).collect::<Vec<_>>();
     assert_eq!(doc.marks(&m, 1, 3), [one(3, 7), one(0, 17)]);
     assert_eq!(doc.marks(&m, 2, 3), [one(0, 17)], "asked for the second half alone");
-    a.preview.state = PreviewState::Ready(Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Default::default() });
+    a.preview.state = PreviewState::Ready(Payload::Markdown {
+        doc,
+        source: Vec::new(),
+        map: Vec::new(),
+        extent: Default::default(),
+        tabs: Default::default(),
+    });
     a.render_markdown = true;
     assert_eq!(a.body_matches(), [1, 2]);
     let _ = std::fs::remove_dir_all(&dir);

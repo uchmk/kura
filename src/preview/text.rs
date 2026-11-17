@@ -86,6 +86,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
     let text = String::from_utf8_lossy(bytes);
     let text = strip_bom(&text);
     let expanded = expand_tabs(text, req.tab_size.max(1) as usize);
+    let tabs = super::TabStops::of(text, req.tab_size.max(1) as usize);
     let total_lines = expanded.lines().count();
     let extent =
         Extent { truncated: total_lines > max_lines(req) || cut, total: total_lines, cut, rows: None, enc, eol: super::Eol::of(bytes) };
@@ -103,7 +104,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
     let syntax = by_ext.or_else(|| hint.and_then(|h| Themed::for_token(&h, theme))).or_else(|| Themed::for_shebang(first, theme));
 
     let Some(mut syntax) = syntax else {
-        return plain_to(&expanded, extent, max_lines(req));
+        return plain_to(&expanded, extent, max_lines(req), tabs);
     };
 
     // The Markdown grammar paints fenced code as one flat color, so fence
@@ -152,9 +153,9 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
                 let payload = if renders {
                     let (d, clipped) = doc.get_or_insert_with(|| lay(&expanded));
                     let extent = Extent { truncated: extent.truncated || *clipped, ..extent };
-                    Payload::Markdown { doc: d.clone(), source, map, extent }
+                    Payload::Markdown { doc: d.clone(), source, map, extent, tabs: tabs.clone() }
                 } else {
-                    Payload::Text { lines: source, map, extent, outline: symbols.so_far() }
+                    Payload::Text { lines: source, map, extent, outline: symbols.so_far(), tabs: tabs.clone() }
                 };
                 if !early(Some(payload)) {
                     hl.abandoned = true;
@@ -197,10 +198,10 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
         let (doc, clipped) = doc.unwrap_or_else(|| lay(&expanded));
         let map = super::minimap(&lines);
         let extent = Extent { truncated: extent.truncated || clipped, ..extent };
-        return Payload::Markdown { doc, source: lines, map, extent };
+        return Payload::Markdown { doc, source: lines, map, extent, tabs };
     }
     let map = super::minimap(&lines);
-    Payload::Text { lines, map, extent, outline: symbols.finish() }
+    Payload::Text { lines, map, extent, outline: symbols.finish(), tabs }
 }
 
 struct Fence {
@@ -287,13 +288,13 @@ fn plain_lines_to(text: &str, max: usize) -> Vec<Vec<Span>> {
 }
 
 pub fn plain(text: &str, extent: Extent) -> Payload {
-    plain_to(text, extent, MAX_LINES)
+    plain_to(text, extent, MAX_LINES, Default::default())
 }
 
-fn plain_to(text: &str, extent: Extent, max: usize) -> Payload {
+fn plain_to(text: &str, extent: Extent, max: usize, tabs: super::TabStops) -> Payload {
     let lines = plain_lines_to(text, max);
     let map = super::minimap(&lines);
-    Payload::Text { lines, map, extent, outline: Vec::new() }
+    Payload::Text { lines, map, extent, outline: Vec::new(), tabs }
 }
 
 fn clip(s: &str, max: usize) -> String {

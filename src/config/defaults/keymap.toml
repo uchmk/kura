@@ -208,6 +208,10 @@ on = "<C-g>"
 run = "preview_goto"
 desc = "Go to a line of the preview"
 [[mgr.keymap]]
+on = "<C-S-g>"
+run = "open_at"
+desc = "Open the hovered file in the editor at a line (120 or 120:5)"
+[[mgr.keymap]]
 on = "<A-/>"
 run = "preview_find"
 desc = "Find in a huge log shown in the preview (n / N step through the hits)"
@@ -462,11 +466,11 @@ desc = "Copy the name of the file without extension"
 [[mgr.keymap]]
 on = "/"
 run = "find --smart"
-desc = "Find next file"
+desc = "Find next file (in quick look: find in the text)"
 [[mgr.keymap]]
 on = "?"
 run = "find --previous --smart"
-desc = "Find previous file"
+desc = "Find previous file (in quick look: find in the text)"
 [[mgr.keymap]]
 on = "n"
 run = "find_arrow"

@@ -295,6 +295,8 @@ pub enum Act {
     },
     /// Ask for a line number and scroll the maximized preview to it.
     PreviewGoto,
+    /// Open the hovered file in the editor at a typed line (`120` or `120:5`).
+    OpenAt,
     /// Follow the end of a huge log as it grows (tail -f); a second press stops.
     PreviewFollow,
     /// Copy the whole of a huge log's line (the hit stepped to, else the top one), however long.
@@ -624,6 +626,7 @@ pub fn parse(line: &str) -> Act {
         "preview_follow" => Act::PreviewFollow,
         "preview_copy_line" => Act::PreviewCopyLine,
         "preview_goto" => Act::PreviewGoto,
+        "open_at" => Act::OpenAt,
         "preview_find" => Act::PreviewFind { prev: a.has("prev"), repeat: a.has("repeat") },
         "term_scroll" => Act::TermScroll(parse_step(a.first().unwrap_or("-1"))),
         "term_prompt" => Act::TermPrompt { prev: a.has("prev") },
