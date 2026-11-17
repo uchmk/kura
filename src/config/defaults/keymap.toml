@@ -200,6 +200,14 @@ on = "<A-n>"
 run = "minimap"
 desc = "Show or hide the preview's minimap"
 [[mgr.keymap]]
+on = "#"
+run = "preview_numbers"
+desc = "Show or hide the preview's line numbers"
+[[mgr.keymap]]
+on = "<C-g>"
+run = "preview_goto"
+desc = "Go to a line of the preview"
+[[mgr.keymap]]
 on = "<A-/>"
 run = "preview_find"
 desc = "Find in a huge log shown in the preview (n / N step through the hits)"
@@ -405,6 +413,10 @@ run = "create"
 desc = "Create a file; end with / or \\ for a directory"
 [[mgr.keymap]]
 on = "r"
+run = "rename"
+desc = "Rename the file or directory"
+[[mgr.keymap]]
+on = "<F2>"
 run = "rename"
 desc = "Rename the file or directory"
 [[mgr.keymap]]

@@ -79,6 +79,8 @@ pub struct KuraWords {
     pub icons_note: &'static str,
     pub minimap: &'static str,
     pub minimap_note: &'static str,
+    pub line_numbers: &'static str,
+    pub line_numbers_note: &'static str,
     pub preview: &'static str,
     pub render_markdown: &'static str,
     pub render_markdown_note: &'static str,
@@ -190,6 +192,8 @@ pub const EN: KuraWords = KuraWords {
     icons_note: "auto: a Nerd Font's icons when one is installed, else plain letters",
     minimap: "Minimap",
     minimap_note: "The shape of the whole file down the right of a text preview (Alt+N)",
+    line_numbers: "Line numbers",
+    line_numbers_note: "Numbers down the left of the text preview beside the list (#). T and F3 start with them",
     preview: "PREVIEW",
     render_markdown: "Rendered Markdown / HTML",
     render_markdown_note: "How a Markdown or HTML preview starts; M switches the one on screen. Read at start",
@@ -289,6 +293,8 @@ pub const JA: KuraWords = KuraWords {
     icons_note: "auto は Nerd Font があればそのアイコン、無ければ文字",
     minimap: "ミニマップ",
     minimap_note: "テキストのプレビューの右にファイル全体の形（Alt+N）",
+    line_numbers: "行番号",
+    line_numbers_note: "一覧の横のテキストのプレビューの左に行番号（#）。T と F3 では最初から出る",
     preview: "プレビュー",
     render_markdown: "Markdown・HTML を整えて出す",
     render_markdown_note: "Markdown・HTML のプレビューの出し始め。画面のものは M で切り替える。起動時に読む",
@@ -400,6 +406,7 @@ struct KuraNow {
     row_padding: String,
     icons: String,
     minimap: bool,
+    line_numbers: bool,
     render_markdown: bool,
     debounce: String,
     max_text: String,
@@ -428,6 +435,7 @@ impl KuraNow {
             row_padding: u.row_padding.to_string(),
             icons: u.icons.trim().to_ascii_lowercase(),
             minimap: u.minimap,
+            line_numbers: u.line_numbers,
             render_markdown: u.render_markdown,
             debounce: u.preview_debounce_ms.to_string(),
             max_text: u.max_text_bytes.to_string(),
@@ -521,7 +529,7 @@ fn backends() -> Vec<(&'static str, &'static str)> {
 
 /// The keys of the config.toml page's rows, `table.key`, for the search to
 /// find them by in any language (#388).
-const KURA_KEYS: [&str; 18] = [
+const KURA_KEYS: [&str; 19] = [
     "convert.jpeg_quality",
     "convert.png_compression",
     "convert.alpha_background",
@@ -530,6 +538,7 @@ const KURA_KEYS: [&str; 18] = [
     "ui.row_padding",
     "ui.icons",
     "ui.minimap",
+    "ui.line_numbers",
     "ui.render_markdown",
     "ui.preview_debounce_ms",
     "ui.max_text_bytes",
@@ -577,6 +586,10 @@ fn kura_page(
         sep(ui, l);
         if keyed_row(ui, l, "ui.minimap", k.minimap, k.minimap_note, |ui| switch(ui, l, now.minimap)) {
             out.push(set("minimap", (!now.minimap).to_string()));
+        }
+        sep(ui, l);
+        if keyed_row(ui, l, "ui.line_numbers", k.line_numbers, k.line_numbers_note, |ui| switch(ui, l, now.line_numbers)) {
+            out.push(set("line_numbers", (!now.line_numbers).to_string()));
         }
     });
     let tr = |key: &str| crate::i18n::tr(lang, &format!("convert.{key}"));
@@ -879,6 +892,8 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
         (KURA, k.icons_note),
         (KURA, k.minimap),
         (KURA, k.minimap_note),
+        (KURA, k.line_numbers),
+        (KURA, k.line_numbers_note),
         (KURA, k.preview),
         (KURA, k.render_markdown),
         (KURA, k.render_markdown_note),

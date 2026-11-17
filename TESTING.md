@@ -2016,3 +2016,16 @@ kura reads each toast to the screen reader through `ito-a11y`: once per raise, w
 |---|----|--------|
 | 71.1 | `UCHMK_CONFIG_DIR` and `KURA_STATE_HOME` set to two empty folders (nothing of yours is touched), in a folder of a few files, `KURA_KEYS_DONE` set to `out\done.txt`: `kura --keys "y<Announced:Yanked 1 item>"`, then `kura --keys "y<Announced:Yanked 2 items>"` | The first run ends `keys: done`, exit 0. The second ends `keys: failed`, exit 3, with a `why:` naming what was announced |
 | 71.2 | `UCHMK_CONFIG_DIR`, `KURA_STATE_HOME` and `YAZI_CONFIG_HOME` set to three empty folders, and `KURA_CONFIG_HOME` set to a folder holding only a `keymap.toml` whose one line is `[[mgr.prepend_keymap]` (nothing of yours is touched). With the screen reader on (Narrator on Windows, Orca on Linux, VoiceOver on macOS), start kura in a folder of a few files: a warning about `keymap.toml` shows at start-up. Press `y` on a file, then `y` three times quickly, then `b b` | The start-up warning is read with the level word in front (`warning: ...`; `注意: ...` when kura is in Japanese). `Yanked 1 item` is said once, although the toast stays up for 6 seconds. Three quick presses are said at most once more within a second, not three times; the toast shows `×N` but the reader does not say the count. `b b` shows `No bookmarks yet`, read as `error: No bookmarks yet ...` (`エラー: ...` in Japanese), and it interrupts what the reader is saying |
+
+## 72. Line numbers in the preview column, F2, go to a line (v0.163.0)
+
+`#` shows or hides line numbers down the left of the text preview beside the list; `[ui] line_numbers` (the settings page's Line numbers switch) starts the column with them, while `T` and `<F3>` always start with them. `<F2>` renames like `r`. `<C-g>` goes to a line from the list.
+
+| # | Do | Expect |
+|---|----|--------|
+| 72.1 | Open a text file in the column, press `#` | numbers down the left, dim and right-aligned; drag-select and copy → no numbers in the copy; `#` again hides them. |
+| 72.2 | Settings (`<C-,>`), turn on Line numbers | config.toml gets `line_numbers = true` under `[ui]`; restart → the column starts with numbers. |
+| 72.3 | In `T` and in `<F3>` press `#` | their numbers hide; again → back; the column's state is unchanged. |
+| 72.4 | A rendered Markdown file in the column with numbers on | source line numbers on the first row of each source line; the text is laid out narrower, not under the numbers. |
+| 72.5 | On a file press `<F2>` | the rename prompt, with the name up to its extension selected (as `r`). |
+| 72.6 | In the list on a long text file press `<C-g>`, type `120`, `<Enter>` | the preview column scrolls to line 120 (with `#` on, its number is the top one); on a folder or image → the toast says it works on a text file. |

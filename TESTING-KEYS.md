@@ -4,7 +4,7 @@ Generated from `src/config/defaults/keymap.toml` by `cargo run --example make-ke
 across regenerations, so re-running after a keymap change costs nothing already done.
 Edit the ticks, not the rows: anything else here is overwritten.
 
-323 keys. How many are checked is not written here, so that two pull requests ticking
+326 keys. How many are checked is not written here, so that two pull requests ticking
 keys do not conflict over a total: `cargo run --example make-keycheck -- --stats`.
 
 A key is checked when it did what the description says _and_ did nothing else —
@@ -58,6 +58,8 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<A-0>` — Fit the image to the pane · `zoom fit`
 - [x] `<A-1>` — Show the image at 1:1 · `zoom actual`
 - [x] `<A-n>` — Show or hide the preview's minimap · `minimap`
+- [x] `#` — Show or hide the preview's line numbers · `preview_numbers`
+- [x] `<C-g>` — Go to a line of the preview · `preview_goto`
 - [x] `<A-/>` — Find in a huge log shown in the preview (n / N step through the hits) · `preview_find`
 - [x] `<A-f>` — Follow the end of a huge log as it grows (tail -f) · `preview_follow`
 - [x] `<A-y>` — Copy the whole line of a huge log (the hit stepped to, else the top line), even one cut on screen · `preview_copy_line`
@@ -105,6 +107,7 @@ The file list: what is in front of you unless an overlay is.
 - [x] `<C-r>` — Redo what undo took back · `redo`
 - [x] `a` — Create a file; end with / or \ for a directory · `create`
 - [x] `r` — Rename the file or directory · `rename`
+- [x] `<F2>` — Rename the file or directory · `rename`
 - [x] `R` — Rename everything selected by one rule · `bulk_rename`
 - [x] `<A-d>` — Compare two files side by side · `compare`
 - [x] `;` — Run a shell command · `shell --interactive`

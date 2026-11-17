@@ -244,6 +244,8 @@ pub enum Act {
     Zoom(ZoomTo),
     /// Show or hide the preview's minimap.
     Minimap(Tri),
+    /// Show or hide the preview's line numbers: the column's, or those of `T` / `<F3>` when one is up.
+    PreviewNumbers(Tri),
 
     /// Rename everything selected at once, by a rule typed at the prompt.
     BulkRename,
@@ -469,6 +471,11 @@ pub fn parse(line: &str) -> Act {
             _ => ZoomTo::Fit,
         }),
         "minimap" => Act::Minimap(match a.first() {
+            Some("on" | "show") => Some(true),
+            Some("off" | "hide") => Some(false),
+            _ => None,
+        }),
+        "preview_numbers" => Act::PreviewNumbers(match a.first() {
             Some("on" | "show") => Some(true),
             Some("off" | "hide") => Some(false),
             _ => None,

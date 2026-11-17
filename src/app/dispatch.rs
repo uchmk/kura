@@ -193,6 +193,15 @@ impl App {
             Act::Minimap(state) => {
                 self.cfg.ui.minimap = state.unwrap_or(!self.cfg.ui.minimap);
             }
+            Act::PreviewNumbers(state) => {
+                let now = self.preview_numbers();
+                let to = state.unwrap_or(!now);
+                if self.max_preview || self.quick {
+                    self.max_numbers = to;
+                } else {
+                    self.cfg.ui.line_numbers = to;
+                }
+            }
             Act::BulkRename => self.start_bulk_rename(),
             Act::Compare => self.start_compare(),
 
@@ -397,6 +406,16 @@ impl App {
         self.open_input(InputKind::PreviewFind, "Find in preview", needle);
     }
 
+    /// Whether the text preview in front draws line numbers: `T` and `<F3>` follow
+    /// the session flag, the column follows `[ui] line_numbers`.
+    pub fn preview_numbers(&self) -> bool {
+        if self.max_preview || self.quick {
+            self.max_numbers
+        } else {
+            self.cfg.ui.line_numbers
+        }
+    }
+
     /// Whether the maximized preview (`T`) shows text that `preview_find`
     /// can search: plain text, or Markdown as source or rendered.
     pub(super) fn text_findable(&self) -> bool {
@@ -486,8 +505,9 @@ impl App {
 
     /// Ask for a line number to scroll the maximized preview to.
     pub(super) fn preview_goto(&mut self) {
-        if self.log_view().is_none() && !self.text_findable() {
-            return self.toast("Go to line works on a text file in the maximized preview");
+        let text = matches!(self.preview.state, PreviewState::Ready(Payload::Text { .. } | Payload::Markdown { .. }));
+        if self.log_view().is_none() && !text {
+            return self.toast("Go to line works on a text file in the preview");
         }
         self.open_input(InputKind::PreviewGoto, "Go to line", String::new());
     }

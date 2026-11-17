@@ -508,7 +508,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
             // monospace cells, so it needs to know how many fit.
             let cell = ui.painter().layout_no_wrap("M".repeat(20), f.clone(), theme.fg).size().x / 20.0;
             // The line-number gutter of rendered Markdown takes its cells off the width.
-            let numbers = app.max_preview || app.quick;
+            let numbers = app.preview_numbers();
             let gutter = if numbers { preview::MD_GUTTER_COLS as f32 * cell } else { 0.0 };
             app.preview.cols = ((rect.width() - 24.0 - gutter) / cell).max(0.0) as u16;
             let st = preview::PreviewStyle {
@@ -3500,6 +3500,26 @@ mod max_preview_frame {
         s.typed("T");
         let f = s.draw();
         assert!(f.texts.iter().any(|t| t == "5"), "T numbers the lines: {:?}", f.texts);
+    }
+
+    /// `#` numbers the column's lines too, and hides them in `T` without
+    /// touching the column's.
+    #[test]
+    fn the_hash_key_numbers_the_preview_column() {
+        let mut s = one("column-numbers");
+        s.app.cfg.ui.line_numbers = false;
+        s.app.preview.state = long_text();
+        let f = s.draw();
+        assert!(!f.texts.iter().any(|t| t == "5"), "the column starts plain: {:?}", f.texts);
+        let f = s.typed("#");
+        assert!(f.texts.iter().any(|t| t == "5"), "`#` numbers the column: {:?}", f.texts);
+        s.typed("T");
+        let f = s.typed("#");
+        assert!(!f.texts.iter().any(|t| t == "5"), "`#` hides T's numbers: {:?}", f.texts);
+        assert!(s.app.cfg.ui.line_numbers, "and leaves the column's");
+        s.typed("T");
+        let f = s.draw();
+        assert!(f.texts.iter().any(|t| t == "5"), "the column still has them: {:?}", f.texts);
     }
 
     /// 36.5 and 36.5a: `<Esc>` and `q` each put the columns back, and `q` only

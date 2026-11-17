@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 823 件（TESTING.md の全 1018 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 829 件（TESTING.md の全 1024 件のうち、`cargo test` が見ている 195 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1197,3 +1197,12 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 
 - [x] **71.1** `UCHMK_CONFIG_DIR` と `KURA_STATE_HOME` を空のフォルダー 2 つにして（自分の設定には触れない）、数個のファイルを置いたフォルダーで `KURA_KEYS_DONE` を `out\done.txt` にして `kura --keys "y<Announced:Yanked 1 item>"`、続けて `kura --keys "y<Announced:Yanked 2 items>"` → 1 回目は `keys: done` で終わり、終了コード 0。2 回目は `keys: failed` で終わり、終了コード 3 で、`why:` に何を announce したかが出る — *`UCHMK_CONFIG_DIR` and `KURA_STATE_HOME` set to two empty folders (nothing of yours is touched), in a folder of a few files, `KURA_KEYS_DONE` set to `out\done.txt`: `kura --keys "y<Announced:Yanked 1 item>"`, then `kura --keys "y<Announced:Yanked 2 items>"` → The first run ends `keys: done`, exit 0. The second ends `keys: failed`, exit 3, with a `why:` naming what was announced*
 - [ ] **71.2** `UCHMK_CONFIG_DIR`・`KURA_STATE_HOME`・`YAZI_CONFIG_HOME` を 3 つの空のフォルダーに、`KURA_CONFIG_HOME` を `[[mgr.prepend_keymap]` の 1 行だけの `keymap.toml` を置いたフォルダーにする（自分の設定には触れない）。スクリーンリーダーをオンにして（Windows は Narrator、Linux は Orca、macOS は VoiceOver）、ファイルがいくつかあるフォルダーで kura を起動する（起動時に `keymap.toml` の警告が出る）。ファイルで `y` を押し、続けて `y` を素早く 3 回、続けて `b b` を押す → 起動時の警告は先頭に段階の語を付けて読まれる（`warning: ...`。日本語のときは `注意: ...`）。`Yanked 1 item` はトーストが 6 秒出ていても 1 回だけ読まれる。素早い 3 回は 1 秒のうちに多くてあと 1 回で、3 回は読まれない。トーストには `×N` が出るが、読み上げは回数を言わない。`b b` で `No bookmarks yet` が出て `error: No bookmarks yet ...`（日本語のときは `エラー: ...`）と読まれ、読んでいる途中でも割り込む — *`UCHMK_CONFIG_DIR`, `KURA_STATE_HOME` and `YAZI_CONFIG_HOME` set to three empty folders, and `KURA_CONFIG_HOME` set to a folder holding only a `keymap.toml` whose one line is `[[mgr.prepend_keymap]` (nothing of yours is touched). With the screen reader on (Narrator on Windows, Orca on Linux, VoiceOver on macOS), start kura in a folder of a few files: a warning about `keymap.toml` shows at start-up. Press `y` on a file, then `y` three times quickly, then `b b` → The start-up warning is read with the level word in front (`warning: ...`; `注意: ...` when kura is in Japanese). `Yanked 1 item` is said once, although the toast stays up for 6 seconds. Three quick presses are said at most once more within a second, not three times; the toast shows `×N` but the reader does not say the count. `b b` shows `No bookmarks yet`, read as `error: No bookmarks yet ...` (`エラー: ...` in Japanese), and it interrupts what the reader is saying*
+
+## 72. Line numbers in the preview column, F2, go to a line (v0.163.0)
+
+- [ ] **72.1** テキストファイルをカラムで開いて `#` を押す → 左に行番号が出る（薄い色で右寄せ）。ドラッグで選んでコピーする → コピーに行番号は入らない。もう一度 `#` で隠れる — *Open a text file in the column, press `#` → numbers down the left, dim and right-aligned; drag-select and copy → no numbers in the copy; `#` again hides them.*
+- [ ] **72.2** 設定（`<C-,>`）で「行番号」をオンにする → config.toml の `[ui]` に `line_numbers = true` が入る。再起動 → カラムが行番号付きで始まる — *Settings (`<C-,>`), turn on Line numbers → config.toml gets `line_numbers = true` under `[ui]`; restart → the column starts with numbers.*
+- [ ] **72.3** `T` と `<F3>` で `#` を押す → その行番号が隠れる。もう一度 → 戻る。カラムの状態は変わらない — *In `T` and in `<F3>` press `#` → their numbers hide; again → back; the column's state is unchanged.*
+- [x] **72.4** 行番号をオンにして、レンダリングした Markdown をカラムで見る → ソースの各行の最初の行に行番号が出る。文字は行番号の下に入らず、狭く組まれる — *A rendered Markdown file in the column with numbers on → source line numbers on the first row of each source line; the text is laid out narrower, not under the numbers.*
+- [x] **72.5** ファイルの上で `<F2>` を押す → 名前変更のプロンプトが出て、拡張子の手前までが選ばれている（`r` と同じ） — *On a file press `<F2>` → the rename prompt, with the name up to its extension selected (as `r`).*
+- [x] **72.6** 一覧で長いテキストファイルの上で `<C-g>` を押し、`120` と打って `<Enter>` → プレビューのカラムが 120 行目までスクロールする（`#` がオンなら、その番号が先頭に出る）。フォルダーや画像の上ではテキストファイルで使えるとトーストが言う — *In the list on a long text file press `<C-g>`, type `120`, `<Enter>` → the preview column scrolls to line 120 (with `#` on, its number is the top one); on a folder or image → the toast says it works on a text file.*

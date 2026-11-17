@@ -319,8 +319,8 @@ Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `bac
 `tab_swap`, `toggle`, `toggle_all`, `visual_mode`, `open`, `yank`, `unyank`, `paste`, `link`,
 `hardlink`, `remove`, `create`, `rename`, `copy`, `shell`, `hidden`, `linemode`, `sort`, `find`,
 `find_arrow`, `filter`, `search`, `help`, `tasks_show`, `spot`, `noop`, plus `undo`, `redo`, `jump`,
-`bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `config_reload`, `palette`,
-`menu`, `extract`, `compress`, `convert [webp|png|jpeg]`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`; in rendered Markdown it is the source line), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
+`bulk_rename`, `compare`, `quick`, `zoom`, `minimap`, `preview_numbers` (`#`: show or hide the preview's line numbers; `[ui] line_numbers` starts the column with them), `config_reload`, `palette`,
+`menu`, `extract`, `compress`, `convert [webp|png|jpeg]`, `send_pane`, `terminal`, `term_send`, `term_cd`, `term_find`, `preview_follow` (`<A-f>`: follow the end of a huge log as it grows), `preview_copy_line` (`<A-y>`: copy the whole line of a huge log — the hit stepped to, else the top line — even one the preview cuts at 8 KB; up to 64 MB), `preview_find` (search a huge log in the preview, or the text on show in the maximized preview `T`; `--repeat [--prev]` steps, `<A-/>`, and `/` in `T`; matches are marked, including ones spanning lines), `preview_goto` (ask for a line number and scroll to it: `:` or `<C-g>` in `T`, `<C-g>` from the list; in rendered Markdown it is the source line), `term_scroll`, `term_prompt`, `term_copy_output`, `task_toggle`, `task_cancel`, `task_top`,
 `split`, `pane_focus`, `toggle_render`, `toggle_outline`, `usage`, `settings` and `bug-report` (the last
 three this project's own). `select` and `select_all` are accepted as `toggle --state=on` /
 `toggle_all --state=on`. In the `[input]` section: `close --submit` (and the `*_do` spellings),
@@ -374,6 +374,7 @@ bold_fonts = []            # explicit bold font file paths, tried first
 icons = "auto"             # auto | nerd | ascii | none
 status_hints = true         # name the keys that fit the preview (Markdown: `M`) in the status bar
 render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
+line_numbers = false        # line numbers in the preview column (# toggles); T and F3 have their own, on at start
 preview_debounce_ms = 40
 max_text_bytes = 262144
 big_text_bytes = 8388608    # a text file this big is shown by line index and Seek+Read, not cut at max_text_bytes (v0.133.0)
@@ -644,7 +645,7 @@ are the `[settings]` keymap section.
 | --- | --- |
 | General | The language and the clock, written into [common.toml](#commontoml-the-clock) as soon as they are changed, off the UI thread and keeping the file's comments; every other open uchmk app follows within 2 seconds. The language sets the words of this screen and the clock's weekday; the rest of kura is in English for now |
 | Theme | The common theme: dark, light or the OS's (with a theme for each), and the themes to pick from, the built-in ones and those in `<uchmk>/themes/*.toml`. A pick is written into common.toml as `theme` (`dark_theme` / `light_theme` when following the OS) and recolours kura at once, the other uchmk apps within 2 seconds. A sample of kura's list beside the themes shows the colours in force, `theme.toml` included, since what `theme.toml` sets keeps its colour |
-| config.toml | The main rows of [config.toml](#configtoml-gui-only-settings) — font size, row padding, icons, the minimap, Markdown rendering, the preview's debounce and text limit, the history length, the window size, the backend, the MCP server and the terminal pane's shell — written into the config.toml in force (the last one read; kura's own folder when there is none) as soon as they are changed, keeping its comments, and read back as `<C-F5>` does. A number is written on `<Enter>` or on leaving the field, and one out of range is not written but said in a toast. An emptied shell takes the line out. The window, backend, MCP and Markdown rows are read at start |
+| config.toml | The main rows of [config.toml](#configtoml-gui-only-settings) — font size, row padding, icons, the minimap, line numbers, Markdown rendering, the preview's debounce and text limit, the history length, the window size, the backend, the MCP server and the terminal pane's shell — written into the config.toml in force (the last one read; kura's own folder when there is none) as soon as they are changed, keeping its comments, and read back as `<C-F5>` does. A number is written on `<Enter>` or on leaving the field, and one out of range is not written but said in a toast. An emptied shell takes the line out. The window, backend, MCP and Markdown rows are read at start |
 | Keys | Every key of every layer, an operation to a row with its keys as chips beside it (v0.111.0). Find a row by its description, `run` or key in the search box, by pressing the key after **⌨ Find by key**, by layer under **Where**, or with **Changed only**. **+** takes new keys, a chip takes keys in its place, **×** removes one and **↺** puts the row back to the defaults. Keys pressed in turn make a sequence (`g h`); a plain `<Enter>` sets them, `<Esc>` stops and `<Backspace>` takes one back, while `<C-S-Enter>` and other modified keys are keys like any other, and a plain Enter, Esc, Backspace or Tab comes from **Special keys ▾**. Before you set them, a sentence says which operation the keys would be taken from. Nothing is written until then, and only what differs from the defaults goes into the `prepend_keymap` of kura's own `keymap.toml` (beside its `config.toml`): a removed default is a `run = "noop"` line, and a row put back leaves nothing behind. Keys written in yazi's `keymap.toml` or in `append_keymap` say where they are and are changed there. With the language on Japanese the descriptions are in Japanese, as are F1's. Above the table is a picture of the keyboard (v0.161.0) showing the bindings of the layer picked under **Where** (the first layer when it says all). Each key shows its description (cut with `…` when long; hover for the whole text) and a mark beside the colour: ◆ common to every uchmk app, ● this layer only, ▸N N more keys follow it (`g`, `y`), • changed by you, ⚠ never reached because another binding takes it first. Click a key to filter the table to it; a key with follow-ups (`g`) turns the picture into its follow-ups, and the **‹ g** breadcrumb goes back one key. A key that nothing uses in that layer says so on hover; clicking it turns the table into that layer's operations, those with no key too, each with a **Give it 0** button that adds the key the same way as **+** (v0.162.0), and the search narrows them. Shift, Ctrl and Alt (Cmd on a Mac) show their layer while held or after a click on the picture's modifier, and **⌨ Find by key** moves the picture too. The header has a layout select (Auto, US, JIS; Auto is the one detected, see [common.toml](#commontoml-the-clock)) and a fold toggle. Three forms follow the width: wide (the Ins to PgDn and arrow block at the right of the board), middle (that block as a strip under it) and narrow (small keys with legends and marks only; it scrolls sideways only when even those do not fit). The Keys page is allowed the wide content width for this |
 | Notifications | config.toml's `[notify]`, as every uchmk app shows it: for a job that finished and one that failed, whether the system's notification, a sound and the webhook tell of it, the two sounds (each with a play button), focus mode, the webhook's address and format. **Send a test** sends a finished job's notice through all three (the webhook when it has an address); **Reset to defaults** puts them back. Written as the config.toml page writes (v0.110.0) |
 | Advanced | Where the config is read from — kura's folder, yazi's and the `uchmk` one — each with **Copy** (the path) and **Open** (the list goes there), what was wrong when the config was last read, and **Reload** (`<C-F5>`). Below them ito's shared card: open the settings or data folder, and **Reset** (press twice) which moves `config.toml` and `keymap.toml` aside as `*.bak-<seconds>` and reads the config again without them (yazi's folder is still read) |
@@ -940,7 +941,7 @@ file name across the top. It is not a panel and nothing is "open". Its keys are 
 tried before `[mgr]`: `j` `k` `<Up>` `<Down>` `<C-u>` `<C-d>` `<C-b>` `<C-f>` `<PageUp>` `<PageDown>` `gg` `G`
 `<Home>` `<End>` scroll the content as in `less`, and `J` / `K` go to the next / previous file; any key the
 layer does not bind is `[mgr]`'s. `<F3>` keeps the list's keys, the list being in view there. Both show line
-numbers in a gutter at the left, which a selection skips. `T`, `<Esc>` and `q` all put the columns back: with the list
+numbers in a gutter at the left, which a selection skips; `#` hides and shows them there, and in the preview column beside the list. `T`, `<Esc>` and `q` all put the columns back: with the list
 invisible the screen reads as modal, so every way out of a panel works here too. Reach for `<F3>` to
 look at one file and `T` to keep reading while you walk the list.
 
@@ -1160,6 +1161,13 @@ in `config.toml`) turns it off. Rendered Markdown gets none: its lines are not t
 the box would point at the wrong place, and its [Contents](#outline-contents) column already answers
 "where am I". Switch it to source with `M` and the map comes back.
 
+**Line numbers** in the preview column are off until `#` (or `[ui] line_numbers = true`, or the Line numbers
+switch on the settings page) turns them on. They sit in a dim gutter down the left that a selection skips, and rendered
+Markdown then shows its source line numbers and is laid out narrower to make room. `T` and `<F3>` share their own
+switch, on when kura starts, whatever the column does: `#` there hides or shows their numbers (both, until kura closes)
+and leaves the column's as they are. `<C-g>` asks for a line number from the list too
+and scrolls the column to it.
+
 ## Image previews
 
 | Key | |
@@ -1272,7 +1280,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `y` `x` `Y` `p` `P` `-` `_` `<C-S-->` | yank / cut / cancel the yank / paste / paste-force / symlink / relative symlink / hardlink |
 | `d` `D` | recycle bin / permanent delete (with confirmation) |
 | `u` `U` (or `<C-r>`) | undo the last rename, delete, move, create or link / do it again |
-| `a` `r` | create (trailing `/` makes a directory) / rename |
+| `a` `r` `<F2>` | create (trailing `/` makes a directory) / rename (`r` or `<F2>`) |
 | `R` | bulk rename: one rule over everything selected, previewed as you type |
 | `<A-d>` | compare two files side by side |
 | `<F3>` | quick look: the hovered file, big, over the panes |
@@ -1303,6 +1311,8 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `M` | Markdown / HTML rendered ↔ source |
 | `<A-i>` `<A-o>` `<A-0>` `<A-1>` | image: zoom in / out / fit the pane / 1:1 |
 | `<A-n>` | show or hide the preview's minimap |
+| `#` | show or hide the preview's line numbers (the column's; in `T` and `<F3>` theirs) |
+| `<C-g>` | go to a line of the preview, also from the list |
 | `<S-Tab>` | move the keys into the preview's outline and back |
 | `<Tab>` | spot: details of the hovered file |
 | `<C-S-p>` | command palette: fuzzy-search every key binding and run it |
@@ -1835,6 +1845,7 @@ zoom: fit
 scale: 100% (ppp 1)
 window: 1280 x 800 px (1280 x 800 pt @ 1)
 minimap setting: on
+line numbers: column off, maximized on
 split: no
 toast: Yanked 1 item
 toast kind: Yanked 1 item

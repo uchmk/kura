@@ -1591,6 +1591,8 @@ fn state_report(app: &App) -> String {
     // not on rendered Markdown, a two-line file or a narrow pane) is a
     // picture's question.
     lines.push(format!("minimap setting: {}", if app.cfg.ui.minimap { "on" } else { "off" }));
+    let onoff = |b: bool| if b { "on" } else { "off" };
+    lines.push(format!("line numbers: column {}, maximized {}", onoff(app.cfg.ui.line_numbers), onoff(app.max_numbers)));
     // What the last frame did about it: drawn, with the lines its frame
     // covers, or why not. 2, 16.12 and 18 judged it from a picture (#261).
     if let Some(note) = app.ctx.data(|d| d.get_temp::<String>(egui::Id::new(ui::preview::MINIMAP_NOTE))) {

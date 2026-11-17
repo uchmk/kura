@@ -232,6 +232,8 @@ pub struct App {
     pub term_share: f32,
     /// The quick-look panel is up: the hovered file, big, over the panes.
     pub quick: bool,
+    /// Whether `T` and `<F3>` number the lines (session only; the column's is `[ui] line_numbers`).
+    pub max_numbers: bool,
     pub hide_parent: bool,
     /// Markdown is shown rendered rather than as source.
     pub render_markdown: bool,
@@ -498,6 +500,7 @@ impl App {
             quick: false,
             hide_parent: false,
             render_markdown,
+            max_numbers: true,
             bold_font: false,
             refont: false,
             tasks: Vec::new(),
@@ -982,6 +985,10 @@ mod host_sizes;
 #[cfg(test)]
 #[path = "app/tests/preview_scroll.rs"]
 mod preview_scroll;
+
+#[cfg(test)]
+#[path = "app/tests/preview_numbers.rs"]
+mod preview_numbers;
 
 #[cfg(test)]
 #[path = "app/tests/extract_message.rs"]

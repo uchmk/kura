@@ -64,6 +64,10 @@ pub struct Ui {
     pub icons: String,
     /// Draw the shape of the whole file down the right of the text preview.
     pub minimap: bool,
+    /// Number the lines down the left of the text preview beside the list.
+    /// `T` and `<F3>` share a switch of their own, on when kura starts,
+    /// whatever this says; `#` flips the one for the view in front.
+    pub line_numbers: bool,
     /// Name the keys that matter for what the preview shows (such as `M`
     /// for Markdown) in the status bar.
     pub status_hints: bool,
@@ -150,6 +154,7 @@ impl Default for Ui {
             render_markdown: true,
             icons: "auto".into(),
             minimap: true,
+            line_numbers: false,
             status_hints: true,
             preview_debounce_ms: 40,
             max_text_bytes: 256 * 1024,
@@ -1091,6 +1096,25 @@ mod files {
         assert_eq!((t.args.clone(), t.args_from_env, t.args_unused), (vec!["-NoLogo".to_string()], false, true));
         t.take_env(None, Some("  ".into()));
         assert!(!t.args_unused, "a blank value is no value");
+    }
+
+    /// The column's line numbers are off until `[ui] line_numbers` turns them on.
+    #[test]
+    fn line_numbers_in_the_column_start_off() {
+        let none: KuraToml = toml::from_str(
+            "[ui]
+font_size = 14.0
+",
+        )
+        .unwrap();
+        assert!(!none.ui.line_numbers);
+        let on: KuraToml = toml::from_str(
+            "[ui]
+line_numbers = true
+",
+        )
+        .unwrap();
+        assert!(on.ui.line_numbers);
     }
 
     /// `[mcp]` is on unless a file turns it off (Q95), and an empty table
