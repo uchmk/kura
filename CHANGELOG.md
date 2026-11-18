@@ -9,6 +9,16 @@
 
 ## [未リリース]
 
+## [0.164.3] - 2026-11-18
+
+### 変更
+
+- ito v0.309.1 を取り込んだ（`scripts/lanes.sh sync`）。`scripts/release-check.sh` のノートの長さの WARN は、その版のノート（`### Platforms` の手前）だけを数える。
+  前は毎回付ける Platforms・Signing の節（約 39 行）まで数えたので、ノートが短くても 40 行の上限で毎回 WARN になっていた。
+  - 15 行までは OK。先頭が `## Highlights`（10 行まで）なら長くても OK。それ以外は、主な変更 3〜5 個を `## Highlights` にまとめて先頭に置き、
+    版ごとのノートを `## All changes since vPREV` の下に置くよう言う。docs/claude/release.md に手順を書いた（v0.164.1 のノートがこの形）。
+  - ito v0.309.0（ito-prefs のゴーストのボタン）も入るが、kura はまだ使っていない。
+
 ## [0.164.2] - 2026-11-18
 
 ### 修正

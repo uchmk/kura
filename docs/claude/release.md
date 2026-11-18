@@ -44,6 +44,10 @@ CLAUDE.md の「ブランチ・バージョン・変更ログ」から分けた�
     上限を入れる前のリリース（v0.79.0）の本文を直すのに使う。
   - **`release.yml` の成功で終わりにしない。** `bash scripts/release-check.sh vX.Y.Z` が `RELEASE OK`（成果物 6 つ・SHA-256 の表に 6 行・ノート）になるまでが完了。
     表を見ていないまま「完了」と報告しない。見られなければ「未確認」と理由を書く。
+  - **ノートの長さは WARN で知らされる**（v0.164.3。ito v0.309.1 の `release-check.sh`）。数えるのは `### Platforms` の手前（その版のノート）だけで、
+    15 行までか、先頭が 10 行までの `## Highlights` なら OK。WARN が出たら、主な変更 3〜5 個を `## Highlights` に書いて先頭に置き、
+    版ごとのノートは消さずに `## All changes since vPREV` の見出しの下に残す（`gh release edit vX.Y.Z --notes-file …`。`### Platforms` から後ろはそのまま）。
+    例は v0.164.1 のノート。
   - **ARM64 の行は issue で押す**（v0.101.3）。`arm64-rows` ジョブが、TESTING-ARM64.md の行をチェックリストにした
     issue「ARM64 release rows: <タグ>」（ラベル `release-arm64`）を立て、前の版の開いた issue を not planned で閉じる。
     ARM64 のノート PC（`auto-wintest.ps1 -Lane arm`）は、この issue が開いている間だけ動き、押して閉じる。
