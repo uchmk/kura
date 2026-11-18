@@ -1957,6 +1957,7 @@ On quit kura writes the folders of all its tabs, and which one was in front, to 
 | 67.4 | Do 67.1 and 67.3 on a `.md` file rendered, then after `M` | Hits are marked in the rendered text; the line number is the source's, in both views |
 | 67.5 | Open a huge log, press `T`, then `/` and `:` | Find and go-to work as `<A-/>` does; no wrapping toast confusion |
 | 67.6 | Open a huge log (8 MB or more) and read the bottom of the preview in the column, then in `T` with line numbers on and off (v0.164.1, #528) | The note (`line N of M`) has a row of its own under the last log line; nothing is drawn over it |
+| 67.7 | Make the preview pane so short it has room for one line only (for example a large font in a short window with the terminal pane open) and show a huge log in it (v0.164.2) | The one log line is shown; no note is drawn over it |
 
 ## 68. Contents column at the end of a file (v0.146.7)
 
