@@ -223,6 +223,9 @@ fn draw_pane(
             }
             Payload::Log { view } => {
                 let total = view.index.lines();
+                // The last row is the note's (#528); the text takes the rows above it, as a binary's does.
+                let note_at = pos2(rect.left() + PAD, rect.bottom() - st.row_h);
+                let rect = if pane_rows > 1 { Rect::from_min_max(rect.min, pos2(rect.right(), note_at.y)) } else { rect };
                 let (first, got, more) = view.window(offset, rows(rect, st), ui.ctx());
                 // Plain lines from `first` on; a scroll beyond what has been read draws nothing until the read lands.
                 let rel = offset.saturating_sub(first);
@@ -256,7 +259,7 @@ fn draw_pane(
                 if cut > 0 {
                     note += &format!(" · {} cut at {}", cut, crate::util::human_size(crate::preview::logindex::MAX_LINE_BYTES as u64));
                 }
-                painter.text(pos2(rect.left() + PAD, rect.bottom() - st.row_h), Align2::LEFT_TOP, note, st.font.clone(), st.theme.fg_dim);
+                painter.text(note_at, Align2::LEFT_TOP, note, st.font.clone(), st.theme.fg_dim);
                 total
             }
             Payload::Markdown { doc, source, map, extent, .. } => {
@@ -1776,14 +1779,16 @@ mod focus_rule_frame {
     }
 }
 
-/// A huge log is read a window at a time; its gutter still counts the file's lines (67.5, 64.4).
+/// A huge log is read a window at a time; its gutter still counts the file's lines (67.5, 64.4, 73.6),
+/// and the note under it keeps a row of its own (#528).
 #[cfg(test)]
 mod log_gutter_frame {
     use super::chrome::*;
+    use crate::ui::harness::Painted;
 
-    #[test]
-    fn a_huge_logs_gutter_counts_from_the_files_first_line() {
-        let dir = crate::util::test_dir("log-gutter-file");
+    /// A 5000-line log scrolled to line 4000, in `T` (`max`) or the column, once the lines there have been read.
+    fn at_line_4000(label: &str, max: bool, numbers: bool) -> Painted {
+        let dir = crate::util::test_dir(&format!("{label}-file"));
         let f = dir.join("big.log");
         std::fs::write(&f, (1..=5000).map(|i| format!("row {i}\n")).collect::<String>()).unwrap();
         let index = crate::preview::logindex::LogIndex::start(&f).unwrap();
@@ -1791,22 +1796,42 @@ mod log_gutter_frame {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         let view = crate::preview::logindex::LogView::new(index);
-        let mut s = screen("log-gutter", crate::app::PreviewState::Ready(crate::preview::Payload::Log { view }));
-        s.app.max_preview = true;
-        s.app.max_numbers = true;
+        let mut s = screen(label, crate::app::PreviewState::Ready(crate::preview::Payload::Log { view }));
+        s.app.max_preview = max;
+        s.app.max_numbers = numbers;
         let active = s.app.active;
         s.app.tabs[active].preview_offset = 3999;
         // The reader thread fills the window after the first frame asks for it.
-        let mut drawn = None;
-        for _ in 0..300 {
+        for _ in 0..1000 {
             let f = s.draw();
             if f.texts.iter().any(|t| t == "row 4000") {
-                drawn = Some(f);
-                break;
+                return f;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        let f = drawn.expect("the lines around line 4000 were read");
+        panic!("the lines around line 4000 were never read");
+    }
+
+    /// TESTING.md 67.6: the note under a huge log has a row of its own, below the last line drawn, in the
+    /// column and in `T`, with line numbers off and on.
+    #[test]
+    fn a_huge_logs_note_has_a_row_of_its_own() {
+        for (label, max, numbers) in [("log-note-col", false, false), ("log-note-t", true, false), ("log-note-tn", true, true)] {
+            let f = at_line_4000(label, max, numbers);
+            let note = f.placed("line 4000 of 5000").unwrap_or_else(|| panic!("{label}: no note: {:?}", f.texts));
+            let (top, next) = (f.placed("row 4000").unwrap(), f.placed("row 4001").unwrap());
+            let row_h = next.y - top.y;
+            let rows: Vec<(usize, f32)> = (4000..=5000).filter_map(|i| f.placed(&format!("row {i}")).map(|p| (i, p.y))).collect();
+            let (last, y) = *rows.last().unwrap();
+            assert!(y + row_h <= note.y + 0.5, "{label}: row {last} at {y} (rows {row_h} high) runs into the note at {}", note.y);
+            // A window read only in part would also end above the note: the last row is the one just over it.
+            assert!(y + 2.0 * row_h > note.y + 0.5, "{label}: row {last} at {y} leaves rows empty above the note at {}", note.y);
+        }
+    }
+
+    #[test]
+    fn a_huge_logs_gutter_counts_from_the_files_first_line() {
+        let f = at_line_4000("log-gutter", true, true);
         let at = f.texts.iter().position(|t| t == "4000").unwrap_or_else(|| panic!("no 4000 in the gutter: {:?}", f.texts));
         assert_eq!(f.texts.get(at + 1).map(String::as_str), Some("4001"), "{:?}", f.texts);
         assert!(!f.texts.iter().any(|t| t == "1" || t == "2"), "the gutter counted from the window: {:?}", f.texts);

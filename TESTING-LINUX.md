@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 835 件（TESTING.md の全 1030 件のうち、`cargo test` が見ている 195 件は外してある）。
+押すものは 835 件（TESTING.md の全 1031 件のうち、`cargo test` が見ている 196 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1097,7 +1097,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 
 ## 67. Find and go to a line in the maximized preview (v0.146.0)
 
-自動テスト済みなので下には出していない: 67.4
+自動テスト済みなので下には出していない: 67.4, 67.6
 
 - [ ] **67.1** Open a long text file, press `T`, then `/`, type a word, Enter → Jumps to the first hit a few rows down from the top; every hit is marked 〔未訳〕
 - [ ] **67.2** Press `n` repeatedly, then `N` → Steps through the hits; past the last it goes round and says "Search wrapped" 〔未訳〕
