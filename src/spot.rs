@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use crossbeam_channel::{Receiver, Sender};
 
 use crate::fs::{Entry, Kind};
-use crate::util;
+use crate::util::{self, grouped};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Section {
@@ -772,19 +772,6 @@ fn directory(path: &Path) -> Option<Section> {
     Some(s)
 }
 
-/// `1234567` as `1,234,567`.
-fn grouped(n: u64) -> String {
-    let digits = n.to_string();
-    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    out
-}
-
 /// `canonicalize` hands out `\\?\` paths; show them as Explorer would.
 fn plain(p: &Path) -> String {
     util::unverbatim(p).display().to_string()
@@ -1291,13 +1278,5 @@ mod tests {
         assert_eq!(value(l, "Not merged"), Some("not in origin/main yet"));
 
         let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn groups_digits() {
-        assert_eq!(grouped(0), "0");
-        assert_eq!(grouped(999), "999");
-        assert_eq!(grouped(1000), "1,000");
-        assert_eq!(grouped(1234567), "1,234,567");
     }
 }

@@ -20,8 +20,8 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /// How much text one window of the find holds, and how much of the end of it
 /// the next window starts again from, so that a match across lines near the
 /// edge is seen whole.
-const WINDOW_BYTES: u64 = 1024 * 1024;
-const OVERLAP_BYTES: u64 = 64 * 1024;
+pub const WINDOW_BYTES: u64 = 1024 * 1024;
+pub const OVERLAP_BYTES: u64 = 64 * 1024;
 /// How much of a line is shown before the match when it is cut around it.
 /// The longest line `full_line` hands over: a line of a log that is not a
 /// line (minified JSON, a dump) can be as big as the file.
@@ -395,13 +395,13 @@ impl LogIndex {
     /// Returns what was found so far if `cancel` is set.
     #[cfg(test)]
     pub fn find(&self, matcher: &Matcher, cancel: &AtomicBool, done: &AtomicU64) -> Vec<u32> {
-        self.find_from(matcher, cancel, done, 0).hits
+        self.find_from(matcher, cancel, done, 0, MAX_HITS).hits
     }
 
     /// [`Self::find`] from line `from_line` on, waiting first for the index to be
     /// whole: a look through a file still being indexed would call itself over
     /// at the last line read.
-    pub fn find_from(&self, matcher: &Matcher, cancel: &AtomicBool, done: &AtomicU64, from_line: usize) -> Pass {
+    pub fn find_from(&self, matcher: &Matcher, cancel: &AtomicBool, done: &AtomicU64, from_line: usize, room: usize) -> Pass {
         while !self.is_done() {
             if cancel.load(Ordering::Relaxed) || self.cancel.load(Ordering::Relaxed) {
                 return Pass::default();
@@ -413,6 +413,7 @@ impl LogIndex {
             (g.starts.len(), g.end)
         };
         let mut hits: Vec<u32> = Vec::new();
+        let mut long_match = false;
         let mut from = from_line;
         let mut text = String::new();
         let mut at: Vec<usize> = Vec::new();
@@ -428,10 +429,11 @@ impl LogIndex {
             // A line bigger than a window is looked through in pieces, so that it
             // is never held whole.
             if line_end - begin > WINDOW_BYTES {
-                if self.locate(matcher, begin, line_end, cancel).is_some() {
+                if let Some((_, long)) = self.locate(matcher, begin, line_end, cancel) {
+                    long_match |= long;
                     hits.push(from as u32);
-                    if hits.len() >= MAX_HITS {
-                        return Pass { hits, lines: total, end };
+                    if hits.len() >= room {
+                        return Pass { hits, lines: total, end, long_match };
                     }
                 }
                 done.store(line_end, Ordering::Relaxed);
@@ -479,6 +481,7 @@ impl LogIndex {
             };
             let mut prev = usize::MAX;
             for r in matcher.ranges(&text) {
+                long_match |= self.is_long(&text[r.clone()]);
                 let line = at.partition_point(|&s| s <= r.start).saturating_sub(1);
                 let abs = from + line;
                 if abs >= own_to || line == prev {
@@ -486,22 +489,22 @@ impl LogIndex {
                 }
                 prev = line;
                 hits.push(abs as u32);
-                if hits.len() >= MAX_HITS {
-                    return Pass { hits, lines: total, end };
+                if hits.len() >= room {
+                    return Pass { hits, lines: total, end, long_match };
                 }
             }
             done.store(starts[own_to - from].min(b), Ordering::Relaxed);
             from = own_to;
         }
-        Pass { hits, lines: total, end }
+        Pass { hits, lines: total, end, long_match }
     }
 
     /// Where `matcher` first matches in the one line at `begin..end`, as a file
-    /// offset: read in pieces that start again from the end of the one before,
+    /// offset, and whether that match is [`Self::is_long`]: read in pieces that start again from the end of the one before,
     /// so a line bigger than a window is never held whole. A piece after the
     /// first starts in the middle of the line, so a `^` there can match where the
     /// line does not begin.
-    fn locate(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> Option<u64> {
+    fn locate(&self, matcher: &Matcher, begin: u64, end: u64, cancel: &AtomicBool) -> Option<(u64, bool)> {
         let unit: u64 = if self.wide() { 2 } else { 1 };
         let step = WINDOW_BYTES - OVERLAP_BYTES;
         let mut at = begin;
@@ -513,7 +516,7 @@ impl LogIndex {
             let Ok(bytes) = self.read_bytes(at, to) else { return None };
             let text = self.decode(&bytes);
             if let Some(r) = matcher.ranges(&text).first() {
-                return Some(at + self.encoded_len(&text[..r.start]));
+                return Some((at + self.encoded_len(&text[..r.start]), self.is_long(&text[r.clone()])));
             }
             if to >= end {
                 break;
@@ -521,6 +524,15 @@ impl LogIndex {
             at += step / unit * unit;
         }
         None
+    }
+
+    /// Whether a match `m` takes more than [`OVERLAP_BYTES`] of the file.
+    fn is_long(&self, m: &str) -> bool {
+        // The file is never more than twice as long as its text (UTF-16 of ASCII).
+        if m.len() as u64 * 2 <= OVERLAP_BYTES {
+            return false;
+        }
+        self.encoded_len(m) > OVERLAP_BYTES
     }
 
     /// How many bytes of the file `text` takes up: the inverse of [`Self::decode`].
@@ -579,7 +591,7 @@ impl LogIndex {
         if end - begin <= MAX_LINE_BYTES as u64 {
             return None;
         }
-        let off = self.locate(matcher, begin, end, &self.cancel)?;
+        let (off, _) = self.locate(matcher, begin, end, &self.cancel)?;
         let unit: u64 = if self.wide() { 2 } else { 1 };
         // The lines are not wrapped, so the match is put near the left edge,
         // with a little before it for context and the rest of the room after.
@@ -599,6 +611,9 @@ pub struct Pass {
     pub lines: usize,
     /// How far into the file the index reached then.
     pub end: u64,
+    /// Whether a match the look saw is longer than [`OVERLAP_BYTES`] in the file: one
+    /// that crosses where two windows meet can be missed.
+    pub long_match: bool,
 }
 
 impl Drop for LogIndex {
@@ -647,6 +662,14 @@ pub struct Found {
     pub passed: u64,
     /// How many lines the file had when the look last finished.
     searched_lines: usize,
+    /// The find stopped at [`MAX_HITS`] matching lines.
+    pub capped: bool,
+    /// A match the find saw was longer than [`OVERLAP_BYTES`] in the file.
+    pub long_match: bool,
+    /// [`LogView::finished`] has given the cap already.
+    told_cap: bool,
+    /// [`LogView::finished`] has given the long match already.
+    told_long: bool,
 }
 
 impl std::fmt::Debug for LogView {
@@ -768,15 +791,23 @@ impl LogView {
 
     fn look(&self, matcher: Matcher, stop: Arc<AtomicBool>, from: usize, mut lines: Vec<u32>) {
         let (index, found) = (self.index.clone(), self.found.clone());
+        let room = MAX_HITS.saturating_sub(lines.len());
         let ctx = self.ctx.lock().unwrap().clone();
         let _ = std::thread::Builder::new().name("log-find".into()).spawn(move || {
             let done = AtomicU64::new(0);
-            let pass = index.find_from(&matcher, &stop, &done, from);
+            let pass = index.find_from(&matcher, &stop, &done, from, room);
             if stop.load(Ordering::Relaxed) {
                 return;
             }
-            lines.extend(pass.hits);
             let mut f = found.lock().unwrap();
+            // A newer find has cleared `found` after setting the stop: write nothing into it.
+            if stop.load(Ordering::Relaxed) {
+                return;
+            }
+            let capped = pass.hits.len() >= room;
+            lines.extend(pass.hits);
+            f.capped = capped;
+            f.long_match |= pass.long_match;
             f.lines = lines;
             f.passed = pass.end;
             f.searched_lines = pass.lines;
@@ -786,6 +817,24 @@ impl LogView {
                 c.request_repaint();
             }
         });
+    }
+
+    /// When the find is done and has a cap or a long match not told yet: what it
+    /// found, with `capped` and `long_match` set only for the ones new since the
+    /// last call (so each is said once, also when a grown log first reaches it);
+    /// otherwise `None`. A new find starts afresh.
+    pub fn finished(&self) -> Option<Found> {
+        let mut f = self.found.lock().unwrap();
+        let (cap, long) = (f.capped && !f.told_cap, f.long_match && !f.told_long);
+        if !f.done || !(cap || long) {
+            return None;
+        }
+        f.told_cap |= cap;
+        f.told_long |= long;
+        let mut out = f.clone();
+        out.capped = cap;
+        out.long_match = long;
+        Some(out)
     }
 
     pub fn found(&self) -> Found {
@@ -1155,6 +1204,142 @@ three needle
         assert_eq!(i.grow(), Grow::Grew);
         view.find_more();
         assert_eq!(until(3, &view), vec![1, 2, 3]);
+    }
+
+    /// The done find of `query` through `view`, waiting for it.
+    fn done_find(view: &LogView, query: &str) -> Found {
+        view.find(query, Matcher::new(query).unwrap());
+        for _ in 0..4000 {
+            let f = view.found();
+            if f.done {
+                return f;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("find did not finish");
+    }
+
+    #[test]
+    fn a_find_cut_at_the_cap_says_so_once() {
+        let text = "a\n".repeat(MAX_HITS + 5);
+        let i = index("li-cap", text.as_bytes());
+        assert_eq!(hits(&i, "a").len(), MAX_HITS);
+        let view = LogView::new(i);
+        assert!(view.finished().is_none(), "nothing is done yet");
+        let f = done_find(&view, "a");
+        assert!(f.capped);
+        assert_eq!(f.lines.len(), MAX_HITS);
+        assert!(view.finished().is_some_and(|f| f.capped));
+        assert!(view.finished().is_none());
+    }
+
+    #[test]
+    fn a_find_with_few_hits_is_not_capped() {
+        let i = index("li-nocap", b"one\ntwo\nthree\n");
+        let view = LogView::new(i);
+        let f = done_find(&view, "t");
+        assert!(!f.capped && !f.long_match);
+        assert_eq!(f.lines, vec![1, 2]);
+        assert!(view.finished().is_none(), "nothing to say");
+    }
+
+    #[test]
+    fn a_match_as_long_as_the_overlap_is_noted() {
+        let mut text = String::from("begin\n");
+        text.push_str(&"filler filler filler filler filler filler filler\n".repeat(70_000 / 48));
+        text.push_str("end\n");
+        text.push_str(&"pad\n".repeat(1000));
+        let i = index("li-long", text.as_bytes());
+        let view = LogView::new(i);
+        let f = done_find(&view, r"begin[\s\S]*?end");
+        assert!(f.long_match, "a 70 KB match");
+        assert_eq!(f.lines, vec![0]);
+        let f = done_find(&view, "begin");
+        assert!(!f.long_match, "a short query on the same file");
+    }
+
+    /// Wait for `view`'s find to hold `n` lines and be done.
+    fn wait_lines(view: &LogView, n: usize) {
+        for _ in 0..6000 {
+            let f = view.found();
+            if f.done && f.lines.len() == n {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("find did not reach {n} lines");
+    }
+
+    /// `begin`, `filler_bytes` of filler lines, `end`, then padding.
+    fn block(filler_bytes: usize) -> String {
+        let mut t = String::from("begin\n");
+        t.push_str(&"filler filler filler filler filler filler filler\n".repeat(filler_bytes / 48));
+        t.push_str("end\n");
+        t
+    }
+
+    #[test]
+    fn a_grown_log_does_not_say_the_same_long_match_twice() {
+        let mut text = block(70_000);
+        text.push_str(&"pad\n".repeat(1000));
+        let dir = crate::util::test_dir("li-said");
+        let path = dir.join("said.log");
+        std::fs::write(&path, &text).unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        wait(&i);
+        let view = LogView::new(i.clone());
+        let q = r"begin[\s\S]*?end";
+        let f = done_find(&view, q);
+        assert_eq!(f.lines.len(), 1);
+        assert!(view.finished().is_some_and(|f| f.long_match && !f.capped));
+        assert!(view.finished().is_none());
+        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(block(70_000).as_bytes()).unwrap();
+        assert_eq!(i.grow(), Grow::Grew);
+        view.find_more();
+        wait_lines(&view, 2);
+        assert!(view.finished().is_none(), "already told");
+        // A new find gives it again.
+        done_find(&view, q);
+        assert!(view.finished().is_some_and(|f| f.long_match));
+    }
+
+    #[test]
+    fn a_grown_log_that_reaches_the_cap_says_so() {
+        let dir = crate::util::test_dir("li-grow-cap");
+        let path = dir.join("cap.log");
+        std::fs::write(&path, "a\n".repeat(MAX_HITS - 2)).unwrap();
+        let i = LogIndex::start(&path).unwrap();
+        wait(&i);
+        let view = LogView::new(i.clone());
+        let f = done_find(&view, "a");
+        assert!(!f.capped);
+        assert!(view.finished().is_none());
+        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all("a\n".repeat(5).as_bytes()).unwrap();
+        assert_eq!(i.grow(), Grow::Grew);
+        view.find_more();
+        wait_lines(&view, MAX_HITS);
+        let f = view.found();
+        assert!(f.capped);
+        assert_eq!(f.lines.len(), MAX_HITS);
+        assert!(view.finished().is_some_and(|f| f.capped));
+        assert!(view.finished().is_none());
+    }
+
+    #[test]
+    fn a_long_match_is_measured_in_file_bytes() {
+        // About 40 KB of text is 80 KB of UTF-16 but under 64 KB of UTF-8.
+        let mut text = block(40_000);
+        text.push_str(&"pad\n".repeat(1000));
+        let mut b = vec![0xff, 0xfe];
+        for u in text.encode_utf16() {
+            b.extend(u.to_le_bytes());
+        }
+        let i = index("li-long-u16", &b);
+        let view = LogView::new(i);
+        assert!(done_find(&view, r"begin[\s\S]*?end").long_match, "80 KB of UTF-16");
+        let i = index("li-long-u8", text.as_bytes());
+        let view = LogView::new(i);
+        assert!(!done_find(&view, r"begin[\s\S]*?end").long_match, "40 KB of UTF-8");
     }
 
     #[test]

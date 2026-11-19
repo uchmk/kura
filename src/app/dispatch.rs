@@ -1,6 +1,7 @@
 //! The action dispatcher: `act` and the small actions it calls.
 
 use super::*;
+use crate::preview::logindex::{Found, MAX_HITS, OVERLAP_BYTES, WINDOW_BYTES};
 
 impl App {
     pub fn run(&mut self, acts: &[Act]) {
@@ -356,6 +357,14 @@ impl App {
             return Some(EVERY - t.elapsed());
         }
         self.log_polled = Some(Instant::now());
+        if let Some(found) = view.finished() {
+            if found.capped {
+                self.warn(capped_note(&found));
+            }
+            if found.long_match {
+                self.warn(long_match_note(&found.query));
+            }
+        }
         let before = view.index.lines();
         let grow = view.index.grow();
         if grow == crate::preview::logindex::Grow::Grew {
@@ -489,7 +498,7 @@ impl App {
                 }
             }
             None if !found.done => self.toast(format!("Searching... {} hits so far", found.lines.len())),
-            None => self.toast(format!("No more matches for {}", found.query)),
+            None => self.toast(no_more_note(&found)),
         }
     }
 
@@ -1062,6 +1071,78 @@ pub(crate) fn parse_line_col(text: &str) -> Option<(usize, Option<usize>)> {
     match norm.split_once(':') {
         None => Some((number(&norm)?, None)),
         Some((l, c)) => Some((number(l)?, Some(number(c)?))),
+    }
+}
+
+/// The line the capped find stopped at, 1-based: its last hit.
+fn capped_line(found: &Found) -> u64 {
+    found.lines.last().map_or(0, |&l| l as u64 + 1)
+}
+
+/// What to say when a find in a huge log stopped at `MAX_HITS` matching lines.
+fn capped_note(found: &Found) -> String {
+    format!(
+        "Find stopped at {} matching lines: nothing after line {} was searched",
+        crate::util::grouped(MAX_HITS as u64),
+        crate::util::grouped(capped_line(found))
+    )
+}
+
+/// What to say when a match is as long as the overlap between two windows.
+fn long_match_note(query: &str) -> String {
+    format!(
+        "A match for {query} is over {} KB long: one that crosses a {} MB block can be missed",
+        OVERLAP_BYTES / 1024,
+        WINDOW_BYTES / (1024 * 1024)
+    )
+}
+
+/// What `n` says at the end of a done find.
+fn no_more_note(found: &Found) -> String {
+    if found.capped {
+        format!(
+            "No more matches for {} up to line {}: the find stopped there at {} matching lines",
+            found.query,
+            crate::util::grouped(capped_line(found)),
+            crate::util::grouped(MAX_HITS as u64)
+        )
+    } else {
+        format!("No more matches for {}", found.query)
+    }
+}
+
+#[cfg(test)]
+mod find_note_tests {
+    use super::*;
+
+    fn capped() -> Found {
+        let mut f = Found::default();
+        f.query = "x".into();
+        f.lines = vec![0, 1_234_566];
+        f.done = true;
+        f.capped = true;
+        f
+    }
+
+    #[test]
+    fn a_capped_find_says_where_it_stopped() {
+        assert_eq!(capped_note(&capped()), "Find stopped at 1,000,000 matching lines: nothing after line 1,234,567 was searched");
+        assert_eq!(
+            no_more_note(&capped()),
+            "No more matches for x up to line 1,234,567: the find stopped there at 1,000,000 matching lines"
+        );
+    }
+
+    #[test]
+    fn an_uncapped_find_says_the_plain_thing() {
+        let mut f = Found::default();
+        f.query = "x".into();
+        assert_eq!(no_more_note(&f), "No more matches for x");
+    }
+
+    #[test]
+    fn a_long_match_names_the_block_sizes() {
+        assert_eq!(long_match_note("a.*b"), "A match for a.*b is over 64 KB long: one that crosses a 1 MB block can be missed");
     }
 }
 

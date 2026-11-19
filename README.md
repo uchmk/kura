@@ -1133,7 +1133,7 @@ pointer over it. Only the lines on screen are ever drawn, and only the first
 256 KiB of a file is read at all (`max_text_bytes`), so a huge log opens as fast as a short one.
 A text file of `big_text_bytes` (8 MiB) or more is different: a line index is built in the background and only the lines on
 screen are read (Seek + Read, no mmap), so `<A-j>` reaches the end. It is plain text (no colours), does not follow appends, and
-`<A-/>` searches it — regular expressions may span lines — with `n` / `N` jumping between hits. A log that is appended to is indexed on from where it ended (checked twice a second), and `<A-f>` keeps the view on its last line like `tail -f`; a file that shrinks is read again from the front.
+`<A-/>` searches it — regular expressions may span lines — with `n` / `N` jumping between hits. The find stops at 1,000,000 matching lines and says so, and a match over 64 KB long can be missed where two 1 MB blocks meet, which a warning points out when the find meets one. A log that is appended to is indexed on from where it ended (checked twice a second), and `<A-f>` keeps the view on its last line like `tail -f`; a file that shrinks is read again from the front.
 
 There is no scrollbar — this is a pane of lines, not a `ScrollArea`, because measuring ten thousand
 lines to know how tall the content is would cost the frame that virtualizing just saved. The
