@@ -15,14 +15,8 @@ struct SessionFile {
 /// than somewhere a shell was deliberately `cd`'d to: home, or inside the
 /// system folder (where an elevated launch lands).
 pub fn is_default_start(dir: &Path) -> bool {
-    if ito_common::home_dir().is_some_and(|h| h == dir) {
-        return true;
-    }
-    #[cfg(windows)]
-    if let Some(root) = std::env::var_os("SystemRoot") {
-        return dir.starts_with(root);
-    }
-    false
+    ito_common::home_dir().is_some_and(|h| h == dir)
+        || (cfg!(windows) && std::env::var_os("SystemRoot").is_some_and(|root| dir.starts_with(root)))
 }
 
 impl App {
