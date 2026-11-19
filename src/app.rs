@@ -108,6 +108,8 @@ pub struct App {
     pub ops: ops::Runner,
     pub watcher: DirWatcher,
     pub git: git::Git,
+    /// Which openers' programs are installed, looked up off the UI thread.
+    pub programs: crate::programs::Programs,
     /// The shell in the bottom pane, while there is one.
     pub term: Option<crate::terminal::Terminal>,
     /// The terminal has the keys, so they go to the shell rather than here.
@@ -419,6 +421,7 @@ impl App {
         let differ = diff::Differ::new(wake.clone());
         let git = git::Git::new(wake.clone());
         let watcher = DirWatcher::new(wake);
+        let programs = crate::programs::Programs::new(ctx.clone());
 
         let sort = SortSpec {
             by: cfg.yazi.mgr.sort_by,
@@ -468,6 +471,7 @@ impl App {
             ops: opsr,
             watcher,
             git,
+            programs,
             // One per pane, plus the few a walk just left behind.
             git_status: Lru::new(8),
             term: None,
@@ -571,6 +575,7 @@ impl App {
             app.load_state();
         }
         app.kick_scans();
+        app.check_openers();
         // A config problem that nobody is told about is one the reader spends
         // the evening blaming the program for. The `~` panel lists them all;
         // this is the line that says to go and look.

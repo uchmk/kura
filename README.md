@@ -221,6 +221,13 @@ Every rule that matches contributes, in the order written, so the catch-all at t
 *Open with the default app* to everything without taking the top spot from a more specific rule.
 `<S-Enter>` shows `desc` with the command line beside it, so name them however you think of them.
 
+An opener whose program is not installed is listed with `(not found)` after it, and a plain `<Enter>` skips it.
+The first word of the line is looked up on `PATH`; for a `start ["title"] prog` line the `prog` is looked up the way
+`start` does, on `PATH` and, on Windows, in the registry's App Paths (so `msedge` and `chrome` count as installed).
+The lookup runs in the background, so the mark can be missing the first moment after a start or a config reload,
+and a plain `<Enter>` then still runs the missing one (its failure toast names the program).
+A line whose program is a variable (`$EDITOR`, `%EDITOR%`), a relative path, a URL or a document is not marked.
+
 A file Windows has no app for is not handed over (v0.82.0, Q92). Before `<Enter>` opens with the
 default app, either because no opener applies or because the first one is a bare `start "" %*`,
 kura asks Windows which program the extension opens with; when there is none it says

@@ -15,6 +15,7 @@ mod mcp;
 mod mime;
 mod notify;
 mod preview;
+mod programs;
 mod rename;
 mod runinfo;
 mod script_run;

@@ -304,7 +304,7 @@ impl Launch {
                         // A first word that is not on `PATH` is the cause whatever the code
                         // (`cmd /c` ends with 1 here, 9009 only inside; `sh` with 127, Q89).
                         // Its own message (localised, quoting the name its own way) loses to ours.
-                        let missing = missing_program(&cmdline, &|p| crate::util::locate(p).is_some());
+                        let missing = missing_program(&cmdline, &|p, look| look.find(p));
                         let why = match missing {
                             Some(p) => format!("`{p}` was not found"),
                             None => match stderr_text(&mut child) {
@@ -331,30 +331,204 @@ impl Launch {
     }
 }
 
+/// How a program a command line needs is looked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Look {
+    /// The shell runs the line's first word itself: `PATH` only (`cmd /c`, `sh -c`).
+    Cmd,
+    /// The word after `start`, handed to ShellExecute: `PATH`, then App Paths on Windows.
+    Shell,
+}
+
+impl Look {
+    /// Whether `name` is there. Reads the disk and the registry: not for the UI thread.
+    pub fn find(self, name: &str) -> bool {
+        match self {
+            Look::Cmd => ito_common::which::on_path(name).is_some(),
+            Look::Shell => ito_common::which::which(name).is_some(),
+        }
+    }
+}
+
+/// A `start` line, taken apart the way `cmd` reads it.
+#[derive(Debug, PartialEq, Eq)]
+struct StartLine {
+    /// The window title: the first quoted argument, whatever it holds.
+    title: Option<String>,
+    /// What `start` is asked to run, unquoted. `None` when the line names nothing.
+    target: Option<String>,
+}
+
+/// One word of a command line: up to the next space outside quotes.
+fn quoted_word(s: &str) -> (&str, &str) {
+    let s = s.trim_start();
+    let mut open = false;
+    for (i, c) in s.char_indices() {
+        match c {
+            '"' => open = !open,
+            c if c.is_whitespace() && !open => return (&s[..i], &s[i..]),
+            _ => {}
+        }
+    }
+    (s, "")
+}
+
+/// `word` up to a `cmd` operator outside quotes (`&`, `|`, `<`, `>`, `(`, `)`), and
+/// whether one was there: the command ends at it.
+fn cut_at_operator(word: &str) -> (&str, bool) {
+    let mut open = false;
+    for (i, c) in word.char_indices() {
+        match c {
+            '"' => open = !open,
+            '&' | '|' | '<' | '>' | '(' | ')' if !open => return (&word[..i], true),
+            _ => {}
+        }
+    }
+    (word, false)
+}
+
+/// The text of a word that starts with a quote, up to the closing one.
+fn unquote(word: &str) -> &str {
+    match word.strip_prefix('"') {
+        Some(rest) => rest.split('"').next().unwrap_or_default(),
+        None => word,
+    }
+}
+
+/// `start ["title"] [/switches] target ...`, or `None` for any other line.
+fn parse_start(line: &str) -> Option<StartLine> {
+    let (first, mut rest) = quoted_word(line);
+    if !first.eq_ignore_ascii_case("start") {
+        return None;
+    }
+    let mut title = None;
+    loop {
+        let (word, tail) = quoted_word(rest);
+        rest = tail;
+        let (word, ended) = cut_at_operator(word);
+        if word.is_empty() {
+            return Some(StartLine { title, target: None });
+        }
+        if word.starts_with('"') && title.is_none() {
+            title = Some(unquote(word).to_owned());
+        } else if word.starts_with('/') {
+            // Only a bare `/d` takes the next word; `/Dpath` is one word.
+            if !ended && ["/d", "/node", "/affinity"].iter().any(|s| word.eq_ignore_ascii_case(s)) {
+                rest = quoted_word(rest).1;
+            }
+        } else {
+            return Some(StartLine { title, target: Some(unquote(word).to_owned()) });
+        }
+        if ended {
+            return Some(StartLine { title, target: None });
+        }
+    }
+}
+
+/// A URL (`https://x`) or a bare `scheme:` name (`ms-settings:display`): the system
+/// has a handler for it, there is no program to look for. `C:\x` is a path.
+fn is_url_like(name: &str) -> bool {
+    if name.contains("://") {
+        return true;
+    }
+    match name.find(':') {
+        Some(i) if i >= 2 => name[..i].chars().all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c)),
+        _ => false,
+    }
+}
+
+/// A name with a folder in it that does not start at a root: it is read from the
+/// folder the line runs in, which is not kura's, so it cannot be checked here.
+fn is_relative_path(name: &str) -> bool {
+    if !name.contains(['/', '\\']) {
+        return false;
+    }
+    let b = name.as_bytes();
+    let drive = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'/' || b[2] == b'\\');
+    !(drive || name.starts_with(['/', '\\']))
+}
+
+/// Whether `start` would run `name` as a program. A document or a folder
+/// (`a.txt`, `.`) is handed to its app, which is not a program to look for.
+fn is_program_name(name: &str) -> bool {
+    const DEFAULT: &str = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
+    if name == "." || name == ".." {
+        return false;
+    }
+    let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    let Some(dot) = file.rfind('.').filter(|&d| d > 0) else { return true };
+    let ext = &file[dot..];
+    let pathext = std::env::var("PATHEXT").ok().filter(|v| !v.trim().is_empty());
+    pathext.as_deref().unwrap_or(DEFAULT).split(';').any(|e| e.trim().eq_ignore_ascii_case(ext))
+}
+
+/// The program a command line needs, and how it is looked for, on this platform.
+pub fn wanted(cmdline: &str) -> Option<(String, Look)> {
+    wanted_on(cmdline, cfg!(windows))
+}
+
+/// [`wanted`] for `windows` or Unix. `None` when there is nothing to check, or
+/// when kura cannot be sure: a shell's own command, a URL, a document handed to
+/// its app, a relative path, or a name only known once the line runs
+/// (`%EDITOR%`, `$1`, `%*`). A wrong "not found" skips an opener that works.
+fn wanted_on(cmdline: &str, windows: bool) -> Option<(String, Look)> {
+    // `cmd`'s internal commands, and what `sh` runs itself (some, like `echo` and
+    // `pwd`, are files too, but never missing).
+    const WINDOWS_BUILTIN: &[&str] = &[
+        "assoc", "break", "call", "cd", "chdir", "cls", "color", "copy", "date", "del", "dir", "echo", "endlocal", "erase", "exec", "exit",
+        "for", "ftype", "goto", "if", "md", "mkdir", "mklink", "move", "path", "pause", "popd", "prompt", "pushd", "rd", "rem", "ren",
+        "rename", "rmdir", "set", "setlocal", "shift", "time", "title", "type", "ver", "verify", "vol",
+    ];
+    const UNIX_BUILTIN: &[&str] = &[
+        ".", ":", "[", "alias", "bg", "break", "cd", "command", "continue", "echo", "eval", "exec", "exit", "export", "false", "fg",
+        "getopts", "hash", "jobs", "kill", "printf", "pwd", "read", "readonly", "return", "set", "shift", "source", "test", "times",
+        "trap", "true", "type", "ulimit", "umask", "unalias", "unset", "wait",
+    ];
+    let unusable = |s: &str| s.is_empty() || s.contains(['%', '$']) || s.starts_with('~') || is_relative_path(s);
+    let (name, look) = match windows.then(|| parse_start(cmdline)).flatten() {
+        Some(start) => {
+            let target = start.target?;
+            if is_url_like(&target) || !is_program_name(&target) {
+                return None;
+            }
+            (target, Look::Shell)
+        }
+        None => {
+            let name = crate::envreport::program(cmdline)?;
+            // An unquoted first word ends at an operator: `code>nul %s` runs `code`.
+            let name = match cmdline.trim_start().starts_with('"') {
+                true => name,
+                false => {
+                    let cut = cut_at_operator(&name).0;
+                    match windows {
+                        true => cut.to_owned(),
+                        false => cut.split(';').next().unwrap_or_default().to_owned(),
+                    }
+                }
+            };
+            (name, Look::Cmd)
+        }
+    };
+    let builtin = match windows {
+        true => WINDOWS_BUILTIN.contains(&name.to_ascii_lowercase().as_str()),
+        false => UNIX_BUILTIN.contains(&name.as_str()),
+    };
+    (!builtin && !unusable(&name)).then_some((name, look))
+}
+
 /// The program at the front of a command line that failed, when it is not
 /// there to run. `exit code 1` said the same for a misspelled program, a path
 /// with a typo and a program that ran and opened nothing (#96); this one can
 /// be told apart, and only off the UI thread, since it walks `PATH`. A
-/// shell's own command (`start`, `echo`) is never "missing".
-fn missing_program(cmdline: &str, found: &dyn Fn(&str) -> bool) -> Option<String> {
-    const BUILTIN: [&str; 17] =
-        ["start", "call", "echo", "cd", "set", "exec", "type", "dir", "copy", "del", "move", "ren", "mkdir", "md", "rd", "cls", "ver"];
-    let exe = crate::envreport::program(cmdline)?;
-    if BUILTIN.contains(&exe.to_ascii_lowercase().as_str()) || found(&exe) {
-        return None;
-    }
-    Some(exe)
+/// shell's own command (`echo`) is never "missing", nor is a name kura cannot
+/// be sure of ([`wanted_on`]): the shell's own message says what went wrong then.
+fn missing_program(cmdline: &str, found: &dyn Fn(&str, Look) -> bool) -> Option<String> {
+    missing_program_on(cmdline, cfg!(windows), found)
 }
 
-/// Whether an opener's program is not there to run, for the "Open with" chooser
-/// to say so. A handful of `PATH` lookups, once per opener when it opens.
-pub fn opener_missing(cmdline: &str) -> bool {
-    missing_name(cmdline).is_some()
-}
-
-/// The program an opener names that is not there, for a toast to say it was skipped.
-pub fn missing_name(cmdline: &str) -> Option<String> {
-    missing_program(cmdline, &|p| crate::util::locate(p).is_some())
+fn missing_program_on(cmdline: &str, windows: bool, found: &dyn Fn(&str, Look) -> bool) -> Option<String> {
+    let (name, look) = wanted_on(cmdline, windows)?;
+    (!found(&name, look)).then_some(name)
 }
 
 /// What the shell complained about, on one line.
@@ -699,19 +873,8 @@ pub fn no_default_app_note(path: &Path, pick: Option<&str>) -> String {
 /// `<Enter>` with no opener does, so it is checked the same way first (Q92).
 /// `start "" msedge %*` names its program and is not one.
 pub fn starts_default(run: &str) -> bool {
-    let mut words = run.split_whitespace().peekable();
-    if !words.next().is_some_and(|w| w.eq_ignore_ascii_case("start")) {
-        return false;
-    }
-    // The window title, when given, is the first quoted word.
-    if words.peek().is_some_and(|w| w.starts_with('"')) {
-        words.next();
-    }
-    // `/b`, `/wait`, `/max` and the like say how, not what.
-    let mut words = words.skip_while(|w| w.starts_with('/'));
-    let Some(what) = words.next() else { return false };
-    let what = what.trim_matches('"');
-    what.starts_with('%') || what.starts_with('$')
+    let target = parse_start(run).and_then(|s| s.target);
+    target.is_some_and(|t| t.starts_with('%') || t.starts_with('$'))
 }
 
 /// Hand a URL to the default browser.
@@ -800,14 +963,6 @@ mod tests {
         assert_eq!(marks("a.bin"), [RuleSet::Rules, RuleSet::Rules], "the fallback is not marked");
     }
 
-    /// #96: a program that is not there is named; one that is, or a shell's
-    /// own command, leaves the exit code to speak.
-    #[test]
-    fn opener_missing_tells_a_program_that_is_not_there() {
-        assert!(opener_missing("definitely-not-a-program-93f2 %s"));
-        assert!(!opener_missing("echo %s"));
-    }
-
     #[test]
     fn the_open_toast_does_not_claim_an_app_that_is_not_there() {
         assert_eq!(opened_default_note("a.txt"), "Opened a.txt with the system's default app");
@@ -852,11 +1007,88 @@ mod tests {
 
     #[test]
     fn a_missing_program_is_named() {
-        let only_code = |p: &str| p == "code";
-        assert_eq!(missing_program("Hidemruu.exe /j10 a.txt", &only_code).as_deref(), Some("Hidemruu.exe"));
-        assert_eq!(missing_program(r#""C:/Tools/Hide maru.exe" a.txt"#, &only_code).as_deref(), Some("C:/Tools/Hide maru.exe"));
-        assert_eq!(missing_program("code -g a.txt:3", &only_code), None);
-        assert_eq!(missing_program(r#"start "" a.txt"#, &only_code), None);
+        let only_code = |p: &str, _: Look| p == "code";
+        for windows in [true, false] {
+            let m = |l: &str| missing_program_on(l, windows, &only_code);
+            assert_eq!(m("Hidemruu.exe /j10 a.txt").as_deref(), Some("Hidemruu.exe"));
+            assert_eq!(m(r#""C:/Tools/Hide maru.exe" a.txt"#).as_deref(), Some("C:/Tools/Hide maru.exe"));
+            assert_eq!(m("code -g a.txt:3"), None);
+            assert_eq!(m("echo %s"), None);
+        }
+        let win = |l: &str| missing_program_on(l, true, &only_code);
+        assert_eq!(win(r#"start "" chrome %*"#).as_deref(), Some("chrome"));
+        assert_eq!(win(r#"start "" a.txt"#), None);
+        assert_eq!(win("ECHO hi"), None, "Windows builtins ignore case");
+        // On Unix `start` is a program, and builtins are lower case.
+        let unix = |l: &str| missing_program_on(l, false, &only_code);
+        assert_eq!(unix(r#"start "" chrome"#).as_deref(), Some("start"));
+        assert_eq!(unix("ECHO hi").as_deref(), Some("ECHO"));
+        assert_eq!(unix("printf %s"), None);
+        assert_eq!(unix("[ -f x ]"), None);
+    }
+
+    #[test]
+    fn a_start_line_is_taken_apart_like_cmd_does() {
+        let line = |s: &str| parse_start(s).map(|p| (p.title, p.target));
+        let some = |t: Option<&str>, g: Option<&str>| Some((t.map(String::from), g.map(String::from)));
+        assert_eq!(line(r#"start "" msedge %*"#), some(Some(""), Some("msedge")));
+        assert_eq!(line(r#"start "My title" /wait prog a"#), some(Some("My title"), Some("prog")));
+        assert_eq!(line(r"start /d C:\dir /b prog"), some(None, Some("prog")));
+        assert_eq!(line(r#"start /D"C:\x" prog"#), some(None, Some("prog")));
+        assert_eq!(line(r#"start "C:\x\y.exe" a"#), some(Some(r"C:\x\y.exe"), Some("a")));
+        assert_eq!(line(r#"start "" "C:\Program Files\x\y.exe" %*"#), some(Some(""), Some(r"C:\Program Files\x\y.exe")));
+        assert_eq!(line(r#"start "" %*"#), some(Some(""), Some("%*")));
+        assert_eq!(line("start %1"), some(None, Some("%1")));
+        assert_eq!(line("start"), some(None, None));
+        assert_eq!(line(r#"START "" X"#), some(Some(""), Some("X")));
+        assert_eq!(line(r#"start /D"C:\Program Files" prog"#), some(None, Some("prog")));
+        assert_eq!(line(r#"start "" chrome&echo done"#), some(Some(""), Some("chrome")));
+        assert_eq!(line(r#"start /Dx prog"#), some(None, Some("prog")));
+        assert_eq!(line("code a"), None);
+        assert_eq!(line("starter a"), None);
+    }
+
+    #[test]
+    fn wanted_says_what_to_look_for_and_how() {
+        let cmd = |s: &str| Some((s.to_string(), Look::Cmd));
+        let shell = |s: &str| Some((s.to_string(), Look::Shell));
+        let win = |s: &str| wanted_on(s, true);
+        assert_eq!(win(r#"start "" chrome %*"#), shell("chrome"));
+        assert_eq!(win(r#"start "" https://x"#), None);
+        assert_eq!(win(r#"start "" ms-settings:display"#), None);
+        assert_eq!(win(r#"start "" %*"#), None);
+        assert_eq!(win(r#"start "" "C:\x y\z.exe" %*"#), shell(r"C:\x y\z.exe"));
+        assert_eq!(win("start"), None);
+        assert_eq!(win(r#"${EDITOR:-vi} "$@""#), None);
+        assert_eq!(win("%EDITOR% %*"), None);
+        assert_eq!(win(r#""C:\x y\z.exe" %s"#), cmd(r"C:\x y\z.exe"));
+        assert_eq!(win("echo %s"), None);
+        assert_eq!(win("no-such-tool %s"), cmd("no-such-tool"));
+        // Not sure, so not asked: relative paths, documents, folders, builtins.
+        assert_eq!(win(r".\tools\edit.exe %s"), None);
+        assert_eq!(win("tools/x %s"), None);
+        assert_eq!(win(r#"start "" .\x.exe"#), None);
+        assert_eq!(win(r#"start "" a.txt"#), None);
+        assert_eq!(win(r#"start "" ."#), None);
+        assert_eq!(win(r#"start "" echo"#), None);
+        assert_eq!(win(r#"start "" tool.exe"#), shell("tool.exe"));
+        assert_eq!(win(r#"start "" chrome&echo done"#), shell("chrome"));
+        assert_eq!(win(r#"start "" /D"C:\Program Files" chrome"#), shell("chrome"));
+        assert_eq!(win(r#"start /d "C:\Program Files" chrome"#), shell("chrome"));
+        assert_eq!(win("start & chrome"), None);
+        assert_eq!(win(r#"start "" """#), None);
+        // A first word ends at an operator, unless it is quoted.
+        assert_eq!(win("code>nul %s"), cmd("code"));
+        assert_eq!(win("chrome&echo x %s"), cmd("chrome"));
+        assert_eq!(win(r#""C:\a&b\x.exe" %s"#), cmd(r"C:\a&b\x.exe"));
+        assert_eq!(win("pushd %s"), None);
+        assert_eq!(win("PAUSE"), None);
+        assert_eq!(wanted_on("vi;echo %s", false), cmd("vi"));
+        assert_eq!(wanted_on("pwd", false), None);
+        // Unix: no `start` grammar.
+        assert_eq!(wanted_on(r#"start "" chrome"#, false), cmd("start"));
+        assert_eq!(wanted_on("/usr/bin/vi %s", false), cmd("/usr/bin/vi"));
+        assert_eq!(wanted_on("~/bin/vi %s", false), None);
     }
 
     #[test]

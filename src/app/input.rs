@@ -300,6 +300,7 @@ impl App {
         // reloaded, and read the old one back because nothing said so (#173).
         let shell_waits = self.term.is_some() && cfg.term != old_term;
         self.cfg = cfg;
+        self.check_openers();
         self.refont = true;
         // A theme change can turn every row a different color, and the preview
         // holds a highlighted copy of the old one.

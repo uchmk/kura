@@ -80,7 +80,7 @@ impl App {
                 // `reason` is what `kura env` repeats after its own
                 // "did not start:"; the OS's own sentence is left out when the
                 // missing program is named (it is in the OS language).
-                let (reason, said) = match program.filter(|p| util::locate(p).is_none()) {
+                let (reason, said) = match program.filter(|p| ito_common::which::on_path(p).is_none()) {
                     Some(p) => {
                         // A path was given, so PATH was never searched.
                         let r = match p.contains(['/', '\\']) {

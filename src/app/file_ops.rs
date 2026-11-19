@@ -760,6 +760,13 @@ impl App {
         self.open_paths(&entry, paths, interactive, line);
     }
 
+    /// Ask the worker which of the configured openers' programs are installed:
+    /// at start and whenever a config is taken. `missing` reads the answers.
+    pub(crate) fn check_openers(&self) {
+        let runs = self.cfg.yazi.opener.values().flatten().map(|o| o.run.as_str());
+        self.programs.check(runs);
+    }
+
     /// Open `paths` the way `entry` (the hovered file, or the one a prompt named) is opened:
     /// its type picks the opener. `line` is only passed when the one path is `entry` itself.
     pub(super) fn open_paths(&mut self, entry: &Entry, paths: Vec<PathBuf>, interactive: bool, line: Option<crate::exec::Pos>) {
@@ -775,9 +782,15 @@ impl App {
             }
             // Shown, not hidden: an opener that vanished would look like a
             // setting that was ignored.
+            // One snapshot of the answers so far, for the labels and the starting
+            // cursor alike. Asked again, so an install or an uninstall since is
+            // seen from the next action on; a picker already open is not rebuilt.
+            let missing: Vec<bool> = openers.iter().map(|o| self.programs.missing(&o.0).is_some()).collect();
+            self.programs.check(openers.iter().map(|o| o.0.as_str()));
             let items: Vec<String> = openers
                 .iter()
-                .map(|o| match exec::opener_missing(&o.0) {
+                .zip(&missing)
+                .map(|(o, &gone)| match gone {
                     true => format!("{} (not found)", o.3),
                     false => o.3.clone(),
                 })
@@ -787,7 +800,7 @@ impl App {
             let details: Vec<String> = openers.iter().zip(&from).map(|(o, (_, set))| format!("{}{}", o.0, set.mark())).collect();
             // The cursor starts on the first opener that is installed (Q86);
             // all missing, or none to skip, leaves it on the first row.
-            let first_found = openers.iter().position(|o| !exec::opener_missing(&o.0)).unwrap_or(0);
+            let first_found = missing.iter().position(|&gone| !gone).unwrap_or(0);
             let runs: Vec<(String, bool, bool)> = openers.iter().map(|o| (o.0.clone(), o.1, o.2)).collect();
             let mut pick = PickOverlay {
                 title: "Open with".into(),
@@ -809,7 +822,11 @@ impl App {
         let cwd = self.tabs[self.active].cwd.clone();
         // The first opener whose program is installed, as `<S-Enter>`'s list
         // starts its cursor (Q87); all missing leaves the first to say so.
-        let first_found = openers.iter().position(|o| !exec::opener_missing(&o.0)).unwrap_or(0);
+        // One snapshot of the answers so far for the choice and the note below;
+        // asked again, so a change since shows from the next `<Enter>` on.
+        let missing: Vec<Option<String>> = openers.iter().map(|o| self.programs.missing(&o.0)).collect();
+        self.programs.check(openers.iter().map(|o| o.0.as_str()));
+        let first_found = missing.iter().position(Option::is_none).unwrap_or(0);
         // Asked before, not after (Q92): handed over, a type Windows has no
         // app for opened a chooser at best and nothing at all at worst, and
         // `open` says `Ok` either way.
@@ -831,7 +848,7 @@ impl App {
                 let line = exec::command_line(run, &paths, line, &self.cfg.line_args);
                 let (block, orphan) = (*block, *orphan);
                 // Said, so a `yazi.toml` line that did not run is not read as ignored.
-                let mut note = match openers.first().and_then(|o| exec::missing_name(&o.0)) {
+                let mut note = match missing.first().cloned().flatten() {
                     Some(name) if first_found > 0 => format!(" (skipped {name}: not found)"),
                     _ => String::new(),
                 };

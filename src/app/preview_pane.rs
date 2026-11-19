@@ -398,6 +398,8 @@ impl App {
             || (job_going && !matches!(self.overlay, Overlay::Confirm(_)))
             || self.preview.pending_since.is_some()
             || self.preview.in_flight
+            // The openers' programs still being looked for.
+            || self.programs.pending()
             // A right-click paste still waiting for the clipboard, as for a listing.
             || self.paste_pending()
             || matches!(self.preview.state, PreviewState::Loading)

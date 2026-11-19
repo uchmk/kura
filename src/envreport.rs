@@ -181,8 +181,8 @@ fn terminal_row() -> (String, String) {
             return (term, format!("via osascript   ({what})"));
         }
         let exe = term.split_whitespace().next().unwrap_or_default();
-        if let Some(p) = crate::util::locate(exe) {
-            return (term, format!("{}   ({what})", p.display()));
+        if let Some(p) = ito_common::which::on_path(exe) {
+            return (term, format!("{}   ({what})", p.path.display()));
         }
     }
     ("terminal".into(), format!("none found, set TERMINAL   ({what})"))
@@ -229,8 +229,8 @@ fn found(exe: &str, what: &str) -> String {
     if shell_builtin(exe) {
         return format!("built into {SHELL_NAME}   ({what})");
     }
-    match crate::util::locate(exe) {
-        Some(p) => format!("{}   ({what})", p.display()),
+    match ito_common::which::on_path(exe) {
+        Some(p) => format!("{}   ({what})", p.path.display()),
         None => format!("not found   ({what})"),
     }
 }
@@ -241,7 +241,7 @@ fn found(exe: &str, what: &str) -> String {
 fn found_with_version(exe: &str, what: &str) -> String {
     let said = found(exe, what);
     #[cfg(windows)]
-    if let Some(v) = crate::util::locate(exe).and_then(|p| file_version(&p)) {
+    if let Some(v) = ito_common::which::on_path(exe).and_then(|p| file_version(&p.path)) {
         return said.replacen("   (", &format!("   v{v}   ("), 1);
     }
     said
@@ -487,7 +487,6 @@ fn auto_note(fallback: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::locate;
 
     /// What `[ui] backend = "auto"` is said to come to: GL where the machine
     /// has it, wgpu's own pick where `predicted_fallback` says nothing.
@@ -623,10 +622,10 @@ mod tests {
     fn a_program_is_located_not_executed() {
         // Something that certainly exists, found by an absolute path.
         let me = std::env::current_exe().unwrap();
-        assert_eq!(locate(me.to_str().unwrap()), Some(me));
+        assert_eq!(ito_common::which::on_path(me.to_str().unwrap()).map(|p| p.path), Some(me));
         // And something that certainly does not.
-        assert_eq!(locate("kura-no-such-program-anywhere"), None);
-        assert_eq!(locate("/no/such/path/at/all"), None);
+        assert_eq!(ito_common::which::on_path("kura-no-such-program-anywhere"), None);
+        assert_eq!(ito_common::which::on_path("/no/such/path/at/all"), None);
     }
 
     /// #190: the args `KURA_TERM_SHELL` set aside are named, and only when
