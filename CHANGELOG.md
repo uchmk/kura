@@ -9,6 +9,14 @@
 
 ## [未リリース]
 
+## [0.164.6] - 2026-11-19
+
+### 変更
+
+- x64 の実機のレーン（`scripts/auto-wintest.ps1`）の既定の作業フォルダを `C:\dev\filer-wintest` から `C:\dev\kura-wintest` に変えた（`-Work` を渡さないとき）。
+  状態フォルダとログは `%LOCALAPPDATA%\filer-wintest` のまま。タスクを登録し直すときは、冒頭の例のとおり `kura-wintest` の `lane-boot.ps1` を指す。
+- docs/claude/lanes.md に、タスク スケジューラの代わりに Orca の自動化からレーンを起こす形を書いた。
+
 ## [0.164.5] - 2026-11-19
 
 ### 修正

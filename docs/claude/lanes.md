@@ -137,11 +137,12 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   以前は `windows-role.md` の表に行を書き足し、レーンは `.claude/` に書けないので PR 本文の `## Queue` で消し方を伝えていた。
 - **無人で回せる（v0.50.0 から）。**`scripts/auto-wintest.ps1` をタスク スケジューラで 1 時間おき（:20。2026-10-05、持ち主の判断）に
   呼ぶと、`main` の TESTING.md / TESTING-CHECKS.md / `windows-role.md` が変わっていて、`test/win-*` の
-  PR が開いていないときに 1 本起動する（別 worktree の `C:\dev\filer-wintest` で）。登録の仕方は
+  PR が開いていないときに 1 本起動する（別 worktree の `C:\dev\kura-wintest` で。2026-11-19 までは `C:\dev\filer-wintest`。
+  状態フォルダとログは今も `%LOCALAPPDATA%\filer-wintest`）。登録の仕方は
   スクリプトの冒頭。**レーンは自分の PR がマージされ、その分け前（`#N` の入った CHANGELOG）が `main` に入るまで待つ**（v0.86.6）。
   その分け前は v0.86.11 からマージしたワークフローがすぐ push するので、待つのは数分。
   無人のときの規則は役割定義の「Unattended runs」の節。
-  **タスクは作業フォルダの中の入口を動かす**（v0.73.24、v0.101.0 から `-File C:\dev\filer-wintest\scripts\lane-boot.ps1`。ARM64 は
+  **タスクは作業フォルダの中の入口を動かす**（v0.73.24、v0.101.0 から `-File C:\dev\kura-wintest\scripts\lane-boot.ps1`。ARM64 は
   `filer-armtest` で `-Lane arm`）。いつも main の最新のスクリプトが動き、持ち主の `C:\dev\kura` は触らない。
   手元のスクリプトを動かしていた頃、ARM64 のノート PC は v0.51.1 のまま何日も回っていた（#201）。
   **タスクが動かすのは `scripts/lane-boot.ps1`（v0.101.0）。**これが毎回 `origin/main` を fetch し、main の `scripts/` と `Cargo.toml` を
@@ -167,6 +168,10 @@ claude "$(Get-Content -Raw .claude\windows-role.md)"
   **モデルは `-Model` で明示する**（v0.78.30。既定は v0.80.15 から `claude-sonnet-5-5`）。機械の `claude` の既定には従わない。
   実機のレーンは 2026-10-04 から Opus だったが、2026-10-09 に持ち主の判断で x64・ARM64 の両方とマージの Routine を Sonnet 5.5 に変えた
   （開発の Routine も Sonnet 5.5）。Opus に戻すときはタスクの引数に `-Model claude-opus-5-5` を足すか、この既定を戻す。
+  **タスク スケジューラの代わりに Orca の自動化から起こしてもよい**（2026-11-19、持ち主の依頼。タスク `filer-auto-wintest` は 2026-10-29 から持ち主が止めている）。
+  自動化の claude は起動役で、`pwsh -NoProfile -File C:\dev\kura-wintest\scripts\lane-boot.ps1 -Work C:\dev\kura-wintest` を
+  裏で回して終わりを待ち、ログの最後を報告するだけにする。レーンの本体（`claude -p` の Sonnet・許すツール・ロック・スクリーンセーバー・状態の issue・救出）は
+  これまでどおりスクリプトが持つ。Claude Code の中から `claude -p` を起こしても動く（2026-11-19 に確かめた）。
 - **レーンの様子は GitHub の issue で見える（v0.100.2 から）。**`auto-wintest.ps1` は起動のたびに（`scripts/lane-status.ps1`）、
   レーンごとの issue「Lane status: win」「Lane status: arm」（ラベル `lane-status`、最初の起動で作る）の本文を書き直す。
   `arm` は `release-arm64` の issue が開いている間だけ見張る（v0.101.3。それ以外の時間は何もしないのが正しいので、止まったとは言わない）。

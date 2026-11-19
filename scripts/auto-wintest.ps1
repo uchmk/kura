@@ -28,7 +28,7 @@
 # request is still open does nothing, so every 15 minutes only added firings that
 # passed (the owner's word, 2026-10-05):
 #
-#   $w = 'C:\dev\filer-wintest'
+#   $w = 'C:\dev\kura-wintest'
 #   $a = New-ScheduledTaskAction -Execute (Get-Command pwsh).Source -Argument "-NoProfile -WindowStyle Hidden -File $w\scripts\lane-boot.ps1"
 #   $t = New-ScheduledTaskTrigger -Once -At (Get-Date -Minute 20 -Second 0) -RepetitionInterval (New-TimeSpan -Hours 1)
 #   $s = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 4)
@@ -204,7 +204,7 @@ $Denied = @(
 # The `win` lane keeps the names it had before lanes existed, so a machine
 # already running it carries on from its state file.
 $suffix = if ($Lane -eq 'win') { '' } else { "-$Lane" }
-if (-not $Work) { $Work = if ($Lane -eq 'win') { 'C:\dev\filer-wintest' } else { "C:\dev\filer-$($Lane)test" } }
+if (-not $Work) { $Work = if ($Lane -eq 'win') { 'C:\dev\kura-wintest' } else { "C:\dev\filer-$($Lane)test" } }
 if (-not $Scratch) {
     $Scratch = if (Test-Path 'R:\') { 'R:\Temp' } else { Join-Path ([IO.Path]::GetTempPath()) 'kura-scratch' }
 }

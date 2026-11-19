@@ -317,7 +317,7 @@ push するときは WIP のコミットを `v0.117.0: …` の 1 コミット�
 - 設定は分ける: `KURA_CONFIG_HOME`・`YAZI_CONFIG_HOME`・`KURA_STATE_HOME`・`KURA_KEYS_DONE`・`YAGURA_STATE_HOME`・`YAGURA_CONFIG_HOME`・`UCHMK_CONFIG_DIR` など。
   持ち主の `%LOCALAPPDATA%\uchmk` と `%APPDATA%\uchmk` には書かない。
 - 持ち主の tsumugi とサーバーは止めない（この日は PID 35820 と 16740。再起動で変わる）。
-- ほかのセッションの worktree には触らない: `kura-verify`、`filer-wintest`、`tsumugi-verify`、`tsumugi-wintest`、`yagura-e089`、`yagura-wintest`。
+- ほかのセッションの worktree には触らない: `kura-verify`、`kura-wintest`、`tsumugi-verify`、`tsumugi-wintest`、`yagura-e089`、`yagura-wintest`。
 - 使い回せる台本:
   - `C:\dev\filer-evidence\yagura-retest59-20261016\scripts\retest-5-22.ps1`（`WinPlace.cs`・`RealInput.cs`。窓の場所を読み、窓を動かして閉じる）。
   - `C:\dev\filer-evidence\handoff2-20261016\scripts\`: tsumugi を `WINDOW_AT` で起動して場所を測る `windowat.ps1`、最小化して閉じる `min170.ps1`、
