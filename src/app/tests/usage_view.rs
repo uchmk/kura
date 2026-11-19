@@ -1054,11 +1054,11 @@ fn watcher_events_make_one_reread_job() {
     a.watched_tx = Some(tx.clone());
     tx.send(Watched::Config).unwrap();
     tx.send(Watched::Config).unwrap();
-    let before = a.config_writes.status().answers;
+    let before = a.config_status().answers;
     a.drain_watched();
     assert!(a.config_writes_pending());
     answer_config_writes(&mut a);
-    assert_eq!(a.config_writes.status().answers, before + 1);
+    assert_eq!(a.config_status().answers, before + 1);
 }
 
 /// A measuring fed by hand: `feed` pushes one batch and drains it.

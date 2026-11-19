@@ -257,7 +257,8 @@ impl App {
         if self.kura_jobs.is_none() {
             self.kura_jobs = kura_writer(self.kura_tx.clone(), self.ctx.clone());
         }
-        job.tickets = vec![self.config_writes.sent(what)];
+        let ledger = if matches!(job.whole, Some(Whole::Reread)) { &self.config_reads } else { &self.config_writes };
+        job.tickets = vec![ledger.sent(what)];
         let unsent = match self.kura_jobs.as_ref() {
             Some(tx) => tx.send(job).err().map(|e| e.into_inner().tickets),
             None => Some(std::mem::take(&mut job.tickets)),

@@ -697,7 +697,7 @@ impl ScriptRun {
             return out;
         }
         let viewport = (raw_input.viewport_id != egui::ViewportId::ROOT).then(|| format!("{:?}", raw_input.viewport_id));
-        let status = app.config_writes.status();
+        let status = app.config_status();
         let f = pace::Frame {
             pass: frame,
             now,
@@ -1263,9 +1263,10 @@ impl ScriptRun {
     /// The window was closed (the title bar's x) or the app quit while the
     /// script ran: write what is left of the report. The picture of a
     /// `<Shot:>` still awaited is an unfinished step, whatever the queue says.
-    /// The caller runs the close action of its path either way.
+    /// The caller runs the close action of its path either way. A config re-read
+    /// still open does not count (it loses nothing); a write does.
     pub(crate) fn ended(&mut self, app: &mut App, how: Ending) -> Outcome {
-        let status = app.config_writes.status();
+        let status = app.config_status_at_end();
         let how = match how {
             Ending::Closed => pace::Ending::Closed,
             Ending::Quit => pace::Ending::Quit,
@@ -1342,7 +1343,7 @@ mod tests {
         /// Seconds to `step` to land just past the oldest unanswered write's wait. The wait counts from the
         /// real instant of the send, so a fixed number falls short when a loaded machine is slow to reach it.
         fn secs_past_config_wait(&self) -> u64 {
-            let since = self.screen.app.config_writes.status().oldest.unwrap().since;
+            let since = self.screen.app.config_status().oldest.unwrap().since;
             (since + pace::CONFIG_WAIT).saturating_duration_since(self.t0).as_secs() + 1
         }
 
@@ -2354,6 +2355,55 @@ mod tests {
             assert!(!said.contains("keys: done") && !said.contains("keys: closed") && !said.contains("keys: quit"), "{said}");
             assert!(rig.flag());
         }
+    }
+
+    #[test]
+    fn quitting_with_only_a_config_reread_open_ends_the_run_as_usual() {
+        for how in [Ending::Quit, Ending::Closed] {
+            let mut rig = Rig::new("keys-ended-reread", true);
+            let done = rig.dir.join("done.txt");
+            let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+            assert_eq!(rig.step(&mut run, 0), Outcome::Continue);
+            let _t = rig.screen.app.config_reads.sent("config re-read");
+            assert_ne!(run.ended(&mut rig.screen.app, how), Outcome::Failed, "{how:?}");
+            let said = read(&done);
+            assert!(!said.contains("keys: failed") && !said.contains("<config write>"), "{how:?}: {said}");
+            assert!(!rig.flag(), "{how:?}");
+        }
+    }
+
+    #[test]
+    fn a_config_reread_counts_as_pending_while_it_is_open() {
+        let rig = Rig::new("keys-reread-holds", true);
+        let t = rig.screen.app.config_reads.sent("config re-read");
+        assert!(rig.screen.app.config_writes_pending());
+        assert_eq!(rig.screen.app.config_status().pending, 1);
+        assert_eq!(rig.screen.app.config_status_at_end().pending, 0, "the end check sees writes only");
+        t.applied();
+        assert!(!rig.screen.app.config_writes_pending());
+        assert_eq!(rig.screen.app.config_status().pending, 0);
+    }
+
+    #[test]
+    fn a_config_reread_dropped_without_an_answer_still_fails_the_run() {
+        let mut rig = Rig::new("keys-reread-dropped", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("j", Some(done.clone()), rig.dir.clone());
+        drop(rig.screen.app.config_reads.sent("config re-read"));
+        assert!(rig.screen.app.config_status_at_end().failed.is_some());
+        assert_eq!(run.ended(&mut rig.screen.app, Ending::Quit), Outcome::Failed);
+        assert!(read(&done).contains("keys: failed\n"));
+    }
+
+    #[test]
+    fn a_config_reread_takes_its_ticket_from_the_reads_ledger() {
+        let mut rig = Rig::new("keys-reread-ledger", true);
+        let dir = rig.dir.clone();
+        rig.screen.app.reread_config_in(vec![dir]);
+        assert_eq!(rig.screen.app.config_reads.status().pending, 1);
+        assert_eq!(rig.screen.app.config_writes.status().pending, 0);
+        rig.answer();
+        assert_eq!(rig.screen.app.config_reads.status().pending, 0);
     }
 
     #[test]

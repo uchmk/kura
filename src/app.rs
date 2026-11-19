@@ -221,6 +221,9 @@ pub struct App {
     /// Config writes sent and answered; it also keeps the first failure for a
     /// `--keys` run to end on.
     pub(crate) config_writes: ito_common::writes::Ledger,
+    /// Re-reads of the config files, kept apart so that a run that ends with one
+    /// open is not failed (a re-read loses nothing).
+    pub(crate) config_reads: ito_common::writes::Ledger,
     pub preview: PreviewSlot,
     pub max_preview: bool,
     /// The terminal pane has the window. A third of the height is right for a
@@ -454,6 +457,7 @@ impl App {
             common_answers,
             common_answers_tx,
             config_writes: ito_common::writes::Ledger::new(),
+            config_reads: ito_common::writes::Ledger::new(),
             cfg,
             tabs: vec![tab],
             active: 0,

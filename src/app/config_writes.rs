@@ -3,7 +3,8 @@
 //! The settings screen and `--keys` scripts write config.toml, keymap.toml and
 //! common.toml from writer threads. A script that reads the state straight
 //! after a write would read the old one, so the player waits for every answer;
-//! `ito_common::writes::Ledger` keeps that bookkeeping.
+//! `ito_common::writes::Ledger` keeps that bookkeeping. Re-reads of the files
+//! have a ledger of their own, so a run that quits with one open is not failed.
 
 use super::*;
 
@@ -20,12 +21,32 @@ impl App {
     /// A writer thread that panics drops its job's tickets, which the ledger
     /// records as a failure, so a running key script ends at once.
     pub(crate) fn config_writes_pending(&self) -> bool {
-        self.config_writes.status().pending > 0
+        self.config_status().pending > 0
     }
 
     /// The first config write that failed, as the ledger recorded it.
     pub(crate) fn config_write_failed(&self) -> Option<String> {
-        self.config_writes.status().failed.map(|f| f.why)
+        self.config_status().failed.map(|f| f.why)
+    }
+
+    /// Writes and re-reads together: what a running script waits for.
+    pub(crate) fn config_status(&self) -> ito_common::writes::Status {
+        let (w, r) = (self.config_writes.status(), self.config_reads.status());
+        let oldest = match (w.oldest, r.oldest) {
+            (Some(a), Some(b)) => Some(if b.since < a.since { b } else { a }),
+            (a, b) => a.or(b),
+        };
+        ito_common::writes::Status { pending: w.pending + r.pending, oldest, answers: w.answers + r.answers, failed: w.failed.or(r.failed) }
+    }
+
+    /// What the end of a run is judged on: the writes only, so a re-read still
+    /// open does not fail it. A re-read that failed does.
+    pub(crate) fn config_status_at_end(&self) -> ito_common::writes::Status {
+        let mut s = self.config_writes.status();
+        if s.failed.is_none() {
+            s.failed = self.config_reads.status().failed;
+        }
+        s
     }
 }
 
