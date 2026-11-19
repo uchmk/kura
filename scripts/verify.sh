@@ -76,6 +76,8 @@ fi
 # ito first: no crate ito already stands in for, and every crate an app needs
 # (CI's `ito-first` job).
 run python3 scripts/ito-first.py
+# pure Rust: no crate that needs a C toolchain on the 6 targets (CI's `ito-first` job).
+run python3 scripts/pure-rust.py
 # Known vulnerabilities (RustSec) in the tree, as the Audit workflow runs
 # weekly. Warnings (an unmaintained crate deep in the tree) do not fail.
 command -v cargo-audit >/dev/null 2>&1 || run cargo install cargo-audit --locked

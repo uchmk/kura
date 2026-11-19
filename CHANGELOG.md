@@ -9,6 +9,19 @@
 
 ## [未リリース]
 
+## [0.164.7] - 2026-11-19
+
+### 追加
+
+- CI の `ito-first` ジョブと `scripts/verify.sh` に、C のツールチェーンが要るクレートが依存に入ったら落とす見張り（`scripts/pure-rust.py`）を足した（#503）。
+  - 6 つのターゲット（Windows・Linux・macOS × x64・ARM64）ごとに依存の木を読み、`cc`・`cmake`・`pkg-config` などのビルドの道具と `-sys` のクレートを探す。
+  - 害の無いもの（Win32 の束縛、`dlopen` の `wayland-sys` など）は、ito の共有の表 `scripts/pure-rust.txt` に理由つきで載っている。今の kura はその表だけで通る。
+  - スクリプトと表は ito（v0.310.0）の共有のレーンのスクリプトで、`scripts/lanes.sh sync` で写す。
+
+### 変更
+
+- ito を v0.310.0 に上げた（v0.309.1 から。kura のコードに要る直しは無い）。
+
 ## [0.164.6] - 2026-11-19
 
 ### 変更
