@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 836 件（TESTING.md の全 1033 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 837 件（TESTING.md の全 1034 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -338,6 +338,7 @@ fsutil hardlink list <新しくできたパス>
 - [x] **16.12** その上で `<A-j>` / `<A-k>` とミニマップ → スクロールし、帯も出る。ただのテキストプレビューなので。（`/` と `n` はファイル一覧の検索で、プレビューの中を探すものではない。プレビューの中の検索は無い） — *`<A-j>` / `<A-k>` and the minimap on one → It scrolls, and the strip is there, because it is an ordinary text preview. (`/` and `n` search the file list, not the preview: there is no search inside a preview)*
 - [x] **16.13** Windows で、既定のアプリが無い拡張子のファイル（`HKCR\.xyz` が無い。`fixtures\unknown.xyz`）をオープナー無しで `<Enter>`（v0.82.0、Q92） → 赤いトーストが `No default app for .xyz` で、**何も開かない**（「このファイルを開く方法を選んでください」の箱もウィンドウも出ない）。`.txt` は今までどおり `Opened … with the system's default app` で開く — *Windows, a file whose extension has no default app (`HKCR\.xyz` absent; `fixtures\unknown.xyz`), `<Enter>` with no opener (v0.82.0, Q92) → A red toast says `No default app for .xyz`, and **nothing opens**: no "How do you want to open this file?" box, no window. A `.txt` still says `Opened … with the system's default app` and opens*
 - [x] **16.13a** Windows で、同じ `unknown.xyz` に `[opener] open = [{ run = 'start "" %*', desc = "Default app" }, { run = 'notepad %*', desc = "Notepad" }]` と規則 `{ name = "*.xyz", use = ["open"] }` を置き、`<Enter>`（v0.82.0、Q92） → トーストが `No default app for .xyz — O to pick one`（`open --interactive` に結んだ最初のキー）で、何も開かない。`<S-Enter>` で 2 つが並び、Notepad で開ける。先頭を `start "" notepad %*` にすると、`<Enter>` はそのトースト無しで Notepad で開く（プログラムを名指しする行は引かない） — *Windows, the same `unknown.xyz` with `[opener] open = [{ run = 'start "" %*', desc = "Default app" }, { run = 'notepad %*', desc = "Notepad" }]` and a rule `{ name = "*.xyz", use = ["open"] }`, `<Enter>` (v0.82.0, Q92) → The toast says `No default app for .xyz — O to pick one` (the first key bound to `open --interactive`), and nothing opens; `<S-Enter>` lists both and Notepad opens it. With `start "" notepad %*` first instead, `<Enter>` opens Notepad with no such toast (a line that names its program is not checked)*
+- [ ] **16.13b** Windows で、既定のアプリがフォト（ストアのアプリ）の `.jpg`、メディア プレーヤーの `.mp4`、テキストを指す `.lnk` のショートカットを、オープナー無しで `<Enter>`（v0.164.11） → `No default app` のトーストは出ず、絵はフォトで、動画はメディア プレーヤーで、ショートカットは指す先のファイルが開く。これらの種類は Windows がプログラムの名前を返さない（`AssocQueryString` が `0x80070483` で失敗する）。返るのはハンドラーかショートカットの印だけ — *Windows, `<Enter>` with no opener on a `.jpg` whose default app is Photos (a Store app), an `.mp4` whose default is Media Player, and a `.lnk` shortcut to a text file (v0.164.11) → No `No default app` toast: the picture opens in Photos, the video in Media Player, and the shortcut opens the file it points at. Windows names no program for these types (`AssocQueryString` fails with `0x80070483`), only a handler or the shortcut flag*
 
 ## 17. 自前のプレビューア
 

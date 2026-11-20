@@ -811,36 +811,78 @@ pub fn open_default(path: &Path) -> std::io::Result<()> {
 ///
 /// Newer Windows 11 builds answer `OpenWith.exe` (the "How do you want to
 /// open this file?" picker) for an extension nothing is associated with,
-/// where older ones fail; that answer is no app either (#358).
+/// where older ones fail (#358). Asked with `ASSOCF_INIT_IGNOREUNKNOWN`, an
+/// unregistered extension fails on every build; the picker, should a type
+/// name it, is still no app.
+///
+/// A packaged app (Photos for `.jpg`, Media Player for `.mp4`) names no
+/// program: Windows answers with the handler it hands the file to
+/// (`DelegateExecute`). A shortcut (`.lnk`) names neither; its type is marked
+/// `IsShortcut`, and Windows opens what it points at.
 pub fn has_default_app(path: &Path) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
-        use windows::core::{PCWSTR, PWSTR};
-        use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF_NONE, ASSOCSTR_EXECUTABLE};
+        use windows::Win32::UI::Shell::{ASSOCSTR_DELEGATEEXECUTE, ASSOCSTR_EXECUTABLE, ASSOCSTR_PROGID};
         let Some(ext) = path.extension() else { return true };
         let wide: Vec<u16> = std::ffi::OsStr::new(".").encode_wide().chain(ext.encode_wide()).chain(Some(0)).collect();
-        let mut buf = [0u16; 1024];
-        let mut len = buf.len() as u32;
-        // SAFETY: `wide` is NUL-terminated and `buf` holds `len` units.
-        let r = unsafe {
-            AssocQueryStringW(
-                ASSOCF_NONE,
-                ASSOCSTR_EXECUTABLE,
-                PCWSTR(wide.as_ptr()),
-                PCWSTR::null(),
-                Some(PWSTR(buf.as_mut_ptr())),
-                &mut len,
-            )
-        };
-        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-        r.is_ok() && !is_the_picker(&String::from_utf16_lossy(&buf[..end]))
+        let exe = assoc_string(&wide, ASSOCSTR_EXECUTABLE);
+        let delegate = assoc_string(&wide, ASSOCSTR_DELEGATEEXECUTE);
+        opens_with_an_app(exe.as_deref(), delegate.as_deref(), || {
+            assoc_string(&wide, ASSOCSTR_PROGID).is_some_and(|p| type_is_shortcut(&p))
+        })
     }
     #[cfg(not(windows))]
     {
         let _ = path;
         true
     }
+}
+
+/// One answer about the type `ext` (`.jpg`, NUL-terminated), or `None` when
+/// Windows has none (or an empty one). `ASSOCF_INIT_IGNOREUNKNOWN` keeps
+/// out the "Unknown" type an unregistered extension otherwise falls back to,
+/// whose answers are the picker's.
+#[cfg(windows)]
+fn assoc_string(ext: &[u16], what: windows::Win32::UI::Shell::ASSOCSTR) -> Option<String> {
+    use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF_INIT_IGNOREUNKNOWN};
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
+    // SAFETY: `ext` is NUL-terminated and `buf` holds `len` units.
+    let r = unsafe {
+        AssocQueryStringW(ASSOCF_INIT_IGNOREUNKNOWN, what, PCWSTR(ext.as_ptr()), PCWSTR::null(), Some(PWSTR(buf.as_mut_ptr())), &mut len)
+    };
+    let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    (r.is_ok() && end > 0).then(|| String::from_utf16_lossy(&buf[..end]))
+}
+
+/// Whether the file type `progid` is a shortcut (`lnkfile`): its key holds
+/// an `IsShortcut` value.
+#[cfg(windows)]
+fn type_is_shortcut(progid: &str) -> bool {
+    use windows::core::{w, PCWSTR};
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CLASSES_ROOT, RRF_RT_ANY};
+    if progid.is_empty() {
+        return false;
+    }
+    let key: Vec<u16> = progid.encode_utf16().chain(Some(0)).collect();
+    // SAFETY: both names are NUL-terminated; no data is read back.
+    unsafe { RegGetValueW(HKEY_CLASSES_ROOT, PCWSTR(key.as_ptr()), w!("IsShortcut"), RRF_RT_ANY, None, None, None) }.is_ok()
+}
+
+/// The handler Windows names for the "Unknown" type: the picker again.
+#[cfg(any(windows, test))]
+const OPEN_WITH_DELEGATE: &str = "e44e9428-bdbc-4987-a099-40dc8fd255e7";
+
+/// What Windows' answers about a type say: a program, or a handler, that
+/// is not the picker; with neither answer, whether the type is a shortcut
+/// (asked only then).
+#[cfg(any(windows, test))]
+fn opens_with_an_app(exe: Option<&str>, delegate: Option<&str>, shortcut: impl FnOnce() -> bool) -> bool {
+    let program = exe.is_some_and(|e| !is_the_picker(e));
+    let handler = delegate.is_some_and(|d| !d.trim().trim_matches(['{', '}']).eq_ignore_ascii_case(OPEN_WITH_DELEGATE));
+    program || handler || (exe.is_none() && delegate.is_none() && shortcut())
 }
 
 /// Whether the program Windows names for a file type is only the picker
@@ -1003,6 +1045,25 @@ mod tests {
     fn a_type_nothing_is_associated_with_has_no_app() {
         assert!(!has_default_app(Path::new("a.kura-no-such-type")));
         assert!(has_default_app(Path::new("no-extension")));
+        // Windows' own shortcut type, which names no program.
+        assert!(has_default_app(Path::new("a.lnk")));
+    }
+
+    /// Photos and Media Player name no program, only a handler; the picker
+    /// is no app whichever way Windows names it.
+    #[test]
+    fn a_packaged_app_or_a_shortcut_is_an_app() {
+        let never = || panic!("asked about a shortcut");
+        assert!(opens_with_an_app(Some(r"C:\Tools\sakura.exe"), None, never));
+        assert!(!opens_with_an_app(Some(r"C:\WINDOWS\system32\OpenWith.exe"), None, never));
+        assert!(opens_with_an_app(None, Some("{BFEC0C93-0B7D-4F2C-B09C-AFFFC4BDAE78}"), never));
+        assert!(!opens_with_an_app(None, Some("{E44E9428-BDBC-4987-A099-40DC8FD255E7}"), never));
+        assert!(!opens_with_an_app(None, Some("e44e9428-bdbc-4987-a099-40dc8fd255e7"), never));
+        // The picker as the program, a real handler beside it.
+        assert!(opens_with_an_app(Some(r"C:\WINDOWS\system32\OpenWith.exe"), Some("{BFEC0C93-0B7D-4F2C-B09C-AFFFC4BDAE78}"), never));
+        assert!(!opens_with_an_app(Some(r"C:\WINDOWS\system32\OpenWith.exe"), Some("{e44e9428-bdbc-4987-a099-40dc8fd255e7}"), never));
+        assert!(opens_with_an_app(None, None, || true));
+        assert!(!opens_with_an_app(None, None, || false));
     }
 
     #[test]

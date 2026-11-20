@@ -233,7 +233,9 @@ default app, either because no opener applies or because the first one is a bare
 kura asks Windows which program the extension opens with; when there is none it says
 `No default app for .xyz` (with `— O to pick one` when the file has other openers; the key is the
 first one bound to `open --interactive`) and opens nothing. Handed over anyway, such a file got a "How do you want to open this file?" box at best and
-nothing at all at worst. `start "" msedge %*` names its program and is not checked. An association
+nothing at all at worst. A Store app's type (Photos for `.jpg`, Media Player for `.mp4`) names no program
+but a handler, and a shortcut (`.lnk`) neither; both count as having an app (v0.164.11).
+`start "" msedge %*` names its program and is not checked. An association
 that exists but fails to start its program is not caught this way.
 
 As in yazi, `[open] prepend_rules` and `append_rules` add to the rules without restating them

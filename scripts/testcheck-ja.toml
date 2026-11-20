@@ -446,6 +446,7 @@ title = "HTML のプレビュー"
 "16.3b" = '`[opener]` が `start "" %*` のとき（Word で開く）`.docx` のアウトラインで `<Enter>` → トーストの末尾に `(line N not passed: this opener takes no line)`。行を受け取るエディタ（`code -g` など）では付かない'
 "16.13" = '''Windows で、既定のアプリが無い拡張子のファイル（`HKCR\.xyz` が無い。`fixtures\unknown.xyz`）をオープナー無しで `<Enter>`（v0.82.0、Q92） → 赤いトーストが `No default app for .xyz` で、**何も開かない**（「このファイルを開く方法を選んでください」の箱もウィンドウも出ない）。`.txt` は今までどおり `Opened … with the system's default app` で開く'''
 "16.13a" = '''Windows で、同じ `unknown.xyz` に `[opener] open = [{ run = 'start "" %*', desc = "Default app" }, { run = 'notepad %*', desc = "Notepad" }]` と規則 `{ name = "*.xyz", use = ["open"] }` を置き、`<Enter>`（v0.82.0、Q92） → トーストが `No default app for .xyz — O to pick one`（`open --interactive` に結んだ最初のキー）で、何も開かない。`<S-Enter>` で 2 つが並び、Notepad で開ける。先頭を `start "" notepad %*` にすると、`<Enter>` はそのトースト無しで Notepad で開く（プログラムを名指しする行は引かない）'''
+"16.13b" = '''Windows で、既定のアプリがフォト（ストアのアプリ）の `.jpg`、メディア プレーヤーの `.mp4`、テキストを指す `.lnk` のショートカットを、オープナー無しで `<Enter>`（v0.164.11） → `No default app` のトーストは出ず、絵はフォトで、動画はメディア プレーヤーで、ショートカットは指す先のファイルが開く。これらの種類は Windows がプログラムの名前を返さない（`AssocQueryString` が `0x80070483` で失敗する）。返るのはハンドラーかショートカットの印だけ'''
 "16.4" = '`.xlsx` をホバー → 行がタブ区切りのセルとして出て、シートごとに名前が示される'
 "16.5" = '**最初のタブが `sheet1.xml` ではない**ブック → タブがブック上の順番どおりに、本当の名前で出る'
 "16.6" = '日付の入ったシート → `2023-03-15` と出る（`45000` ではない）'
