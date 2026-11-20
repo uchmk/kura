@@ -49,5 +49,7 @@ background_note = "Flatten transparent pixels onto this colour for JPEG (#RRGGBB
 invalid_background = "Alpha background must be #RRGGBB"
 delete = "Delete originals"
 delete_note = "Move each original to the trash after its output is saved."
-lossless = "Always lossless; no quality setting"
+webp_quality = "WebP quality"
+webp_quality_note = "0–100 (0 = lossless)"
 webp = "WebP (lossless)"
+webp_lossy = "WebP (quality {0})"

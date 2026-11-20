@@ -41,6 +41,8 @@ pub enum PngLevel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EncodeOpts {
     pub jpeg_quality: u8,
+    /// 0 = lossless WebP; 1-100 = lossy through `ito-image`.
+    pub webp_quality: u8,
     pub png_level: PngLevel,
     pub alpha_bg: [u8; 3],
     pub delete_original: bool,
@@ -48,7 +50,7 @@ pub struct EncodeOpts {
 
 impl Default for EncodeOpts {
     fn default() -> Self {
-        Self { jpeg_quality: 85, png_level: PngLevel::Default, alpha_bg: [255; 3], delete_original: false }
+        Self { jpeg_quality: 85, webp_quality: 0, png_level: PngLevel::Default, alpha_bg: [255; 3], delete_original: false }
     }
 }
 
@@ -110,6 +112,13 @@ pub fn encode(img: &DynamicImage, fmt: ImageFormat, opts: &EncodeOpts, out: &mut
                 png.height(),
                 png.color().into(),
             )
+        }
+        ImageFormat::WebP if opts.webp_quality > 0 => {
+            let rgba = img.to_rgba8();
+            let (width, height) = (rgba.width(), rgba.height());
+            let picture = ito_image::Rgba::new(width, height, rgba.into_raw()).map_err(|e| e.to_string())?;
+            let bytes = ito_image::encode_webp(&picture, f32::from(opts.webp_quality.min(100))).map_err(|e| e.to_string())?;
+            return out.write_all(&bytes).map_err(|e| e.to_string());
         }
         ImageFormat::WebP => {
             let rgba = img.to_rgba8();
@@ -241,6 +250,32 @@ mod tests {
         encode(&half, ImageFormat::Jpeg, &EncodeOpts::default(), &mut out).unwrap();
         let back = image::load_from_memory(&out).unwrap().to_rgb8();
         assert!(back.get_pixel(16, 16)[0].abs_diff(127) <= 2);
+    }
+
+    #[test]
+    fn webp_quality_zero_is_lossless_and_positive_is_lossy_with_alpha() {
+        let img = sample();
+        let mut lossless = Vec::new();
+        encode(&img, ImageFormat::WebP, &EncodeOpts::default(), &mut lossless).unwrap();
+        let back = image::load_from_memory(&lossless).unwrap();
+        assert_eq!(back.to_rgba8(), img.to_rgba8());
+        let mut lossy = Vec::new();
+        encode(&img, ImageFormat::WebP, &EncodeOpts { webp_quality: 75, ..Default::default() }, &mut lossy).unwrap();
+        assert_ne!(lossy, lossless);
+        let back = image::load_from_memory(&lossy).unwrap();
+        assert_eq!((back.width(), back.height()), (64, 48));
+        let translucent = DynamicImage::ImageRgba8(image::RgbaImage::from_fn(64, 48, |x, y| {
+            image::Rgba([(x * 4) as u8, (y * 5) as u8, 90, if x < 32 { 128 } else { 255 }])
+        }));
+        let mut out = Vec::new();
+        encode(&translucent, ImageFormat::WebP, &EncodeOpts { webp_quality: 75, ..Default::default() }, &mut out).unwrap();
+        let back = image::load_from_memory(&out).unwrap().to_rgba8();
+        let mean = |half: std::ops::Range<u32>| {
+            let alphas: Vec<u32> = back.enumerate_pixels().filter(|(x, _, _)| half.contains(x)).map(|(_, _, p)| u32::from(p[3])).collect();
+            alphas.iter().sum::<u32>() / alphas.len() as u32
+        };
+        assert!((112..=144).contains(&mean(0..32)), "translucent half: mean alpha {}", mean(0..32));
+        assert!(mean(32..64) >= 240, "opaque half: mean alpha {}", mean(32..64));
     }
 
     #[test]

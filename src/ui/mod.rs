@@ -5778,6 +5778,23 @@ mod convert_tests {
     use super::harness::Screen;
 
     #[test]
+    fn the_webp_line_names_the_quality_when_one_is_set() {
+        let dir = crate::util::test_dir("convert-webp-label");
+        let source = dir.join("a.png");
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([1, 2, 3, 255])).save(&source).unwrap();
+        let mut s = Screen::without_state(dir.clone());
+        s.app.lang = "en".into();
+        s.app.cfg.convert.webp_quality = 80;
+        let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(source).unwrap()]);
+        s.app.tabs[0].current = crate::core::folder::Folder::from_entries(dir, entries, true);
+        s.draw();
+        s.typed("c");
+        let frame = s.typed("i");
+        assert!(frame.says("WebP (quality 80)"), "{:?}", frame.texts);
+        assert!(!frame.says("WebP (lossless)"));
+    }
+
+    #[test]
     fn convert_key_opens_picker_and_job_reports_output_sizes() {
         let dir = crate::util::test_dir("convert-ui");
         let source = dir.join("alpha.png");

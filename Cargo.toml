@@ -1,6 +1,6 @@
 [package]
 name = "kura"
-version = "0.164.11"
+version = "0.165.0"
 edition = "2021"
 rust-version = "1.95"
 description = "A yazi-flavored, keyboard-driven file manager built with Rust + egui"
@@ -88,6 +88,8 @@ ito-openin = { git = "https://github.com/uchmk/ito", rev = "876cff6d6ab596a65f28
 # The window's own title bar (drag, caption buttons, the palette box, the bell) and the list the bell opens (v0.131.0); the same commit as the others.
 ito-titlebar = { git = "https://github.com/uchmk/ito", rev = "876cff6d6ab596a65f28a2a8aaf8600c216506d0" }
 ito-notices = { git = "https://github.com/uchmk/ito", rev = "876cff6d6ab596a65f28a2a8aaf8600c216506d0" }
+# Lossy WebP for Convert (`[convert].webp_quality`, pure Rust); the same commit as the others.
+ito-image = { git = "https://github.com/uchmk/ito", rev = "876cff6d6ab596a65f28a2a8aaf8600c216506d0" }
 [dependencies.image]
 version = "0.25"
 default-features = false

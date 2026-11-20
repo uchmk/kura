@@ -917,7 +917,7 @@ before the rest.
 | 27.3 | Walk off the file and back | Still fine (this always worked — it was the cache) |
 | 27.4 | Open an image never seen this session, then zoom with `+` | It steps from the picture's own fit, not from the last image's scale. **The same commit killed this and it has never been exercised** |
 | 27.5 | Restart, open ten different files in a row without revisiting any | All ten appear |
-| 27.6 | Start kura cold in a clone of kura, hover `TODO.md` (2500+ lines) with Markdown rendered, `M` for its source, then hover `TESTING-CHECKS.md` and `src\app.rs` (v0.86.12; method v0.152.0). Judge the half-second wait by eye. With `--keys`, put `<Now><State:a><State:b>` right after each of those keys, with new names for each pair: `a` does not wait for the screen to settle and may still show loading or `preview: early`; `b` waits for it and shows `preview: whole` with `settled: yes`. This is not a 150 ms reading: since v0.152.0 `<Now>` covers the next step only, so the old `<Now><State:a><Wait:150><State:b>` reads `b` after settle. Each `<State:>` ends with a `since last action: N ms` line (v0.154.0) | Each shows its first screen at once, with no half-second wait. The source is coloured to the end once `<A-G>` takes it there (`preview top: N of N`), and so is the minimap down the right |
+| 27.6 | Start kura cold in a clone of kura, hover `TODO-DONE.md` (2500+ lines; `TODO.md` is short since its done items moved there) with Markdown rendered, `M` for its source, then hover `TESTING-CHECKS.md` and `src\app.rs` (v0.86.12; method v0.152.0). Judge the half-second wait by eye. With `--keys`, put `<Now><State:a><State:b>` right after each of those keys, with new names for each pair: `a` does not wait for the screen to settle and may still show loading or `preview: early`; `b` waits for it and shows `preview: whole` with `settled: yes`. This is not a 150 ms reading: since v0.152.0 `<Now>` covers the next step only, so the old `<Now><State:a><Wait:150><State:b>` reads `b` after settle. Each `<State:>` ends with a `since last action: N ms` line (v0.154.0) | Each shows its first screen at once, with no half-second wait. The source is coloured to the end once `<A-G>` takes it there (`preview top: N of N`), and so is the minimap down the right |
 | 27.7 | Hold `j` through the repository's root, then stop on a big text file. With `--keys`: `j<Now>j<Now>…j` (N presses; `<Now>` may not come right before `<Wait:>`), then `<Wait:100>`, then `<State:>` | The cursor never waits on the preview, and the file it stops on is shown whole and coloured, not left on a first screen or on a file passed earlier |
 
 ## 28. Changes made from outside (v0.12.4)
@@ -1999,7 +1999,7 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 
 ## 70. Convert images, `c i` (v0.149.0)
 
-Convert the selected images to JPEG, PNG or lossless WebP next to the originals. Pure Rust; EXIF orientation is baked in, metadata/ICC is not carried over, animations keep the first frame.
+Convert the selected images to JPEG, PNG or WebP (lossless unless `[convert].webp_quality` is set, 70.9) next to the originals. Pure Rust; EXIF orientation is baked in, metadata/ICC is not carried over, animations keep the first frame.
 
 | # | Do | Expect |
 |---|----|--------|
@@ -2011,6 +2011,7 @@ Convert the selected images to JPEG, PNG or lossless WebP next to the originals.
 | 70.6 | Settings (`<C-,>`) → Convert: change JPEG quality, PNG compression, background colour, "move originals to the trash" | Values save to `config.toml` `[convert]`; a bad colour is refused; with the trash option on, the original goes to the trash only after its output is written |
 | 70.7 | Use a Japanese file name, a network drive and a read-only folder | Names are kept; the read-only folder gives an error row, not a crash. Automated in part: `scripts/check-convert.sh` (Linux CI) covers a Japanese file name and a read-only folder; the network drive is not covered. |
 | 70.8 | Inside an archive, press `c i`; also right-click an image | Inside an archive it is refused; the right-click menu lists Convert. Automated: `scripts/check-convert.sh` (Linux CI); the menu is opened with Shift+F10, not a right-click. |
+| 70.9 | Set `webp_quality = 80` under `[convert]` in `config.toml` (the Settings row is `WebP quality`), then `c i` (the line reads `WebP (quality 80)`) → `WebP` on a photo and on a screenshot with transparency | Both `.webp` files open in a browser or the preview with the right picture; the photo is much smaller than the same photo converted with `webp_quality = 0` (lossless); the transparent areas of the screenshot stay transparent. |
 
 ## 71. Toasts read aloud (v0.157.0)
 

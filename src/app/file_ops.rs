@@ -202,9 +202,14 @@ impl App {
     pub(super) fn convert_images(&mut self, format: Option<crate::fs::imgcodec::ImageFormat>) {
         use crate::fs::imgcodec::ImageFormat;
         let Some(format) = format else {
+            // The WebP line says which kind it writes: lossless unless a quality is set.
+            let webp = match self.cfg.convert.opts().webp_quality {
+                0 => crate::i18n::tr(&self.lang, "convert.webp"),
+                q => crate::i18n::trf(&self.lang, "convert.webp_lossy", &[&q.to_string()]),
+            };
             self.open_pick(
                 crate::i18n::tr(&self.lang, "convert.title"),
-                vec!["JPEG".into(), "PNG".into(), crate::i18n::tr(&self.lang, "convert.webp")],
+                vec!["JPEG".into(), "PNG".into(), webp],
                 vec!["".into(), "".into(), "".into()],
                 [ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::WebP].into_iter().map(|f| vec![Act::Convert(Some(f))]).collect(),
             );

@@ -529,8 +529,9 @@ fn backends() -> Vec<(&'static str, &'static str)> {
 
 /// The keys of the config.toml page's rows, `table.key`, for the search to
 /// find them by in any language (#388).
-const KURA_KEYS: [&str; 19] = [
+const KURA_KEYS: [&str; 20] = [
     "convert.jpeg_quality",
+    "convert.webp_quality",
     "convert.png_compression",
     "convert.alpha_background",
     "convert.delete_original",
@@ -630,7 +631,14 @@ fn kura_page(
             out.push(change("delete_original", (!now.convert.delete_original).to_string()));
         }
         sep(ui, l);
-        row(ui, l, "WebP", &tr("lossless"), |_ui| {});
+        if let Some(text) = keyed_row(ui, l, "convert.webp_quality", &tr("webp_quality"), &tr("webp_quality_note"), |ui| {
+            field(ui, drafts, "convert.webp_quality", &now.convert.webp_quality.to_string(), "", 110.0)
+        }) {
+            match text.trim().parse::<i64>() {
+                Ok(n) => out.push(change("webp_quality", n.clamp(0, 100).to_string())),
+                Err(_) => *bad = Some((k.not_a_number)(&tr("webp_quality"), &text, 0.0, 100.0)),
+            }
+        }
     });
     section(ui, l, k.preview, |ui| {
         if keyed_row(ui, l, "ui.render_markdown", k.render_markdown, k.render_markdown_note, |ui| switch(ui, l, now.render_markdown)) {
@@ -934,7 +942,7 @@ pub fn draw(app: &mut App, ui: &mut Ui, full: Rect, queued: &mut Vec<Act>) {
     index.extend(ito_prefs::startup_index(mw).into_iter().map(|t| (GENERAL, t)));
     index.extend(ito_prefs::WINDOW_KEYS.map(|key| (GENERAL, key)));
     let convert_words: Vec<String> =
-        ["title", "quality", "compression", "background", "background_note", "delete", "delete_note", "lossless"]
+        ["title", "quality", "compression", "background", "background_note", "delete", "delete_note", "webp_quality", "webp_quality_note"]
             .into_iter()
             .map(|key| crate::i18n::tr(&lang, &format!("convert.{key}")))
             .collect();

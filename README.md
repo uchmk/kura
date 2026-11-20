@@ -309,8 +309,8 @@ input. On Windows the owner of a local account is shown without the computer nam
 for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM and QOI; SVG is excluded.
 Author, title and audio duration require parser crates and are not provided.
 
-Press `ci` to convert selected images to JPEG, PNG, or lossless WebP (also in the
-command palette and right-click menu). `convert jpeg`, `convert png`, and `convert webp`
+Press `ci` to convert selected images to JPEG, PNG, or WebP (also in the
+command palette and right-click menu; the WebP line says `lossless` or the quality it uses). `convert jpeg`, `convert png`, and `convert webp`
 choose the format directly. A selection is processed sequentially as one background job;
 non-images and images already in that format are skipped, and a failed image does not
 stop the rest. Output goes beside each original with the new extension; existing names
@@ -320,7 +320,7 @@ the skipped count; individual failures remain in the task's errors.
 
 EXIF orientation is baked into the pixels. Metadata and ICC profiles are not copied;
 wide-gamut images may change colour. Animated images use only their first frame. WebP
-is always lossless and has no quality setting. PNG retains 16-bit channels; JPEG and WebP
+is lossless unless `[convert].webp_quality` is 1–100 (lossy, pure Rust, keeps transparency). PNG retains 16-bit channels; JPEG and WebP
 use 8-bit channels. Decoding is limited to 80 million pixels, as in the image preview.
 
 Commands implemented: `escape`, `quit`, `close`, `arrow`, `leave`, `enter`, `back`, `forward`,
@@ -404,6 +404,7 @@ enable = true              # false: `kura mcp` cannot reach this window; read at
 
 [convert]
 jpeg_quality = 85          # clamped to 1–100
+webp_quality = 0           # 0 = lossless WebP; 1–100 = lossy at that quality
 png_compression = "default" # "fast", "default", or "best"
 alpha_background = "#ffffff" # JPEG transparency background (#RRGGBB)
 delete_original = false   # true: trash the original only after saving the output
@@ -1301,7 +1302,7 @@ keymap layer, so it rebinds like everything else. The essentials:
 | `<A-d>` | compare two files side by side |
 | `<F3>` | quick look: the hovered file, big, over the panes |
 | `T` | maximize the preview column, or put it back. In it: `/` finds (`n` / `N` step, round the ends), `:` or `<C-g>` goes to a line; `<Enter>`, `o` and `O` open the editor at the line on screen |
-| `ci` | Convert selected images (JPEG / PNG / lossless WebP) |
+| `ci` | Convert selected images (JPEG / PNG / WebP, lossless unless `[convert].webp_quality` is set) |
 | `e` `E` | extract the selected archives / compress the selection |
 | `<A-c>` `<A-m>` | copy / move the selection to the other pane |
 | `g…` | `gh` home, `gd` Downloads, `gD` Documents, `gc` kura's config, `gy` yazi's config, `gt` temp, `g<Space>` type a path, `gf` follow the link |

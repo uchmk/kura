@@ -331,13 +331,21 @@ impl PreviewRule {
 #[serde(default)]
 pub struct ConvertCfg {
     pub jpeg_quality: i64,
+    /// 0 = lossless WebP (default); 1-100 = lossy at that quality.
+    pub webp_quality: i64,
     pub png_compression: crate::fs::imgcodec::PngLevel,
     pub alpha_background: String,
     pub delete_original: bool,
 }
 impl Default for ConvertCfg {
     fn default() -> Self {
-        Self { jpeg_quality: 85, png_compression: Default::default(), alpha_background: "#ffffff".into(), delete_original: false }
+        Self {
+            jpeg_quality: 85,
+            webp_quality: 0,
+            png_compression: Default::default(),
+            alpha_background: "#ffffff".into(),
+            delete_original: false,
+        }
     }
 }
 impl ConvertCfg {
@@ -351,6 +359,7 @@ impl ConvertCfg {
         }
         crate::fs::imgcodec::EncodeOpts {
             jpeg_quality: self.jpeg_quality.clamp(1, 100) as u8,
+            webp_quality: self.webp_quality.clamp(0, 100) as u8,
             png_level: self.png_compression,
             alpha_bg,
             delete_original: self.delete_original,
@@ -577,6 +586,7 @@ impl Config {
                         }
                         convert = v.convert;
                         convert.jpeg_quality = convert.jpeg_quality.clamp(1, 100);
+                        convert.webp_quality = convert.webp_quality.clamp(0, 100);
                         ui = v.ui;
                         term = v.term;
                         preview = v.preview;
@@ -1499,9 +1509,18 @@ mod convert_tests {
             .unwrap();
             let opts = cfg.convert.opts();
             assert_eq!(opts.jpeg_quality, expected);
+            assert_eq!(opts.webp_quality, 0);
             assert_eq!(opts.alpha_bg, [0x12, 0x34, 0xab]);
             assert_eq!(opts.png_level, crate::fs::imgcodec::PngLevel::Best);
             assert!(opts.delete_original);
+        }
+        for (value, expected) in [(-5, 0), (0, 0), (75, 75), (100, 100), (300, 100)] {
+            let cfg: KuraToml = toml::from_str(&format!(
+                "[convert]
+webp_quality = {value}"
+            ))
+            .unwrap();
+            assert_eq!(cfg.convert.opts().webp_quality, expected);
         }
         for invalid in ["bad", "#zzzzzz", "#あいう"] {
             assert_eq!(ConvertCfg { alpha_background: invalid.into(), ..Default::default() }.opts().alpha_bg, [255; 3]);

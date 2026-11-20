@@ -474,6 +474,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "bin-rs"
+version = "0.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23f756521115a60a84bc45722261eaf03aa6a59d886c9c3b41d08ac1c39e3e24"
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2159,6 +2165,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ito-image"
+version = "0.311.0"
+source = "git+https://github.com/uchmk/ito?rev=876cff6d6ab596a65f28a2a8aaf8600c216506d0#876cff6d6ab596a65f28a2a8aaf8600c216506d0"
+dependencies = [
+ "arboard",
+ "oxideav-webp",
+ "png",
+ "webp-rust",
+ "windows",
+]
+
+[[package]]
 name = "ito-ime"
 version = "0.311.0"
 source = "git+https://github.com/uchmk/ito?rev=876cff6d6ab596a65f28a2a8aaf8600c216506d0#876cff6d6ab596a65f28a2a8aaf8600c216506d0"
@@ -2517,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.164.11"
+version = "0.165.0"
 dependencies = [
  "ab_glyph",
  "chrono",
@@ -2536,6 +2554,7 @@ dependencies = [
  "ito-fonts",
  "ito-help",
  "ito-i18n",
+ "ito-image",
  "ito-ipc",
  "ito-keymap",
  "ito-keys",
@@ -3273,6 +3292,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b"
 dependencies = [
  "ttf-parser",
+]
+
+[[package]]
+name = "oxideav-vp8"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c449a84e4f468bb88e40868383e297605c6ab4b591ca600b5f78345e40f281e"
+
+[[package]]
+name = "oxideav-webp"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfca0cb5908192778a23da0b3ede28db58e663069ea70aab72b65b1cfaeb45b8"
+dependencies = [
+ "oxideav-vp8",
 ]
 
 [[package]]
@@ -5048,6 +5082,15 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "url",
  "web-sys",
+]
+
+[[package]]
+name = "webp-rust"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50c858a3ae7a705e41370c569e3317b5e85b167700dc77b3c14e71a9ed077f71"
+dependencies = [
+ "bin-rs",
 ]
 
 [[package]]
