@@ -1187,3 +1187,20 @@ fn manual_again(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg>
     a.usage = Some(h);
     tx
 }
+
+/// `m a` builds the measured list afresh; the cursor stays on the file it was on
+/// (until v0.167.2 it went to the top row).
+#[test]
+fn details_keeps_the_hovered_file() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    listed(&mut a, &dir);
+    assert!(a.tabs[a.active].current.select_name("loose"));
+    assert_ne!(a.tabs[a.active].current.cursor, 0, "below the first row");
+    a.act(Act::Linemode(Linemode::All));
+    settle(&mut a);
+    assert!(a.in_usage_view());
+    assert_eq!(rows(&a).len(), 3);
+    assert_eq!(a.tabs[a.active].current.hovered_name(), Some("loose"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

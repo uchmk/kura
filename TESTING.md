@@ -1997,6 +1997,9 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.18 | (v0.151.4) `gu` in the normal view (not details), then `g h` | The usage view closes; the home folder shows as a plain listing and nothing is measured |
 | 69.19 | (v0.151.4) Windows: the Owner column for your own files, `C:\Windows\System32` and, if you have one, a domain account's files | Your files read just the user name (no computer name); system files read `SYSTEM`, `Administrators` or `TrustedInstaller` without `NT AUTHORITY\` / `BUILTIN\` / `NT SERVICE\`; a domain account keeps `DOMAIN\user` |
 | 69.20 | (v0.160.19) In a plain list and in the details view, put the cursor on a file below the first row, then press `,T` and `,t` | The cursor stays on that file at its new row (until v0.160.18 it kept the row number and landed on another file) |
+| 69.21 | (v0.167.3) In a plain list, put the cursor on a file below the first row, then press `m a` | The cursor stays on that file once its row is listed in the table (until v0.167.2 it went to the top row) |
+| 69.22 | (v0.167.3) Windows: the Owner column for a file whose owner account no longer exists (a removed local account, or a domain out of reach) | Owner reads the SID, `S-1-5-21-…`, not an empty cell |
+| 69.23 | (v0.167.3) In the details view, a cell too long for its column (an owner SID, a long `DOMAIN\user`) | The middle is cut with `…` and the end of the value stays (`S-1-5-21-8…1001`); no letter is cut in half at the column edge |
 
 ## 70. Convert images, `c i` (v0.149.0)
 

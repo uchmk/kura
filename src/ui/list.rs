@@ -230,7 +230,18 @@ pub fn draw(
                         cp.text(egui::pos2(unit_x, cell.center().y), Align2::LEFT_CENTER, unit, st.font.clone(), st.theme.fg_dim);
                     }
                 } else {
-                    cp.text(cell.left_center(), Align2::LEFT_CENTER, text, st.font.clone(), st.theme.fg_dim);
+                    // Cut in the middle with `…` so the end stays: an owner no
+                    // account answers to is a SID whose last part is the one that
+                    // tells it apart.
+                    let full = painter.layout_no_wrap(text, st.font.clone(), st.theme.fg_dim);
+                    let galley = if full.size().x <= cell.width() {
+                        full
+                    } else {
+                        let width = |s: &str| painter.layout_no_wrap(s.to_owned(), st.font.clone(), st.theme.fg_dim).size().x;
+                        painter.layout_no_wrap(cut_middle(full.text(), cell.width(), &width), st.font.clone(), st.theme.fg_dim)
+                    };
+                    let at = Align2::LEFT_CENTER.anchor_size(cell.left_center(), galley.size()).min;
+                    cp.galley(at, galley, st.theme.fg_dim);
                 }
                 if col == 10 && entry.usage.is_some() && st.usage_max > 0 {
                     let track = Rect::from_min_size(cell.left_bottom() - Vec2::new(0.0, 3.0), Vec2::new(cell.width(), 2.0));
@@ -448,6 +459,33 @@ fn elide_at(name: &str, max_width: f32, width: &dyn Fn(&str) -> f32) -> Option<(
     Some(cut(lo))
 }
 
+/// `text`, which is wider than `max_width`, cut in the middle to fit: two
+/// thirds of what is kept at the front, `…`, the last third at the back, so
+/// the end stays. A details cell holds a value, not a file name, so there is
+/// no extension to keep whole (`2026.11.22 10:00` is not `2026.11` plus
+/// `.22 10:00`). When not even one character and `…` fit, just `…`, and
+/// nothing when that does not fit either: no letter is cut in half at the edge.
+fn cut_middle(text: &str, max_width: f32, width: &dyn Fn(&str) -> f32) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len();
+    let shown = |keep: usize| -> String {
+        let back = keep / 3;
+        chars[..keep - back].iter().chain(['…'].iter()).chain(chars[n - back..].iter()).collect()
+    };
+    if width(&shown(0)) > max_width {
+        return String::new();
+    }
+    let (mut lo, mut hi) = (0, n.saturating_sub(1));
+    while lo < hi {
+        let mid = (lo + hi).div_ceil(2);
+        match width(&shown(mid)) <= max_width {
+            true => lo = mid,
+            false => hi = mid - 1,
+        }
+    }
+    shown(lo)
+}
+
 /// `cut` moved, within the same number of kept characters, so that `name`
 /// no longer reads the same as a neighbouring row's name (Q67, #227: a
 /// column of `notes…84` with the cursor on one of them). More of the head
@@ -662,10 +700,27 @@ mod icon_column {
 /// the cut goes; the renderer passes the font's own measure.
 #[cfg(test)]
 mod elision {
-    use super::{apart, elide_at, elided};
+    use super::{apart, cut_middle, elide_at, elided};
 
     fn chars(s: &str) -> f32 {
         s.chars().count() as f32
+    }
+
+    /// A details cell keeps its end and never shows half a letter, even for a
+    /// value with dots that a file name's rule would leave uncut.
+    #[test]
+    fn a_details_cell_is_cut_in_the_middle() {
+        let sid = "S-1-5-21-8123456789-1234567890-123456789-1001";
+        assert_eq!(cut_middle(sid, 15.0, &chars), "S-1-5-21-8…1001");
+        assert_eq!(cut_middle("2026.11.22 10:00", 10.0, &chars), "2026.1…:00");
+        assert_eq!(elide_at("2026.11.22 10:00", 10.0, &chars), None, "the name rule would not cut it");
+        assert_eq!(cut_middle("Administrators", 2.0, &chars), "A…");
+        assert_eq!(cut_middle("Administrators", 1.0, &chars), "…");
+        assert_eq!(cut_middle("Administrators", 0.5, &chars), "");
+        for max in 1..14 {
+            let s = cut_middle("Administrators", max as f32, &chars);
+            assert!(s.chars().count() <= max, "{max}: {s}");
+        }
     }
 
     fn shown(name: &str, max: f32) -> String {

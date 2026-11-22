@@ -64,10 +64,10 @@ fn owner(path: &Path) -> String {
 fn owner(path: &Path) -> String {
     use std::os::windows::ffi::OsStrExt;
     use std::sync::{Mutex, OnceLock};
-    use windows::core::{PCWSTR, PWSTR};
+    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{LocalFree, HLOCAL};
     use windows::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
-    use windows::Win32::Security::{GetLengthSid, LookupAccountSidW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SID_NAME_USE};
+    use windows::Win32::Security::{GetLengthSid, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID};
     static CACHE: OnceLock<Mutex<std::collections::HashMap<Vec<u8>, String>>> = OnceLock::new();
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     unsafe {
@@ -96,33 +96,53 @@ fn owner(path: &Path) -> String {
         let cache = CACHE.get_or_init(Default::default);
         let cached = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key).cloned();
         let result = cached.unwrap_or_else(|| {
-            let (mut names, mut domains) = (0, 0);
-            let mut use_ = SID_NAME_USE::default();
-            let _ = LookupAccountSidW(PCWSTR::null(), sid, None, &mut names, None, &mut domains, &mut use_);
-            let mut name = vec![0u16; names as usize];
-            let mut domain = vec![0u16; domains as usize];
-            let result = if LookupAccountSidW(
-                PCWSTR::null(),
-                sid,
-                Some(PWSTR(name.as_mut_ptr())),
-                &mut names,
-                Some(PWSTR(domain.as_mut_ptr())),
-                &mut domains,
-                &mut use_,
-            )
-            .is_ok()
-            {
-                let name = String::from_utf16_lossy(&name[..names as usize]);
-                let domain = String::from_utf16_lossy(&domain[..domains as usize]);
-                account_label(&domain, &name, &std::env::var("COMPUTERNAME").unwrap_or_default())
-            } else {
-                String::new()
-            };
+            let result = sid_label(sid);
             cache.lock().unwrap_or_else(|e| e.into_inner()).insert(key, result.clone());
             result
         });
         let _ = LocalFree(Some(HLOCAL(descriptor.0)));
         result
+    }
+}
+
+/// The account a SID names, as the Owner column shows it. A SID no account
+/// answers to any more (a deleted user, a domain out of reach) reads as the SID
+/// itself, `S-1-5-21-…`, rather than as nothing: the uid
+/// number does the same on Unix.
+#[cfg(windows)]
+fn sid_label(sid: windows::Win32::Security::PSID) -> String {
+    use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
+    use windows::Win32::Security::{LookupAccountSidW, SID_NAME_USE};
+    unsafe {
+        let (mut names, mut domains) = (0, 0);
+        let mut use_ = SID_NAME_USE::default();
+        let _ = LookupAccountSidW(PCWSTR::null(), sid, None, &mut names, None, &mut domains, &mut use_);
+        let mut name = vec![0u16; names as usize];
+        let mut domain = vec![0u16; domains as usize];
+        if LookupAccountSidW(
+            PCWSTR::null(),
+            sid,
+            Some(PWSTR(name.as_mut_ptr())),
+            &mut names,
+            Some(PWSTR(domain.as_mut_ptr())),
+            &mut domains,
+            &mut use_,
+        )
+        .is_ok()
+        {
+            let name = String::from_utf16_lossy(&name[..names as usize]);
+            let domain = String::from_utf16_lossy(&domain[..domains as usize]);
+            return account_label(&domain, &name, &std::env::var("COMPUTERNAME").unwrap_or_default());
+        }
+        let mut text = PWSTR::null();
+        if ConvertSidToStringSidW(sid, &mut text).is_err() || text.is_null() {
+            return String::new();
+        }
+        let label = text.to_string().unwrap_or_default();
+        let _ = LocalFree(Some(HLOCAL(text.0.cast())));
+        label
     }
 }
 
@@ -256,5 +276,24 @@ mod tests {
         std::fs::write(&path, b"").unwrap();
         assert!(!owner(&path).is_empty());
         assert_eq!(owner(&path), owner(&path));
+    }
+    /// A SID no account answers to reads as the SID, not as an empty cell.
+    #[cfg(windows)]
+    #[test]
+    fn a_sid_with_no_account_reads_as_the_sid() {
+        use windows::Win32::Foundation::{LocalFree, HLOCAL};
+        use windows::Win32::Security::Authorization::ConvertStringSidToSidW;
+        use windows::Win32::Security::PSID;
+        let label = |s: &str| unsafe {
+            let wide: Vec<u16> = s.encode_utf16().chain(Some(0)).collect();
+            let mut sid = PSID::default();
+            ConvertStringSidToSidW(windows::core::PCWSTR(wide.as_ptr()), &mut sid).unwrap();
+            let out = sid_label(sid);
+            let _ = LocalFree(Some(HLOCAL(sid.0)));
+            out
+        };
+        let system = label("S-1-5-18");
+        assert!(!system.is_empty() && !system.starts_with("S-1-"), "a known account keeps its name: {system}");
+        assert_eq!(label("S-1-5-21-1-2-3-1001"), "S-1-5-21-1-2-3-1001");
     }
 }

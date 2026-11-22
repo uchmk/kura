@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 846 件（TESTING.md の全 1043 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 849 件（TESTING.md の全 1046 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1136,6 +1136,9 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **69.18** （v0.151.4）通常の表示（詳細ではない）で `gu`、次に `g h` → 使用量の表示が閉じ、ホームのフォルダーが普通の一覧で出る。計測はしない — *(v0.151.4) `gu` in the normal view (not details), then `g h` → The usage view closes; the home folder shows as a plain listing and nothing is measured*
 - [ ] **69.19** （v0.151.4）Windows で、自分のファイル・`C:\Windows\System32`・（あれば）ドメインのアカウントのファイルの所有者の欄を見る → 自分のファイルはユーザー名だけ（コンピューター名なし）。システムのファイルは `NT AUTHORITY\` / `BUILTIN\` / `NT SERVICE\` なしで `SYSTEM`・`Administrators`・`TrustedInstaller`。ドメインのアカウントは `DOMAIN\user` のまま — *(v0.151.4) Windows: the Owner column for your own files, `C:\Windows\System32` and, if you have one, a domain account's files → Your files read just the user name (no computer name); system files read `SYSTEM`, `Administrators` or `TrustedInstaller` without `NT AUTHORITY\` / `BUILTIN\` / `NT SERVICE\`; a domain account keeps `DOMAIN\user`*
 - [ ] **69.20** （v0.160.19）通常の一覧と詳細ビューで、カーソルを先頭より下のファイルに置き、`,T` と `,t` を押す → カーソルは同じファイルに付いたまま、そのファイルの新しい行に動く（v0.160.18 までは行の番号を保ち、別のファイルに移っていた） — *(v0.160.19) In a plain list and in the details view, put the cursor on a file below the first row, then press `,T` and `,t` → The cursor stays on that file at its new row (until v0.160.18 it kept the row number and landed on another file)*
+- [ ] **69.21** （v0.167.3）通常の一覧で、カーソルを先頭より下のファイルに置き、`m a` を押す → 表にその行が並ぶと、カーソルは同じファイルに付いたまま（v0.167.2 までは先頭の行に移っていた） — *(v0.167.3) In a plain list, put the cursor on a file below the first row, then press `m a` → The cursor stays on that file once its row is listed in the table (until v0.167.2 it went to the top row)*
+- [ ] **69.22** （v0.167.3）Windows で、持ち主のアカウントがもう無いファイル（消したローカルのアカウント、届かないドメイン）の所有者の欄を見る → 空欄ではなく SID（`S-1-5-21-…`）が出る — *(v0.167.3) Windows: the Owner column for a file whose owner account no longer exists (a removed local account, or a domain out of reach) → Owner reads the SID, `S-1-5-21-…`, not an empty cell*
+- [ ] **69.23** （v0.167.3）詳細ビューで、列に収まらない長さのセル（所有者の SID、長い `DOMAIN\user`）を見る → 真ん中が `…` で切られ、値の終わりが残る（`S-1-5-21-8…1001`）。列の端で文字が半分に切れない — *(v0.167.3) In the details view, a cell too long for its column (an owner SID, a long `DOMAIN\user`) → The middle is cut with `…` and the end of the value stays (`S-1-5-21-8…1001`); no letter is cut in half at the column edge*
 
 ## 70. Convert images, `c i` (v0.149.0)
 
