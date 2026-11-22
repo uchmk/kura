@@ -196,6 +196,9 @@ impl App {
         self.usage_max = 0;
         self.usage_root = None;
         self.usage_want = None;
+        self.usage_auto = false;
+        self.usage_paused = false;
+        self.usage_listed = false;
         if let Some(mode) = self.usage_linemode.take() {
             self.tabs[self.active].linemode = mode;
         }

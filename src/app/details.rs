@@ -86,7 +86,7 @@ impl App {
                             e.sort_type = Some(crate::fs::details::detail_type(e, &self.lang));
                         }
                     }
-                    tab.current.resort(&tab.sort, tab.show_hidden || self.usage_linemode.is_some());
+                    tab.current.resort_in(&tab.sort, tab.show_hidden || self.usage_linemode.is_some(), self.usage_linemode.is_some());
                     let key = (Arc::as_ptr(&tab.current.entries) as usize, tab.current.entries.len());
                     self.detail_state.type_key.insert(idx, key);
                 }
@@ -207,7 +207,7 @@ impl App {
             let tab = &mut self.tabs[idx];
             if tab.current.state == LoadState::Ready && tab.current.entries.iter().all(|e| e.details.is_some()) {
                 let show = tab.show_hidden || self.usage_linemode.is_some();
-                tab.current.resort(&sort, show);
+                tab.current.resort_in(&sort, show, self.usage_linemode.is_some());
                 self.detail_state.pending_sort = None;
             }
         }

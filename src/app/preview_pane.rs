@@ -413,7 +413,9 @@ impl App {
         // asking about a name already taken waits on the next key, not the
         // other way round.
         let job_going = self.tasks.iter().any(|t| matches!(t.state, TaskState::Queued | TaskState::Running));
-        if self.usage.is_some() || matches!(tab.current.state, LoadState::Loading)
+        // A walk paused for `gu` waits on the reader, not the other way round.
+        let walking = self.usage.is_some() && !self.usage_paused;
+        if walking || matches!(tab.current.state, LoadState::Loading)
             || (job_going && !matches!(self.overlay, Overlay::Confirm(_)))
             || self.preview.pending_since.is_some()
             || self.preview.in_flight

@@ -117,14 +117,31 @@ fn waiting(tab: &crate::core::tab::Tab) -> bool {
     tab.current.state == crate::core::folder::LoadState::Loading && tab.current.entries.is_empty()
 }
 
-fn summary(total: usize, selected: usize, yank: Option<(usize, bool)>, hidden: bool, walking: bool, usage: Option<u64>) -> String {
-    // While a usage walk runs the rows are the children measured so far, not
-    // what the folder holds (#114), so the count says it is still growing.
-    let mut out = if walking { format!("{total} measured so far") } else { crate::util::items(total) };
+/// Where a usage walk stands, for the header.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Walk {
+    /// The folder's children are still being listed.
+    Listing,
+    /// Listed; `done` of `all` rows have a total.
+    Measuring { done: usize, all: usize },
+    /// The same, stopped until `gu`.
+    Paused { done: usize, all: usize },
+}
+
+fn summary(total: usize, selected: usize, yank: Option<(usize, bool)>, hidden: bool, walk: Option<Walk>, usage: Option<u64>) -> String {
+    // While a usage walk runs the rows are not what the folder holds yet
+    // (#114): it says how far along it is instead of a count that is still
+    // growing. Counted before the filter, so it is the folder's own figure.
+    let mut out = match walk {
+        Some(Walk::Listing) => "listing…".to_owned(),
+        Some(Walk::Measuring { done, all }) => format!("{done} of {all} measured"),
+        Some(Walk::Paused { done, all }) => format!("{done} of {all} measured · gu for the rest"),
+        None => crate::util::items(total),
+    };
     // Once it is done, the total stays in the header: the toast that said it
     // is gone in six seconds, and with it the only sign this is the usage view
     // rather than the folder (#122).
-    if let Some(bytes) = usage.filter(|_| !walking) {
+    if let Some(bytes) = usage.filter(|_| walk.is_none()) {
         out.push_str(&format!(" · {} total", crate::util::human_size(bytes)));
     }
     if let Some((n, cut)) = yank {
@@ -329,12 +346,21 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     let sel = tab.selected.len();
     let yank = (!app.yank.paths.is_empty()).then_some((app.yank.paths.len(), app.yank.cut));
     let usage = app.in_usage_view().then(|| tab.current.entries.iter().map(|e| e.usage_bytes()).sum());
+    let walk = app.usage.is_some().then(|| {
+        let all = tab.current.entries.len();
+        let done = tab.current.entries.iter().filter(|e| e.usage.is_some()).count();
+        match (app.usage_listed, app.usage_paused) {
+            (false, _) => Walk::Listing,
+            (true, false) => Walk::Measuring { done, all },
+            (true, true) => Walk::Paused { done, all },
+        }
+    });
     // Nothing has been listed yet: a count would be a claim about a folder
     // that has not answered, and `0 items` on a host still being dialled read
     // as having arrived at an empty one (#105).
     let right = match waiting(tab) {
         true => "listing…".to_owned(),
-        false => summary(total, sel, yank, tab.show_hidden, app.usage.is_some(), usage),
+        false => summary(total, sel, yank, tab.show_hidden, walk, usage),
     };
     painter.text(egui::pos2(rect.right() - 10.0, y + row_h / 2.0), Align2::RIGHT_CENTER, right, f.clone(), app.cfg.theme.fg_dim);
 
@@ -1823,22 +1849,28 @@ mod summary_line {
 
     #[test]
     fn it_names_the_register_and_the_selection_apart() {
-        assert_eq!(summary(19, 0, None, false, false, None), "19 items");
+        assert_eq!(summary(19, 0, None, false, None, None), "19 items");
         // #237: one is `1 item`, and none is still `0 items`.
-        assert_eq!(summary(1, 0, None, false, false, None), "1 item");
-        assert_eq!(summary(0, 0, None, false, false, None), "0 items");
-        assert_eq!(summary(19, 1, None, false, false, None), "1 selected · 19 items");
-        assert_eq!(summary(19, 0, Some((1, false)), false, false, None), "1 copied · 19 items");
-        assert_eq!(summary(19, 0, Some((2, true)), false, false, None), "2 cut · 19 items");
+        assert_eq!(summary(1, 0, None, false, None, None), "1 item");
+        assert_eq!(summary(0, 0, None, false, None, None), "0 items");
+        assert_eq!(summary(19, 1, None, false, None, None), "1 selected · 19 items");
+        assert_eq!(summary(19, 0, Some((1, false)), false, None, None), "1 copied · 19 items");
+        assert_eq!(summary(19, 0, Some((2, true)), false, None, None), "2 cut · 19 items");
 
         // Both at once is the case the colours cannot show.
-        assert_eq!(summary(19, 1, Some((1, false)), false, false, None), "1 selected · 1 copied · 19 items",);
-        assert_eq!(summary(19, 3, Some((2, true)), true, false, None), "3 selected · 2 cut · 19 items · hidden shown");
+        assert_eq!(summary(19, 1, Some((1, false)), false, None, None), "1 selected · 1 copied · 19 items",);
+        assert_eq!(summary(19, 3, Some((2, true)), true, None, None), "3 selected · 2 cut · 19 items · hidden shown");
         // #114: mid-walk the usage view's rows are only what has been measured.
-        assert_eq!(summary(2, 0, None, false, true, None), "2 measured so far");
+        assert_eq!(summary(2, 0, None, false, Some(Walk::Listing), None), "listing…");
+        assert_eq!(summary(2, 0, None, false, Some(Walk::Measuring { done: 2, all: 9 }), None), "2 of 9 measured");
+        assert_eq!(summary(2, 0, None, false, Some(Walk::Paused { done: 2, all: 9 }), None), "2 of 9 measured · gu for the rest");
         // #122: once the walk is done the header keeps the total.
-        assert_eq!(summary(30, 0, None, false, false, Some(2048)), "30 items · 2.0 K total");
-        assert_eq!(summary(2, 0, None, false, true, Some(2048)), "2 measured so far", "not mid-walk");
+        assert_eq!(summary(30, 0, None, false, None, Some(2048)), "30 items · 2.0 K total");
+        assert_eq!(summary(2, 0, None, false, Some(Walk::Measuring { done: 1, all: 2 }), Some(2048)), "1 of 2 measured", "not mid-walk");
+        assert_eq!(
+            summary(2, 1, None, true, Some(Walk::Paused { done: 1, all: 2 }), None),
+            "1 selected · 1 of 2 measured · gu for the rest · hidden shown"
+        );
     }
 }
 

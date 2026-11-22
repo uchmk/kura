@@ -82,6 +82,9 @@ pub struct Ui {
     pub content_max_bytes: u64,
     /// A text file this big is not read whole: it is indexed by line and shown by the window (`preview::logindex`).
     pub big_text_bytes: u64,
+    /// How long `m a` and a jump in the details view measure folders by themselves before pausing for `gu`
+    /// to measure the rest. `0` lists everything and sizes the files but leaves the folders for `gu`.
+    pub usage_auto_ms: u64,
     /// Directories remembered for `z` (jump).
     pub max_history: usize,
     pub window_width: f32,
@@ -165,6 +168,7 @@ impl Default for Ui {
             max_text_bytes: 256 * 1024,
             content_max_bytes: 64 * 1024 * 1024,
             big_text_bytes: 8 * 1024 * 1024,
+            usage_auto_ms: 2000,
             max_history: 200,
             window_width: 1280.0,
             window_height: 800.0,

@@ -1182,7 +1182,7 @@ fn measuring_again_forgets_a_placed_want() {
 }
 
 fn manual_again(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg> {
-    a.measure_here();
+    a.measure_here(false);
     let (tx, h) = crate::fs::usage::test_handle();
     a.usage = Some(h);
     tx
@@ -1202,5 +1202,313 @@ fn details_keeps_the_hovered_file() {
     assert!(a.in_usage_view());
     assert_eq!(rows(&a).len(), 3);
     assert_eq!(a.tabs[a.active].current.hovered_name(), Some("loose"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Drain the walk until `done` holds.
+fn until(a: &mut App, done: impl Fn(&App) -> bool) {
+    for _ in 0..10_000 {
+        a.drain_usage();
+        if done(a) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    panic!("the walk did not get there");
+}
+
+fn texts(a: &App) -> Vec<String> {
+    a.toasts.iter().map(|t| t.text.clone()).collect()
+}
+
+/// `tree()` and one more small file, so two rows are measured by the time
+/// the folders are left for `gu`.
+fn tree_with_tiny() -> PathBuf {
+    let dir = tree();
+    std::fs::write(dir.join("tiny"), vec![b'x'; 5]).unwrap();
+    dir
+}
+
+/// A limited walk fed by hand.
+fn manual_limited(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg> {
+    a.start_usage_auto();
+    let (tx, h) = crate::fs::usage::test_handle_limited();
+    a.usage = Some(h);
+    tx
+}
+
+fn row(name: &str) -> crate::fs::Entry {
+    crate::fs::Entry { path: PathBuf::from(name), name: name.into(), kind: crate::fs::entry::Kind::Dir, ..Default::default() }
+}
+
+fn escape(a: &mut App) {
+    a.act(Act::Escape(crate::config::cmd::EscapeWhat::default()));
+}
+
+/// The sender of a walk's channel is its walker thread: it is gone once the
+/// walker has ended.
+fn walker_ended(rx: &crossbeam_channel::Receiver<crate::fs::usage::Msg>) {
+    let until = Instant::now() + Duration::from_secs(10);
+    loop {
+        match rx.recv_timeout(Duration::from_millis(20)) {
+            Err(crossbeam_channel::RecvTimeoutError::Disconnected) => return,
+            _ => assert!(Instant::now() < until, "the walker ended"),
+        }
+    }
+}
+
+/// `m a` lists everything, sizes the files and, with no time to
+/// measure by itself, leaves the folders blank and says so; `gu` finishes.
+#[test]
+fn details_pauses_and_gu_measures_the_rest() {
+    let dir = tree_with_tiny();
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 0;
+    a.act(Act::Linemode(Linemode::All));
+    until(&mut a, |a| a.usage_paused);
+    assert!(a.usage_listed && a.in_usage_view());
+    let mut r = rows(&a);
+    r.sort();
+    assert_eq!(
+        r,
+        [("fat".to_string(), None), ("loose".to_string(), Some(100)), ("thin".to_string(), None), ("tiny".to_string(), Some(5))],
+        "every row listed, the files sized, the folders blank"
+    );
+    let t = texts(&a);
+    assert!(t.iter().any(|t| t.starts_with("Big folder: paused") && t.ends_with("<Esc> to leave")), "{t:?}");
+    assert!(!t.iter().any(|t| t.starts_with("Measuring")), "the pause replaces Measuring...: {t:?}");
+    assert!(a.usage.as_ref().is_some_and(|h| h.limited()));
+    // A walk waiting on `gu` is not one `--keys` waits on: the run would end
+    // `keys: unsettled` on the next key.
+    assert!(a.settled(), "a paused walk is settled");
+
+    a.act(Act::Usage);
+    assert!(!a.usage_paused);
+    assert!(!a.settled(), "measuring the rest is not");
+    let t = texts(&a);
+    assert!(t.iter().any(|t| t == "Measuring the rest… <Esc> to leave"), "{t:?}");
+    assert!(!t.iter().any(|t| t.starts_with("Big folder")), "{t:?}");
+    settle(&mut a);
+    assert!(a.usage.is_none() && !a.usage_paused);
+    let by: std::collections::BTreeMap<_, _> = rows(&a).into_iter().collect();
+    assert_eq!(by["fat"], Some(900));
+    assert_eq!(by["thin"], Some(20));
+    assert_eq!(a.usage_max, 900);
+    let t = texts(&a);
+    assert!(t.iter().any(|t| t.contains(" in total")), "{t:?}");
+    assert!(!t.iter().any(|t| t.starts_with("Measuring") || t.starts_with("Big folder")), "{t:?}");
+
+    // A finished walk: `gu` says nothing and changes nothing.
+    let before = texts(&a);
+    a.act(Act::Usage);
+    assert_eq!(texts(&a), before);
+    assert!(a.in_usage_view());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A light folder is measured at once: nothing waits for `gu`.
+#[test]
+fn a_light_folder_is_measured_by_itself() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 60_000;
+    a.act(Act::Linemode(Linemode::All));
+    settle(&mut a);
+    assert!(a.usage.is_none() && !a.usage_paused);
+    assert!(rows(&a).iter().all(|(_, u)| u.is_some()));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A `Paused` read after `gu` was pressed is stale and sets nothing; one from
+/// a walk still limited does.
+#[test]
+fn a_stale_pause_is_ignored() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual_limited(&mut a);
+    tx.send(crate::fs::usage::Msg::Paused).unwrap();
+    a.drain_usage();
+    assert!(a.usage_paused, "a limited walk that says it paused");
+    assert!(texts(&a).iter().any(|t| t.starts_with("Big folder")));
+
+    a.act(Act::Usage);
+    assert!(!a.usage_paused);
+    tx.send(crate::fs::usage::Msg::Paused).unwrap();
+    a.drain_usage();
+    assert!(!a.usage_paused, "it was sent before `gu`, and read after");
+    assert!(!texts(&a).iter().any(|t| t.starts_with("Big folder")), "{:?}", texts(&a));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `gu` that starts the view never pauses, whatever `usage_auto_ms` says.
+#[test]
+fn plain_gu_never_pauses() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 0;
+    a.act(Act::Usage);
+    assert!(!a.usage.as_ref().unwrap().limited());
+    settle(&mut a);
+    assert!(a.usage.is_none() && !a.usage_paused);
+    assert!(rows(&a).iter().all(|(_, u)| u.is_some()), "{:?}", rows(&a));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `l` in a view that `m a` started is a new walk that may pause; in one that
+/// `gu` started it is not.
+#[test]
+fn going_down_keeps_the_way_the_view_started() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 0;
+    a.act(Act::Linemode(Linemode::All));
+    until(&mut a, |a| a.usage_paused);
+    assert!(a.tabs[a.active].current.select_name("fat"));
+    a.act(Act::Open { interactive: false, hovered: false });
+    assert_eq!(a.tabs[a.active].cwd, dir.join("fat"));
+    assert!(a.usage_auto && !a.usage_paused, "a new walk, not the old pause");
+    until(&mut a, |a| a.usage_paused);
+    assert_eq!(rows(&a), [("inner".to_string(), None)]);
+    a.act(Act::Usage);
+    settle(&mut a);
+    assert_eq!(rows(&a), [("inner".to_string(), Some(900))]);
+
+    let mut b = app_in(&dir);
+    b.cfg.ui.usage_auto_ms = 0;
+    b.act(Act::Usage);
+    assert!(!b.usage_auto);
+    settle(&mut b);
+    assert!(b.tabs[b.active].current.select_name("fat"));
+    b.act(Act::Open { interactive: false, hovered: false });
+    assert!(!b.usage.as_ref().unwrap().limited(), "a gu view goes down in full");
+    settle(&mut b);
+    assert!(!b.usage_paused);
+    assert_eq!(rows(&b), [("inner".to_string(), Some(900))]);
+
+    // Details as the tab's own line mode (yazi.toml), `m a` never pressed:
+    // `gu` is still a full walk, and so is the level `l` goes down to.
+    let mut c = app_in(&dir);
+    c.cfg.ui.usage_auto_ms = 0;
+    c.tabs[c.active].linemode = Linemode::All;
+    c.act(Act::Usage);
+    assert!(!c.usage_auto && !c.usage.as_ref().unwrap().limited(), "gu in a details tab is full");
+    settle(&mut c);
+    assert!(!c.usage_paused);
+    assert!(c.tabs[c.active].current.select_name("fat"));
+    c.act(Act::Open { interactive: false, hovered: false });
+    assert_eq!(c.tabs[c.active].cwd, dir.join("fat"));
+    assert!(!c.usage.as_ref().unwrap().limited(), "and goes down in full");
+    settle(&mut c);
+    assert!(!c.usage_paused);
+    assert_eq!(rows(&c), [("inner".to_string(), Some(900))]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A jump while paused ends the paused walker and measures the folder it lands
+/// on; `<Esc>` leaves, clears everything and ends the walker.
+#[test]
+fn a_jump_while_paused_starts_over_and_escape_ends_it() {
+    let dir = tree();
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 0;
+    a.act(Act::Linemode(Linemode::All));
+    until(&mut a, |a| a.usage_paused);
+    let old = a.usage.as_ref().unwrap().rx.clone();
+    a.cd(dir.join("fat"), true);
+    assert!(!a.in_usage_view() && a.usage.is_none() && !a.usage_paused, "the old walk and its pause are gone");
+    walker_ended(&old);
+    listed(&mut a, &dir.join("fat"));
+    assert!(a.in_usage_view());
+    until(&mut a, |a| a.usage_paused);
+    assert_eq!(rows(&a), [("inner".to_string(), None)], "only this folder's children");
+
+    let rx = a.usage.as_ref().unwrap().rx.clone();
+    escape(&mut a);
+    assert!(!a.in_usage_view() && a.usage.is_none());
+    assert!(!a.usage_paused && !a.usage_listed && !a.usage_auto);
+    assert!(!texts(&a).iter().any(|t| t.ends_with("<Esc> to leave")), "{:?}", texts(&a));
+    walker_ended(&rx);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The wanted row now arrives with the listing, before it is sized, and the
+/// cursor stays on it when its size comes.
+#[test]
+fn a_wanted_row_listed_before_it_is_sized_keeps_the_cursor() {
+    use crate::fs::usage::Msg;
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    a.usage_want = Some("m".into());
+    tx.send(Msg::Listed(vec![row("z"), row("m"), row("a")])).unwrap();
+    a.drain_usage();
+    assert_eq!(hovered(&a), Some("m"), "found as soon as it is listed");
+    assert!(a.usage_placed && a.usage_want.is_none());
+    assert!(rows(&a).iter().all(|(_, u)| u.is_none()));
+    feed(&mut a, &tx, &[("a", 900)]);
+    assert_eq!(hovered(&a), Some("m"));
+    feed(&mut a, &tx, &[("m", 10), ("z", 500)]);
+    assert_eq!(hovered(&a), Some("m"));
+    assert_eq!(rows(&a), [("a".to_string(), Some(900)), ("z".to_string(), Some(500)), ("m".to_string(), Some(10))]);
+    assert_eq!(a.usage_max, 900);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A sized child updates the row listed under its path and keeps what else the
+/// row had gained; one never listed is added.
+#[test]
+fn a_sized_child_finds_its_row_by_path() {
+    use crate::fs::usage::Msg;
+    let dir = tree();
+    let mut a = app_in(&dir);
+    let tx = manual(&mut a);
+    let mut listed_row = row("d");
+    listed_row.dir_size = Some(7);
+    tx.send(Msg::Listed(vec![listed_row, row("e")])).unwrap();
+    tx.send(Msg::AllListed).unwrap();
+    a.drain_usage();
+    assert!(a.usage_listed);
+    let mut new = row("new");
+    new.kind = crate::fs::entry::Kind::File;
+    tx.send(Msg::Sized(vec![(row("d"), 40, 2, false), (new, 3, 1, true)])).unwrap();
+    a.drain_usage();
+    let f = &a.tabs[a.active].current;
+    assert_eq!(f.entries.len(), 3, "d was found, new was added");
+    let d = f.entries.iter().find(|e| e.name == "d").unwrap();
+    assert_eq!((d.usage, d.usage_cut, d.dir_size), (Some(40), true, Some(7)));
+    assert_eq!(rows(&a).last().unwrap(), &("e".to_string(), None), "unmeasured last");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// In the usage view an unmeasured folder sorts after the measured rows under
+/// `,s` and `,S`, and the plain `gu` view puts it last too.
+#[test]
+fn unmeasured_rows_sort_last_in_the_usage_view() {
+    use crate::fs::SortBy;
+    let dir = tree_with_tiny();
+    let order = |a: &App| -> Vec<String> {
+        let f = &a.tabs[a.active].current;
+        (0..f.view.len()).filter_map(|i| f.at(i).map(|e| e.name.clone())).collect()
+    };
+    let mut a = app_in(&dir);
+    a.cfg.ui.usage_auto_ms = 0;
+    a.act(Act::Linemode(Linemode::All));
+    until(&mut a, |a| a.usage_paused);
+    for (by, reverse) in [(SortBy::Size, false), (SortBy::Size, true), (SortBy::Usage, false), (SortBy::Usage, true)] {
+        a.act(Act::Sort { by: Some(by), reverse: Some(reverse), dir_first: Some(false) });
+        let o = order(&a);
+        assert_eq!(o.len(), 4, "{o:?}");
+        let mut tail = o[2..].to_vec();
+        tail.sort();
+        assert_eq!(tail, ["fat", "thin"], "{by:?} reverse {reverse}: the blanks stay last: {o:?}");
+        let head: Vec<&str> = o[..2].iter().map(String::as_str).collect();
+        assert_eq!(head, if reverse { ["loose", "tiny"] } else { ["tiny", "loose"] }, "{by:?} reverse {reverse}");
+    }
+
+    let mut b = app_in(&dir);
+    let tx = manual(&mut b);
+    tx.send(crate::fs::usage::Msg::Listed(vec![row("blank")])).unwrap();
+    feed(&mut b, &tx, &[("small", 5), ("big", 50)]);
+    assert_eq!(order(&b), ["big", "small", "blank"]);
     let _ = std::fs::remove_dir_all(&dir);
 }

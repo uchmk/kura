@@ -83,6 +83,18 @@ impl Default for SortSpec {
 }
 
 impl SortSpec {
+    /// `apply` for the usage view, where a folder not measured yet has no total
+    /// to sort by: under a size sort (either direction) those rows go last,
+    /// after the measured ones, as the lazy sorts already do. Other sorts are
+    /// `apply` as it is. Ordinary listings never come through here.
+    pub fn apply_usage(&self, entries: &mut [Entry]) {
+        self.apply(entries);
+        if matches!(self.by, SortBy::Size | SortBy::Usage) {
+            // Stable, so each group keeps the order `apply` gave it.
+            entries.sort_by_key(|e| e.usage.is_none());
+        }
+    }
+
     pub fn apply(&self, entries: &mut [Entry]) {
         let by = self.by;
         let sensitive = self.sensitive;
@@ -254,5 +266,52 @@ mod detail_sort_tests {
                 matches!(crate::config::cmd::parse(&format!("sort {name}")), crate::config::cmd::Act::Sort { by: Some(b), .. } if b == by)
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod usage_sort_tests {
+    use super::*;
+    use crate::fs::entry::Kind;
+
+    fn dir(name: &str, usage: Option<u64>) -> Entry {
+        Entry { name: name.into(), kind: Kind::Dir, len: 4096, usage, ..Default::default() }
+    }
+    fn file(name: &str, len: u64) -> Entry {
+        Entry { name: name.into(), kind: Kind::File, len, usage: Some(len), ..Default::default() }
+    }
+    fn names(entries: &[Entry]) -> Vec<&str> {
+        entries.iter().map(|e| e.name.as_str()).collect()
+    }
+
+    /// Only the usage view puts a row with no total after the measured ones, in
+    /// both directions; an ordinary listing is not touched. `Size` is the sort
+    /// that tells them apart: it falls back to a folder's own `len`, while
+    /// `Usage` already puts a missing total last everywhere.
+    #[test]
+    fn unmeasured_rows_go_last_only_in_the_usage_view() {
+        let spec = |by, reverse| SortSpec { by, reverse, dir_first: false, sensitive: false };
+        // The unmeasured folder's own entry is 1 byte: the smallest by `len`.
+        let rows = || {
+            let mut blank = dir("blank", None);
+            blank.len = 1;
+            vec![blank, file("small", 10), dir("measured", Some(500))]
+        };
+
+        for by in [SortBy::Size, SortBy::Usage] {
+            let mut v = rows();
+            spec(by, true).apply_usage(&mut v);
+            assert_eq!(names(&v), ["measured", "small", "blank"], "{by:?} descending");
+            let mut v = rows();
+            spec(by, false).apply_usage(&mut v);
+            assert_eq!(names(&v), ["small", "measured", "blank"], "{by:?} ascending");
+        }
+        // An ordinary listing sorts a folder by its own size, as before.
+        let mut v = rows();
+        spec(SortBy::Size, false).apply(&mut v);
+        assert_eq!(names(&v), ["blank", "small", "measured"]);
+        let mut v = rows();
+        spec(SortBy::Size, true).apply(&mut v);
+        assert_eq!(names(&v), ["measured", "small", "blank"]);
     }
 }

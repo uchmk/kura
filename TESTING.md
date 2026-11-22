@@ -1452,12 +1452,12 @@ The walk and the ordering are unit-tested on a small tree. What needs a machine 
 | 44.8 | `gu` on a network share (UNC) | Answers or fails gracefully; `<Esc>` still gets out mid-walk |
 | 44.9 | `gu`, then `j`/`k`, `y`, `d`, space to select | All the ordinary list keys work — this is the list, not a panel |
 | 44.10 | `gu`, then `Enter` on a folder; then `h`, and `h` again (v0.63.0; before that `Enter` left the view) | `Enter`: the view stays and measures that folder (the header path is the folder). First `h`: back up, still in the view, the cursor on the folder it left. Second `h`, in the folder `gu` was pressed in: the view closes and the ordinary listing is back |
-| 44.11 | `gu` while a usage view is already up | Refused with a message, not a view with no way back |
-| 44.12 | `gu`, then `,` to re-sort | The order changes (as asked); `<Esc>` and `gu` again restores largest-first (`gu` inside the view is refused, 44.11) |
+| 44.11 | (v0.168.0) `gu` while a usage view is already up | In a view `gu` started: nothing happens, no message. In a view `m a` started and paused: it measures the rest (69.25) |
+| 44.12 | (v0.168.0) `gu`, then `,` to re-sort | The order changes (as asked); `<Esc>` and `gu` again restores largest-first. Folders with no total yet sort after the measured rows in both directions |
 | 44.13 | Compare a folder's total against Explorer's own properties | Within rounding. **Hard links read high — that is documented, not a bug** |
 | 44.14 | With the tab on `linemode mtime` (`m t`), `gu`, then `<Esc>` straight away (v0.56.0) | The rows show sizes (`1.5 M`, `6.0 K`), not dates; after `<Esc>` the list shows dates again, and the `Measuring…` toast is gone at once |
 | 44.15 | `gu` on a small tree and let it finish (v0.57.3) | Only the total's toast is left; `Measuring…` goes when it arrives rather than sitting beside it |
-| 44.16 | `gu` on a tree big enough to take seconds, and watch the header (v0.57.3) | `N measured so far`, growing, while it walks; `N items` once the total's toast is up |
+| 44.16 | (v0.168.0) `gu` on a tree big enough to take seconds, and watch the header | `listing…` while the children are read, then `M of N measured`, growing; `N items · X total` once the total's toast is up |
 | 44.17 | `gu`, then `m t` inside the view, then `m u` (v0.58.0) | `m t` swaps the numbers for dates with the bars left; `m u` brings the sizes back **without** walking again (no `Measuring…`). `<Esc>` still gives the tab its own mode back |
 | 44.18 | In an ordinary listing (no `gu`), `m u` (v0.59.2) | Folders are **blank**, as under `m s`; files show their own size. Until v0.59.2 every folder read `0 B` |
 | 44.19 | `gu` on a tree that takes seconds, then wait past the total's toast (v0.59.2) | The header reads `N items · <size> total` for as long as the view is up -- the one sign left that this is the usage view. And `kura --keys "gu<Wait:0>j"` on that tree moves the cursor only after the walk is done |
@@ -2000,6 +2000,11 @@ A Windows-Explorer-style table: no parent or preview column, a heading row, one 
 | 69.21 | (v0.167.3) In a plain list, put the cursor on a file below the first row, then press `m a` | The cursor stays on that file once its row is listed in the table (until v0.167.2 it went to the top row) |
 | 69.22 | (v0.167.3) Windows: the Owner column for a file whose owner account no longer exists (a removed local account, or a domain out of reach) | Owner reads the SID, `S-1-5-21-…`, not an empty cell |
 | 69.23 | (v0.167.3) In the details view, a cell too long for its column (an owner SID, a long `DOMAIN\user`) | The middle is cut with `…` and the end of the value stays (`S-1-5-21-8…1001`); no letter is cut in half at the column edge |
+| 69.24 | (v0.168.0) `m a` in a very heavy folder (a few seconds of walking) | Every row is listed at once and the files show sizes; after about 2 s the walk stops, the unmeasured folders keep a blank Usage cell, the header reads `M of N measured · gu for the rest`, the toast reads `Big folder: paused — gu measures the rest, <Esc> to leave`, and the CPU goes idle |
+| 69.25 | (v0.168.0) After 69.24, press `gu` | Toast `Measuring the rest… <Esc> to leave`; the folders fill in and the total matches what a plain `gu` on the same folder gives |
+| 69.26 | (v0.168.0) While paused (69.24), press `l` on a folder, `h`, or jump with `g h` | Each starts a fresh walk of the folder it lands on that lists everything and may pause again; `<Esc>` leaves the view and the CPU stays idle |
+| 69.27 | (v0.168.0) Set `[ui] usage_auto_ms = 0`, then `m a` in an ordinary folder | Files are sized, every folder is blank and the walk is paused at once; `gu` measures the folders |
+| 69.28 | (v0.168.0) Plain `gu` in a very heavy folder, also in a tab whose default linemode is details | It measures to the end and never pauses |
 
 ## 70. Convert images, `c i` (v0.149.0)
 

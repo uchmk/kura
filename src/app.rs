@@ -310,6 +310,15 @@ pub struct App {
     /// Where `gu` was pressed. `h` climbs inside the view down to here, and
     /// leaves it from here.
     usage_root: Option<PathBuf>,
+    /// The walk is limited: `m a` and a jump in Details measure by themselves
+    /// for `[ui] usage_auto_ms` and then wait for `gu`, while `gu` itself never
+    /// pauses. Kept across `l` / `h` inside the view.
+    usage_auto: bool,
+    /// The walk has paused and waits for `gu` to measure the rest.
+    pub usage_paused: bool,
+    /// Every child of the folder has been listed; until then the header says
+    /// `listing…`.
+    pub usage_listed: bool,
     /// The archive `l` went into (Q75), while its members are on screen.
     archive_view: Option<ArchiveView>,
     /// A listing or a member copy on its way from a worker; see
@@ -546,6 +555,9 @@ impl App {
             usage_want: None,
             usage_placed: false,
             usage_follow: None,
+            usage_auto: false,
+            usage_paused: false,
+            usage_listed: false,
             term_pending: None,
             ctx,
             scale: 1.0,

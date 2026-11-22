@@ -140,7 +140,7 @@ impl Entry {
         let name = util::file_name(&path);
         let ft = de.file_type().ok();
         let md = de.metadata().ok(); // symlink_metadata semantics on Windows/Unix alike
-        Self::build(path, name, ft, md)
+        Self::build(path, name, ft, md.as_ref())
     }
 
     /// A directory that no filesystem was asked about.
@@ -156,13 +156,18 @@ impl Entry {
     }
 
     pub fn from_path(path: PathBuf) -> std::io::Result<Self> {
-        let name = util::file_name(&path);
         let md = std::fs::symlink_metadata(&path)?;
-        let ft = Some(md.file_type());
-        Ok(Self::build(path, name, ft, Some(md)))
+        Ok(Self::from_metadata(path, &md))
     }
 
-    fn build(path: PathBuf, name: String, ft: Option<std::fs::FileType>, md: Option<Metadata>) -> Self {
+    /// An entry from a `symlink_metadata` the caller already read, so a walk
+    /// that needs the metadata itself stats each child once.
+    pub(crate) fn from_metadata(path: PathBuf, md: &Metadata) -> Self {
+        let name = util::file_name(&path);
+        Self::build(path, name, Some(md.file_type()), Some(md))
+    }
+
+    fn build(path: PathBuf, name: String, ft: Option<std::fs::FileType>, md: Option<&Metadata>) -> Self {
         let is_symlink = ft.map(|f| f.is_symlink()).unwrap_or(false);
         let mut kind = match ft {
             Some(f) if f.is_dir() => Kind::Dir,
@@ -178,7 +183,7 @@ impl Entry {
             link_to = std::fs::read_link(&path).ok().map(|t| link_target(&path, t));
         }
         let ext = if kind.is_dir_like() { None } else { util::extension(&name) };
-        let (len, modified, created, accessed, hidden, readonly) = match &md {
+        let (len, modified, created, accessed, hidden, readonly) = match md {
             Some(md) => (
                 md.len(),
                 md.modified().ok(),

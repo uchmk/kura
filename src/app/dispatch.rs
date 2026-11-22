@@ -978,7 +978,7 @@ impl App {
                 // The measured list is built afresh; the cursor goes back to the
                 // file it was on once that row arrives, as after a jump.
                 let want = self.tabs[self.active].current.hovered_name().map(str::to_owned);
-                self.start_usage();
+                self.start_usage_auto();
                 if self.in_usage_view() {
                     self.usage_want = want;
                 }

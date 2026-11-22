@@ -150,10 +150,20 @@ impl Folder {
     }
 
     pub fn resort(&mut self, sort: &SortSpec, show_hidden: bool) {
+        self.resort_in(sort, show_hidden, false);
+    }
+
+    /// `resort`; `usage` is the usage view, whose unmeasured rows sort last
+    /// under a size sort (`SortSpec::apply_usage`).
+    pub fn resort_in(&mut self, sort: &SortSpec, show_hidden: bool, usage: bool) {
         // Read before the sort: `view` indexes into `entries`. By path: a search view can hold several files of one name.
         let keep = self.hovered().map(|e| e.path.clone());
         let entries = Arc::make_mut(&mut self.entries);
-        sort.apply(entries);
+        if usage {
+            sort.apply_usage(entries);
+        } else {
+            sort.apply(entries);
+        }
         self.rebuild(show_hidden);
         if let Some(path) = keep {
             if let Some(row) = self.view.iter().position(|&i| self.entries.get(i as usize).is_some_and(|e| e.path == path)) {

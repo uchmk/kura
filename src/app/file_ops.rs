@@ -699,7 +699,7 @@ impl App {
         // total it still printed (#109).
         let in_usage = self.usage_linemode.is_some();
         let tab = &mut self.tabs[self.active];
-        tab.current.resort(&sort, show || in_usage);
+        tab.current.resort_in(&sort, show || in_usage, in_usage);
         if let Some(p) = tab.parent.as_mut() {
             p.resort(&sort, show);
         }

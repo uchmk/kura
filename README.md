@@ -297,7 +297,12 @@ the same as asking for no column at all.
 
 Details (`m a`) shows name, modified/created/accessed time, type, size, image dimensions,
 owner, permissions, extension and usage, fitting as many columns as the window permits.
-It starts the same usage measurement as `gu`, with the cursor kept on the file it was on;
+It starts the same usage measurement as `gu`, with the cursor kept on the file it was on.
+Every row is listed at once and the files are sized, then the folders are measured one by one.
+A folder that turns out heavy does not hold the view up: after `usage_auto_ms` (2 s) of measuring the
+walk pauses, the unmeasured folders keep a blank Usage cell, the header reads `M of N measured · gu for the rest`
+and a toast says so; `gu` measures the rest (v0.168.0). Light folders are measured to the end as before;
+`l` and `h` start a fresh walk that pauses the same way.
 `m a`, `m n` or Escape stops it and leaves
 this view (Escape clears filters and selections first). Usage stays visible at ordinary
 widths. After `m a`, moving to another folder measures that folder too, and `h` goes up and
@@ -391,6 +396,7 @@ line_numbers = false        # line numbers in the preview column (# toggles); T 
 preview_debounce_ms = 40
 max_text_bytes = 262144
 big_text_bytes = 8388608    # a text file this big is shown by line index and Seek+Read, not cut at max_text_bytes (v0.133.0)
+usage_auto_ms = 2000        # `m a` measures folders by itself this long, then pauses until `gu`; 0 sizes the files and leaves every folder for `gu` (v0.168.0)
 content_max_bytes = 67108864  # how much of each file a content search (`S`) reads; 0 = all (v0.132.0)
 max_history = 200
 window_width = 1280.0      # the size of a first start; after that the window opens as it was closed (window.toml, v0.107.0)
@@ -1080,12 +1086,15 @@ config said `linemode = "usage"`, which made every ordinary folder read `0 B`).
 `l` (or `<Enter>`) on a folder goes down into it and measures it in turn, staying in the view, the
 way `ncdu` does; `h` comes back up with the cursor on the folder it left, and from the folder `gu`
 was pressed in, `h` leaves (v0.63.0). Each level is measured again when you arrive. Rows arrive as each child is measured, so while the walk runs the header counts
-them as `N measured so far` rather than `N items` (v0.57.3); the toast with the total says it is done.
+them as `listing…` and then `M of N measured` rather than `N items` (v0.168.0; `N measured so far` before that);
+the toast with the total says it is done. A view `gu` opened is always measured in full and never pauses,
+the levels `l` goes down to included; in a view the Details view (`m a`) opened, `gu` measures what the
+pause left (`Measuring the rest…`).
 
 Hidden files and anything `.gitignore` covers are **counted**: a folder does not stop taking up room
 because git was told to overlook it. Symlinks are not followed, so a link to a directory is one entry
 rather than a second copy of a tree. A hard-linked file is counted once, under the first folder the
-walk meets, as `du` does (macOS and Linux, v0.75.21); on Windows it is still counted once per name, so a
+walk meets, as `du` does (macOS and Linux, v0.75.21; since v0.168.0 a file linked both directly in the folder and deeper in a child is counted under the direct file, still once); on Windows it is still counted once per name, so a
 tree that uses NTFS hard links reads high. Very large trees stop after
 200,000 entries and say so, in which case the totals are floors rather than answers: a folder the
 walk did not finish reads `≥ 1.2 G`, and one it never reached reads `?` rather than `0 B` (v0.57.2).
