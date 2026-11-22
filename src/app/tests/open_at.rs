@@ -28,7 +28,16 @@ fn app_with(label: &str, name: &str, rows: &[String], tabs: TabStops) -> (App, P
     a.tabs[a.active].cwd = dir.clone();
     a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(vec![Entry::from_path(dir.join(name)).unwrap()]), false);
     let path = dir.join(name);
-    a.preview.key = Some(preview::Key { path: path.clone(), len: 0, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false });
+    a.preview.key = Some(preview::Key {
+        path: path.clone(),
+        len: 0,
+        mtime: None,
+        box_size: (0, 0),
+        cols: 0,
+        n: 0,
+        deep: false,
+        images: Default::default(),
+    });
     a.preview.in_flight = false;
     a.preview.state = payload(rows, tabs);
     a.max_preview = true;

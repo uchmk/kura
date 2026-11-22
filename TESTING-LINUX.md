@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 838 件（TESTING.md の全 1035 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 841 件（TESTING.md の全 1038 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1170,3 +1170,9 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **73.4** `<F3>` でテキストファイルを開き、スクロールして `<Enter>`、続けて `<C-g>` `295` `<Enter>`、さらに `/` → 語 → `<Enter>` と `n` / `N` → それぞれ画面の行、295 行目、ヒットの行でエディターが開く。ヒットに印が付き、`n` / `N` で進む。`j` は今までどおり一覧を動かす。そのあと一覧で `/` を使うと、`n` は一覧の検索に戻る — *In `<F3>` on a text file: scroll, then `<Enter>`; then `<C-g>` `295` and `<Enter>`; then `/`, a word, `<Enter>`, and `n` / `N` → each opens the editor at the line on screen, at 295, and at the hit; hits are marked and `n` / `N` step through them; `j` still moves the list; a `/` in the list afterwards takes `n` back.*
 - [ ] **73.5** 一覧でファイルの上で `<C-S-g>` を押し、`120:5` と打って `<Enter>`。`１２０`（全角）でも。複数のファイルに印を付けたとき、フォルダーの上でも → カーソルの下のファイルだけが 120 行目 5 桁目（全角のときは 120 行目）で開く。印を付けた他のファイルは一緒に開かない。フォルダーではトースト `Open at line works on a file`。`abc` では `Open at line: enter a line number, or line:column` — *On a file in the list press `<C-S-g>`, type `120:5`, `<Enter>`; again with `１２０` (full-width digits); with several files marked; on a folder → the hovered file alone opens at line 120, column 5 (then at line 120); the marked ones are not opened with it; a folder gives the toast `Open at line works on a file`; `abc` gives `Open at line: enter a line number, or line:column`.*
 - [ ] **73.6** 巨大なログ（8 MB 以上）を開いて `T`（行番号が出ていなければ `#`）、`:100000` `<Enter>`。続けて `/` で下のほうにある語を探して `<Enter>`、`n` → 左端の番号は 100000 から始まる（ファイルの行番号で、1 や読み込んだ範囲から数えた番号ではない）。ヒットごとに番号も合う。`--keys` の `open at:` も同じ行 — *Open a huge log (8 MB or more), press `T` (`#` if the numbers are off), then `:100000` `<Enter>`; then `/`, a word found far down, `<Enter>` and `n` → the gutter starts at 100000, the file's own line (not 1 or a number counted from the lines read so far), and follows each hit; `--keys` reports the same line in `open at:`*
+
+## 74. Local pictures in rendered Markdown (#490)
+
+- [ ] **74.1** 相対パスの PNG・相対パスの SVG・無いファイル・`https` の画像を、それぞれ単独の段落に書いた Markdown ファイルを描画で開く → PNG と SVG は本文の中に収まる大きさで描かれ、その下に `[image: alt]` が出る。無いファイルと `https` の画像は `[image: alt]` のままで、何もダウンロードしない — *Make a Markdown file with a relative PNG, a relative SVG, a missing file and an `https` image, each alone in its paragraph, and open it rendered → The PNG and the SVG are drawn in the text, scaled to fit, with `[image: alt]` under each; the missing file and the `https` image stay as `[image: alt]` labels and nothing is downloaded*
+- [ ] **74.2** そのファイルを、画像がペインの上端・下端で切れるようにスクロールし、`M` を押す → 画像はペインの端で綺麗に切れ、ステータスバーや隣の列にはみ出さない。`M` では `![...]` の行のソースが出る — *Scroll that file so a picture is cut by the top and by the bottom of the pane, then press `M` → The picture is cut cleanly at the pane's edge and does not paint over the status bar or the next column; `M` shows the source with the `![...]` lines*
+- [ ] **74.3** `[ui]` に `markdown_images = false` を書いて再起動し、同じファイルを開く → 画像はすべて `[image: alt]` の表示になる — *Set `markdown_images = false` under `[ui]`, restart, open the same file → Every picture is a `[image: alt]` label*

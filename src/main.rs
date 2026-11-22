@@ -1535,6 +1535,18 @@ fn state_report(app: &App) -> String {
     // `since last action: N ms`, which says how soon after the last key the
     // reading was taken.
     lines.push(format!("preview: {}", if app.preview.early { "early" } else { "whole" }));
+    // The pictures drawn in rendered Markdown (#490): how many, and for each the document rows it
+    // covers, its file's size in pixels and its size on screen in points.
+    if let app::PreviewState::Ready(preview::Payload::Markdown { doc, .. }) = &app.preview.state {
+        if !doc.images.is_empty() {
+            let each: Vec<String> = doc
+                .images
+                .iter()
+                .map(|i| format!("{} rows {}x{} -> {:.0}x{:.0}pt", i.rows, i.source.0, i.source.1, i.size_pt.0, i.size_pt.1))
+                .collect();
+            lines.push(format!("preview images: {} ({})", doc.images.len(), each.join("; ")));
+        }
+    }
     // The notes the status bar paints for the preview (`L1/500 0% | UTF-8 LF`),
     // and a log's own note under its text: both from the functions that paint.
     let notes = ui::preview_parts(app).0;

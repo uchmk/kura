@@ -125,6 +125,8 @@ impl App {
             cols: if matches!(mime, "text/markdown" | "text/html" | "text/csv") { self.preview.cols } else { 0 },
             n: self.preview.n,
             deep,
+            // Only Markdown has pictures, and only while the switch is on.
+            images: if mime == "text/markdown" && self.cfg.ui.markdown_images { self.preview.image_metrics } else { Default::default() },
         };
         if self.preview.key.as_ref() == Some(&key) && !force {
             return;

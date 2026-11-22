@@ -383,6 +383,7 @@ bold_fonts = []            # explicit bold font file paths, tried first
 icons = "auto"             # auto | nerd | ascii | none
 status_hints = true         # name the keys that fit the preview (Markdown: `M`) in the status bar
 render_markdown = true     # start Markdown / HTML previews rendered (`M` toggles)
+markdown_images = true     # draw local images in rendered Markdown; false keeps `[image: alt]` labels and reads no image file
 line_numbers = false        # line numbers in the preview column (# toggles); T and F3 have their own, on at start
 preview_debounce_ms = 40
 max_text_bytes = 262144
@@ -521,6 +522,15 @@ A Word, Excel or PowerPoint file and an archive, whose preview is text read out 
 `.md` / `.mdx` files are rendered: headings, emphasis, lists and task lists, tables, block quotes
 and GitHub alerts, with fenced code blocks highlighted by language. `M` switches between the
 rendered view and the highlighted source, keeping your place.
+
+Local images are drawn in the flow: a `![alt](path)` that is alone in its paragraph (or in a link, a list item or a
+quote) and names a file beside the Markdown, an absolute path or a `file:` URL is decoded in the worker, scaled down to
+the body width and at most about 24 rows (60% of the pane's height) tall, never enlarged, and framed by a thin border,
+with its `[image: alt]` caption under it. SVG is drawn too, without loading anything the SVG itself refers to. `http:`,
+`https:` and `data:` images are never fetched, and an image inside running text, a heading or a table stays a label, as
+does one that is missing, will not decode, or is past the limits (at most 32 tried per file, 64 MiB and 40 million pixels
+per image, 24 MiB of pictures per file). `markdown_images = false` turns it off. An image is read when the Markdown is, so a
+picture that was changed or added beside an unchanged `.md` shows once that file is read again. HTML keeps its alt text.
 
 `.html` / `.htm` / `.xhtml` files are read the same way: the markup becomes headings, paragraphs, lists, tables,
 quotes and code blocks, with an outline. It is a reader, not a browser: no CSS layout, scripts or forms, images show

@@ -44,6 +44,9 @@ pub struct PreviewSlot {
     pub max_offset: usize,
     /// Text columns across the pane, which rendered Markdown wraps to.
     pub cols: u16,
+    /// The pane's measures that pictures in rendered Markdown are sized by, as
+    /// the last draw said them (zero until one has).
+    pub image_metrics: preview::ImageKey,
     /// Which picture of the file a configured previewer is showing: a PDF's
     /// page, a video's second. Belongs to the file, so it resets on the way to
     /// the next one — landing on page nine of a two-page document would be a
@@ -139,6 +142,7 @@ impl Default for PreviewSlot {
             rect: None,
             max_offset: 0,
             cols: 80,
+            image_metrics: preview::ImageKey::default(),
             n: 0,
             n_ok: None,
             outline: None,

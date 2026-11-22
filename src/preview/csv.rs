@@ -153,7 +153,7 @@ pub fn render(bytes: &[u8], delim: char, cols: u16, dim: Option<[u8; 3]>, max_by
         .map(|(spans, src)| DocLine { spans, kind: LineKind::Text, indent: 0, src, wrap: false })
         .collect();
 
-    let doc = Doc { lines, toc: Vec::new(), toc_cols: 0, body_cols: avail as u16 };
+    let doc = Doc { lines, toc: Vec::new(), toc_cols: 0, body_cols: avail as u16, images: Vec::new() };
     let source = super::text::plain_lines(text);
     let map = super::minimap(&source);
     Payload::Markdown { doc, source, map, extent, tabs: Default::default() }

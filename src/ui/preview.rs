@@ -952,7 +952,8 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         // A blank row is the gap between two blocks and shares the src of the
         // line above (so a jump lands on content); it is numbered with the
         // source line just before the next block, the blank that made it.
-        let blank = line.spans.iter().all(|s| s.text.trim().is_empty()) && !matches!(line.kind, LineKind::Code | LineKind::Rule);
+        let blank = line.spans.iter().all(|s| s.text.trim().is_empty())
+            && !matches!(line.kind, LineKind::Code | LineKind::Rule | LineKind::Image { .. });
         let gap = blank.then(|| doc.lines.get(start + i + 1).map(|n| n.src).filter(|&n| n > line.src && start + i > 0)).flatten();
         let number = match gap {
             Some(next) => Some(next),
@@ -976,6 +977,23 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             LineKind::Heading(level @ 1..=2) => {
                 let color = if level == 1 { theme.fg_dim } else { theme.border };
                 body.hline(x0..=right, y + st.row_h - 1.0, Stroke::new(1.0, color));
+            }
+            // The whole picture from its first row, once: a row of it that is the first on
+            // screen stands in for a first row scrolled away. The clip cuts it at the pane's edge,
+            // and a border along the cut is outside the clip too.
+            LineKind::Image { id, row } if row == 0 || i == 0 => {
+                if let Some(img) = doc.images.get(usize::from(id)) {
+                    let top = y - f32::from(row) * st.row_h;
+                    let at = Rect::from_min_size(pos2(x0, top), vec2(img.size_pt.0, img.size_pt.1));
+                    if at.bottom() > rect.top() && at.top() < rect.bottom() {
+                        let tex = img.texture.get_or_init(|| {
+                            let pixels = egui::ColorImage::from_rgba_unmultiplied([img.width as usize, img.height as usize], &img.rgba);
+                            ui.ctx().load_texture(format!("md-image-{id}"), pixels, egui::TextureOptions::LINEAR)
+                        });
+                        body.image(tex.id(), at, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                        body.rect_stroke(at, CornerRadius::ZERO, Stroke::new(1.0, theme.border), StrokeKind::Outside);
+                    }
+                }
             }
             _ => {}
         }
@@ -1473,7 +1491,16 @@ mod chrome {
         let entries = std::sync::Arc::new(vec![crate::fs::Entry::from_path(file.clone()).unwrap()]);
         let mut s = Screen::open(dir.clone()).sized(WIDE, 1080.0);
         s.app.tabs[s.app.active].current = crate::core::folder::Folder::from_entries(dir.clone(), entries, true);
-        s.app.preview.key = Some(crate::preview::Key { path: file, len: 1, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false });
+        s.app.preview.key = Some(crate::preview::Key {
+            path: file,
+            len: 1,
+            mtime: None,
+            box_size: (0, 0),
+            cols: 0,
+            n: 0,
+            deep: false,
+            images: Default::default(),
+        });
         s.app.preview.state = state;
         s
     }
@@ -2205,6 +2232,7 @@ mod minimap_hover_frame {
             toc: Vec::new(),
             toc_cols: 0,
             body_cols: 80,
+            images: Vec::new(),
         };
         let state = crate::app::PreviewState::Ready(Payload::Markdown {
             doc,

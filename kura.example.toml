@@ -25,6 +25,10 @@ bold_fonts = []
 # rather than as highlighted source. `M` toggles this at runtime.
 render_markdown = true
 
+# Draw local images in rendered Markdown (`![alt](path)` alone in its
+# paragraph). false keeps the `[image: alt]` labels and reads no image file.
+markdown_images = true
+
 # auto  — Nerd Font icons when a Nerd Font was loaded, ASCII otherwise
 # nerd  — force Nerd Font icons
 # ascii — force the plain fallback

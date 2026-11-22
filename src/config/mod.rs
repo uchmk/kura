@@ -60,6 +60,10 @@ pub struct Ui {
     /// Show Markdown laid out for reading (with an outline) instead of as
     /// highlighted source; `toggle_render` flips it at runtime.
     pub render_markdown: bool,
+    /// Draw local images (`![alt](path)`, alone in their paragraph) in rendered
+    /// Markdown. Off keeps every one as an `[image: alt]` label and reads no
+    /// image file.
+    pub markdown_images: bool,
     /// `auto`, `nerd`, `ascii` or `none`.
     pub icons: String,
     /// Draw the shape of the whole file down the right of the text preview.
@@ -152,6 +156,7 @@ impl Default for Ui {
             fonts: Vec::new(),
             bold_fonts: Vec::new(),
             render_markdown: true,
+            markdown_images: true,
             icons: "auto".into(),
             minimap: true,
             line_numbers: false,

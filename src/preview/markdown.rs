@@ -11,8 +11,9 @@ use ito_syntax::themed::{scope_color, Themed};
 use pulldown_cmark::{Alignment, BlockQuoteKind, CodeBlockKind, Event, MetadataBlockKind, Options, Parser, Tag, TagEnd};
 use unicode_width::UnicodeWidthChar;
 
+use super::md_image::Embed;
 use super::text::spans_from;
-use super::{Doc, DocLine, LineKind, Span, TocEntry};
+use super::{Doc, DocImage, DocLine, ImageKey, LineKind, Span, TocEntry};
 
 /// Rendered lines kept; the source view still has the whole file.
 const MAX_LINES: usize = 10_000;
@@ -36,10 +37,41 @@ pub fn render(text: &str, cols: u16, theme: &str) -> (Doc, bool) {
     lay_out(text, &events, cols, theme)
 }
 
+/// Where the local pictures of a document come from, and how big they are drawn.
+pub struct Images<'a> {
+    /// The folder of the Markdown file, which a relative path is read from.
+    pub dir: std::path::PathBuf,
+    pub key: ImageKey,
+    /// Asked before each picture: false when a newer request is waiting, so the layout stops.
+    pub go_on: &'a mut dyn FnMut() -> bool,
+}
+
+/// Whether `text` has anything that could be a picture, so that the worker can lay the whole
+/// document out in one go instead of sending its first screen ahead.
+pub fn may_have_images(text: &str) -> bool {
+    text.contains("![")
+}
+
+/// [`render`], with the local pictures drawn. `None` when `go_on` said stop: nothing half done.
+pub fn render_with_images<'a>(text: &str, cols: u16, theme: &'a str, images: Images<'a>) -> Option<(Doc, bool)> {
+    let events: Vec<_> = Parser::new_ext(text, options()).into_offset_iter().collect();
+    lay_out_with(text, &events, cols, theme, Some(images))
+}
+
 /// Lay out a document already read into Markdown's events, each with the
 /// byte range of `text` it came from. HTML is read into the same events
 /// (`html.rs`), so both look alike on screen.
 pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u16, theme: &str) -> (Doc, bool) {
+    lay_out_with(text, events, cols, theme, None).unwrap_or_default()
+}
+
+fn lay_out_with<'a>(
+    text: &str,
+    events: &[(Event<'_>, Range<usize>)],
+    cols: u16,
+    theme: &'a str,
+    images: Option<Images<'a>>,
+) -> Option<(Doc, bool)> {
     let cols = if cols == 0 { 80 } else { cols };
 
     // The outline's width decides how much room the body gets, so headings
@@ -53,7 +85,16 @@ pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u1
     let body_cols = if toc_cols > 0 { cols - toc_cols - 3 } else { cols }.min(MAX_BODY);
 
     let mut b = Builder::new(text, theme, body_cols as usize);
+    let mut go_on = None;
+    if let Some(Images { dir, key, go_on: f }) = images.filter(|i| i.key.on()) {
+        b.embed = Some(Embed::new(dir, key));
+        go_on = Some(f);
+    }
+    b.go_on = go_on;
     b.run(events);
+    if b.superseded {
+        return None;
+    }
 
     // Kept without a column too: a narrow pane shows it over the text when
     // the outline is focused.
@@ -65,7 +106,7 @@ pub(super) fn lay_out(text: &str, events: &[(Event<'_>, Range<usize>)], cols: u1
         .map(|(&line, ((level, _), label))| TocEntry { level: *level, label: clip_width(label, MAX_TOC_LABEL), line })
         .collect();
     let clipped = b.clipped;
-    (Doc { lines: b.lines, toc, toc_cols, body_cols }, clipped)
+    Some((Doc { lines: b.lines, toc, toc_cols, body_cols, images: b.images }, clipped))
 }
 
 fn options() -> Options {
@@ -227,6 +268,15 @@ struct Builder<'a> {
 
     /// Alt text and URL of an image being read.
     image: Option<(String, String)>,
+    /// The URL of an image that began its block, kept until the block ends: if it is the only
+    /// thing in it, it is drawn.
+    lone: Option<String>,
+    embed: Option<Embed>,
+    go_on: Option<&'a mut dyn FnMut() -> bool>,
+    /// `go_on` said stop.
+    superseded: bool,
+    /// The pictures laid out so far.
+    images: Vec<DocImage>,
     code: Option<Code>,
     html: Option<(String, usize)>,
     table: Option<Table>,
@@ -257,6 +307,11 @@ impl<'a> Builder<'a> {
             html_strike: 0,
             heading: None,
             image: None,
+            lone: None,
+            embed: None,
+            go_on: None,
+            superseded: false,
+            images: Vec::new(),
             code: None,
             html: None,
             table: None,
@@ -269,7 +324,7 @@ impl<'a> Builder<'a> {
 
     fn run(&mut self, events: &[(Event<'_>, Range<usize>)]) {
         for (event, range) in events.iter().cloned() {
-            if self.clipped {
+            if self.clipped || self.superseded {
                 break;
             }
             let src = self.src_line(range.start);
@@ -450,6 +505,9 @@ impl<'a> Builder<'a> {
             TagEnd::Link => self.link = self.link.saturating_sub(1),
             TagEnd::Image => {
                 if let Some((alt, url)) = self.image.take() {
+                    // Alone in a plain block, so far: it is drawn if nothing else joins it.
+                    let plain = self.heading.is_none() && self.table.is_none() && self.html.is_none() && self.code.is_none();
+                    self.lone = (plain && self.pending.is_empty()).then(|| url.clone());
                     let alt = alt.trim();
                     let name = if alt.is_empty() { url.rsplit(['/', '\\']).next().unwrap_or("") } else { alt };
                     let span = Span { text: format!("[image: {name}]"), color: self.pal.dim, ..self.style() };
@@ -587,8 +645,13 @@ impl<'a> Builder<'a> {
         self.html_italic = 0;
         self.html_strike = 0;
         let pieces = std::mem::take(&mut self.pending);
+        let lone = self.lone.take();
         if pieces.iter().all(|(s, _)| s.text.trim().is_empty()) {
             return;
+        }
+        // The picture first, then its label as a caption under it.
+        if let (Some(url), [(_, src)]) = (lone, pieces.as_slice()) {
+            self.embed_image(&url, *src);
         }
         let lines = wrap(&pieces, self.avail());
         let n = lines.len();
@@ -600,6 +663,31 @@ impl<'a> Builder<'a> {
                 self.lines[before].wrap = true;
             }
         }
+    }
+
+    /// Lay the picture `dest` names out as blank lines for the UI to paint over, if it can be
+    /// read. Otherwise nothing is added and the label stands alone.
+    fn embed_image(&mut self, dest: &str, src: usize) {
+        if self.embed.is_none() {
+            return;
+        }
+        if let Some(go_on) = self.go_on.as_mut() {
+            if !go_on() {
+                self.superseded = true;
+                return;
+            }
+        }
+        let avail = self.avail();
+        let Some(img) = self.embed.as_mut().and_then(|e| e.load(dest, avail)) else { return };
+        // Every row and the caption must fit, or the picture is not drawn at all.
+        if self.lines.len() + usize::from(img.rows) + 3 > MAX_LINES {
+            return;
+        }
+        let id = self.images.len() as u16;
+        for row in 0..img.rows {
+            self.push_line(Vec::new(), LineKind::Image { id, row }, src);
+        }
+        self.images.push(img);
     }
 
     fn prefix_width(&self) -> usize {
@@ -1303,5 +1391,170 @@ mod tests {
         assert_eq!(d.line_for_src(4), 2);
         assert_eq!(d.line_for_src(0), 0);
         assert_eq!(d.src_for_line(99), 7);
+    }
+
+    // --- local pictures (#490) ---
+
+    const KEY: ImageKey = ImageKey { row16: 18 * 16, cell16: 8 * 16, rows: 40, ppp100: 100 };
+
+    fn png(dir: &std::path::Path, name: &str, w: u32, h: u32) {
+        image::RgbaImage::from_pixel(w, h, image::Rgba([200, 30, 30, 255])).save(dir.join(name)).unwrap();
+    }
+
+    fn with_images(src: &str, dir: &std::path::Path, cols: u16, key: ImageKey) -> Doc {
+        let mut go_on = || true;
+        render_with_images(src, cols, "base16-ocean.dark", Images { dir: dir.to_path_buf(), key, go_on: &mut go_on }).unwrap().0
+    }
+
+    fn picture_rows(d: &Doc, id: u16) -> Vec<usize> {
+        (0..d.lines.len()).filter(|&i| matches!(d.lines[i].kind, LineKind::Image { id: n, .. } if n == id)).collect()
+    }
+
+    #[test]
+    fn a_relative_picture_takes_rows_and_keeps_its_label_as_a_caption() {
+        let dir = crate::util::test_dir("md-img-rel");
+        png(&dir, "a.png", 160, 90);
+        let d = with_images("Intro\n\n![logo](a.png)\n\nOutro\n", &dir, 80, KEY);
+        assert_eq!(d.images.len(), 1);
+        let rows = picture_rows(&d, 0);
+        assert_eq!(rows.len(), usize::from(d.images[0].rows));
+        assert_eq!(d.images[0].rows, 5, "90 pt at 18 pt a row");
+        assert!(rows.windows(2).all(|w| w[1] == w[0] + 1), "the rows run on");
+        let t = texts(&d);
+        assert_eq!(t[rows[rows.len() - 1] + 1], "[image: logo]", "the caption is under the picture");
+        assert!(rows.iter().all(|&i| t[i].is_empty() && !d.lines[i].wrap));
+        assert!(d.lines.iter().all(|l| l.src <= 4) && d.lines.windows(2).all(|w| w[0].src <= w[1].src), "src never goes back");
+    }
+
+    #[test]
+    fn labels_stay_for_missing_remote_and_data_pictures() {
+        let dir = crate::util::test_dir("md-img-label");
+        let d = with_images("![a](gone.png)\n\n![b](https://x.test/b.png)\n\n![c](data:image/png;base64,AAAA)\n", &dir, 80, KEY);
+        assert!(d.images.is_empty());
+        assert_eq!(texts(&d), ["[image: a]", "", "[image: b]", "", "[image: c]"]);
+    }
+
+    #[test]
+    fn the_switch_off_keeps_every_label() {
+        let dir = crate::util::test_dir("md-img-off");
+        png(&dir, "a.png", 20, 20);
+        let d = with_images("![logo](a.png)\n", &dir, 80, ImageKey::default());
+        assert!(d.images.is_empty());
+        assert_eq!(texts(&d), ["[image: logo]"]);
+    }
+
+    #[test]
+    fn a_big_picture_is_scaled_down_and_a_small_one_is_not_enlarged() {
+        let dir = crate::util::test_dir("md-img-size");
+        png(&dir, "big.png", 3000, 100);
+        png(&dir, "small.png", 16, 16);
+        let d = with_images("![big](big.png)\n\n![small](small.png)\n", &dir, 60, KEY);
+        let (big, small) = (&d.images[0], &d.images[1]);
+        assert_eq!(big.size_pt.0, 60.0 * 8.0, "as wide as the body");
+        assert_eq!(big.width, 480);
+        assert_eq!(big.source, (3000, 100));
+        assert_eq!((small.size_pt, small.rows), ((16.0, 16.0), 1));
+        // A tall one is held to 24 rows (60% of 40 is 24).
+        png(&dir, "tall.png", 100, 5000);
+        let d = with_images("![t](tall.png)\n", &dir, 80, KEY);
+        assert_eq!(d.images[0].rows, 24);
+        // A short pane caps it at 60% of its rows.
+        let d = with_images("![t](tall.png)\n", &dir, 80, ImageKey { rows: 10, ..KEY });
+        assert_eq!(d.images[0].rows, 6);
+    }
+
+    #[test]
+    fn a_picture_in_a_list_or_quote_sits_at_the_indent() {
+        let dir = crate::util::test_dir("md-img-indent");
+        png(&dir, "a.png", 40, 40);
+        let d = with_images("- ![in list](a.png)\n\n> ![in quote](a.png)\n", &dir, 80, KEY);
+        assert_eq!(d.images.len(), 2);
+        for id in 0..2 {
+            let rows = picture_rows(&d, id);
+            assert!(rows.iter().all(|&i| d.lines[i].indent == 2), "{:?}", d.lines[rows[0]]);
+        }
+        let first = picture_rows(&d, 0)[0];
+        assert_eq!(texts(&d)[first], "• ", "the marker is on its first row");
+    }
+
+    #[test]
+    fn a_linked_picture_is_drawn_but_one_in_running_text_is_a_label() {
+        let dir = crate::util::test_dir("md-img-inline");
+        png(&dir, "a.png", 40, 40);
+        let d = with_images("[![badge](a.png)](https://x.test)\n\ntext ![in text](a.png) more\n\n# ![h](a.png)\n", &dir, 80, KEY);
+        assert_eq!(d.images.len(), 1);
+        assert!(texts(&d).contains(&"text [image: in text] more".to_string()));
+        assert!(texts(&d).contains(&"[image: h]".to_string()));
+    }
+
+    #[test]
+    fn source_lines_round_trip_around_a_picture() {
+        let dir = crate::util::test_dir("md-img-src");
+        png(&dir, "a.png", 40, 80);
+        let d = with_images("one\n\n![p](a.png)\n\ntwo\n", &dir, 80, KEY);
+        let rows = picture_rows(&d, 0);
+        for &r in &rows {
+            assert_eq!(d.src_for_line(r), 2);
+        }
+        assert_eq!(d.line_for_src(2), rows[0], "the source line lands on the picture's first row");
+        assert_eq!(d.src_for_line(d.line_for_src(4)), 4);
+    }
+
+    #[test]
+    fn text_after_a_picture_is_still_found() {
+        let dir = crate::util::test_dir("md-img-find");
+        png(&dir, "a.png", 40, 40);
+        let d = with_images("![p](a.png)\n\nneedle here\n", &dir, 80, KEY);
+        let m = ito_match::Matcher::new("needle").unwrap();
+        let found = d.marks(&m, 0, d.lines.len());
+        let hit = found.iter().position(|r| !r.is_empty()).unwrap();
+        assert_eq!(texts(&d)[hit], "needle here");
+        let m = ito_match::Matcher::new("image: p").unwrap();
+        assert!(d.marks(&m, 0, d.lines.len()).iter().any(|r| !r.is_empty()), "and the caption");
+    }
+
+    #[test]
+    fn a_picture_is_never_read_from_a_share_or_a_directory() {
+        let dir = crate::util::test_dir("md-img-refuse");
+        std::fs::create_dir_all(dir.join("folder.png")).unwrap();
+        let d = with_images("![a](folder.png)\n\n![b](//host/share/x.png)\n\n![c](file://host/x.png)\n", &dir, 80, KEY);
+        assert!(d.images.is_empty());
+    }
+
+    #[test]
+    fn an_svg_is_drawn_without_loading_what_it_names() {
+        let dir = crate::util::test_dir("md-img-svg");
+        png(&dir, "secret.png", 8, 8);
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="30">
+            <rect width="40" height="30" fill="blue"/><image xlink:href="secret.png" width="8" height="8"/></svg>"#;
+        std::fs::write(dir.join("d.svg"), svg).unwrap();
+        let d = with_images("![d](d.svg)\n", &dir, 80, KEY);
+        assert_eq!(d.images.len(), 1);
+        assert_eq!(d.images[0].size_pt, (40.0, 30.0));
+        let px = |x: usize, y: usize| {
+            let i = (y * d.images[0].width as usize + x) * 4;
+            d.images[0].rgba[i..i + 4].to_vec()
+        };
+        assert_eq!(px(20, 20), [0, 0, 255, 255]);
+        assert_eq!(px(2, 2), [0, 0, 255, 255], "the <image> inside drew nothing over the rect");
+    }
+
+    #[test]
+    fn a_newer_request_stops_the_layout() {
+        let dir = crate::util::test_dir("md-img-stop");
+        png(&dir, "a.png", 10, 10);
+        let mut go_on = || false;
+        let r = render_with_images("![a](a.png)\n", 80, "base16-ocean.dark", Images { dir, key: KEY, go_on: &mut go_on });
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn at_most_the_first_32_pictures_are_tried() {
+        let dir = crate::util::test_dir("md-img-cap");
+        png(&dir, "a.png", 8, 8);
+        let src: String = (0..40).map(|_| "![p](a.png)\n\n").collect();
+        let d = with_images(&src, &dir, 80, KEY);
+        assert_eq!(d.images.len(), 32);
+        assert_eq!(texts(&d).iter().filter(|t| *t == "[image: p]").count(), 40, "every one keeps its label");
     }
 }

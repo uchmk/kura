@@ -127,6 +127,23 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
     // Laid out once: the first screen of a long Markdown file carries all of
     // it, which is cheap next to coloring the source beside it.
     let mut doc = None;
+    // A Markdown file with pictures is laid out whole before anything is sent: the UI keeps the
+    // scroll and the search position from a first screen and assumes the whole one has the same
+    // lines, and the pictures change how many lines there are.
+    let images = is_markdown && req.key.images.on() && super::markdown::may_have_images(&expanded);
+    if images {
+        let dir = req.key.path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        // A newer request being waited on stops it, before each picture.
+        let mut go_on = || hl.early.as_mut().is_none_or(|early| early(None));
+        let found = super::markdown::Images { dir, key: req.key.images, go_on: &mut go_on };
+        match super::markdown::render_with_images(&expanded, req.key.cols, theme, found) {
+            Some(laid) => doc = Some(laid),
+            None => {
+                hl.abandoned = true;
+                return Payload::Error("superseded".into());
+            }
+        }
+    }
     let head = if renders && req.markdown_rendered { 0 } else { HEAD_LINES };
     for (i, line) in expanded.lines().take(max_lines(req)).enumerate() {
         if i >= color_lines(req) {
@@ -142,7 +159,7 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
                 }
             }
         }
-        if i == head && total_lines > HEAD_LINES {
+        if i == head && total_lines > HEAD_LINES && !images {
             if let Some(early) = hl.early.as_mut() {
                 // Every line is there, the rest uncolored for now, so the
                 // scroll range and the minimap's length do not change under
@@ -195,6 +212,10 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
         lines.push(spans);
     }
     if renders {
+        if images && hl.early.as_mut().is_some_and(|early| !early(None)) {
+            hl.abandoned = true;
+            return Payload::Error("superseded".into());
+        }
         let (doc, clipped) = doc.unwrap_or_else(|| lay(&expanded));
         let map = super::minimap(&lines);
         let extent = Extent { truncated: extent.truncated || clipped, ..extent };
@@ -377,7 +398,16 @@ mod tests {
         };
         Request {
             id: 0,
-            key: Key { path: format!("x.{ext}").into(), len: 0, mtime: None, box_size: (0, 0), cols: 80, n: 0, deep: false },
+            key: Key {
+                path: format!("x.{ext}").into(),
+                len: 0,
+                mtime: None,
+                box_size: (0, 0),
+                cols: 80,
+                n: 0,
+                deep: false,
+                images: Default::default(),
+            },
             mime,
             ext: Some(ext.into()),
             max_bytes: 1 << 20,
@@ -584,5 +614,54 @@ mod tests {
         let Some(Payload::Markdown { doc: early, source, .. }) = first.borrow_mut().take() else { panic!("markdown first") };
         assert_eq!(early.toc.len(), HEAD_LINES);
         assert!(source.iter().all(|l| l.iter().all(|s| s.color.is_none())));
+    }
+
+    /// #490: a Markdown file with a local picture is laid out whole before anything goes out (no
+    /// first screen to disagree with it), carries the picture, and a waiting request drops it.
+    #[test]
+    fn markdown_pictures_are_laid_out_whole_and_a_newer_request_drops_them() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let dir = crate::util::test_dir("text-md-img");
+        image::RgbaImage::from_pixel(40, 40, image::Rgba([1, 2, 3, 255])).save(dir.join("a.png")).unwrap();
+        let mut src = String::from(
+            "![p](a.png)
+
+",
+        );
+        src.push_str(
+            &"line
+
+"
+            .repeat(HEAD_LINES * 2),
+        );
+        let mut req = request("md");
+        req.key.path = dir.join("doc.md");
+        req.markdown_rendered = true;
+        req.key.images = crate::preview::ImageKey { row16: 288, cell16: 128, rows: 40, ppp100: 100 };
+
+        let firsts = Rc::new(RefCell::new(0));
+        let count = firsts.clone();
+        let mut hl = Highlighter {
+            early: Some(Box::new(move |p| {
+                if p.is_some() {
+                    *count.borrow_mut() += 1;
+                }
+                true
+            })),
+            ..Default::default()
+        };
+        let Payload::Markdown { doc, .. } = render(src.as_bytes(), &req, &mut hl) else { panic!("markdown") };
+        assert_eq!(doc.images.len(), 1);
+        assert_eq!(*firsts.borrow(), 0, "no first screen ahead of a document with pictures");
+
+        let mut hl = Highlighter { early: Some(Box::new(|_| false)), ..Default::default() };
+        assert!(matches!(render(src.as_bytes(), &req, &mut hl), Payload::Error(_)));
+        assert!(hl.abandoned);
+
+        // Switched off in the key: nothing is read.
+        req.key.images = Default::default();
+        let Payload::Markdown { doc, .. } = render(src.as_bytes(), &req, &mut Highlighter::default()) else { panic!("markdown") };
+        assert!(doc.images.is_empty());
     }
 }

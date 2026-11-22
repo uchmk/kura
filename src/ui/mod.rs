@@ -514,6 +514,14 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
             let numbers = app.preview_numbers();
             let gutter = if numbers { preview::MD_GUTTER_COLS as f32 * cell } else { 0.0 };
             app.preview.cols = ((rect.width() - 24.0 - gutter) / cell).max(0.0) as u16;
+            // Pictures in rendered Markdown are sized in points; the worker has no font to say what a row is.
+            let sixteenth = |pt: f32| (pt * 16.0).round().clamp(0.0, f32::from(u16::MAX)) as u16;
+            app.preview.image_metrics = crate::preview::ImageKey {
+                row16: sixteenth(row_h),
+                cell16: sixteenth(cell),
+                rows: ((rect.height() - 2.0 * PREVIEW_INSET) / row_h.max(1.0)).max(0.0) as u16,
+                ppp100: (ui.ctx().pixels_per_point() * 100.0).round().clamp(1.0, f32::from(u16::MAX)) as u16,
+            };
             let st = preview::PreviewStyle {
                 theme: &theme,
                 font: f.clone(),
@@ -1602,7 +1610,7 @@ mod status_notes {
     fn markdown_names_the_toggle_key_the_keymap_gives_it() {
         let mut s = super::harness::Screen::open(crate::util::test_dir("status-hint"));
         assert_eq!(status_hint(&s.app), None, "no Markdown, no hint");
-        let doc = Doc { lines: Vec::new(), toc: Vec::new(), toc_cols: 0, body_cols: 80 };
+        let doc = Doc { lines: Vec::new(), toc: Vec::new(), toc_cols: 0, body_cols: 80, images: Vec::new() };
         let md = Payload::Markdown { doc, source: Vec::new(), map: Vec::new(), extent: Extent::default(), tabs: Default::default() };
         s.app.preview.state = crate::app::PreviewState::Ready(md);
         s.app.render_markdown = true;
@@ -1623,7 +1631,7 @@ mod status_notes {
         let a = s.app.active;
         s.app.tabs[a].current = crate::core::folder::Folder::from_entries(dir, entries, true);
         s.app.clock.show = true;
-        let doc = Doc { lines: Vec::new(), toc: vec![heading(label, 0)], toc_cols: 0, body_cols: 80 };
+        let doc = Doc { lines: Vec::new(), toc: vec![heading(label, 0)], toc_cols: 0, body_cols: 80, images: Vec::new() };
         let extent = Extent { total: 1200, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
         s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown {
             doc,
@@ -1771,6 +1779,7 @@ mod status_notes {
             toc: vec![heading("Intro", 0), heading("Usage", 3)],
             toc_cols: 0,
             body_cols: 80,
+            images: Vec::new(),
         };
         let extent = Extent { total: 20, enc: "UTF-8", eol: Eol::Crlf, ..Default::default() };
         s.app.preview.state = crate::app::PreviewState::Ready(Payload::Markdown {
@@ -3279,7 +3288,16 @@ line"
         let mut s = one("quick-stale");
         let dir = s.app.tab().cwd.clone();
         let read = |name: &str| {
-            Some(crate::preview::Key { path: dir.join(name), len: 1, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false })
+            Some(crate::preview::Key {
+                path: dir.join(name),
+                len: 1,
+                mtime: None,
+                box_size: (0, 0),
+                cols: 0,
+                n: 0,
+                deep: false,
+                images: Default::default(),
+            })
         };
         s.app.preview.key = read("a.txt");
         s.app.preview.state = long_text();

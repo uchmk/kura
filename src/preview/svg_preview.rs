@@ -51,6 +51,40 @@ fn render_bytes(data: &[u8], dir: Option<&Path>, box_size: (u32, u32)) -> Result
     Ok(Payload::Image { width, height, source, own, vector: true, rgba, caption })
 }
 
+/// An SVG drawn inside rendered Markdown: at most `box_pt` points (its own size, never
+/// enlarged), rendered at `ppp` pixels per point. It is not trusted with the disk or the
+/// network: no `resources_dir`, and every `<image href>` inside it resolves to nothing, so
+/// a README's drawing cannot make kura read another file. Returns the picture and its size
+/// in points.
+pub(super) fn render_embedded(data: &[u8], box_pt: (f32, f32), ppp: f32) -> Result<(image::RgbaImage, (f32, f32)), String> {
+    let mut opt = usvg::Options {
+        image_href_resolver: usvg::ImageHrefResolver { resolve_data: Box::new(|_, _, _| None), resolve_string: Box::new(|_, _| None) },
+        ..Default::default()
+    };
+    if data.windows(5).any(|w| w == b"<text") {
+        opt.fontdb = system_fonts();
+    }
+    let tree = usvg::Tree::from_data(data, &opt).map_err(|e| format!("bad SVG: {e}"))?;
+    let size = tree.size();
+    if size.width() < 1.0 || size.height() < 1.0 {
+        return Err("SVG has no area".into());
+    }
+    let s = super::md_image::shrink((size.width(), size.height()), box_pt);
+    let (pw, ph) = ((size.width() * s * ppp).round().max(1.0), (size.height() * s * ppp).round().max(1.0));
+    let mut pixmap = tiny_skia::Pixmap::new(pw as u32, ph as u32).ok_or("SVG has no area")?;
+    resvg::render(&tree, tiny_skia::Transform::from_scale(s * ppp, s * ppp), &mut pixmap.as_mut());
+    let straight: Vec<u8> = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|p| {
+            let c = p.demultiply();
+            [c.red(), c.green(), c.blue(), c.alpha()]
+        })
+        .collect();
+    let img = image::RgbaImage::from_raw(pw as u32, ph as u32, straight).ok_or("SVG buffer size mismatch")?;
+    Ok((img, (size.width() * s, size.height() * s)))
+}
+
 /// The size an SVG is laid out at, whatever box it was rendered into.
 ///
 /// The picture's geometry -- its fit, its zoom, where a pan stops -- is worked

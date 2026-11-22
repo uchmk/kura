@@ -54,6 +54,7 @@ fn the_debounce_timer_does_not_outlive_the_look() {
         cols: 0,
         n: 0,
         deep: false,
+        images: Default::default(),
     };
     a.preview.cache.put(cached, CachedPreview { payload: Payload::Error("x".into()), texture: None });
     hover(&mut a, "a.txt");
@@ -86,8 +87,16 @@ fn a_reply_puts_the_payload_on_screen() {
     let ctx = egui::Context::default();
     let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
 
-    let key =
-        preview::Key { path: PathBuf::from("/nowhere/readme.md"), len: 7, mtime: None, box_size: (640, 480), cols: 80, n: 0, deep: false };
+    let key = preview::Key {
+        path: PathBuf::from("/nowhere/readme.md"),
+        len: 7,
+        mtime: None,
+        box_size: (640, 480),
+        cols: 80,
+        n: 0,
+        deep: false,
+        images: Default::default(),
+    };
     // What `request_preview` leaves behind once it has dispatched.
     app.preview.key = Some(key.clone());
     app.preview.state = PreviewState::Loading;
@@ -144,8 +153,16 @@ fn a_relayout_is_waited_for() {
 fn a_first_screen_is_shown_but_not_cached() {
     let ctx = egui::Context::default();
     let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
-    let key =
-        preview::Key { path: PathBuf::from("/nowhere/todo.md"), len: 7, mtime: None, box_size: (640, 480), cols: 80, n: 0, deep: false };
+    let key = preview::Key {
+        path: PathBuf::from("/nowhere/todo.md"),
+        len: 7,
+        mtime: None,
+        box_size: (640, 480),
+        cols: 80,
+        n: 0,
+        deep: false,
+        images: Default::default(),
+    };
     app.preview.key = Some(key.clone());
     app.preview.state = PreviewState::Loading;
     app.preview.in_flight = true;
@@ -168,8 +185,16 @@ fn a_stale_reply_changes_nothing() {
     let ctx = egui::Context::default();
     let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
 
-    let wanted =
-        preview::Key { path: PathBuf::from("/nowhere/wanted.md"), len: 1, mtime: None, box_size: (640, 480), cols: 80, n: 0, deep: false };
+    let wanted = preview::Key {
+        path: PathBuf::from("/nowhere/wanted.md"),
+        len: 1,
+        mtime: None,
+        box_size: (640, 480),
+        cols: 80,
+        n: 0,
+        deep: false,
+        images: Default::default(),
+    };
     let old = preview::Key { path: PathBuf::from("/nowhere/old.md"), ..wanted.clone() };
     app.preview.key = Some(wanted);
     app.preview.state = PreviewState::Loading;

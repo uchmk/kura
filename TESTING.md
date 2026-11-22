@@ -2047,3 +2047,13 @@ kura reads each toast to the screen reader through `ito-a11y`: once per raise, w
 | 73.4 | In `<F3>` on a text file: scroll, then `<Enter>`; then `<C-g>` `295` and `<Enter>`; then `/`, a word, `<Enter>`, and `n` / `N` | each opens the editor at the line on screen, at 295, and at the hit; hits are marked and `n` / `N` step through them; `j` still moves the list; a `/` in the list afterwards takes `n` back. |
 | 73.5 | On a file in the list press `<C-S-g>`, type `120:5`, `<Enter>`; again with `１２０` (full-width digits); with several files marked; on a folder | the hovered file alone opens at line 120, column 5 (then at line 120); the marked ones are not opened with it; a folder gives the toast `Open at line works on a file`; `abc` gives `Open at line: enter a line number, or line:column`. |
 | 73.6 | Open a huge log (8 MB or more), press `T` (`#` if the numbers are off), then `:100000` `<Enter>`; then `/`, a word found far down, `<Enter>` and `n` | the gutter starts at 100000, the file's own line (not 1 or a number counted from the lines read so far), and follows each hit; `--keys` reports the same line in `open at:` |
+
+## 74. Local pictures in rendered Markdown (#490)
+
+A picture alone in its paragraph (or a list item, quote or link) is drawn in the flow when the file is local: a relative path, an absolute one or a `file:` URL. It is shrunk to the body width and to 60% of the pane's rows (24 at most), never enlarged. `http`, `https`, `data` and network shares are never fetched. `markdown_images = false` under `[ui]` keeps the old `[image: alt]` labels.
+
+| # | Do | Expect |
+|---|----|--------|
+| 74.1 | Make a Markdown file with a relative PNG, a relative SVG, a missing file and an `https` image, each alone in its paragraph, and open it rendered | The PNG and the SVG are drawn in the text, scaled to fit, with `[image: alt]` under each; the missing file and the `https` image stay as `[image: alt]` labels and nothing is downloaded |
+| 74.2 | Scroll that file so a picture is cut by the top and by the bottom of the pane, then press `M` | The picture is cut cleanly at the pane's edge and does not paint over the status bar or the next column; `M` shows the source with the `![...]` lines |
+| 74.3 | Set `markdown_images = false` under `[ui]`, restart, open the same file | Every picture is a `[image: alt]` label |

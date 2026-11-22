@@ -203,7 +203,8 @@ fn a_match_over_a_wrapped_line_is_found_on_both_halves() {
 /// would, and opens it at its first (or, after `N`, last) match.
 fn land(a: &mut App, lines: &[&str]) {
     let path = a.tabs[a.active].current.hovered().unwrap().path.clone();
-    a.preview.key = Some(preview::Key { path, len: 0, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false });
+    a.preview.key =
+        Some(preview::Key { path, len: 0, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false, images: Default::default() });
     a.preview.in_flight = false;
     a.preview.state = text(lines);
     a.show_first_match();
@@ -284,7 +285,7 @@ fn a_deep_preview_opens_at_its_match_on_the_early_payload() {
     found.state = LoadState::Ready;
     a.tabs[a.active].current = found;
     let path = a.tabs[a.active].current.hovered().unwrap().path.clone();
-    let key = preview::Key { path, len: 0, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: true };
+    let key = preview::Key { path, len: 0, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: true, images: Default::default() };
     a.preview.key = Some(key.clone());
     a.preview.in_flight = true;
     let lines = ["x", "x", "x", "x", "x", "x", "needle"];

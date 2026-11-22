@@ -18,6 +18,7 @@ mod html;
 mod image_preview;
 pub mod logindex;
 mod markdown;
+mod md_image;
 mod office;
 mod shell_thumb;
 mod svg_preview;
@@ -53,6 +54,31 @@ pub struct Key {
     /// in the result of `S` / `F` a match can sit past the usual cut, and a
     /// preview that ends before it has nothing to colour or walk to.
     pub deep: bool,
+    /// What the layout of local images in rendered Markdown depends on: the
+    /// pane's row height and width of a cell, and its display scale. All zero
+    /// (off) for anything but Markdown, and when `markdown_images` is off, so
+    /// no image file is looked at then.
+    pub images: ImageKey,
+}
+
+/// The measures the worker needs to size a picture in rendered Markdown. It
+/// has no font, so the UI says them, in integers (they are part of [`Key`]).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub struct ImageKey {
+    /// A row's height in points, in 1/16 point. 0 turns the pictures off.
+    pub row16: u16,
+    /// A cell's width in points, in 1/16 point.
+    pub cell16: u16,
+    /// Rows the pane shows, for the height a picture is capped at.
+    pub rows: u16,
+    /// Physical pixels per point, in 1/100.
+    pub ppp100: u16,
+}
+
+impl ImageKey {
+    pub fn on(self) -> bool {
+        self.row16 > 0 && self.cell16 > 0
+    }
 }
 
 #[derive(Debug)]
@@ -98,6 +124,38 @@ pub struct Doc {
     /// Width of the outline column; 0 when the pane is too narrow for one.
     pub toc_cols: u16,
     pub body_cols: u16,
+    /// The pictures drawn in the flow; a line of kind [`LineKind::Image`] names one by index.
+    pub images: Vec<DocImage>,
+}
+
+/// A local picture in rendered Markdown, decoded and already as big as it is drawn. It takes
+/// `rows` lines of the document (`LineKind::Image`, one per row), and the UI paints it over
+/// them, so scrolling, search and `line_for_src` count it like any other lines.
+#[derive(Clone)]
+pub struct DocImage {
+    /// Pixels of `rgba`, straight (not premultiplied) alpha.
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Arc<Vec<u8>>,
+    /// The file's own size in pixels (an SVG's, in its units).
+    pub source: (u32, u32),
+    /// Size on screen, in points.
+    pub size_pt: (f32, f32),
+    /// Document lines it covers.
+    pub rows: u16,
+    /// Made by the UI the first time it is painted, so only pictures that are looked at cost
+    /// video memory; it goes with the payload.
+    pub texture: Arc<std::sync::OnceLock<egui::TextureHandle>>,
+}
+
+impl std::fmt::Debug for DocImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DocImage")
+            .field("px", &(self.width, self.height))
+            .field("size_pt", &self.size_pt)
+            .field("rows", &self.rows)
+            .finish()
+    }
 }
 
 impl Doc {
@@ -249,6 +307,11 @@ pub enum LineKind {
     Heading(u8),
     Code,
     Rule,
+    /// Row `row` of the picture `Doc::images[id]`. Blank text; the picture is painted over it.
+    Image {
+        id: u16,
+        row: u16,
+    },
 }
 
 /// A line of an outline: a Markdown heading, or a declaration in source code.
@@ -1057,7 +1120,16 @@ pub(crate) mod for_tests {
         let entry = crate::fs::Entry::from_path(path.to_path_buf()).unwrap();
         let req = super::Request {
             id: 0,
-            key: super::Key { path: entry.path.clone(), len: entry.len, mtime: None, box_size: (800, 600), cols: 80, n: 0, deep: false },
+            key: super::Key {
+                path: entry.path.clone(),
+                len: entry.len,
+                mtime: None,
+                box_size: (800, 600),
+                cols: 80,
+                n: 0,
+                deep: false,
+                images: Default::default(),
+            },
             mime: crate::mime::guess(&entry),
             ext: entry.ext.clone(),
             max_bytes: 1 << 20,
