@@ -135,15 +135,25 @@ pub fn source_format(path: &Path) -> Result<Option<Source>, String> {
 /// `TooLarge(w, h)` before decoding a pixel when the picture is over the limit, so any real
 /// picture gives its size without the cost of decoding it. Only the first 64 KiB is read, and
 /// only after the first 12 bytes say JPEG XL: Details and spot ask this of every picture.
+///
+/// The header has to be inside what is read. A container can put big Exif, XMP or compressed
+/// (`brob`) boxes before the codestream, and an embedded ICC profile is part of the header, so a
+/// miss in the first 64 KiB is tried once more with up to 4 MiB. Never the whole file.
 pub fn jxl_size(path: &Path) -> Option<(u32, u32)> {
     if !ito_image::is_jxl(&head(path, 12).ok()?) {
         return None;
     }
-    let bytes = head(path, 64 << 10).ok()?;
-    match ito_image::decode_jxl(&bytes, 0) {
-        Err(ito_image::Error::TooLarge(w, h)) => Some((w, h)),
-        _ => None,
+    let len = std::fs::metadata(path).ok()?.len();
+    for n in [64usize << 10, 4 << 20] {
+        let bytes = head(path, n).ok()?;
+        if let Err(ito_image::Error::TooLarge(w, h)) = ito_image::decode_jxl(&bytes, 0) {
+            return Some((w, h));
+        }
+        if len <= n as u64 {
+            break;
+        }
     }
+    None
 }
 
 /// A picture's pixel size from its header, for every format `decode` reads.
@@ -434,6 +444,28 @@ mod tests {
             assert_eq!(size, (img.width(), img.height()), "{name}");
             assert_eq!(dimensions(&jxl_fixture(name)), Some(size));
         }
+    }
+
+    #[test]
+    fn jpeg_xl_size_is_found_behind_a_big_metadata_box() {
+        // A container with 100 KiB of XMP before the codestream: the header is past the first 64 KiB.
+        let boxed = |kind: &[u8; 4], body: &[u8]| {
+            let mut b = ((8 + body.len()) as u32).to_be_bytes().to_vec();
+            b.extend_from_slice(kind);
+            b.extend_from_slice(body);
+            b
+        };
+        let mut file = boxed(b"JXL ", &[0x0d, 0x0a, 0x87, 0x0a]);
+        file.extend(boxed(b"ftyp", b"jxl \0\0\0\0jxl "));
+        file.extend(boxed(b"xml ", &vec![b' '; 100 << 10]));
+        file.extend(boxed(b"jxlc", &std::fs::read(jxl_fixture("lossless.jxl")).unwrap()));
+        let dir = crate::util::test_dir("jxl-big-box");
+        let path = dir.join("boxed.jxl");
+        std::fs::write(&path, file).unwrap();
+        assert_eq!(jxl_size(&path), Some((16, 8)));
+        assert_eq!(dimensions(&path), Some((16, 8)));
+        let img = decode(&path).unwrap();
+        assert_eq!((img.width(), img.height()), (16, 8));
     }
 
     #[test]
