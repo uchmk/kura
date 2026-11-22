@@ -34,6 +34,11 @@ pub struct PreviewSlot {
     /// payload, so the whole one that follows keeps the reader where they are.
     pub placed: bool,
     pub cache: Lru<preview::Key, CachedPreview>,
+    /// The colours changed, so the file on show is read again while the old
+    /// copy stays up. Its own flag because the debounce would drop a forced
+    /// request: the next frame's plain one finds the key unchanged and returns.
+    /// Cleared when the request goes out or the slot stops showing a file.
+    pub recolor: bool,
     /// Size of the preview pane in pixels, used when decoding images.
     pub box_size: (u32, u32),
     /// Where the preview was drawn in the last frame, for `<Shot:name@preview>`.
@@ -138,6 +143,7 @@ impl Default for PreviewSlot {
             early: false,
             placed: false,
             cache: Lru::new(24),
+            recolor: false,
             box_size: (900, 900),
             rect: None,
             max_offset: 0,

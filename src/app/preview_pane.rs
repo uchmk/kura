@@ -10,6 +10,7 @@ impl App {
             self.preview.texture = None;
             self.preview.pending_since = None;
             self.preview.in_flight = false;
+            self.preview.recolor = false;
             return;
         }
         // The debounce's timer, taken rather than read: every way out of this
@@ -20,6 +21,7 @@ impl App {
         let pending = self.preview.pending_since.take();
         let Some(mut entry) = self.tabs[self.active].current.hovered().cloned() else {
             self.preview.in_flight = false;
+            self.preview.recolor = false;
             self.preview.state = PreviewState::Empty;
             self.preview.key = None;
             self.preview.outline = None;
@@ -60,6 +62,7 @@ impl App {
                     }
                     self.preview.state = PreviewState::Ready(view.card(&entry));
                     self.preview.in_flight = false;
+                    self.preview.recolor = false;
                     self.preview.key = None;
                     self.preview.texture = None;
                     return;
@@ -86,6 +89,7 @@ impl App {
 
         if entry.is_dir_like() {
             self.preview.in_flight = false;
+            self.preview.recolor = false;
             let need = match &self.preview.state {
                 PreviewState::Dir(f) => f.path != entry.path,
                 _ => true,
@@ -128,6 +132,13 @@ impl App {
             // Only Markdown has pictures, and only while the switch is on.
             images: if mime == "text/markdown" && self.cfg.ui.markdown_images { self.preview.image_metrics } else { Default::default() },
         };
+        // A new colour scheme re-reads what is on show (see `recolor`), but a log
+        // holds no colours from the worker, so it keeps its view and its find.
+        let recolor = self.preview.recolor && !matches!(self.preview.state, PreviewState::Ready(Payload::Log { .. }));
+        if self.preview.recolor && !recolor {
+            self.preview.recolor = false;
+        }
+        let force = force || recolor;
         if self.preview.key.as_ref() == Some(&key) && !force {
             return;
         }
@@ -142,7 +153,12 @@ impl App {
                 return;
             }
         }
-        if let Some(hit) = self.preview.cache.get(&key).cloned() {
+        // Not while a re-read is wanted: an answer in the old colours that was
+        // still in flight when the theme changed can land in the cache after
+        // `look_changed` cleared it.
+        let hit = if recolor { None } else { self.preview.cache.get(&key).cloned() };
+        if let Some(hit) = hit {
+            self.preview.recolor = false;
             self.preview.in_flight = false;
             self.preview.key = Some(key);
             self.preview.texture = hit.texture;
@@ -168,6 +184,7 @@ impl App {
             None => {}
         }
 
+        self.preview.recolor = false;
         // A re-layout of the file already shown keeps it up until the new
         // one arrives, rather than blinking through "loading" on every resize.
         let relayout = self.preview.key.as_ref().is_some_and(|k| k.path == key.path && k.len == key.len && k.mtime == key.mtime)

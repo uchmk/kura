@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 845 件（TESTING.md の全 1042 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 846 件（TESTING.md の全 1043 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -975,6 +975,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **54.21** その `theme.toml` を `[app]` の `overall = { bg = "#ffffff", fg = "#222222" }` だけにして `<C-F5>`。画面を開いて `Nord` を選ぶ（v0.100.0）→ Nord でも kura は白地に暗い字のまま。設定の画面自体と egui の部品（スクロールバーが明るい）も同じ。ほか（パネル・枠・ファイルの色）は Nord のもの。v0.113.6（#396）から状態バーは明るい地、テキストファイルのプレビューは暗い字で、どちらも読める — *Make that `theme.toml` `[app]` / `overall = { bg = "#ffffff", fg = "#222222" }` only; `<C-F5>`; open the screen and pick `Nord` (v0.100.0) → kura stays white with dark text under Nord, and so does the settings screen itself and egui's widgets (the scroll bars light); the rest (panels, borders, file colours) is Nord's. Since v0.113.6 (#396) the status bar is light and a text file's preview dark-lettered, both readable*
 - [ ] **54.22** common.toml に `theme = "No Such Theme"` と書いて保存し、もう一度保存する（v0.100.0）→ `common.toml:` で始まり `No Such Theme` を挙げるトーストが 1 回だけ出る。色は元のまま。名前を直せば 3 秒以内に色が変わる — *Write `theme = "No Such Theme"` into common.toml and save; save it once more (v0.100.0) → One toast starting `common.toml:` that names `No Such Theme`, not two; the colours stay as they were. Fixing the name recolours kura within 3 seconds*
 - [ ] **54.23** `%APPDATA%\uchmk\themes\mine.toml` に `name = "Mine"`・`light = false`・`bg = "#202830"`・`fg = "#e0e0e0"` を保存し、kura を起動し直してテーマのページを開く（v0.100.0）→ ダークのテーマの中に `Mine` が並ぶ。選ぶと kura の地が `#202830` になり、`theme = "Mine"` が書かれる。`bg = "nope"` のファイルは並ばず、`theme:` で始まりそのファイルを挙げるトーストが出る — *Save `%APPDATA%\uchmk\themes\mine.toml` with `name = "Mine"`, `light = false`, `bg = "#202830"`, `fg = "#e0e0e0"`; restart kura and open the Theme page (v0.100.0) → `Mine` is listed with the dark themes; picking it makes kura's ground `#202830` and writes `theme = "Mine"`. A file with `bg = "nope"` is left out, with a toast starting `theme:` that names it*
+- [ ] **54.24** 長いテキストファイルをプレビューして `<A-j>` で数ページ下げ、Markdown ファイルでも同じにする。設定の画面（`<C-,>`）の Theme でダーク・ライトを切り替える（v0.167.2、#530） → プレビューは新しい色で描き直され、同じ行のまま。`…` を一瞬挟まず、先頭の行へ戻らない。本文検索（`S` / `F`）の表示は、これまでどおり最初の一致から開く — *Preview a long text file, scroll down a few pages (`<A-j>`), then do the same with a Markdown file; open the settings screen (`<C-,>`), go to Theme and switch dark to light and back (v0.167.2, #530) → The preview is redrawn in the new colours and stays on the same line, with no blink through `…`; it does not jump back to the first line. A content search's view (`S` / `F`) still opens on the first match*
 
 ## 55. HTML のプレビュー
 

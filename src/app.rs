@@ -996,6 +996,10 @@ mod host_sizes;
 mod preview_scroll;
 
 #[cfg(test)]
+#[path = "app/tests/theme_keeps_preview_scroll.rs"]
+mod theme_keeps_preview_scroll;
+
+#[cfg(test)]
 #[path = "app/tests/preview_numbers.rs"]
 mod preview_numbers;
 

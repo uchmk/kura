@@ -161,7 +161,12 @@ impl App {
     /// a highlighted copy in the old ones.
     pub(super) fn look_changed(&mut self) {
         crate::ui::set_look(&self.ctx, self.cfg.theme.light());
-        self.preview = PreviewSlot::default();
+        // Not the whole slot: the zoom, the outline, the page and the scroll
+        // belong to the file, not to its colours. The old copy stays up while
+        // the new one is read (the relayout path), so nothing draws `Loading`
+        // and clamps `preview_offset` to 0 (#530).
+        self.preview.cache = Lru::new(24);
+        self.preview.recolor = true;
     }
 
     /// Write what the settings screen changed into common.toml, off the UI
