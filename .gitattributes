@@ -4,3 +4,6 @@
 
 # Cargo.lock is generated; keep it out of diffs and merge conflicts.
 Cargo.lock linguist-generated=true
+
+# JPEG XL test pictures copied from ito (crates/ito-image/testdata); never normalise them.
+tests/fixtures/jxl/*.jxl binary

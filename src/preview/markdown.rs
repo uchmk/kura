@@ -1427,6 +1427,15 @@ mod tests {
     }
 
     #[test]
+    fn a_jpeg_xl_picture_is_laid_out_like_any_other() {
+        let dir = crate::util::test_dir("md-img-jxl");
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/jxl/lossless.jxl"), dir.join("lossless.jxl")).unwrap();
+        let d = with_images("![x](lossless.jxl)\n", &dir, 80, KEY);
+        assert_eq!(d.images.len(), 1);
+        assert_eq!(picture_rows(&d, 0).len(), usize::from(d.images[0].rows));
+    }
+
+    #[test]
     fn labels_stay_for_missing_remote_and_data_pictures() {
         let dir = crate::util::test_dir("md-img-label");
         let d = with_images("![a](gone.png)\n\n![b](https://x.test/b.png)\n\n![c](data:image/png;base64,AAAA)\n", &dir, 80, KEY);

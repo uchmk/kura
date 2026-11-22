@@ -67,7 +67,7 @@ impl Embed {
             let (img, size_pt) = super::svg_preview::render_embedded(&data, box_pt, ppp).ok()?;
             (img, size_pt, None)
         } else {
-            let (hw, hh) = image::ImageReader::open(&path).ok()?.with_guessed_format().ok()?.into_dimensions().ok()?;
+            let (hw, hh) = crate::fs::imgcodec::dimensions(&path)?;
             if u64::from(hw) * u64::from(hh) > MAX_PIXELS {
                 return None;
             }

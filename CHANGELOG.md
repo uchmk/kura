@@ -9,6 +9,18 @@
 
 ## [未リリース]
 
+## [0.167.0] - 2026-11-22
+
+### 追加
+- JPEG XL（`.jxl`）を読めるようにした（#501）。プレビューに絵が出て（透過はプレビューの背景の上、向きは直した形、アニメは 1 枚目）、
+  Convert（`c i`）の入力にもなる（PNG・JPEG・WebP に書く。kura は JPEG XL を書かない）。Details（`m a`）の `画像の大きさ` と spot の `Image`
+  （`Dimensions`・`Format  JPEG XL`）にも大きさが出る（先頭の 64 KiB のヘッダーだけを読み、画素はデコードしない）。
+  Markdown のプレビューの `![x](photo.jxl)` も本文の中に描く。デコードは ito v0.312.0 の `ito-image`（jxl-oxide、Pure Rust）で、
+  ワーカーのスレッドで行う。読むファイルは 256 MiB まで。中身で判断するので、`.jxl` に改名した PNG は PNG として読む。
+
+### 変更
+- ito を v0.312.0（`ad3a391`）に上げた。`ito-image` の `jxl` の機能を使う。レーンの共通のスクリプト（`scripts/ito-first.txt`）を写し直した。
+
 ## [0.166.0] - 2026-11-22
 
 ### 追加

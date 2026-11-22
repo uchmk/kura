@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 841 件（TESTING.md の全 1038 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 845 件（TESTING.md の全 1042 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1195,6 +1195,10 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **70.7** 日本語のファイル名、ネットワークドライブ、読み取り専用のフォルダーで試す → 名前はそのまま。読み取り専用のフォルダーはクラッシュせずエラーの行になる。一部自動: `scripts/check-convert.sh`（Linux の CI）が日本語のファイル名と読み取り専用フォルダーを確かめる。ネットワーク ドライブは対象外 — *Use a Japanese file name, a network drive and a read-only folder → Names are kept; the read-only folder gives an error row, not a crash. Automated in part: `scripts/check-convert.sh` (Linux CI) covers a Japanese file name and a read-only folder; the network drive is not covered.*
 - [x] **70.8** アーカイブの中で `c i` を押す。画像を右クリックする → アーカイブの中では断られる。右クリックのメニューに Convert が並ぶ。自動: `scripts/check-convert.sh`（Linux の CI）。メニューは右クリックではなく Shift+F10 で開く — *Inside an archive, press `c i`; also right-click an image → Inside an archive it is refused; the right-click menu lists Convert. Automated: `scripts/check-convert.sh` (Linux CI); the menu is opened with Shift+F10, not a right-click.*
 - [ ] **70.9** `config.toml` の `[convert]` に `webp_quality = 80` を書き（設定画面の行は `WebP 品質`）、写真と透明部分のあるスクリーンショットで `c i`（行は `WebP（品質 80）` と出る）→ `WebP` を選ぶ → どちらの `.webp` もブラウザーかプレビューで開いて、正しい絵が出る。写真は `webp_quality = 0`（ロスレス）で変換したものよりずっと小さい。スクリーンショットの透明な部分は透明のまま — *Set `webp_quality = 80` under `[convert]` in `config.toml` (the Settings row is `WebP quality`), then `c i` (the line reads `WebP (quality 80)`) → `WebP` on a photo and on a screenshot with transparency → Both `.webp` files open in a browser or the preview with the right picture; the photo is much smaller than the same photo converted with `webp_quality = 0` (lossless); the transparent areas of the screenshot stay transparent.*
+- [ ] **70.10** `.jxl` の写真と、透明部分のある `.jxl` を置いたフォルダーで（`magick in.png out.jxl` か、手元の JPEG XL）、それぞれを選んでプレビューを見る（#501） → どちらも正しい絵が出る（透明なほうはプレビューの背景の上）。ファイルの種類のアイコンにはならない。`.jxl` に改名した PNG は PNG として出る。`x.bin` に改名した JPEG XL は、ほかの絵と同じくバイナリーのファイルとして出る。壊れた `.jxl` はエラーが出て、窓は動き続ける — *In a folder with a `.jxl` photo and a `.jxl` with transparency (`magick in.png out.jxl` or any JPEG XL file), select each and look at the preview (#501) → Each preview shows the right picture (the transparent one over the preview background), not a file-type icon. A PNG renamed `.jxl` still shows as a PNG; a JPEG XL renamed `x.bin` shows as a binary file, like any picture under that name. A broken `.jxl` shows an error, and the window keeps working*
+- [ ] **70.11** 同じフォルダーで `m a`（詳細）と、`.jxl` で `<Tab>`（spot）を押す（#501） → 2 つの `.jxl` とも `Dimensions` の列に `幅 × 高さ` が出る。spot の `Image` 節も同じ大きさと `Format  JPEG XL` を出す。横向きに保存された縦長の写真は、向きを直した大きさで出る — *`m a` (Details) in that folder, and `<Tab>` (spot) on a `.jxl` (#501) → The `Dimensions` column shows `W × H` for both `.jxl` files, the spot panel's `Image` section shows the same size and `Format  JPEG XL`; a portrait photo stored sideways reads its upright size*
+- [ ] **70.12** `.jxl` で `c i` → `PNG`（#501） → 隣に `name.png` ができ、大きさはプレビューと同じ。`.jxl` は残る。`WebP`・`JPEG` でもできる。`.png` を PNG に変換するのは今までどおり飛ばす — *`c i` → `PNG` on a `.jxl` (#501) → `name.png` appears beside it with the same size as the preview shows; the `.jxl` stays. `WebP` and `JPEG` work too. A `.png` converted to PNG is still skipped*
+- [ ] **70.13** アニメーションの `.jxl` をプレビューする（#501） → 最初のフレームが止まった絵で出る。段落に `![x](photo.jxl)` だけを書いた Markdown は、描画したプレビューにその絵を出す — *Preview an animated `.jxl` (#501) → It shows the first frame as a still picture. A Markdown file with `![x](photo.jxl)` alone in its paragraph shows the picture in the rendered preview*
 
 ## 71. Toasts read aloud (v0.157.0)
 

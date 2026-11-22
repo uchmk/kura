@@ -16,12 +16,27 @@ fn dimensions(entry: &Entry) -> Option<(u32, u32)> {
     if entry.kind != super::Kind::File
         || !matches!(
             entry.ext.as_deref()?.to_ascii_lowercase().as_str(),
-            "png" | "jpg" | "jpeg" | "gif" | "bmp" | "ico" | "tif" | "tiff" | "webp" | "pnm" | "ppm" | "pgm" | "pbm" | "pam" | "qoi"
+            "png"
+                | "jpg"
+                | "jpeg"
+                | "gif"
+                | "bmp"
+                | "ico"
+                | "tif"
+                | "tiff"
+                | "webp"
+                | "pnm"
+                | "ppm"
+                | "pgm"
+                | "pbm"
+                | "pam"
+                | "qoi"
+                | "jxl"
         )
     {
         return None;
     }
-    image::ImageReader::open(&entry.path).ok()?.with_guessed_format().ok()?.into_dimensions().ok()
+    super::imgcodec::dimensions(&entry.path)
 }
 
 #[cfg(unix)]

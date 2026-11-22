@@ -323,6 +323,12 @@ fn image(path: &Path) -> Option<Section> {
     if path.is_dir() {
         return None;
     }
+    if let Some((w, h)) = crate::fs::imgcodec::jxl_size(path) {
+        let mut s = Section::new("Image");
+        s.row("Dimensions", format!("{w} × {h}"));
+        s.row("Format", "JPEG XL".to_owned());
+        return Some(s);
+    }
     let reader = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?;
     let format = reader.format()?;
     let decoder = reader.into_decoder().ok()?;

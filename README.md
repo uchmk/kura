@@ -306,7 +306,7 @@ measuring them. Owner and image dimensions are loaded on a worker for the visibl
 and about a page either side; sorting by either first loads missing rows without blocking
 input. On Windows the owner of a local account is shown without the computer name
 (`yuu06`, not `PC\yuu06`). Image dimensions read headers
-for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM and QOI; SVG is excluded.
+for PNG, JPEG, GIF, BMP, ICO, TIFF, WebP, PNM, QOI and JPEG XL; SVG is excluded.
 Author, title and audio duration require parser crates and are not provided.
 
 Press `ci` to convert selected images to JPEG, PNG, or WebP (also in the
@@ -319,7 +319,7 @@ on. The toast and task row show total input/output sizes, signed percentage chan
 the skipped count; individual failures remain in the task's errors.
 
 EXIF orientation is baked into the pixels. Metadata and ICC profiles are not copied;
-wide-gamut images may change colour. Animated images use only their first frame. WebP
+wide-gamut images may change colour. Animated images use only their first frame. JPEG XL files are read too (as input only). WebP
 is lossless unless `[convert].webp_quality` is 1–100 (lossy, pure Rust, keeps transparency). PNG retains 16-bit channels; JPEG and WebP
 use 8-bit channels. Decoding is limited to 80 million pixels, as in the image preview.
 
@@ -1224,6 +1224,7 @@ what one buys you:
 | Files | Preview |
 | --- | --- |
 | png, jpg, gif, bmp, ico, webp, tiff, qoi, pnm | decoded in-process, turned upright per EXIF orientation |
+| jxl (JPEG XL) | decoded in pure Rust through ito (jxl-oxide), already upright; an animation shows its first frame. The decoder follows what the file holds, so a PNG renamed `.jxl` still shows. Convert reads it too (`ci` writes PNG / JPEG / WebP; kura writes no JPEG XL) |
 | svg | rendered with resvg, scaled to fill the pane |
 | ttf, otf, ttc | a specimen sheet: name, alphabet (kana/kanji when the font has them), size waterfall; symbol fonts show a glyph grid |
 | csv, tsv | an aligned table, with `M` switching to the raw text |

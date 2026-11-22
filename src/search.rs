@@ -69,9 +69,9 @@ const SNIFF_BYTES: usize = 8 * 1024;
 /// Extensions that are never text, skipped without opening the file.
 const BINARY_EXTENSIONS: &[&str] = &[
     "exe", "dll", "so", "dylib", "o", "obj", "a", "lib", "pdb", "class", "jar", "pyc", "wasm", "bin", "dat", "iso", "img", "dmg", "msi",
-    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "tif", "tiff", "psd", "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv", "avi",
-    "mov", "webm", "zip", "7z", "rar", "gz", "bz2", "xz", "zst", "tar", "tgz", "pdf", "doc", "xls", "ppt", "docx", "xlsx", "pptx", "ttf",
-    "otf", "woff", "woff2", "sqlite", "db",
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "jxl", "tif", "tiff", "psd", "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv",
+    "avi", "mov", "webm", "zip", "7z", "rar", "gz", "bz2", "xz", "zst", "tar", "tgz", "pdf", "doc", "xls", "ppt", "docx", "xlsx", "pptx",
+    "ttf", "otf", "woff", "woff2", "sqlite", "db",
 ];
 
 fn binary_extension(path: &Path) -> bool {

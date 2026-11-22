@@ -54,7 +54,50 @@ impl Default for EncodeOpts {
     }
 }
 
+/// A JPEG XL file bigger than this is refused before it is read.
+const MAX_JXL_BYTES: u64 = 256 << 20;
+
+/// What a readable image file is. The `image` crate has no JPEG XL, so it has its own arm.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    Image(image::ImageFormat),
+    Jxl,
+}
+
+impl Source {
+    /// Whether the file is already in the target format. JPEG XL never is: kura writes none.
+    pub fn is(self, format: ImageFormat) -> bool {
+        matches!(self, Self::Image(f) if format.matches(f))
+    }
+}
+
+/// The first bytes of the file (up to `n`), enough to sniff a format.
+fn head(path: &Path, n: usize) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let mut buf = Vec::new();
+    std::fs::File::open(path).map_err(|e| e.to_string())?.take(n as u64).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+    Ok(buf)
+}
+
+fn decode_jxl_file(path: &Path) -> Result<DynamicImage, String> {
+    let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+    if len > MAX_JXL_BYTES {
+        return Err(format!("JPEG XL file too large ({} MiB)", len >> 20));
+    }
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    // Already upright: `decode_jxl` applies the orientation, so none is applied again here.
+    let rgba = ito_image::decode_jxl(&bytes, MAX_PIXELS).map_err(|e| match e {
+        ito_image::Error::TooLarge(w, h) => format!("image too large ({w}x{h})"),
+        e => e.to_string(),
+    })?;
+    image::RgbaImage::from_raw(rgba.width, rgba.height, rgba.pixels).map(DynamicImage::ImageRgba8).ok_or_else(|| "invalid JPEG XL".into())
+}
+
+/// Decodes by content, not by extension. Worker threads only: JPEG XL has no time limit.
 pub fn decode(path: &Path) -> Result<DynamicImage, String> {
+    if ito_image::is_jxl(&head(path, 12)?) {
+        return decode_jxl_file(path);
+    }
     let mut decoder = image::ImageReader::open(path)
         .map_err(|e| e.to_string())?
         .with_guessed_format()
@@ -74,8 +117,41 @@ pub fn decode(path: &Path) -> Result<DynamicImage, String> {
 /// Sniff the contents rather than trusting a file extension.
 /// `Ok(None)` means readable but not an image; `Err` means it could not be read
 /// (permissions, lock, I/O), which the caller reports instead of skipping silently.
-pub fn source_format(path: &Path) -> Result<Option<image::ImageFormat>, String> {
-    Ok(image::ImageReader::open(path).map_err(|e| e.to_string())?.with_guessed_format().map_err(|e| e.to_string())?.format())
+pub fn source_format(path: &Path) -> Result<Option<Source>, String> {
+    if ito_image::is_jxl(&head(path, 12)?) {
+        return Ok(Some(Source::Jxl));
+    }
+    Ok(image::ImageReader::open(path)
+        .map_err(|e| e.to_string())?
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?
+        .format()
+        .map(Source::Image))
+}
+
+/// The size of a JPEG XL file as its header gives it, or `None`.
+///
+/// `max_pixels` is 0 on purpose: `decode_jxl` reads the header first and returns
+/// `TooLarge(w, h)` before decoding a pixel when the picture is over the limit, so any real
+/// picture gives its size without the cost of decoding it. Only the first 64 KiB is read, and
+/// only after the first 12 bytes say JPEG XL: Details and spot ask this of every picture.
+pub fn jxl_size(path: &Path) -> Option<(u32, u32)> {
+    if !ito_image::is_jxl(&head(path, 12).ok()?) {
+        return None;
+    }
+    let bytes = head(path, 64 << 10).ok()?;
+    match ito_image::decode_jxl(&bytes, 0) {
+        Err(ito_image::Error::TooLarge(w, h)) => Some((w, h)),
+        _ => None,
+    }
+}
+
+/// A picture's pixel size from its header, for every format `decode` reads.
+pub fn dimensions(path: &Path) -> Option<(u32, u32)> {
+    if let Some(size) = jxl_size(path) {
+        return Some(size);
+    }
+    image::ImageReader::open(path).ok()?.with_guessed_format().ok()?.into_dimensions().ok()
 }
 
 pub fn encode(img: &DynamicImage, fmt: ImageFormat, opts: &EncodeOpts, out: &mut impl Write) -> Result<(), String> {
@@ -329,6 +405,79 @@ mod tests {
         jpeg[sof + 7..sof + 9].copy_from_slice(&9000u16.to_be_bytes());
         std::fs::write(&path, jpeg).unwrap();
         assert!(decode(&path).unwrap_err().contains("image too large"));
+    }
+
+    fn jxl_fixture(name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/jxl").join(name)
+    }
+
+    #[test]
+    fn jpeg_xl_fixtures_decode_to_their_size() {
+        let size = |name: &str| {
+            let img = decode(&jxl_fixture(name)).unwrap();
+            (img.width(), img.height())
+        };
+        assert_eq!(size("lossless.jxl"), (16, 8));
+        let alpha = decode(&jxl_fixture("alpha.jxl")).unwrap().to_rgba8();
+        assert_eq!(alpha.dimensions(), (16, 8));
+        assert!(alpha.pixels().any(|p| p[3] > 0 && p[3] < 255), "translucent pixels are kept");
+        assert_eq!(size("anim.jxl"), (16, 8), "frame 0");
+        // Stored 16x8 with orientation 6: upright it is 8x16, and the header size says so too.
+        assert_eq!(size("orient6.jxl"), (8, 16));
+    }
+
+    #[test]
+    fn jpeg_xl_size_from_the_header_matches_the_decoded_size() {
+        for name in ["lossless.jxl", "alpha.jxl", "anim.jxl", "orient6.jxl"] {
+            let img = decode(&jxl_fixture(name)).unwrap();
+            let size = jxl_size(&jxl_fixture(name)).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(size, (img.width(), img.height()), "{name}");
+            assert_eq!(dimensions(&jxl_fixture(name)), Some(size));
+        }
+    }
+
+    #[test]
+    fn content_wins_over_the_extension() {
+        let dir = crate::util::test_dir("jxl-content");
+        std::fs::copy(jxl_fixture("lossless.jxl"), dir.join("x.bin")).unwrap();
+        assert!(decode(&dir.join("x.bin")).is_ok());
+        assert_eq!(source_format(&dir.join("x.bin")).unwrap(), Some(Source::Jxl));
+        let png = dir.join("p.jxl");
+        sample().save_with_format(&png, image::ImageFormat::Png).unwrap();
+        let back = decode(&png).unwrap();
+        assert_eq!((back.width(), back.height()), (64, 48));
+        assert_eq!(source_format(&png).unwrap(), Some(Source::Image(image::ImageFormat::Png)));
+    }
+
+    #[test]
+    fn broken_jpeg_xl_is_an_error_and_has_no_size() {
+        let dir = crate::util::test_dir("jxl-garbage");
+        let path = dir.join("bad.jxl");
+        let mut bytes = vec![0xff, 0x0a];
+        bytes.extend((0..200u32).map(|i| (i * 37 + 11) as u8));
+        std::fs::write(&path, bytes).unwrap();
+        assert!(decode(&path).is_err());
+        assert_eq!(jxl_size(&path), None);
+        assert_eq!(dimensions(&path), None);
+    }
+
+    #[test]
+    fn jpeg_xl_converts_to_png_and_is_never_its_own_target() {
+        let dir = crate::util::test_dir("jxl-convert");
+        let src = jxl_fixture("lossless.jxl");
+        let source = source_format(&src).unwrap().unwrap();
+        assert_eq!(source, Source::Jxl);
+        assert!(![ImageFormat::Jpeg, ImageFormat::Png, ImageFormat::WebP].into_iter().any(|f| source.is(f)));
+        let img = decode(&src).unwrap();
+        let dest = dir.join("out.png");
+        assert!(write_image(&img, ImageFormat::Png, &EncodeOpts::default(), &dest, || false).unwrap().is_some());
+        let back = decode(&dest).unwrap();
+        assert_eq!((back.width(), back.height()), (img.width(), img.height()));
+        // The PNG it wrote is its own target, so converting it to PNG again is skipped.
+        let written = source_format(&dest).unwrap().unwrap();
+        assert_eq!(written, Source::Image(image::ImageFormat::Png));
+        assert!(written.is(ImageFormat::Png));
+        assert!(!written.is(ImageFormat::Jpeg));
     }
 
     #[test]

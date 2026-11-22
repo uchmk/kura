@@ -127,6 +127,7 @@ pub fn is_decodable_image(mime: &str) -> bool {
             | "image/webp"
             | "image/tiff"
             | "image/qoi"
+            | "image/jxl"
             | "image/x-portable-anymap"
     )
 }
@@ -146,4 +147,16 @@ pub fn syntax_hint(mime: &str, ext: Option<&str>) -> Option<String> {
         _ => None,
     };
     by_mime.or(ext).map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jpeg_xl_is_decoded_not_left_to_the_shell_thumbnail() {
+        assert!(is_decodable_image("image/jxl"));
+        assert!(!is_decodable_image("image/heic"));
+        assert!(!is_decodable_image("image/avif"));
+    }
 }

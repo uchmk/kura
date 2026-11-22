@@ -949,6 +949,7 @@ fn default_ext_icons(t: &Colors) -> Vec<(String, Icon)> {
         ("jpeg", "\u{f1c5}", Some(0xc99cf0)),
         ("gif", "\u{f1c5}", Some(0xc99cf0)),
         ("webp", "\u{f1c5}", Some(0xc99cf0)),
+        ("jxl", "\u{f1c5}", Some(0xc99cf0)),
         ("svg", "\u{f1c5}", Some(0xe8c87a)),
         ("ico", "\u{f1c5}", Some(0xc99cf0)),
         ("bmp", "\u{f1c5}", Some(0xc99cf0)),

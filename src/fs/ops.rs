@@ -585,7 +585,7 @@ impl Ctx<'_> {
                     continue;
                 }
             };
-            if format.matches(source_format) {
+            if source_format.is(format) {
                 skipped += 1;
                 self.files_done += 1;
                 self.bytes_done += source_bytes;
