@@ -158,13 +158,17 @@ impl App {
         // `look_changed` cleared it.
         let hit = if recolor { None } else { self.preview.cache.get(&key).cloned() };
         if let Some(hit) = hit {
+            // The same file again (a width seen before) keeps the reader's match.
+            let same_file = self.preview.key.as_ref().is_some_and(|k| k.path == key.path && k.len == key.len && k.mtime == key.mtime);
+            let keep = same_file.then(|| self.match_held()).flatten();
+            self.preview.keep_match = None;
             self.preview.recolor = false;
             self.preview.in_flight = false;
             self.preview.key = Some(key);
             self.preview.texture = hit.texture;
             self.preview.state = PreviewState::Ready(hit.payload);
             self.preview.max_offset = 0;
-            self.show_first_match();
+            self.place_match(keep);
             self.grant_outline_wish();
             return;
         }
@@ -197,6 +201,7 @@ impl App {
                     Payload::Text { .. } | Payload::Markdown { .. } | Payload::Image { .. }
                 )
             );
+        self.preview.keep_match = if relayout { self.match_held() } else { None };
         self.preview.key = Some(key.clone());
         if !relayout {
             self.preview.texture = None;
@@ -235,7 +240,8 @@ impl App {
             // can be walked to now instead of when the last line is coloured.
             if self.body_search_open() {
                 self.preview.max_offset = 0;
-                self.show_first_match();
+                let keep = self.preview.keep_match.take();
+                self.place_match(keep);
                 self.preview.placed = true;
             }
             return;
@@ -281,8 +287,9 @@ impl App {
             let avail = egui::vec2(bw as f32 / 2.0, bh as f32 / 2.0);
             self.preview.fit = image_fit(avail, source.0 as f32, source.1 as f32);
         }
+        let keep = self.preview.keep_match.take();
         if !std::mem::take(&mut self.preview.placed) {
-            self.show_first_match();
+            self.place_match(keep);
         }
         self.grant_outline_wish();
     }
@@ -332,6 +339,43 @@ impl App {
         if let Some(&line) = if last { ms.last() } else { ms.first() } {
             self.show_match(line);
         }
+    }
+
+    /// The match the reader is on, if the view is a body search with one picked.
+    pub(super) fn match_held(&self) -> Option<KeepMatch> {
+        if !self.body_search_open() {
+            return None;
+        }
+        let finder = self.tabs[self.active].finder.as_ref()?;
+        let at = finder.at?;
+        let nth = self.body_matches().iter().position(|&m| m == at)?;
+        Some(KeepMatch { nth, line: at, query: finder.query.clone() })
+    }
+
+    /// Land a fresh answer on the match the reader was on (`keep`), or on the
+    /// first one when there is none to keep or the search has changed since.
+    pub(super) fn place_match(&mut self, keep: Option<KeepMatch>) {
+        if let Some(k) = keep {
+            let same_search = self.tabs[self.active].finder.as_ref().is_some_and(|f| f.query == k.query);
+            let ms = self.body_matches();
+            if same_search && !ms.is_empty() {
+                // In rendered Markdown the matches are rows, so a match over a
+                // wrapped line counts twice and after a resize the nth row can be
+                // a neighbour of the old one; that is close enough (clamped to the
+                // last).
+                let target = *ms.get(k.nth).unwrap_or(&ms[ms.len() - 1]);
+                if target == k.line {
+                    // A recolour: the same rows, and the reader may have scrolled.
+                    if let Some(f) = self.tabs[self.active].finder.as_mut() {
+                        f.at = Some(target);
+                    }
+                } else {
+                    self.show_match(target);
+                }
+                return;
+            }
+        }
+        self.show_first_match();
     }
 
     /// Scroll to a line of the preview that a body search found, and remember

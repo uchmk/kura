@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 854 件（TESTING.md の全 1051 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 855 件（TESTING.md の全 1052 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -929,6 +929,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **52.27** `S`、`src/app.rs`（500 KB）にある語を打って `<Enter>`、その結果へ動く（v0.93.5）→ プレビューが最初の当たりですぐ開き、最初は色が無く、少しあとに動かずに色が付く。2〜4 MB のソースファイルは全部出る（40000 行より先は色なし）。検索自体は各ファイルの最初の 1 MB しか読まない — *`S`, type a word that is in `src/app.rs` (500 KB), `<Enter>`, move to that result (v0.93.5) → The preview opens at the first match at once, uncoloured at first and coloured a moment later without moving. A 2-4 MB source file is shown whole (the part past line 40000 stays plain); the search itself still reads only the first 1 MB of each file*
 - [ ] **52.28** `s`、`foo` と打って `<Enter>`、`S`、`bar` と打って `<Enter>`、続けて `f`、`<Up>`（v0.93.5）→ `bar` が戻り、もう一度 `<Up>` で `foo`、`<Down>` を 2 回押すと最初の `<Up>` の前に打っていたものが戻る。絞り込みは文字の変わりに付いてくる。kura を再起動して `s` を開く: `<Up>` でまだ `bar` が戻る。ファイル名のプロンプト（`a`、`r`）に履歴は無い — *`s`, type `foo`, `<Enter>`; `S`, type `bar`, `<Enter>`; `f`, then `<Up>` (v0.93.5) → `bar` comes back, `<Up>` again `foo`, `<Down>` twice gives back what was typed before the first `<Up>`. The filter follows the text as it changes. Restart kura and open `s`: `<Up>` still brings back `bar`. A file-name prompt (`a`, `r`) has no history*
 - [ ] **52.29** `s`、語を打って `<Enter>`、もう一度 `s`。`<Up>` を押し続ける（v0.93.6）→ 履歴をさかのぼる間、カーソルは語の末尾にある。キーの繰り返しの間に先頭へ飛んで戻ることはない — *`s`, type a word, `<Enter>`, `s` again; hold `<Up>` (v0.93.6) → The caret stays at the end of the word as the history steps back. It does not jump to the start and back between key repeats*
+- [ ] **52.30** `S`、Markdown のファイルとテキストのファイルに何度も出てくる語を打って `<Enter>`。テキストのファイルで `n` を 2 回押してから、設定の画面（`<C-,>`、テーマ）でテーマを切り替える。Markdown のファイル（整形した表示）で `n` を 2 回押してから、窓を狭くして元の幅に戻す（v0.168.1、#531）→ テーマを切り替えたあとも、プレビューは 3 つ目の当たりに同じスクロールのまま留まり、`n` で 4 つ目に進む。窓の幅を変えたあとも同じ当たりが上から数行下に出る。別の結果に動くと、そのファイルはこれまでどおり最初の当たりで開く — *`S`, type a word that is several times in a Markdown file and in a text file, `<Enter>`. On the text file press `n` twice, then switch the theme in the settings screen (`<C-,>`, Theme). On the Markdown file (rendered view) press `n` twice, then make the window narrower and wider again (v0.168.1, #531) → After the theme switch the preview stays on the third match at the same scroll, and `n` goes on to the fourth. After the resize the preview shows the same match again, a few lines down from the top. Moving to another result still opens it at its first match*
 
 ## 53. ステータスバー右端の時計（v0.94.0）
 

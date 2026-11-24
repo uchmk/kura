@@ -75,6 +75,22 @@ pub struct PreviewSlot {
     /// each frame, since only it knows how big it is; read when zooming away
     /// from fit so the first step does not jump.
     pub fit: f32,
+    /// The match a content search was on when the file on show was asked for
+    /// again, for the answer to land on instead of the first one. Set by every
+    /// request, so a stale value never outlives the next one.
+    pub keep_match: Option<KeepMatch>,
+}
+
+/// The content-search match the reader was on when the file on show was
+/// asked for again (a theme switch, a resize of a pane-width layout).
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeepMatch {
+    /// Which match, counted from the first (0-based) in `body_matches()`.
+    pub nth: usize,
+    /// The row it was on, to tell a recolour (same rows) from a re-layout.
+    pub line: usize,
+    /// The search it belongs to; a new search opens on its first match.
+    pub query: String,
 }
 
 /// The scale that fits an image of `w` × `h` into `avail`, never magnifying: a
@@ -156,6 +172,7 @@ impl Default for PreviewSlot {
             zoom: None,
             pan: egui::Vec2::ZERO,
             fit: 1.0,
+            keep_match: None,
         }
     }
 }

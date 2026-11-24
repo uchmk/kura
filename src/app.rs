@@ -1012,6 +1012,10 @@ mod preview_scroll;
 mod theme_keeps_preview_scroll;
 
 #[cfg(test)]
+#[path = "app/tests/search_keeps_match.rs"]
+mod search_keeps_match;
+
+#[cfg(test)]
 #[path = "app/tests/preview_numbers.rs"]
 mod preview_numbers;
 
