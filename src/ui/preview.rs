@@ -48,6 +48,13 @@ pub struct PreviewPainted {
     pub numbers: Vec<Option<usize>>,
     /// The rows drawn with at least one find mark painted on them, top to bottom (same numbering as `rows`).
     pub marked: Vec<usize>,
+    /// Rendered Markdown only: the drawn rows (numbered as `rows`) on which a quote bar was painted, each with the
+    /// text painted on that row (its galleys' text in paint order, joined, trimmed), top to bottom.
+    pub bars: Vec<(usize, String)>,
+    /// Rendered Markdown only: the drawn rows on which nothing was painted in the body (no text galley, code band,
+    /// rule, heading underline or picture, a picture counting on every row it covers; a line number in the gutter
+    /// does not count).
+    pub blank: Vec<usize>,
 }
 
 impl PreviewPainted {
@@ -886,7 +893,8 @@ fn text_with(
     let end = (start + rows(rect, st)).min(lines.len());
     // Recorded here, by what paints, so the state report says what was drawn rather than what should have been.
     let base = numbers.0;
-    let mut painted = PreviewPainted { view, rows: base + start..base + end, numbers: vec![None; end - start], marked: Vec::new() };
+    let mut painted =
+        PreviewPainted { view, rows: base + start..base + end, numbers: vec![None; end - start], marked: Vec::new(), ..Default::default() };
     // The line-number gutter: drawn first, not noted (so not selectable), and
     // the text moves right of it.
     let rect = if st.numbers && !lines.is_empty() {
@@ -992,7 +1000,9 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         Some(m) => doc.marks(m, start, end),
         None => vec![Vec::new(); end - start],
     };
-    let mut painted = PreviewPainted { view: "rendered", rows: start..end, numbers: Vec::new(), marked: Vec::new() };
+    let mut painted = PreviewPainted { view: "rendered", rows: start..end, numbers: Vec::new(), marked: Vec::new(), ..Default::default() };
+    // The pictures painted this frame, so their later rows count as painted (`blank`).
+    let mut pictures = Vec::new();
     for (i, line) in doc.lines[start..end].iter().enumerate() {
         let y = rect.top() + i as f32 * st.row_h;
         // The first rendered row of a source line carries its number; wrapped
@@ -1018,15 +1028,22 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         }
         painted.numbers.push(painted_number);
         let x0 = x_at(line.indent as usize);
+        // Whether anything was painted in the body on this row, and the text of the galleys painted on it.
+        let mut drew = false;
+        let mut row_text = String::new();
+        let mut bar = false;
         match line.kind {
             LineKind::Code => {
+                drew = true;
                 let band = Rect::from_min_max(pos2(x0, y), pos2(right, y + st.row_h));
                 body.rect_filled(band, CornerRadius::ZERO, code_bg);
             }
             LineKind::Rule => {
+                drew = true;
                 body.hline(x0..=right, y + st.row_h / 2.0, Stroke::new(1.0, theme.border));
             }
             LineKind::Heading(level @ 1..=2) => {
+                drew = true;
                 let color = if level == 1 { theme.fg_dim } else { theme.border };
                 body.hline(x0..=right, y + st.row_h - 1.0, Stroke::new(1.0, color));
             }
@@ -1038,6 +1055,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
                     let top = y - f32::from(row) * st.row_h;
                     let at = Rect::from_min_size(pos2(x0, top), vec2(img.size_pt.0, img.size_pt.1));
                     if at.bottom() > rect.top() && at.top() < rect.bottom() {
+                        pictures.push(id);
                         let tex = img.texture.get_or_init(|| {
                             let pixels = egui::ColorImage::from_rgba_unmultiplied([img.width as usize, img.height as usize], &img.rgba);
                             ui.ctx().load_texture(format!("md-image-{id}"), pixels, egui::TextureOptions::LINEAR)
@@ -1048,6 +1066,10 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
                 }
             }
             _ => {}
+        }
+        // A picture painted from an earlier row of this frame covers this one too.
+        if let LineKind::Image { id, .. } = line.kind {
+            drew |= pictures.contains(&id);
         }
 
         // Each span of a table row, and each marker before the text, starts on
@@ -1074,6 +1096,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             let x = if tabular || col < line.indent as usize { grid } else { pen.unwrap_or(grid) };
             let color = span_color(span, st);
             let mut job = LayoutJob::default();
+            let mut span_text = String::new();
             for (_, part, marked) in parts.iter().filter(|(j, ..)| *j == k) {
                 let mut fmt = format(span, color, st);
                 if *marked {
@@ -1084,7 +1107,11 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
                     }
                 }
                 job.append(&span.text[part.clone()], 0.0, fmt);
+                span_text.push_str(&span.text[part.clone()]);
             }
+            drew = true;
+            bar |= !tabular && span.text.trim() == "│";
+            row_text.push_str(&span_text);
             let galley = painter.layout_job(job);
             let size = galley.size();
             let pos = pos2(x, y + lift);
@@ -1111,6 +1138,12 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         if first {
             // A blank line, kept for the copy.
             note(&body, pos2(left, y + lift), &painter.layout_no_wrap(String::new(), st.font.clone(), theme.fg));
+        }
+        if bar {
+            painted.bars.push((start + i, row_text.trim().to_owned()));
+        }
+        if !drew {
+            painted.blank.push(start + i);
         }
     }
     if extent.truncated && end >= doc.lines.len() {

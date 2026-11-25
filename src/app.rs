@@ -280,6 +280,14 @@ pub struct App {
     pub preview_painted: crate::ui::preview::PreviewPainted,
     /// The current pane's rows as the last frame drew them: name and right-hand line-mode text (row 69.12), for the state file.
     pub list_right: Vec<(String, String)>,
+    /// The bell's badge as the title bar painted it this frame; `None` when none was drawn.
+    pub bell_badge: Option<ito_titlebar::Badge>,
+    /// The notice list as the last frame painted it; `None` while it was closed.
+    pub bell_list: Option<ito_notices::Painted>,
+    /// The task list's rows as the last frame painted them; `None` while it was not drawn (for the state file, row 70.5).
+    pub tasks_drawn: Option<Vec<crate::ui::overlay::TaskDrawn>>,
+    /// How long kura's own work took in recent frames: (frame number, when it ended, how long), the last 10 s.
+    pub frame_costs: std::collections::VecDeque<(u64, Instant, Duration)>,
     /// Openers still young enough to fail on us; drained in
     /// [`App::drain_channels`].
     launches: Vec<(exec::Launch, String, String, String)>,
@@ -410,6 +418,15 @@ pub struct App {
 }
 
 impl App {
+    /// Records the cost of the frame that began at `began` (its number and start), forgetting frames that ended over 10 s ago.
+    pub fn note_frame_cost(&mut self, frame: u64, began: Instant) {
+        let now = Instant::now();
+        self.frame_costs.push_back((frame, now, now.saturating_duration_since(began)));
+        while self.frame_costs.front().is_some_and(|(_, ended, _)| now.saturating_duration_since(*ended) > Duration::from_secs(10)) {
+            self.frame_costs.pop_front();
+        }
+    }
+
     pub fn new(cfg: Config, start: PathBuf, ctx: egui::Context) -> Self {
         Self::new_with_state(cfg, start, ctx, true)
     }
@@ -538,6 +555,10 @@ impl App {
             parent_shown: Vec::new(),
             preview_painted: Default::default(),
             list_right: Vec::new(),
+            bell_badge: None,
+            bell_list: None,
+            tasks_drawn: None,
+            frame_costs: std::collections::VecDeque::new(),
             launches: Vec::new(),
             bookmarks: Vec::new(),
             history: Vec::new(),

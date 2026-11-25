@@ -836,7 +836,23 @@ pub fn help(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queu
     }
 }
 
-pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
+/// One task row of the task list as painted, for the state report.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TaskDrawn {
+    /// The headline text painted.
+    pub headline: String,
+    /// The bar's filled width as a percentage of the bar's width, rounded.
+    pub percent: u32,
+    /// The detail text painted.
+    pub detail: String,
+    /// How many error lines were painted under it (at most 3).
+    pub errors: usize,
+    /// Whether the cursor highlight was painted on it.
+    pub cursor: bool,
+}
+
+/// Paints the task list and returns the rows it painted (none when it painted the "No tasks" line).
+pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) -> Vec<TaskDrawn> {
     dim(ui, full);
     let rect = modal_rect(full, 0.7, 0.6);
     let title = "Tasks — j/k move · p pause · x cancel · t to the front · <Esc> to close";
@@ -856,12 +872,13 @@ pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
             f.clone(),
             theme.fg_dim,
         );
-        return;
+        return Vec::new();
     }
     let cursor = match &app.overlay {
         Overlay::Tasks(ov) => ov.cursor,
         _ => usize::MAX,
     };
+    let mut drawn = Vec::new();
     let mut y = inner.top();
     for (i, t) in app.tasks.iter().enumerate() {
         let color = match t.state {
@@ -878,27 +895,31 @@ pub fn tasks(app: &App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32) {
                 theme.hovered_bg,
             );
         }
-        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, t.headline(), f.clone(), color);
+        let headline = t.headline();
+        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, &headline, f.clone(), color);
         y += row_h;
         let bar = Rect::from_min_size(egui::pos2(inner.left(), y + 2.0), Vec2::new(inner.width(), 4.0));
         painter.rect_filled(bar, CornerRadius::same(2), theme.border);
-        painter.rect_filled(
-            Rect::from_min_size(bar.min, Vec2::new(bar.width() * t.fraction(), 4.0)),
-            CornerRadius::same(2),
-            theme.progress_fg,
-        );
+        let fill_w = bar.width() * t.fraction();
+        painter.rect_filled(Rect::from_min_size(bar.min, Vec2::new(fill_w, 4.0)), CornerRadius::same(2), theme.progress_fg);
+        let percent = if bar.width() > 0.0 { (fill_w / bar.width() * 100.0).round() as u32 } else { 0 };
         y += 10.0;
-        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, t.detail(), f.clone(), theme.fg_dim);
+        let detail = t.detail();
+        painter.text(egui::pos2(inner.left(), y), Align2::LEFT_TOP, &detail, f.clone(), theme.fg_dim);
         y += row_h;
+        let mut errors = 0;
         for e in t.errors.iter().take(3) {
             painter.text(egui::pos2(inner.left() + 12.0, y), Align2::LEFT_TOP, e, f.clone(), theme.progress_error);
             y += row_h;
+            errors += 1;
         }
+        drawn.push(TaskDrawn { headline, percent, detail, errors, cursor: i == cursor });
         y += 6.0;
         if y > inner.bottom() {
             break;
         }
     }
+    drawn
 }
 
 pub fn confirm(app: &mut App, ui: &mut Ui, full: Rect, f: &FontId, row_h: f32, queued: &mut Vec<Act>) {

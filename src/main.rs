@@ -879,6 +879,8 @@ impl eframe::App for Kura {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // kura's own work for this frame, from here to the end (`ui` has no early return), for `frame cost:`.
+        let began = (ctx.cumulative_frame_nr(), std::time::Instant::now());
 
         self.app.drain_channels(&ctx);
         // `KURA_PIXELS_PER_POINT`: `None` early on; a later frame has it.
@@ -1008,6 +1010,7 @@ impl eframe::App for Kura {
             ctx.request_repaint_after(Duration::from_millis(80));
         }
         self.script.cursor_icon = ctx.output(|o| o.cursor_icon);
+        self.app.note_frame_cost(began.0, began.1);
     }
 }
 
@@ -1051,6 +1054,7 @@ impl Kura {
             },
             |_, _| {},
         );
+        self.app.bell_badge = out.badge;
         if let Some(r) = out.bell_rect {
             self.app.bell_at = r;
         }
@@ -1068,12 +1072,15 @@ impl Kura {
     /// The list under the bell, while it is open.
     fn notice_list(&mut self, ctx: &egui::Context) {
         if !self.app.bell_open {
+            self.app.bell_list = None;
             return;
         }
         let w = ui::settings::KuraWords::of(&self.app.lang);
         let title = w.notices_title.replace("{}", &ito_notices::unread(&self.app.notices).to_string());
         let words = ito_notices::Words { title: &title, mark_read: w.mark_read, empty: w.notices_empty, ago: w.ago, kinds: w.kinds };
-        match ito_notices::show(ctx, self.app.bell_at, &self.app.notices, &words) {
+        let (action, painted) = ito_notices::show_painted(ctx, self.app.bell_at, &self.app.notices, &words);
+        self.app.bell_list = Some(painted);
+        match action {
             Some(ito_notices::Action::Open(_, id)) => {
                 self.app.notices.iter_mut().filter(|n| n.id == id).for_each(|n| n.read = true);
                 self.app.bell_open = false;
@@ -1218,6 +1225,86 @@ fn write_help_file(app: &App, done: &std::ffi::OsStr) -> Option<PathBuf> {
     path.push(".help");
     let path = PathBuf::from(path);
     std::fs::write(&path, ui::overlay::help_text(app).0).ok().map(|_| path)
+}
+
+/// `frame cost:` from the costs `ui` recorded, counting only frames that ended within the last 10 s of `now`.
+fn frame_cost_line(costs: &std::collections::VecDeque<(u64, std::time::Instant, Duration)>, now: std::time::Instant) -> String {
+    let recent: Vec<&(u64, std::time::Instant, Duration)> =
+        costs.iter().filter(|(_, ended, _)| now.saturating_duration_since(*ended) <= Duration::from_secs(10)).collect();
+    let Some(slowest) = recent.iter().max_by_key(|(_, _, d)| *d) else {
+        return "frame cost: none".to_owned();
+    };
+    let mut sorted: Vec<Duration> = recent.iter().map(|(_, _, d)| *d).collect();
+    sorted.sort();
+    let median = sorted[sorted.len() / 2];
+    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+    format!(
+        "frame cost: slowest {:.1} ms at frame {}, median {:.1} ms, {} frames in the last 10 s",
+        ms(slowest.2),
+        slowest.0,
+        ms(median),
+        recent.len()
+    )
+}
+
+/// `bell badge:`, `bell list:` and `bell rows:` from what the title bar and the notice list painted.
+fn bell_lines(badge: Option<ito_titlebar::Badge>, list: Option<&ito_notices::Painted>, bell: egui::Rect) -> Vec<String> {
+    const MAX: usize = 20;
+    let mut lines = vec![match badge {
+        None => "bell badge: none".to_owned(),
+        Some(b) => format!("bell badge: {}{}", b.unread, if b.error { " error" } else { "" }),
+    }];
+    let Some(p) = list else {
+        lines.push("bell list: closed".to_owned());
+        return lines;
+    };
+    let r = |r: egui::Rect| format!("{:.0},{:.0}-{:.0},{:.0}", r.left(), r.top(), r.right(), r.bottom());
+    lines.push(format!("bell list: at {}, under the bell at {}", r(p.rect), r(bell)));
+    let mut rows = p
+        .rows
+        .iter()
+        .take(MAX)
+        .map(|w| {
+            format!(
+                "#{} {} {} {}{}",
+                w.id,
+                if w.bright { "bright" } else { "dim" },
+                if w.filled { "filled" } else { "ring" },
+                w.title,
+                if w.elided { " (cut)" } else { "" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+    if p.rows.len() > MAX {
+        rows.push_str(&format!(" | … +{} more", p.rows.len() - MAX));
+    }
+    lines.push(format!("bell rows: {}", if rows.is_empty() { "none" } else { &rows }));
+    lines
+}
+
+/// `tasks drawn:` from what `overlay::tasks` painted: `>` marks the cursor row.
+fn tasks_drawn_line(drawn: Option<&[ui::overlay::TaskDrawn]>) -> String {
+    const MAX: usize = 20;
+    match drawn {
+        None => "tasks drawn: none".to_owned(),
+        Some([]) => "tasks drawn: empty".to_owned(),
+        Some(rows) => {
+            let mut line = rows
+                .iter()
+                .take(MAX)
+                .map(|t| {
+                    let errors = if t.errors > 0 { format!(" · {} errors", t.errors) } else { String::new() };
+                    format!("{}{} · {}% · {}{}", if t.cursor { "> " } else { "" }, t.headline, t.percent, t.detail, errors)
+                })
+                .collect::<Vec<_>>()
+                .join(" | ");
+            if rows.len() > MAX {
+                line.push_str(&format!(" | … +{} more", rows.len() - MAX));
+            }
+            format!("tasks drawn: {line}")
+        }
+    }
 }
 
 /// What `KURA_KEYS_DONE` holds once `--keys` is done: the state a check reads
@@ -1510,6 +1597,7 @@ fn state_report(app: &App) -> String {
     // keeps drawing, which `(Get-Process).CPU` answered with a second tool
     // (#201).
     lines.push(format!("frames: {}", app.ctx.cumulative_frame_nr()));
+    lines.push(frame_cost_line(&app.frame_costs, std::time::Instant::now()));
     lines.push(format!("jobs: {} running", active.len()));
     // Every job of the run, the finished and stopped ones too, newest last:
     // `jobs: 0` could not tell one that ended from one that was stopped
@@ -1526,6 +1614,7 @@ fn state_report(app: &App) -> String {
     for t in active {
         lines.push(format!("job: {} [{}] {}/{} files", t.label, t.state.label(), t.files_done, t.files));
     }
+    lines.push(tasks_drawn_line(app.tasks_drawn.as_deref()));
     // The cursor's place in the list, `4/500` (#233): counted in presses
     // before. Nothing while the folder is empty or still being read.
     if !tab.current.view.is_empty() {
@@ -1594,6 +1683,18 @@ fn state_report(app: &App) -> String {
             marks.push_str(&format!(", … +{} more", painted.marked.len() - MAX));
         }
         lines.push(format!("preview marks: {}", if marks.is_empty() { "none" } else { &marks }));
+        if painted.view == "rendered" {
+            let mut bars = painted.bars.iter().take(MAX).map(|(r, t)| format!("{r} {t}")).collect::<Vec<_>>().join(" | ");
+            if painted.bars.len() > MAX {
+                bars.push_str(&format!(" | … +{} more", painted.bars.len() - MAX));
+            }
+            lines.push(format!("preview bars: {}", if bars.is_empty() { "none" } else { &bars }));
+            let mut blank = painted.blank.iter().take(MAX).map(|r| r.to_string()).collect::<Vec<_>>().join(", ");
+            if painted.blank.len() > MAX {
+                blank.push_str(&format!(", … +{} more", painted.blank.len() - MAX));
+            }
+            lines.push(format!("preview blank: {}", if blank.is_empty() { "none" } else { &blank }));
+        }
     }
     // Where `<Enter>` would open the editor now (`T` and `<F3>`): the line on screen, or the one a jump or find hit left.
     lines.push(format!(
@@ -1669,6 +1770,7 @@ fn state_report(app: &App) -> String {
     // change to the file can be read without a picture (53.7).
     let clock = if app.clock.show { app.clock.format() } else { "off".into() };
     lines.push(format!("clock: {clock}, lang {}", app.lang));
+    lines.extend(bell_lines(app.bell_badge, app.bell_list.as_ref(), app.bell_at));
     lines.push(format!("toast: {}", app.toasts.last().map_or("", |t| t.text.as_str())));
     // The kind alone (`Command failed`, `Open failed`): the text before the
     // first `:` of its first line, so a wording check reads one short line and
@@ -2414,8 +2516,13 @@ mod tests {
         let any = |app: &App, p: &str| state_report(app).lines().any(|x| x.starts_with(p));
         assert!(!any(&app, "preview view:") && !any(&app, "preview drawn:") && !any(&app, "preview marks:") && !any(&app, "list right:"));
 
-        app.preview_painted =
-            ui::preview::PreviewPainted { view: "source", rows: 3..6, numbers: vec![Some(4), Some(5), Some(6)], marked: vec![4] };
+        app.preview_painted = ui::preview::PreviewPainted {
+            view: "source",
+            rows: 3..6,
+            numbers: vec![Some(4), Some(5), Some(6)],
+            marked: vec![4],
+            ..Default::default()
+        };
         assert!(has(&app, "preview view: source"));
         assert!(has(&app, "preview drawn: rows 3-5 (3), numbered 3, top number 4"));
         assert!(has(&app, "preview numbers: 4, 5, 6"));
@@ -2447,6 +2554,132 @@ mod tests {
         assert!(state_report(&app).lines().any(|l| l.starts_with("list right: f0=x") && l.ends_with("f39=x | … +5 more")));
         app.list_right = vec![("a".into(), String::new())];
         assert!(!any(&app, "list right:"));
+    }
+
+    /// The bars, the blank rows, the task list and the frame cost are read back as lines: shapes, caps, absence.
+    #[test]
+    fn the_state_reads_back_bars_blank_rows_tasks_and_frame_cost() {
+        let dir = crate::util::test_dir("state-painted-2");
+        let mut app = App::new(crate::config::Config::load(), dir, egui::Context::default());
+        let has = |app: &App, l: &str| state_report(app).lines().any(|x| x == l);
+        let any = |app: &App, p: &str| state_report(app).lines().any(|x| x.starts_with(p));
+        assert!(!any(&app, "preview bars:") && !any(&app, "preview blank:"));
+        assert!(has(&app, "frame cost: none") && has(&app, "tasks drawn: none"));
+
+        app.preview_painted = ui::preview::PreviewPainted {
+            view: "source",
+            rows: 0..2,
+            numbers: vec![Some(1), Some(2)],
+            bars: vec![(2, "│ x".into())],
+            ..Default::default()
+        };
+        assert!(!any(&app, "preview bars:") && !any(&app, "preview blank:"), "rendered only");
+        app.preview_painted.view = "rendered";
+        assert!(has(&app, "preview bars: 2 │ x"));
+        assert!(has(&app, "preview blank: none"));
+        app.preview_painted.bars = vec![(2, "│ Quote.".into()), (7, "│ Another line".into())];
+        app.preview_painted.blank = vec![1, 3];
+        assert!(has(&app, "preview bars: 2 │ Quote. | 7 │ Another line"));
+        assert!(has(&app, "preview blank: 1, 3"));
+        app.preview_painted.bars.clear();
+        assert!(has(&app, "preview bars: none"));
+        app.preview_painted.blank = (0..45).collect();
+        assert!(state_report(&app).lines().any(|l| l.starts_with("preview blank: 0, 1") && l.ends_with("39, … +5 more")));
+
+        app.tasks_drawn = Some(Vec::new());
+        assert!(has(&app, "tasks drawn: empty"));
+        let row = |h: &str, cursor, errors| ui::overlay::TaskDrawn { headline: h.into(), percent: 10, detail: "d".into(), errors, cursor };
+        app.tasks_drawn = Some(vec![row("Converting 3 of 30", true, 2), row("Copying", false, 0)]);
+        assert!(has(&app, "tasks drawn: > Converting 3 of 30 · 10% · d · 2 errors | Copying · 10% · d"));
+        app.tasks_drawn = Some((0..25).map(|_| row("t", false, 0)).collect());
+        assert!(state_report(&app).lines().any(|l| l.starts_with("tasks drawn: t · 10%") && l.ends_with("| … +5 more")));
+
+        let now = std::time::Instant::now();
+        let ms = std::time::Duration::from_millis;
+        // The bell: badge, list and rows.
+        assert!(has(&app, "bell badge: none") && has(&app, "bell list: closed") && !any(&app, "bell rows:"));
+        app.bell_badge = Some(ito_titlebar::Badge { unread: 3, error: false });
+        assert!(has(&app, "bell badge: 3"));
+        app.bell_badge = Some(ito_titlebar::Badge { unread: 2, error: true });
+        assert!(has(&app, "bell badge: 2 error"));
+        app.bell_at = egui::Rect::from_min_max(egui::pos2(1150.0, 4.0), egui::pos2(1180.0, 32.0));
+        let row = |id, title: &str, bright, filled, elided| ito_notices::PaintedRow {
+            id,
+            title: title.into(),
+            elided,
+            bright,
+            filled,
+            kind: ito_notices::Kind::Info,
+        };
+        app.bell_list = Some(ito_notices::Painted {
+            rect: egui::Rect::from_min_max(egui::pos2(812.0, 36.0), egui::pos2(1172.0, 180.0)),
+            rows: vec![row(3, "Open failed: x", true, true, true), row(2, "Copied a.txt", false, false, false)],
+        });
+        assert!(has(&app, "bell list: at 812,36-1172,180, under the bell at 1150,4-1180,32"));
+        assert!(has(&app, "bell rows: #3 bright filled Open failed: x (cut) | #2 dim ring Copied a.txt"));
+        app.bell_list = Some(ito_notices::Painted::default());
+        assert!(has(&app, "bell rows: none"));
+        app.bell_list =
+            Some(ito_notices::Painted { rows: (0..25).map(|i| row(i, "t", false, false, false)).collect(), ..Default::default() });
+        assert!(state_report(&app).lines().any(|l| l.starts_with("bell rows: #0 dim ring t") && l.ends_with("| … +5 more")));
+
+        // The real bar and list, over frames: the badge follows the unread count, the list the notices.
+        let mut kura = Kura {
+            app: App::new(crate::config::Config::load(), crate::util::test_dir("state-bell"), egui::Context::default()),
+            title: String::new(),
+            focused: true,
+            last_input_frame: u64::MAX,
+            last_geometry: None,
+            place: None,
+            on_top: false,
+            update: None,
+            script: script_run::ScriptRun::new(&Default::default(), None, PathBuf::new(), Default::default()),
+            mcp: None,
+        };
+        kura.app.error("Open failed: x");
+        kura.app.toast("Copied a.txt");
+        let ctx = kura.app.ctx.clone();
+        let mut t = 0.0;
+        let mut frame = |kura: &mut Kura| {
+            t += 1.0 / 60.0;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+                time: Some(t),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::Panel::top("titlebar").exact_size(ito_titlebar::HEIGHT).show(ui, |ui| kura.title_bar(ui, "t"));
+                kura.notice_list(&ui.ctx().clone());
+            });
+            out.textures_delta.clear();
+        };
+        frame(&mut kura);
+        assert_eq!(kura.app.bell_badge, Some(ito_titlebar::Badge { unread: 2, error: true }));
+        assert!(kura.app.bell_list.is_none());
+        kura.app.bell_open = true;
+        frame(&mut kura);
+        frame(&mut kura);
+        let rows = kura.app.bell_list.clone().expect("the list is drawn").rows;
+        assert_eq!(rows.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), ["Copied a.txt", "Open failed: x"], "newest first");
+        assert!(rows.iter().all(|r| r.bright && r.filled), "both unread: {rows:?}");
+        kura.app.notices.iter_mut().for_each(|n| n.read = true);
+        frame(&mut kura);
+        assert_eq!(kura.app.bell_badge, None);
+        assert!(kura.app.bell_list.as_ref().unwrap().rows.iter().all(|r| !r.bright && !r.filled));
+        kura.app.bell_open = false;
+        frame(&mut kura);
+        assert!(kura.app.bell_list.is_none());
+        let mut costs = std::collections::VecDeque::new();
+        assert_eq!(frame_cost_line(&costs, now), "frame cost: none");
+        costs.push_back((1, now, ms(90)));
+        assert_eq!(frame_cost_line(&costs, now + std::time::Duration::from_secs(11)), "frame cost: none", "too old");
+        costs.clear();
+        costs.push_back((410, now - ms(100), ms(2)));
+        costs.push_back((412, now - ms(50), ms(7)));
+        costs.push_back((413, now, ms(3)));
+        assert_eq!(frame_cost_line(&costs, now), "frame cost: slowest 7.0 ms at frame 412, median 3.0 ms, 3 frames in the last 10 s");
+        app.note_frame_cost(5, std::time::Instant::now());
+        assert!(any(&app, "frame cost: slowest "));
     }
 
     /// The log note is one function for the painting and the report.

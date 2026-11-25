@@ -191,6 +191,13 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     let root = ui.interact(full, ui.id().with("app-root"), egui::Sense::hover());
     ito_a11y::test_id_in(ui, &root, "app.root", None);
 
+    // What the frame painted, for the state file: filled again only by what is drawn below, so a maximized
+    // terminal (no body), the settings screen or a frame without a preview reports none rather than the last frame's.
+    app.parent_shown.clear();
+    app.preview_painted = Default::default();
+    app.list_right.clear();
+    app.tasks_drawn = None;
+
     // The settings screen takes the whole window, so nothing behind it is laid out.
     if matches!(app.overlay, Overlay::Settings(_)) {
         settings::draw(app, ui, full, &mut queued);
@@ -232,11 +239,6 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     let bottom_extra = which_h + input_h + term_h;
     let body = Rect::from_min_max(egui::pos2(full.left(), header.bottom()), egui::pos2(full.right(), status.top() - bottom_extra));
 
-    // What the frame painted, for the state file: filled again only by what is drawn below, so a maximized
-    // terminal (no body) or a frame without a preview reports none rather than the last frame's.
-    app.parent_shown.clear();
-    app.preview_painted = Default::default();
-    app.list_right.clear();
     // Skipped rather than drawn into an inverted rectangle: `body` is built
     // downwards from the header, so at this height its bottom is above its top.
     if !maxed {
@@ -274,7 +276,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
 
     match &app.overlay {
         Overlay::Help => overlay::help(app, ui, full, &f, row_h, &mut queued),
-        Overlay::Tasks(_) => overlay::tasks(app, ui, full, &f, row_h),
+        Overlay::Tasks(_) => app.tasks_drawn = Some(overlay::tasks(app, ui, full, &f, row_h)),
         Overlay::Confirm(_) => overlay::confirm(app, ui, full, &f, row_h, &mut queued),
         Overlay::Pick(_) => overlay::pick(app, ui, full, &f, row_h, &mut queued),
         Overlay::Spot(_) => overlay::spot(app, ui, full, &f, row_h),
@@ -6127,5 +6129,63 @@ mod painted_readouts {
         s.settle();
         assert_eq!(s.app.list_right.len(), 3);
         assert!(s.app.list_right.iter().all(|(_, v)| v.is_empty()), "{:?}", s.app.list_right);
+    }
+
+    #[test]
+    fn rendered_markdown_records_its_quote_bars_and_blank_rows() {
+        let mut s = on(
+            "painted-bars",
+            &[(
+                "q.md",
+                "Before.
+
+> Quote.
+
+After.
+
+| a | b |
+|---|---|
+| 1 | 2 |
+",
+            )],
+        );
+        look_at(&mut s, "q.md");
+        s.app.render_markdown = true;
+        s.typed("T");
+        s.app.tabs[s.app.active].preview_offset = 0;
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!(p.view, "rendered");
+        let text = lines_of(&s);
+        let quote = text.iter().position(|l| l.contains("Quote.")).expect("the quote row");
+        let after = text.iter().position(|l| l.contains("After.")).expect("the After. row");
+        assert_eq!(p.bars, vec![(quote, "│ Quote.".to_owned())], "{p:?} {text:?}");
+        assert!(p.blank.contains(&(quote - 1)), "the gap above the quote is blank: {p:?}");
+        assert!(p.blank.contains(&(quote + 1)), "{p:?}");
+        assert!(!p.blank.contains(&quote) && !p.blank.contains(&after), "{p:?}");
+        assert!(!p.bars.iter().any(|(r, _)| *r == after), "{p:?}");
+        assert!(text.iter().any(|l| l.contains('┼')), "the table is in the document: {text:?}");
+        assert_eq!(p.bars.len(), 1, "a table row's │ is not a bar: {p:?}");
+    }
+
+    #[test]
+    fn the_task_list_records_its_rows_and_clears_when_closed() {
+        use crate::app::{Overlay, Task, TaskState, TasksOverlay};
+        let mut s = on("painted-tasks", &[("a.txt", "1")]);
+        s.draw();
+        assert!(s.app.tasks_drawn.is_none());
+        s.app.overlay = Overlay::Tasks(TasksOverlay { cursor: 0 });
+        s.draw();
+        assert_eq!(s.app.tasks_drawn, Some(Vec::new()), "no tasks: drawn, empty");
+        s.app.tasks.push(Task::for_test(crate::fs::ops::OpKind::Copy, "Copy 1 item(s) into x", TaskState::Running, 4, 1));
+        s.draw();
+        let rows = s.app.tasks_drawn.clone().expect("drawn");
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!((rows[0].percent, rows[0].cursor, rows[0].errors), (25, true, 0), "{rows:?}");
+        assert_eq!(rows[0].headline, s.app.tasks[0].headline());
+        assert_eq!(rows[0].detail, s.app.tasks[0].detail());
+        s.app.overlay = Overlay::None;
+        s.draw();
+        assert!(s.app.tasks_drawn.is_none());
     }
 }
