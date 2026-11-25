@@ -56,6 +56,9 @@ pub struct ListResult {
     pub mods: egui::Modifiers,
     /// Each row's name as drawn, cut to the column, top to bottom.
     pub shown: Vec<String>,
+    /// For each row drawn, top to bottom, the entry's name and the right-hand line-mode text as painted: `""`
+    /// where none was painted (the details view, or an empty value). Parallel to `shown`.
+    pub right: Vec<(String, String)>,
 }
 
 pub fn draw(
@@ -135,6 +138,7 @@ pub fn draw(
         scroll_rows: 0.0,
         mods: egui::Modifiers::NONE,
         shown: Vec::new(),
+        right: Vec::new(),
     };
 
     match &folder.state {
@@ -332,6 +336,7 @@ pub fn draw(
             None => (full, positions.to_vec()),
         };
         out.shown.push(name.clone());
+        out.right.push((entry.name.clone(), if !right.is_empty() && !details { right.clone() } else { String::new() }));
         let job = name_job(&name, &positions, &st.font, base_color, &style, st.theme, avail);
         let galley = painter.layout_job(job);
         let name_rect = Rect::from_min_max(row_rect.min, egui::pos2((row_rect.right() - right_w).max(row_rect.left()), row_rect.bottom()));

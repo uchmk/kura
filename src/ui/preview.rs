@@ -31,6 +31,35 @@ pub struct PreviewStyle<'a> {
     /// A column of line numbers at the left of source text (maximized preview
     /// and quick look). Display only: it is never noted, so a selection skips it.
     pub numbers: bool,
+    /// What the body painters drew this frame, for the state report (rows 66.3, 67.1 and 67.4 were read off a picture).
+    pub painted: std::cell::RefCell<PreviewPainted>,
+}
+
+/// What the pane drew this frame, for the state report.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PreviewPainted {
+    /// Which view drew the body: "text", "source" (Markdown as highlighted source), "rendered" (Markdown laid
+    /// out), "log". Empty when the pane drew none of these (a picture, a folder, an error, binary, nothing).
+    pub view: &'static str,
+    /// The rows drawn, 0-based like `preview top`: file lines for text, source and log; laid-out rows for rendered.
+    pub rows: std::ops::Range<usize>,
+    /// The number painted on each drawn row, top to bottom: `None` where the row got none (no gutter; in rendered
+    /// Markdown a wrapped row or a repeated source line).
+    pub numbers: Vec<Option<usize>>,
+    /// The rows drawn with at least one find mark painted on them, top to bottom (same numbering as `rows`).
+    pub marked: Vec<usize>,
+}
+
+impl PreviewPainted {
+    /// How many of the drawn rows got a line number in the gutter.
+    pub fn numbered(&self) -> usize {
+        self.numbers.iter().flatten().count()
+    }
+
+    /// The number painted on the first drawn row, if it got one.
+    pub fn top_number(&self) -> Option<usize> {
+        self.numbers.first().copied().flatten()
+    }
 }
 
 #[derive(Default)]
@@ -242,7 +271,7 @@ fn draw_pane(
                 let spans: Vec<Vec<Span>> = got.into_iter().map(|t| vec![Span { text: t, ..Default::default() }]).collect();
                 if offset >= first && !spans.is_empty() {
                     let numbers = (first, total.max(first + spans.len()));
-                    text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), numbers, st);
+                    text_with(ui, &painter, rect, &spans, Extent::default(), rel, marks.as_deref(), numbers, "log", st);
                     // A line cut at the length limit says how much is not shown, at the right edge (no sideways scroll).
                     for (i, &n) in more.iter().skip(rel).take(rows(rect, st)).enumerate().filter(|(_, &n)| n > 0) {
                         let label = format!("⋯ +{}", crate::util::human_size(n));
@@ -276,7 +305,7 @@ fn draw_pane(
                 }
                 let (body, strip) = split_minimap(rect, map, st);
                 note_minimap(ui, rect, map, strip.is_some(), offset, rows(body, st), st);
-                let lines = text(ui, &painter, body, source, *extent, offset, st);
+                let lines = text(ui, &painter, body, source, *extent, offset, "source", st);
                 let mut scroll_to = None;
                 if let Some(strip) = strip {
                     scroll_to = minimap(ui, &painter, strip, map, offset, rows(body, st), st);
@@ -757,7 +786,7 @@ fn code(
         }
         None => rect,
     };
-    let lines = text(ui, &painter.with_clip_rect(body), body, lines, extent, offset, st);
+    let lines = text(ui, &painter.with_clip_rect(body), body, lines, extent, offset, "text", st);
     let jump = match column {
         Some(width) => outline(ui, painter, rect, entries, width, offset, false, st),
         None if st.outline_focus.is_some() && !entries.is_empty() => {
@@ -796,8 +825,18 @@ fn split_marked(line: &[Span], marks: &[Range<usize>]) -> Vec<(usize, Range<usiz
 }
 
 /// Highlighted source, one file line per row.
-fn text(ui: &Ui, painter: &Painter, rect: Rect, lines: &[Vec<Span>], extent: Extent, offset: usize, st: &PreviewStyle<'_>) -> usize {
-    text_with(ui, painter, rect, lines, extent, offset, None, (0, lines.len()), st)
+#[allow(clippy::too_many_arguments)]
+fn text(
+    ui: &Ui,
+    painter: &Painter,
+    rect: Rect,
+    lines: &[Vec<Span>],
+    extent: Extent,
+    offset: usize,
+    view: &'static str,
+    st: &PreviewStyle<'_>,
+) -> usize {
+    text_with(ui, painter, rect, lines, extent, offset, None, (0, lines.len()), view, st)
 }
 
 /// The marks of a search that runs across line ends, cut per line: `lines` are
@@ -840,13 +879,18 @@ fn text_with(
     offset: usize,
     given: Option<&[Vec<Range<usize>>]>,
     numbers: (usize, usize),
+    view: &'static str,
     st: &PreviewStyle<'_>,
 ) -> usize {
     let start = offset.min(lines.len().saturating_sub(1));
     let end = (start + rows(rect, st)).min(lines.len());
+    // Recorded here, by what paints, so the state report says what was drawn rather than what should have been.
+    let base = numbers.0;
+    let mut painted = PreviewPainted { view, rows: base + start..base + end, numbers: vec![None; end - start], marked: Vec::new() };
     // The line-number gutter: drawn first, not noted (so not selectable), and
     // the text moves right of it.
     let rect = if st.numbers && !lines.is_empty() {
+        painted.numbers = (start..end).map(|r| Some(base + r + 1)).collect();
         let (base, last) = numbers;
         let digits = last.max(base + lines.len()).to_string().len().max(3);
         let gutter = (digits as f32 + 1.0) * st.cell + PAD;
@@ -880,6 +924,9 @@ fn text_with(
             (None, Some(m)) => m.ranges(&line.iter().map(|s| s.text.as_str()).collect::<String>()),
             (None, None) => Vec::new(),
         };
+        if marks.iter().any(|m| !m.is_empty()) {
+            painted.marked.push(base + start + i);
+        }
         let job_for = |bold_only: bool| {
             let mut job = LayoutJob::default();
             job.wrap.max_width = if st.wrap { rect.width() - 16.0 } else { f32::INFINITY };
@@ -914,6 +961,7 @@ fn text_with(
     if extent.truncated && end >= lines.len() {
         truncation_note(painter, rect, end - start, &extent, st);
     }
+    *st.painted.borrow_mut() = painted;
     lines.len()
 }
 
@@ -944,6 +992,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         Some(m) => doc.marks(m, start, end),
         None => vec![Vec::new(); end - start],
     };
+    let mut painted = PreviewPainted { view: "rendered", rows: start..end, numbers: Vec::new(), marked: Vec::new() };
     for (i, line) in doc.lines[start..end].iter().enumerate() {
         let y = rect.top() + i as f32 * st.row_h;
         // The first rendered row of a source line carries its number; wrapped
@@ -960,11 +1009,14 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             None if start + i == 0 || doc.lines[start + i - 1].src != line.src => Some(line.src + 1),
             None => None,
         };
+        let mut painted_number = None;
         if let Some(number) = number.filter(|_| st.numbers && !line.wrap) {
             let g = painter.layout_no_wrap(number.to_string(), st.font.clone(), theme.fg_dim);
             let x = rect.left() + PAD + (MD_GUTTER_COLS - 1) as f32 * st.cell - g.size().x;
             painter.galley(pos2(x, y + lift), g, theme.fg_dim);
+            painted_number = Some(number);
         }
+        painted.numbers.push(painted_number);
         let x0 = x_at(line.indent as usize);
         match line.kind {
             LineKind::Code => {
@@ -1027,6 +1079,9 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
                 if *marked {
                     fmt.color = theme.find_keyword.fg.unwrap_or(color);
                     fmt.background = theme.find_keyword.bg.unwrap_or(Color32::TRANSPARENT);
+                    if painted.marked.last() != Some(&(start + i)) {
+                        painted.marked.push(start + i);
+                    }
                 }
                 job.append(&span.text[part.clone()], 0.0, fmt);
             }
@@ -1062,6 +1117,7 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         truncation_note(painter, rect, end - start, &extent, st);
     }
 
+    *st.painted.borrow_mut() = painted;
     let jump = if doc.toc_cols > 0 && !doc.toc.is_empty() {
         outline(ui, painter, rect, &doc.toc, doc.toc_cols, start, false, st)
     } else if st.outline_focus.is_some() && !doc.toc.is_empty() {
@@ -1263,6 +1319,7 @@ mod tests {
             pan: Vec2::ZERO,
             find: None,
             numbers: false,
+            painted: Default::default(),
         };
         (rect, st)
     }

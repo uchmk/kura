@@ -1405,6 +1405,16 @@ fn state_report(app: &App) -> String {
     lines.push(format!("max preview: {}", if app.max_preview { "on" } else { "off" }));
     lines.push(format!("quick: {}", if app.quick { "on" } else { "off" }));
     lines.push(format!("linemode: {}", app.tab().linemode.name()));
+    // The right-hand value of each row of the current pane as painted: 69.12 (`m o`, the owner on every row)
+    // could only be read off a picture. Rows with no value are listed too, so "every row" can be checked.
+    if app.list_right.iter().any(|(_, v)| !v.is_empty()) {
+        const MAX: usize = 40;
+        let mut line = app.list_right.iter().take(MAX).map(|(n, v)| format!("{n}={v}")).collect::<Vec<_>>().join(" | ");
+        if app.list_right.len() > MAX {
+            line.push_str(&format!(" | … +{} more", app.list_right.len() - MAX));
+        }
+        lines.push(format!("list right: {line}"));
+    }
     // What the settings came from, so a `<C-F5>` reload reads as a value
     // (#165): every file read, or `none`.
     let read: Vec<String> = app.cfg.loaded.iter().map(|p| p.display().to_string()).collect();
@@ -1552,6 +1562,38 @@ fn state_report(app: &App) -> String {
     let notes = ui::preview_parts(app).0;
     if !notes.is_empty() {
         lines.push(format!("preview status: {}", notes.join(" | ")));
+    }
+    // What the preview body painted: which view, the rows and numbers it drew, and the rows with a find mark.
+    // Rows 66.3, 67.1, 67.3 and 67.4 (the source's numbers, every hit marked, the gutter number, marks in the
+    // rendered text) could only be judged from a picture. Recorded by the painter, not worked out again here.
+    let painted = &app.preview_painted;
+    if !painted.view.is_empty() {
+        const MAX: usize = 40;
+        lines.push(format!("preview view: {}", painted.view));
+        lines.push(match painted.rows.is_empty() {
+            true => "preview drawn: none".to_owned(),
+            false => format!(
+                "preview drawn: rows {}-{} ({}), numbered {}{}",
+                painted.rows.start,
+                painted.rows.end - 1,
+                painted.rows.len(),
+                painted.numbered(),
+                painted.top_number().map_or(String::new(), |n| format!(", top number {n}"))
+            ),
+        });
+        if painted.numbers.iter().any(Option::is_some) {
+            let mut nums =
+                painted.numbers.iter().take(MAX).map(|n| n.map_or("-".to_owned(), |n| n.to_string())).collect::<Vec<_>>().join(", ");
+            if painted.numbers.len() > MAX {
+                nums.push_str(&format!(", … +{} more", painted.numbers.len() - MAX));
+            }
+            lines.push(format!("preview numbers: {nums}"));
+        }
+        let mut marks = painted.marked.iter().take(MAX).map(|r| r.to_string()).collect::<Vec<_>>().join(", ");
+        if painted.marked.len() > MAX {
+            marks.push_str(&format!(", … +{} more", painted.marked.len() - MAX));
+        }
+        lines.push(format!("preview marks: {}", if marks.is_empty() { "none" } else { &marks }));
     }
     // Where `<Enter>` would open the editor now (`T` and `<F3>`): the line on screen, or the one a jump or find hit left.
     lines.push(format!(
@@ -2361,6 +2403,50 @@ mod tests {
         assert!(state_report(&app).lines().any(|l| l == "font size: 14"));
         assert!(!report.contains("git branch:") && !report.contains("git marks:"), "outside a repository: {report}");
         assert!(!report.contains("preview status:") && !report.contains("preview note:"), "no preview: {report}");
+    }
+
+    /// What the preview and the list painted is read back as lines: formats, caps, and absence.
+    #[test]
+    fn the_state_reads_back_what_the_preview_and_the_list_painted() {
+        let dir = crate::util::test_dir("state-painted");
+        let mut app = App::new(crate::config::Config::load(), dir, egui::Context::default());
+        let has = |app: &App, l: &str| state_report(app).lines().any(|x| x == l);
+        let any = |app: &App, p: &str| state_report(app).lines().any(|x| x.starts_with(p));
+        assert!(!any(&app, "preview view:") && !any(&app, "preview drawn:") && !any(&app, "preview marks:") && !any(&app, "list right:"));
+
+        app.preview_painted =
+            ui::preview::PreviewPainted { view: "source", rows: 3..6, numbers: vec![Some(4), Some(5), Some(6)], marked: vec![4] };
+        assert!(has(&app, "preview view: source"));
+        assert!(has(&app, "preview drawn: rows 3-5 (3), numbered 3, top number 4"));
+        assert!(has(&app, "preview numbers: 4, 5, 6"));
+        assert!(has(&app, "preview marks: 4"));
+        app.preview_painted.numbers = vec![None, Some(5), None];
+        app.preview_painted.marked.clear();
+        assert!(has(&app, "preview drawn: rows 3-5 (3), numbered 1"));
+        assert!(has(&app, "preview numbers: -, 5, -"));
+        assert!(has(&app, "preview marks: none"));
+        app.preview_painted.numbers = vec![None; 3];
+        assert!(!any(&app, "preview numbers:"), "no number painted, no line");
+        app.preview_painted.rows = 0..0;
+        app.preview_painted.numbers.clear();
+        assert!(has(&app, "preview drawn: none"));
+        app.preview_painted.rows = 0..50;
+        app.preview_painted.numbers = (1..=50).map(Some).collect();
+        app.preview_painted.marked = (0..45).collect();
+        let r = state_report(&app);
+        let marks = r.lines().find(|l| l.starts_with("preview marks:")).unwrap();
+        assert!(marks.ends_with("39, … +5 more"), "{marks}");
+        let nums = r.lines().find(|l| l.starts_with("preview numbers:")).unwrap();
+        assert!(nums.ends_with("40, … +10 more"), "{nums}");
+
+        app.list_right = vec![("a".into(), "1".into()), ("b".into(), "2".into())];
+        assert!(has(&app, "list right: a=1 | b=2"));
+        app.list_right = vec![("a".into(), "1".into()), ("b".into(), String::new())];
+        assert!(has(&app, "list right: a=1 | b="));
+        app.list_right = (0..45).map(|i| (format!("f{i}"), "x".to_owned())).collect();
+        assert!(state_report(&app).lines().any(|l| l.starts_with("list right: f0=x") && l.ends_with("f39=x | … +5 more")));
+        app.list_right = vec![("a".into(), String::new())];
+        assert!(!any(&app, "list right:"));
     }
 
     /// The log note is one function for the painting and the report.

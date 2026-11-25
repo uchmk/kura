@@ -276,6 +276,10 @@ pub struct App {
     /// The parent column's rows as the last frame drew them, cut to its
     /// width, for the state file; empty while it is not drawn.
     pub parent_shown: Vec<String>,
+    /// What the preview body painted in the last frame, for the state file (rows 66.3, 67.1, 67.4 and 67.3 were read off a picture).
+    pub preview_painted: crate::ui::preview::PreviewPainted,
+    /// The current pane's rows as the last frame drew them: name and right-hand line-mode text (row 69.12), for the state file.
+    pub list_right: Vec<(String, String)>,
     /// Openers still young enough to fail on us; drained in
     /// [`App::drain_channels`].
     launches: Vec<(exec::Launch, String, String, String)>,
@@ -532,6 +536,8 @@ impl App {
             last_report: None,
             last_launch: None,
             parent_shown: Vec::new(),
+            preview_painted: Default::default(),
+            list_right: Vec::new(),
             launches: Vec::new(),
             bookmarks: Vec::new(),
             history: Vec::new(),

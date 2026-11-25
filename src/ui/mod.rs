@@ -232,6 +232,11 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     let bottom_extra = which_h + input_h + term_h;
     let body = Rect::from_min_max(egui::pos2(full.left(), header.bottom()), egui::pos2(full.right(), status.top() - bottom_extra));
 
+    // What the frame painted, for the state file: filled again only by what is drawn below, so a maximized
+    // terminal (no body) or a frame without a preview reports none rather than the last frame's.
+    app.parent_shown.clear();
+    app.preview_painted = Default::default();
+    app.list_right.clear();
     // Skipped rather than drawn into an inverted rectangle: `body` is built
     // downwards from the header, so at this height its bottom is above its top.
     if !maxed {
@@ -415,8 +420,6 @@ fn draw_header(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
 // ------------------------------------------------------------------ body
 
 fn draw_body(app: &mut App, ui: &mut Ui, body: Rect, f: &FontId, row_h: f32, queued: &mut Vec<Act>) {
-    // Filled again below only if the parent column is drawn this frame.
-    app.parent_shown.clear();
     let mut ratio = {
         let r = &app.cfg.yazi.mgr.ratio;
         [r.first().copied().unwrap_or(1), r.get(1).copied().unwrap_or(3), r.get(2).copied().unwrap_or(4)]
@@ -562,6 +565,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 pan: app.preview.pan,
                 find: preview_find(app),
                 numbers,
+                painted: Default::default(),
             };
             // What the selection belongs to: the read (path, size, time,
             // width), or for an archive member's card, which has none, the
@@ -579,6 +583,7 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
                 app.tabs[app.active].preview_offset,
                 &st,
             );
+            app.preview_painted = st.painted.take();
             if let Some(line) = drawn.scroll_to {
                 app.tabs[app.active].preview_offset = line;
             }
@@ -790,6 +795,9 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
         has_filter,
         find,
     );
+    if focused {
+        app.list_right = res.right.clone();
+    }
     // Which side has the keys should be clear at a glance.
     if app.split.is_some() {
         let color = if focused { theme.cwd.fg.unwrap_or(theme.fg) } else { theme.border };
@@ -5984,5 +5992,140 @@ mod test_ids {
         let v: ito_mcp::serde_json::Value = ito_mcp::serde_json::from_str(&crate::mcp::state_json(&s.app, "", "")).unwrap();
         assert_eq!(v["toasts"].as_array().and_then(|a| a.last()).and_then(|t| t.as_str()), Some("first / second"));
         assert_eq!(v["toast_log"].as_array().and_then(|a| a.last()).and_then(|t| t.as_str()), Some("first / second"));
+    }
+}
+
+/// What the preview body and the list painted, as the state report reads it back (rows 66.1, 66.3, 67.1,
+/// 67.3, 67.4 and 69.12 were judged from a picture).
+#[cfg(test)]
+mod painted_readouts {
+    use super::harness::Screen;
+    use super::preview_panes::{look_at, on};
+    use crate::fs::entry::Linemode as L;
+
+    fn enter() -> egui::Event {
+        egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() }
+    }
+
+    fn find(s: &mut Screen, word: &str) {
+        s.typed("/");
+        s.typed(word);
+        s.feed(vec![enter()]);
+    }
+
+    fn lines_of(s: &Screen) -> Vec<String> {
+        match &s.app.preview.state {
+            crate::app::PreviewState::Ready(crate::preview::Payload::Markdown { doc, .. }) => {
+                doc.lines.iter().map(|l| l.spans.iter().map(|sp| sp.text.as_str()).collect::<String>()).collect()
+            }
+            other => panic!("not Markdown: {:?}", std::mem::discriminant(other)),
+        }
+    }
+
+    #[test]
+    fn the_maximized_text_records_its_rows_numbers_and_marks() {
+        let text: String =
+            (0..100).map(|i| if [9, 30, 70].contains(&i) { format!("a needle {i}\n") } else { format!("line {i}\n") }).collect();
+        let mut s = on("painted-text", &[("a.txt", &text)]);
+        look_at(&mut s, "a.txt");
+        s.typed("T");
+        s.draw();
+        find(&mut s, "needle");
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!(p.view, "text");
+        let at = s.app.tabs[s.app.active].preview_offset;
+        assert_eq!(p.rows.start, at, "{p:?}");
+        assert_eq!(p.numbered(), p.rows.len());
+        assert_eq!(p.top_number(), Some(at + 1));
+        let want: Vec<usize> = [9, 30, 70].into_iter().filter(|r| p.rows.contains(r)).collect();
+        assert!(!want.is_empty(), "the hit is on screen: {p:?}");
+        assert_eq!(p.marked, want);
+
+        s.app.tabs[s.app.active].preview_offset = 25;
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!(p.rows.start, 25);
+        assert_eq!(p.top_number(), Some(26));
+        assert_eq!(p.marked, [30, 70].into_iter().filter(|r| p.rows.contains(r)).collect::<Vec<_>>());
+        assert!(p.marked.contains(&30));
+    }
+
+    #[test]
+    fn rendered_markdown_records_wrapped_rows_without_numbers_and_marks_in_both_views() {
+        let long = "word ".repeat(120);
+        let doc = format!("# Title\n\nfirst needle paragraph\n\n{long}\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nlast needle one\n");
+        let mut s = on("painted-md", &[("n.md", &doc)]);
+        look_at(&mut s, "n.md");
+        s.app.render_markdown = true;
+        s.typed("T");
+        s.draw();
+        find(&mut s, "needle");
+        s.app.tabs[s.app.active].preview_offset = 0;
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!(p.view, "rendered");
+        let text = lines_of(&s);
+        let want: Vec<usize> = (p.rows.start..p.rows.end).filter(|&r| text[r].contains("needle")).collect();
+        assert_eq!(want.len(), 2, "{text:?}");
+        assert_eq!(p.marked, want);
+        assert!(p.numbered() < p.rows.len(), "a wrapped paragraph's rows carry no number: {p:?}");
+        assert_eq!(p.numbers.len(), p.rows.len());
+        let rule = (p.rows.start..p.rows.end).find(|&r| text[r].contains('┼')).expect("the table's rule row");
+        assert_eq!(p.numbers[rule - p.rows.start], None, "the rule repeats its source line: {p:?}");
+        assert_eq!(p.top_number(), Some(1));
+        // A wrapped continuation at the top draws no number.
+        let wrapped = match &s.app.preview.state {
+            crate::app::PreviewState::Ready(crate::preview::Payload::Markdown { doc, .. }) => {
+                doc.lines.iter().position(|l| l.wrap).expect("a wrapped row")
+            }
+            _ => unreachable!(),
+        };
+        s.app.tabs[s.app.active].preview_offset = wrapped;
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!((p.rows.start, p.top_number()), (wrapped, None), "{p:?}");
+
+        s.typed("M");
+        s.app.tabs[s.app.active].preview_offset = 0;
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        assert_eq!(p.view, "source");
+        assert_eq!(p.numbered(), p.rows.len());
+        assert_eq!(p.top_number(), Some(1));
+        assert_eq!(p.marked, vec![2, 10]);
+    }
+
+    #[test]
+    fn a_frame_with_no_text_preview_clears_the_record() {
+        let mut s = on("painted-clear", &[("a.txt", "one\ntwo\n")]);
+        look_at(&mut s, "a.txt");
+        s.draw();
+        assert_eq!(s.app.preview_painted.view, "text");
+        s.app.preview.state = crate::app::PreviewState::Empty;
+        s.draw();
+        assert_eq!(s.app.preview_painted.view, "");
+        assert!(s.app.preview_painted.rows.is_empty() && s.app.preview_painted.marked.is_empty());
+    }
+
+    #[test]
+    fn the_list_records_each_rows_right_hand_text() {
+        let mut s = on("painted-right", &[("a.txt", "1"), ("b.txt", "22"), ("c.txt", "333")]);
+        s.app.act(crate::config::cmd::Act::Linemode(L::Size));
+        s.draw();
+        let tab = s.app.tab();
+        let want: Vec<(String, String)> = (0..tab.current.view.len())
+            .filter_map(|r| tab.current.at(r))
+            .map(|e| (e.name.clone(), super::list::linemode_text(e, L::Size)))
+            .collect();
+        assert_eq!(want.len(), 3);
+        assert!(want.iter().all(|(_, v)| !v.is_empty()));
+        assert_eq!(s.app.list_right, want);
+
+        s.app.act(crate::config::cmd::Act::Linemode(L::All));
+        // The details view rescans for its columns; draw once the rows are back.
+        s.settle();
+        assert_eq!(s.app.list_right.len(), 3);
+        assert!(s.app.list_right.iter().all(|(_, v)| v.is_empty()), "{:?}", s.app.list_right);
     }
 }
