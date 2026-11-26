@@ -1127,7 +1127,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **64.1** On a long text file press `T`, then `j` `k` `<C-d>` `<C-u>` `<PageDown>` `gg` `G` → The content scrolls (a line, half a page, a page, to the top, to the end); the file does not change 〔未訳〕
 - [x] **64.2** In `T` press `J` then `K` → The next / previous file in the list is previewed, from its top 〔未訳〕
 - [x] **64.3** In `<F3>` press `j` → The list's cursor moves to the next file (the preview changes file); the layer is not used 〔未訳〕
-- [ ] **64.4** In `T` and in `<F3>`, look at the left edge of a text file; drag a selection from the first line to the last and copy → Line numbers in a dim right-aligned column, matching the lines (also after scrolling); the copy holds the text only, no numbers 〔未訳〕
+- [x] **64.4** In `T` and in `<F3>`, look at the left edge of a text file; drag a selection from the first line to the last and copy → Line numbers in a dim right-aligned column, matching the lines (also after scrolling); the copy holds the text only, no numbers 〔未訳〕
 - [x] **64.5** Press `~` in `T` → The help lists "keys while the preview is maximized" 〔未訳〕
 - [x] **64.6** Save two bookmarks (`bsa`, `bsq`), press `bb`, then `q` → The list closes and the folder of `q` opens; no letter reaches the filter 〔未訳〕
 - [x] **64.7** Press `bb`, then `/`, then type part of a path → The hint changes to "type to filter"; letters now filter the list (the `/` itself is not typed); `<Enter>` opens the chosen row 〔未訳〕
