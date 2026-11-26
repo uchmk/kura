@@ -59,6 +59,18 @@ pub struct ListResult {
     /// For each row drawn, top to bottom, the entry's name and the right-hand line-mode text as painted: `""`
     /// where none was painted (the details view, or an empty value). Parallel to `shown`.
     pub right: Vec<(String, String)>,
+    /// The details view's Size cell of each row drawn, top to bottom, as painted (69.13).
+    pub size_cells: Vec<SizeCell>,
+}
+
+/// One Size cell as painted: the row's name, the number's text and where its painted rect ends, and the unit's
+/// text and where its painted rect starts (`None` for a folder's count, which has no unit).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SizeCell {
+    pub name: String,
+    pub number: String,
+    pub number_right: f32,
+    pub unit: Option<(String, f32)>,
 }
 
 pub fn draw(
@@ -139,6 +151,7 @@ pub fn draw(
         mods: egui::Modifiers::NONE,
         shown: Vec::new(),
         right: Vec::new(),
+        size_cells: Vec::new(),
     };
 
     match &folder.state {
@@ -229,10 +242,20 @@ pub fn draw(
                     let (num, unit) = text.split_once(' ').unwrap_or((text.as_str(), ""));
                     let unit_x = cell.right() - 1.5 * cell_width;
                     let num_right = cell.right() - 2.0 * cell_width;
-                    cp.text(egui::pos2(num_right, cell.center().y), Align2::RIGHT_CENTER, num, st.font.clone(), st.theme.fg_dim);
+                    let num_rect =
+                        cp.text(egui::pos2(num_right, cell.center().y), Align2::RIGHT_CENTER, num, st.font.clone(), st.theme.fg_dim);
+                    // Recorded from the rects the painter returned, for the state report.
+                    let mut unit_at = None;
                     if !unit.is_empty() {
-                        cp.text(egui::pos2(unit_x, cell.center().y), Align2::LEFT_CENTER, unit, st.font.clone(), st.theme.fg_dim);
+                        let r = cp.text(egui::pos2(unit_x, cell.center().y), Align2::LEFT_CENTER, unit, st.font.clone(), st.theme.fg_dim);
+                        unit_at = Some((unit.to_owned(), r.left()));
                     }
+                    out.size_cells.push(SizeCell {
+                        name: entry.name.clone(),
+                        number: num.to_owned(),
+                        number_right: num_rect.right(),
+                        unit: unit_at,
+                    });
                 } else {
                     // Cut in the middle with `…` so the end stays: an owner no
                     // account answers to is a SID whose last part is the one that

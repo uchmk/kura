@@ -9,6 +9,18 @@
 
 ## [未リリース]
 
+## [0.168.5] - 2026-11-26
+
+### 追加
+- `--keys` の状態（`<State:>`）に、描いたものを読む行をさらに足した。v0.168.3・v0.168.4 と同じく、描くコードがそのフレームで記録したものを出す。
+  - `preview gutter`: プレビューの行番号の横の範囲・右端の最小と最大・塗った色（テーマの dim と本文の色と並べる）、本文の横の範囲と番号との間、目次（Contents）の列の範囲と本文との間。
+  - `preview coloured`: テキスト・ソースの表示で、構文の色を付けた先頭の行の数と、描いた行がその中にあるか。
+  - `list size` / `list size cells`: 詳細表示の Size の列で、数字の終わる x と単位の始まる x（それぞれ何行か）と、各行のセル。
+  - 状態の JSON の `app_state.painted`（`preview_gutter`・`list_size`・`clipboard`・`preview_coloured`）。`preview_gutter.by_row` は描いた各行に描いた番号（`first_row` から。無い行は `-`）。
+  - 描いた矩形の test ID `preview.gutter`（すべての番号を囲む箱）・`preview.text`（すべての本文を囲む箱）・`preview.gutter.first` / `.last`・`preview.text.first` / `.widest`・`preview.contents`（ホバーのときだけ）。
+- 起動時に `KURA_FAKE_CLIPBOARD=1` があれば、コピーはメモリの中のクリップボードに入り、本物のクリップボードに触らない（状態に `clipboard: fake`、`clipboard set:` で中身を読む）。テストの実行がコピーしても持ち主のクリップボードを書き換えない。
+- 実機の確認項目の check spec を足した: `tests/visual/64.4.toml`・`66.1.toml`・`66.4.toml`・`69.13.toml`。
+
 ## [0.168.4] - 2026-11-25
 
 ### 追加

@@ -88,8 +88,15 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
     let expanded = expand_tabs(text, req.tab_size.max(1) as usize);
     let tabs = super::TabStops::of(text, req.tab_size.max(1) as usize);
     let total_lines = expanded.lines().count();
-    let extent =
-        Extent { truncated: total_lines > max_lines(req) || cut, total: total_lines, cut, rows: None, enc, eol: super::Eol::of(bytes) };
+    let extent = Extent {
+        truncated: total_lines > max_lines(req) || cut,
+        total: total_lines,
+        cut,
+        rows: None,
+        enc,
+        eol: super::Eol::of(bytes),
+        coloured: 0,
+    };
 
     let theme = req.syntect_theme.as_str();
     let hint = match req.ext.as_deref() {
@@ -167,6 +174,8 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
                 let mut source = lines.clone();
                 source.extend(expanded.lines().take(max_lines(req)).skip(i).map(plain_line));
                 let map = super::minimap(&source);
+                // Only the lines before this one are coloured so far.
+                let extent = Extent { coloured: lines.len(), ..extent };
                 let payload = if renders {
                     let (d, clipped) = doc.get_or_insert_with(|| lay(&expanded));
                     let extent = Extent { truncated: extent.truncated || *clipped, ..extent };
@@ -211,6 +220,8 @@ pub fn render_cut(bytes: &[u8], cut: bool, enc: &'static str, req: &Request, hl:
         }
         lines.push(spans);
     }
+    // Lines past `color_lines` were pushed plain.
+    let extent = Extent { coloured: lines.len().min(color_lines(req)), ..extent };
     if renders {
         if images && hl.early.as_mut().is_some_and(|early| !early(None)) {
             hl.abandoned = true;
@@ -445,8 +456,9 @@ mod tests {
         .repeat(DEEP_COLOR_LINES + 50);
         let mut req = request("rs");
         req.key.deep = true;
-        let Payload::Text { lines, .. } = render(src.as_bytes(), &req, &mut Highlighter::default()) else { panic!("not text") };
+        let Payload::Text { lines, extent, .. } = render(src.as_bytes(), &req, &mut Highlighter::default()) else { panic!("not text") };
         assert_eq!(lines.len(), DEEP_COLOR_LINES + 50);
+        assert_eq!(extent.coloured, DEEP_COLOR_LINES, "the colour stops where the plain lines begin");
         assert!(colors(&lines[10]).len() > 1, "{:?}", lines[10]);
         assert!(colors(&lines[DEEP_COLOR_LINES + 10]).is_empty(), "{:?}", lines[DEEP_COLOR_LINES + 10]);
         assert_eq!(lines[DEEP_COLOR_LINES + 10].iter().map(|s| s.text.as_str()).collect::<String>(), "fn a() { let x = 1; }");
@@ -538,11 +550,16 @@ mod tests {
             into.borrow_mut().extend(p);
             true
         }));
-        let Payload::Text { lines: whole, outline, .. } = render(src.as_bytes(), &request("rs"), &mut hl) else { panic!("text expected") };
+        let Payload::Text { lines: whole, outline, extent: whole_extent, .. } = render(src.as_bytes(), &request("rs"), &mut hl) else {
+            panic!("text expected")
+        };
         assert!(!hl.abandoned);
         let sent = sent.borrow();
         assert_eq!(sent.len(), 1, "one first screen, then the whole");
-        let Payload::Text { lines: head, outline: head_outline, .. } = &sent[0] else { panic!("text expected") };
+        let Payload::Text { lines: head, outline: head_outline, extent: head_extent, .. } = &sent[0] else { panic!("text expected") };
+        // How far colour reached, for `preview coloured:`: the first screen only, then every line.
+        assert_eq!((head_extent.coloured, whole_extent.coloured), (HEAD_LINES, HEAD_LINES * 2));
+        assert!(head_extent.coloured < whole_extent.coloured);
         assert_eq!(head.len(), whole.len(), "the scroll range does not change");
         assert_eq!(head[..HEAD_LINES], whole[..HEAD_LINES], "the head is colored already");
         assert_eq!(head[HEAD_LINES].len(), 1, "the rest waits, plain: {:?}", head[HEAD_LINES]);

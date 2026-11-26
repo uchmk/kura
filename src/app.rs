@@ -280,6 +280,8 @@ pub struct App {
     pub preview_painted: crate::ui::preview::PreviewPainted,
     /// The current pane's rows as the last frame drew them: name and right-hand line-mode text (row 69.12), for the state file.
     pub list_right: Vec<(String, String)>,
+    /// The current pane's Size cells as the last frame drew them (row 69.13), for the state file.
+    pub list_size: Vec<crate::ui::list::SizeCell>,
     /// The bell's badge as the title bar painted it this frame; `None` when none was drawn.
     pub bell_badge: Option<ito_titlebar::Badge>,
     /// The notice list as the last frame painted it; `None` while it was closed.
@@ -555,6 +557,7 @@ impl App {
             parent_shown: Vec::new(),
             preview_painted: Default::default(),
             list_right: Vec::new(),
+            list_size: Vec::new(),
             bell_badge: None,
             bell_list: None,
             tasks_drawn: None,

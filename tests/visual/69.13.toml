@@ -1,0 +1,32 @@
+# Row 69.13: the details view's Size column lines its numbers and its units up.
+#
+# Fixture size6913, a folder holding only:
+#   a-five.bin 5 B, b-three-k.bin 3 KiB, c-259k.bin 259 KiB, d-27m.bin 27 MiB,
+#   folder/ with f0.txt, f1.txt and f2.txt (a count of 3)
+#
+# Keys: <Size:1040x700>ma<Wait:7000><State:cells><Snap:size><Quit>
+# The 7 s wait lets the "in total" toast end (toasts live 6 s).
+#
+# The painter of the Size column records where each number's painted rect ends and where
+# each unit's starts (`app_state.painted.list_size`, distinct x values to 0.01 pt). One
+# x for the numbers, the folder's count among them, and one x for the units is the row's
+# claim. The unit letters themselves are read with the spec, not by it: the `list size cells:` line of the same
+# run's cells.txt.
+
+spec = 1
+row = "69.13"
+tier = 1
+fixtures = "size6913"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "screen"
+snap = "size"
+expect = { no_overlay = true, no_toast = true }
+fail_looks_like = "A popup or a toast covers the list."
+
+[[point]]
+id = "size-column"
+snap = "size"
+expect = { app_state = { painted = { list_size = { rows = 5, units = 4, folders = 1, number_right_edges = 1, unit_left_edges = 1 } } } }
+fail_looks_like = "The Size cells' numbers (the folder's count among them) end at more than one x, or the units start at more than one x, or not all five rows were drawn."

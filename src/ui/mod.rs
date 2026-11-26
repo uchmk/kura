@@ -2,7 +2,7 @@
 //! interaction turns into an [`Act`] that runs after drawing, so the borrow
 //! checker never gets in the way of the layout code.
 
-mod list;
+pub(crate) mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;
 pub(crate) mod settings;
@@ -196,6 +196,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     app.parent_shown.clear();
     app.preview_painted = Default::default();
     app.list_right.clear();
+    app.list_size.clear();
     app.tasks_drawn = None;
 
     // The settings screen takes the whole window, so nothing behind it is laid out.
@@ -799,6 +800,7 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
     );
     if focused {
         app.list_right = res.right.clone();
+        app.list_size = res.size_cells.clone();
     }
     // Which side has the keys should be clear at a glance.
     if app.split.is_some() {
@@ -6108,6 +6110,41 @@ mod painted_readouts {
         s.draw();
         assert_eq!(s.app.preview_painted.view, "");
         assert!(s.app.preview_painted.rows.is_empty() && s.app.preview_painted.marked.is_empty());
+    }
+
+    /// The numbers end at one x, the text starts right of them, and the theme's colours are recorded to compare with.
+    #[test]
+    fn the_maximized_text_records_its_gutter_text_and_colour_reach() {
+        let src: String = (0..120).map(|i| format!("fn f{i}() {{ let x = {i}; }}\n")).collect();
+        let mut s = on("painted-gutter", &[("a.rs", &src)]);
+        look_at(&mut s, "a.rs");
+        s.typed("T");
+        s.draw();
+        let p = s.app.preview_painted.clone();
+        let (g, t) = (p.gutter.clone().expect("numbers painted"), p.text.expect("text painted"));
+        assert_eq!(g.count, p.rows.len(), "{p:?}");
+        assert_eq!(g.edges.len(), 1, "every number ends at one x: {g:?}");
+        assert_eq!(g.right_min, g.right_max);
+        assert!(t.left > g.right_max, "the text starts right of the numbers: {g:?} {t:?}");
+        assert_eq!((g.colour, p.fg_dim, p.fg), (s.app.cfg.theme.fg_dim, s.app.cfg.theme.fg_dim, s.app.cfg.theme.fg));
+        let c = p.coloured.expect("a text view");
+        assert_eq!((c.lines, c.coloured), (120, 120), "a short source file is coloured whole");
+    }
+
+    /// The details view's Size cells end their numbers at one x and start their units at another.
+    #[test]
+    fn the_details_view_records_its_size_cells() {
+        let mut s = on("painted-size", &[("a.txt", "12345"), ("b.txt", "1"), ("c.txt", &"x".repeat(5000))]);
+        s.app.act(crate::config::cmd::Act::Linemode(L::All));
+        s.settle();
+        let cells = s.app.list_size.clone();
+        assert_eq!(cells.len(), 3, "{cells:?}");
+        assert!(cells.iter().all(|c| c.number_right == cells[0].number_right), "{cells:?}");
+        let units: Vec<f32> = cells.iter().filter_map(|c| c.unit.as_ref().map(|u| u.1)).collect();
+        assert_eq!(units.len(), 3);
+        assert!(units.iter().all(|&x| x == units[0]) && units[0] > cells[0].number_right, "{cells:?}");
+        let b = cells.iter().find(|c| c.name == "b.txt").unwrap();
+        assert_eq!((b.number.as_str(), b.unit.as_ref().map(|u| u.0.as_str())), ("1", Some("B")));
     }
 
     #[test]

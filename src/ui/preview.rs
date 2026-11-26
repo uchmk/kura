@@ -35,6 +35,51 @@ pub struct PreviewStyle<'a> {
     pub painted: std::cell::RefCell<PreviewPainted>,
 }
 
+/// A hover-only hook with a Test ID over `rect`: it takes no click or drag, so selecting text is not disturbed.
+fn test_hook(ui: &Ui, key: &'static str, name: &str, rect: Rect) {
+    let hook = ui.interact(rect, ui.id().with(key), egui::Sense::hover());
+    ito_a11y::test_id_in(ui, &hook, name, None);
+}
+
+/// The first and the widest body text galley painted in a frame, and the box around all of them and around
+/// the line numbers (screen rects), for their Test IDs.
+#[derive(Default)]
+struct TextRects {
+    first: Option<Rect>,
+    widest: Option<Rect>,
+    all: Option<Rect>,
+    numbers: Option<Rect>,
+}
+
+impl TextRects {
+    fn add(&mut self, r: Rect) {
+        self.first.get_or_insert(r);
+        if self.widest.is_none_or(|w| r.width() > w.width()) {
+            self.widest = Some(r);
+        }
+        self.all = Some(self.all.map_or(r, |a| a.union(r)));
+    }
+
+    fn number(&mut self, r: Rect) {
+        self.numbers = Some(self.numbers.map_or(r, |a| a.union(r)));
+    }
+
+    fn register(&self, ui: &Ui) {
+        if let Some(r) = self.first {
+            test_hook(ui, "preview-text-first", "preview.text.first", r);
+        }
+        if let Some(r) = self.widest {
+            test_hook(ui, "preview-text-widest", "preview.text.widest", r);
+        }
+        if let Some(r) = self.all {
+            test_hook(ui, "preview-text", "preview.text", r);
+        }
+        if let Some(r) = self.numbers {
+            test_hook(ui, "preview-gutter", "preview.gutter", r);
+        }
+    }
+}
+
 /// What the pane drew this frame, for the state report.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PreviewPainted {
@@ -55,9 +100,77 @@ pub struct PreviewPainted {
     /// rule, heading underline or picture, a picture counting on every row it covers; a line number in the gutter
     /// does not count).
     pub blank: Vec<usize>,
+    /// The line-number galleys as painted (screen points); `None` when none were.
+    pub gutter: Option<Gutter>,
+    /// The body text galleys as painted (every drawn row's, an empty one adding no width at the text's left; in rendered
+    /// Markdown the text galleys, not bands, rules or pictures).
+    pub text: Option<TextBox>,
+    /// The theme's text and dim colours, to compare the numbers' colour with.
+    pub fg: Color32,
+    pub fg_dim: Color32,
+    /// The outline column's left and right x, when it was drawn this frame.
+    pub contents: Option<(f32, f32)>,
+    /// Text and source views only: how many lines the payload holds, and how many of its leading lines got syntax colour.
+    pub coloured: Option<Coloured>,
+}
+
+/// Where the line numbers were painted: the smallest left x, the smallest and largest right x, and their colour.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Gutter {
+    pub left: f32,
+    pub right_min: f32,
+    pub right_max: f32,
+    pub colour: Color32,
+    /// How many number galleys were painted.
+    pub count: usize,
+    /// The distinct right edges, in hundredths of a point.
+    pub edges: Vec<i32>,
+}
+
+/// The smallest left x and largest right x of the body text galleys.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextBox {
+    pub left: f32,
+    pub right: f32,
+}
+
+/// How far syntax colour reached in the lines of a text or source view.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Coloured {
+    pub lines: usize,
+    pub coloured: usize,
 }
 
 impl PreviewPainted {
+    /// Note a line number painted over `left..right`.
+    fn number(&mut self, left: f32, right: f32, colour: Color32) {
+        let edge = (right * 100.0).round() as i32;
+        match self.gutter.as_mut() {
+            Some(g) => {
+                (g.left, g.right_min, g.right_max, g.colour) = (g.left.min(left), g.right_min.min(right), g.right_max.max(right), colour);
+                g.count += 1;
+                if !g.edges.contains(&edge) {
+                    g.edges.push(edge);
+                }
+            }
+            None => self.gutter = Some(Gutter { left, right_min: right, right_max: right, colour, count: 1, edges: vec![edge] }),
+        }
+    }
+
+    /// Which side of the body text the outline column lies on, when both were painted.
+    pub fn contents_side(&self) -> Option<&'static str> {
+        let ((l, _), t) = (self.contents?, self.text?);
+        Some(if l >= t.right { "right" } else { "left" })
+    }
+
+    /// Note a body text galley painted over `left..right`.
+    fn body(&mut self, left: f32, right: f32) {
+        self.text = Some(match self.text {
+            Some(t) => TextBox { left: t.left.min(left), right: t.right.max(right) },
+            None => TextBox { left, right },
+        });
+    }
+
     /// How many of the drawn rows got a line number in the gutter.
     pub fn numbered(&self) -> usize {
         self.numbers.iter().flatten().count()
@@ -893,10 +1006,21 @@ fn text_with(
     let end = (start + rows(rect, st)).min(lines.len());
     // Recorded here, by what paints, so the state report says what was drawn rather than what should have been.
     let base = numbers.0;
-    let mut painted =
-        PreviewPainted { view, rows: base + start..base + end, numbers: vec![None; end - start], marked: Vec::new(), ..Default::default() };
+    let mut painted = PreviewPainted {
+        view,
+        rows: base + start..base + end,
+        numbers: vec![None; end - start],
+        marked: Vec::new(),
+        fg: st.theme.fg,
+        fg_dim: st.theme.fg_dim,
+        // The log view hands over a window of lines, not the payload the worker coloured.
+        coloured: (view != "log").then_some(Coloured { lines: lines.len(), coloured: extent.coloured }),
+        ..Default::default()
+    };
     // The line-number gutter: drawn first, not noted (so not selectable), and
     // the text moves right of it.
+    let mut last_number = None;
+    let mut texts = TextRects::default();
     let rect = if st.numbers && !lines.is_empty() {
         painted.numbers = (start..end).map(|r| Some(base + r + 1)).collect();
         let (base, last) = numbers;
@@ -913,6 +1037,11 @@ fn text_with(
                 hook.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, n.as_str()));
                 ito_a11y::test_id_in(ui, &hook, "preview.gutter.first", Some(&g));
             }
+            // The colour the galley carries, not the one asked for: that is what reaches the screen.
+            let colour = g.job.sections.first().map_or(st.theme.fg_dim, |s| s.format.color);
+            painted.number(at.x, at.x + g.size().x, colour);
+            last_number = Some(Rect::from_min_size(at, g.size()));
+            texts.number(Rect::from_min_size(at, g.size()));
             painter.galley(at, g, st.theme.fg_dim);
         }
         Rect::from_min_max(pos2(rect.left() + gutter, rect.top()), rect.max)
@@ -958,6 +1087,8 @@ fn text_with(
         };
         let pos = pos2(rect.left() + PAD, rect.top() + i as f32 * st.row_h);
         let galley = painter.layout_job(job_for(false));
+        painted.body(pos.x + galley.rect.min.x, pos.x + galley.rect.max.x);
+        texts.add(galley.rect.translate(pos.to_vec2()));
         note(painter, pos, &galley);
         painter.galley(pos, galley, st.theme.fg);
         // Without a bold face, bold spans are overstruck a pixel over; the
@@ -969,6 +1100,11 @@ fn text_with(
     if extent.truncated && end >= lines.len() {
         truncation_note(painter, rect, end - start, &extent, st);
     }
+    // Test IDs for the last number and the body text, from the rects just painted; every frame, like the first number's.
+    if let Some(r) = last_number {
+        test_hook(ui, "preview-gutter-last", "preview.gutter.last", r);
+    }
+    texts.register(ui);
     *st.painted.borrow_mut() = painted;
     lines.len()
 }
@@ -1000,9 +1136,19 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         Some(m) => doc.marks(m, start, end),
         None => vec![Vec::new(); end - start],
     };
-    let mut painted = PreviewPainted { view: "rendered", rows: start..end, numbers: Vec::new(), marked: Vec::new(), ..Default::default() };
+    let mut painted = PreviewPainted {
+        view: "rendered",
+        rows: start..end,
+        numbers: Vec::new(),
+        marked: Vec::new(),
+        fg: theme.fg,
+        fg_dim: theme.fg_dim,
+        ..Default::default()
+    };
     // The pictures painted this frame, so their later rows count as painted (`blank`).
     let mut pictures = Vec::new();
+    let mut texts = TextRects::default();
+    let mut last_number = None;
     for (i, line) in doc.lines[start..end].iter().enumerate() {
         let y = rect.top() + i as f32 * st.row_h;
         // The first rendered row of a source line carries its number; wrapped
@@ -1023,6 +1169,18 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         if let Some(number) = number.filter(|_| st.numbers && !line.wrap) {
             let g = painter.layout_no_wrap(number.to_string(), st.font.clone(), theme.fg_dim);
             let x = rect.left() + PAD + (MD_GUTTER_COLS - 1) as f32 * st.cell - g.size().x;
+            let colour = g.job.sections.first().map_or(theme.fg_dim, |s| s.format.color);
+            let at = Rect::from_min_size(pos2(x, y + lift), g.size());
+            // The first number painted gets the same hook as in the text view, so a check can line the last one up with it.
+            if painted.gutter.is_none() {
+                let hook = ui.interact(at, ui.id().with("preview-gutter-first"), egui::Sense::hover());
+                let n = number.to_string();
+                hook.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, n.as_str()));
+                ito_a11y::test_id_in(ui, &hook, "preview.gutter.first", Some(&g));
+            }
+            painted.number(x, x + g.size().x, colour);
+            last_number = Some(at);
+            texts.number(at);
             painter.galley(pos2(x, y + lift), g, theme.fg_dim);
             painted_number = Some(number);
         }
@@ -1115,6 +1273,8 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
             let galley = painter.layout_job(job);
             let size = galley.size();
             let pos = pos2(x, y + lift);
+            painted.body(pos.x + galley.rect.min.x, pos.x + galley.rect.max.x);
+            texts.add(galley.rect.translate(pos.to_vec2()));
             if span.code {
                 let chip = Rect::from_min_size(pos - vec2(2.0, 0.0), vec2(size.x + 4.0, size.y));
                 body.rect_filled(chip, CornerRadius::same(3), code_bg);
@@ -1150,6 +1310,10 @@ fn markdown(ui: &Ui, painter: &Painter, rect: Rect, doc: &Doc, extent: Extent, o
         truncation_note(painter, rect, end - start, &extent, st);
     }
 
+    if let Some(r) = last_number {
+        test_hook(ui, "preview-gutter-last", "preview.gutter.last", r);
+    }
+    texts.register(ui);
     *st.painted.borrow_mut() = painted;
     let jump = if doc.toc_cols > 0 && !doc.toc.is_empty() {
         outline(ui, painter, rect, &doc.toc, doc.toc_cols, start, false, st)
@@ -1189,6 +1353,9 @@ fn outline(
     }
     let rule = super::focus_rule(theme, focused);
     painter.vline(sep, rect.top() + 4.0..=rect.bottom() - 4.0, Stroke::new(1.0, rule));
+    test_hook(ui, "preview-contents", "preview.contents", Rect::from_x_y_ranges(sep..=rect.right(), rect.y_range()));
+    // The column as drawn: from its rule to the pane's right edge.
+    st.painted.borrow_mut().contents = Some((sep, rect.right()));
     let (font, color) = match (&st.bold, focused) {
         (Some(bold), true) => (bold.clone(), accent),
         (None, true) => (st.font.clone(), accent),

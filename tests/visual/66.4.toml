@@ -1,0 +1,92 @@
+# Row 66.4: a long Markdown file in `<F3>`, in the dark and the light theme: the source line numbers are dim,
+# right-aligned, and touch neither the text nor the Contents column.
+#
+# Fixture md664, a folder holding only long.md: 134 lines, a title and 12 `##` sections with paragraphs and lists,
+# no digits (so the Contents column is drawn and no body text looks like a number).
+#
+# Keys: <Size:1040x700><Wait:500><F3><Wait:1500><Theme:dark><Wait:400><State:dark><Snap:dark>
+#       <Theme:light><Wait:400><State:light><Snap:light><Quit>
+# Read with the spec, not by it: `quick: on` and `preview view: rendered` in each <State:> text.
+#
+# `painted.preview_gutter` is what the painter recorded: `right_edges` the distinct right edges of the numbers
+# (to 0.01 pt), `colour` the numbers' colour next to `text_colour`, the body text's, and `contents_side` which side
+# of the text the Contents column was drawn on. The colours are kura's quiet text in each theme, the colour of
+# its other dim text: tsumugi Dark's dim token mixed a quarter toward the ground (#79808f), tsumugi Light's dim
+# token (#5a6272).
+#
+# `preview.gutter` and `preview.text` are the boxes around every number and around all the body text painted;
+# `preview.gutter.first` and `.last` the first and the last number; `preview.contents` the Contents column.
+
+spec = 1
+row = "66.4"
+tier = 1
+fixtures = "md664"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+# Dark
+[[point]]
+id = "dark-screen"
+snap = "dark"
+expect = { dark = true, no_overlay = true, no_toast = true }
+fail_looks_like = "The theme did not turn dark, or a popup or a toast covers the preview."
+
+[[point]]
+id = "dark-numbers"
+snap = "dark"
+expect = { app_state = { painted = { preview_gutter = { right_edges = 1, colour = "#79808fff", text_colour = "#c8cdd8ff", contents_side = "right" } } } }
+fail_looks_like = "The numbers end at more than one x, have the text's colour, or the Contents column is not beside the text."
+
+[[point]]
+id = "dark-right-aligned"
+snap = "dark"
+target = "preview.gutter.last"
+expect = { aligned = { with = "preview.gutter.first", edge = "right", tol_px = 0.5 } }
+fail_looks_like = "The last number does not end where the first (1) does."
+
+[[point]]
+id = "dark-clear-of-text"
+snap = "dark"
+target = "preview.gutter"
+expect = { gap = { to = "preview.text", side = "right", min = 1 }, no_overlap = ["preview.text", "preview.contents"] }
+fail_looks_like = "A number touches or covers the text or the Contents column."
+
+[[point]]
+id = "dark-text-clear-of-contents"
+snap = "dark"
+target = "preview.text"
+expect = { gap = { to = "preview.contents", side = "right", min = 1 }, no_overlap = ["preview.contents"] }
+fail_looks_like = "The text runs into the Contents column."
+
+# Light
+[[point]]
+id = "light-screen"
+snap = "light"
+expect = { dark = false, no_overlay = true, no_toast = true }
+fail_looks_like = "The theme did not turn light, or a popup or a toast covers the preview."
+
+[[point]]
+id = "light-numbers"
+snap = "light"
+expect = { app_state = { painted = { preview_gutter = { right_edges = 1, colour = "#5a6272ff", text_colour = "#1f2430ff", contents_side = "right" } } } }
+fail_looks_like = "The numbers end at more than one x, have the text's colour, or the Contents column is not beside the text."
+
+[[point]]
+id = "light-right-aligned"
+snap = "light"
+target = "preview.gutter.last"
+expect = { aligned = { with = "preview.gutter.first", edge = "right", tol_px = 0.5 } }
+fail_looks_like = "The last number does not end where the first (1) does."
+
+[[point]]
+id = "light-clear-of-text"
+snap = "light"
+target = "preview.gutter"
+expect = { gap = { to = "preview.text", side = "right", min = 1 }, no_overlap = ["preview.text", "preview.contents"] }
+fail_looks_like = "A number touches or covers the text or the Contents column."
+
+[[point]]
+id = "light-text-clear-of-contents"
+snap = "light"
+target = "preview.text"
+expect = { gap = { to = "preview.contents", side = "right", min = 1 }, no_overlap = ["preview.contents"] }
+fail_looks_like = "The text runs into the Contents column."

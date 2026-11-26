@@ -1,0 +1,56 @@
+# Row 66.1: a Markdown file rendered in `T`: the source line numbers sit at the left, on the first rendered row
+# of each source line; wrapped rows and the table's rule row get none.
+#
+# Fixture md66, a folder holding only a.md (13 lines, no digits):
+#    1 `# Heading one`
+#    2 (blank)
+#    3 one long paragraph that wraps over several rows at this size
+#    4 (blank)
+#    5 `| Name | Size |`
+#    6 `|------|------|`  (the rule row)
+#    7 `| a    | one  |`
+#    8 `| b    | two  |`
+#    9 (blank)
+#   10 `- item one`
+#   11 `- item two`
+#   12 (blank)
+#   13 `Last line.`
+#
+# Keys: <Size:1040x700><Wait:500>T<Wait:1000><State:t><Snap:t><Quit>
+# Read with the spec, not by it: `max preview: on` and `preview view: rendered` in t.txt.
+#
+# `painted.preview_gutter.by_row` is the number the painter put on each drawn row from `first_row` (`-` for none):
+# line 3's first row has 3 and its five wrapped rows none, the table's rule row (line 6) none, every other line its
+# own number. `preview.gutter` and `preview.text` are the boxes around every number and around all the body text.
+
+spec = 1
+row = "66.1"
+tier = 1
+fixtures = "md66"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "screen"
+snap = "t"
+expect = { no_overlay = true, no_toast = true }
+fail_looks_like = "A popup or a toast covers the preview."
+
+[[point]]
+id = "numbers-by-row"
+snap = "t"
+expect = { app_state = { painted = { preview_gutter = { first_row = 0, by_row = "1, 2, 3, -, -, -, -, -, 4, 5, -, 7, 8, 9, 10, 11, 12, 13", right_edges = 1 } } } }
+fail_looks_like = "A wrapped row or the table's rule row has a number, a source line's first row has none or the wrong one, or the numbers end at more than one x."
+
+[[point]]
+id = "right-aligned"
+snap = "t"
+target = "preview.gutter.last"
+expect = { aligned = { with = "preview.gutter.first", edge = "right", tol_px = 0.5 } }
+fail_looks_like = "The last number (13) does not end where the first (1) does."
+
+[[point]]
+id = "left-of-text"
+snap = "t"
+target = "preview.gutter"
+expect = { gap = { to = "preview.text", side = "right", min = 1 }, no_overlap = ["preview.text"] }
+fail_looks_like = "The numbers are not at the left, in a column of their own beside the text."

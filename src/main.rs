@@ -276,6 +276,12 @@ fn main() -> eframe::Result<()> {
     ito_pane::restrict_dll_search();
     ito_pane::set_identity("kura", env!("CARGO_PKG_VERSION"));
     let cli = parse_cli();
+    // A run that copies must not overwrite the owner's clipboard. On this thread, which runs the event loop.
+    if fake_clipboard_wanted(std::env::var("KURA_FAKE_CLIPBOARD").ok().as_deref()) {
+        // The guard is `!Send` and pops the fake when dropped. It has to outlive the event loop, so it is
+        // leaked: `main` returns only at process exit, and a thread_local would drop it on the way out.
+        std::mem::forget(ito_clipboard::Fake::new().enter());
+    }
     let mut cfg = Config::load();
 
     // Where the window opens if the command line named nothing usable. The
@@ -1247,6 +1253,129 @@ fn frame_cost_line(costs: &std::collections::VecDeque<(u64, std::time::Instant, 
     )
 }
 
+/// Whether `KURA_FAKE_CLIPBOARD` (its value, if set) asks for a clipboard in memory: only `1` does.
+fn fake_clipboard_wanted(value: Option<&str>) -> bool {
+    value.is_some_and(|v| v.trim() == "1")
+}
+
+/// `clipboard: fake` while the run's copies go to a clipboard in memory; nothing otherwise.
+fn clipboard_mode_line(fake: bool) -> Option<String> {
+    fake.then(|| "clipboard: fake".to_owned())
+}
+
+/// Whether this run's copies go to a clipboard in memory (`KURA_FAKE_CLIPBOARD=1`). Never in the unit tests, where
+/// every thread has a fake of its own.
+fn clipboard_is_fake() -> bool {
+    ito_clipboard::clipboard!().is_fake() && !cfg!(test)
+}
+
+/// `#rrggbbaa`, always with the alpha (the state JSON's form).
+fn hex_rgba(c: egui::Color32) -> String {
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+}
+
+/// `#rrggbb`, with `aa` added only when the colour is not opaque.
+fn hex_colour(c: egui::Color32) -> String {
+    let [r, g, b, a] = c.to_srgba_unmultiplied();
+    match a {
+        255 => format!("#{r:02x}{g:02x}{b:02x}"),
+        _ => format!("#{r:02x}{g:02x}{b:02x}{a:02x}"),
+    }
+}
+
+/// `preview gutter:` from what the painter recorded: the numbers' x extent, right edges and colour against the
+/// theme's, the body text's x extent and the outline column, with the gaps between them (rows 66.4, 64.4, 66.1).
+fn preview_gutter_line(p: &ui::preview::PreviewPainted) -> String {
+    let mut parts = Vec::new();
+    match &p.gutter {
+        Some(g) => parts.push(format!(
+            "numbers x {:.1}-{:.1}, right edges {:.1}-{:.1}, colour {} (dim {}, text {})",
+            g.left,
+            g.right_max,
+            g.right_min,
+            g.right_max,
+            hex_colour(g.colour),
+            hex_colour(p.fg_dim),
+            hex_colour(p.fg)
+        )),
+        None => parts.push("none".to_owned()),
+    }
+    if let Some(t) = &p.text {
+        let gap = p.gutter.as_ref().map_or(String::new(), |g| format!(" (gap {:.1})", t.left - g.right_max));
+        parts.push(format!("text x {:.1}-{:.1}{gap}", t.left, t.right));
+    }
+    if let Some((l, r)) = p.contents {
+        let side = match (&p.text, p.contents_side()) {
+            (Some(t), Some("right")) => format!(" (gap {:.1})", l - t.right),
+            (Some(t), _) => format!(" (gap {:.1}, left of text)", t.left - r),
+            _ => String::new(),
+        };
+        parts.push(format!("contents x {l:.1}-{r:.1}{side}"));
+    }
+    format!("preview gutter: {}", parts.join("; "))
+}
+
+/// `preview coloured:` for a text or source view: how many lines got syntax colour and whether the rows drawn lie in them.
+fn preview_coloured_line(p: &ui::preview::PreviewPainted) -> Option<String> {
+    let c = p.coloured?;
+    let rows = match p.rows.is_empty() {
+        true => "none drawn".to_owned(),
+        false => {
+            let (a, b) = (p.rows.start, p.rows.end - 1);
+            match (a < c.coloured, b < c.coloured) {
+                (_, true) => format!("drawn rows {a}-{b} all coloured"),
+                (false, false) if c.coloured == 0 => format!("drawn rows {a}-{b}: none coloured"),
+                (false, false) => format!("drawn rows {a}-{b}: 0-{} coloured, {a}-{b} plain", c.coloured - 1),
+                (true, false) => format!("drawn rows {a}-{b}: {a}-{} coloured, {}-{b} plain", c.coloured - 1, c.coloured),
+            }
+        }
+    };
+    Some(format!("preview coloured: {} of {} lines; {rows}", c.coloured, c.lines))
+}
+
+/// `list size:` and `list size cells:` from the details view's Size cells as painted (row 69.13).
+fn list_size_lines(cells: &[ui::list::SizeCell]) -> Vec<String> {
+    const MAX: usize = 40;
+    if cells.is_empty() {
+        return Vec::new();
+    }
+    // Each distinct x with how many rows have it, left to right.
+    let rows = |n: usize| if n == 1 { "1 row".to_owned() } else { format!("{n} rows") };
+    let group = |xs: Vec<f32>| {
+        let mut by: std::collections::BTreeMap<i64, usize> = Default::default();
+        for x in xs {
+            *by.entry((x * 10.0).round() as i64).or_default() += 1;
+        }
+        match by.len() {
+            1 => by.into_iter().map(|(k, n)| format!("x {:.1} ({})", k as f32 / 10.0, rows(n))).collect::<String>(),
+            _ => {
+                let all = by.into_iter().map(|(k, n)| format!("{:.1} ({})", k as f32 / 10.0, rows(n))).collect::<Vec<_>>().join(", ");
+                format!("x {all}")
+            }
+        }
+    };
+    let numbers = group(cells.iter().map(|c| c.number_right).collect());
+    let mut line = format!("list size: numbers end at {numbers}");
+    let units: Vec<f32> = cells.iter().filter_map(|c| c.unit.as_ref().map(|u| u.1)).collect();
+    if !units.is_empty() {
+        line.push_str(&format!(", units start at {}", group(units)));
+    }
+    let mut each = cells
+        .iter()
+        .take(MAX)
+        .map(|c| match &c.unit {
+            Some((u, x)) => format!("{} {} {u} @{:.1}/{x:.1}", c.name, c.number, c.number_right),
+            None => format!("{} {} @{:.1}", c.name, c.number, c.number_right),
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+    if cells.len() > MAX {
+        each.push_str(&format!(" | … +{} more", cells.len() - MAX));
+    }
+    vec![line, format!("list size cells: {each}")]
+}
+
 /// `bell badge:`, `bell list:` and `bell rows:` from what the title bar and the notice list painted.
 fn bell_lines(badge: Option<ito_titlebar::Badge>, list: Option<&ito_notices::Painted>, bell: egui::Rect) -> Vec<String> {
     const MAX: usize = 20;
@@ -1492,6 +1621,8 @@ fn state_report(app: &App) -> String {
     lines.push(format!("max preview: {}", if app.max_preview { "on" } else { "off" }));
     lines.push(format!("quick: {}", if app.quick { "on" } else { "off" }));
     lines.push(format!("linemode: {}", app.tab().linemode.name()));
+    // The details view's Size cells as painted (69.13): where the numbers end and the units start.
+    lines.extend(list_size_lines(&app.list_size));
     // The right-hand value of each row of the current pane as painted: 69.12 (`m o`, the owner on every row)
     // could only be read off a picture. Rows with no value are listed too, so "every row" can be checked.
     if app.list_right.iter().any(|(_, v)| !v.is_empty()) {
@@ -1571,6 +1702,7 @@ fn state_report(app: &App) -> String {
     // What kura last put on the clipboard (`c` and friends), one line, cut
     // at 200 characters: read from outside it needed a second tool (#197).
     // Not what is on the clipboard, which may be someone else's.
+    lines.extend(clipboard_mode_line(clipboard_is_fake()));
     if let Some(text) = ito_clipboard::clipboard!().last_set() {
         let one: String = text.replace(['\r', '\n'], " / ").chars().take(200).collect();
         lines.push(format!("clipboard set: {one}"));
@@ -1694,6 +1826,10 @@ fn state_report(app: &App) -> String {
                 blank.push_str(&format!(", … +{} more", painted.blank.len() - MAX));
             }
             lines.push(format!("preview blank: {}", if blank.is_empty() { "none" } else { &blank }));
+        }
+        lines.push(preview_gutter_line(painted));
+        if let Some(c) = preview_coloured_line(painted) {
+            lines.push(c);
         }
     }
     // Where `<Enter>` would open the editor now (`T` and `<F3>`): the line on screen, or the one a jump or find hit left.
@@ -2554,6 +2690,84 @@ mod tests {
         assert!(state_report(&app).lines().any(|l| l.starts_with("list right: f0=x") && l.ends_with("f39=x | … +5 more")));
         app.list_right = vec![("a".into(), String::new())];
         assert!(!any(&app, "list right:"));
+    }
+
+    /// The gutter, the colour reach and the size cells are printed from their records and never worked out again.
+    #[test]
+    fn the_state_prints_the_gutter_the_colour_reach_and_the_size_cells() {
+        let dir = crate::util::test_dir("state-painted-3");
+        let mut app = App::new(crate::config::Config::load(), dir, egui::Context::default());
+        let line = |app: &App, p: &str| state_report(app).lines().find(|x| x.starts_with(p)).map(str::to_owned);
+        assert_eq!(line(&app, "preview gutter:"), None);
+        assert_eq!(line(&app, "list size"), None);
+        assert_eq!(line(&app, "preview coloured:"), None);
+
+        let dim = egui::Color32::from_rgb(0x5c, 0x63, 0x70);
+        app.preview_painted = ui::preview::PreviewPainted {
+            view: "text",
+            rows: 80..121,
+            fg: egui::Color32::from_rgb(0xab, 0xb2, 0xbf),
+            fg_dim: dim,
+            gutter: Some(ui::preview::Gutter { left: 20.0, right_min: 44.0, right_max: 44.0, colour: dim, count: 41, edges: vec![4400] }),
+            text: Some(ui::preview::TextBox { left: 52.0, right: 1180.0 }),
+            contents: Some((1200.0, 1400.0)),
+            coloured: Some(ui::preview::Coloured { lines: 2943, coloured: 80 }),
+            ..Default::default()
+        };
+        assert_eq!(
+            line(&app, "preview gutter:").unwrap(),
+            "preview gutter: numbers x 20.0-44.0, right edges 44.0-44.0, colour #5c6370 (dim #5c6370, text #abb2bf); text x 52.0-1180.0 (gap 8.0); contents x 1200.0-1400.0 (gap 20.0)"
+        );
+        assert_eq!(
+            line(&app, "preview coloured:").unwrap(),
+            "preview coloured: 80 of 2943 lines; drawn rows 80-120: 0-79 coloured, 80-120 plain"
+        );
+        app.preview_painted.rows = 2900..2943;
+        app.preview_painted.coloured = Some(ui::preview::Coloured { lines: 2943, coloured: 2943 });
+        assert_eq!(line(&app, "preview coloured:").unwrap(), "preview coloured: 2943 of 2943 lines; drawn rows 2900-2942 all coloured");
+        app.preview_painted.rows = 70..90;
+        app.preview_painted.coloured = Some(ui::preview::Coloured { lines: 200, coloured: 80 });
+        assert!(line(&app, "preview coloured:").unwrap().ends_with("drawn rows 70-89: 70-79 coloured, 80-89 plain"));
+        // No numbers and the outline to the left of the text; an alpha shows only when not opaque.
+        app.preview_painted.gutter = None;
+        app.preview_painted.text = Some(ui::preview::TextBox { left: 300.0, right: 900.0 });
+        app.preview_painted.contents = Some((10.0, 280.0));
+        assert_eq!(
+            line(&app, "preview gutter:").unwrap(),
+            "preview gutter: none; text x 300.0-900.0; contents x 10.0-280.0 (gap 20.0, left of text)"
+        );
+        app.preview_painted.contents = None;
+        assert_eq!(line(&app, "preview gutter:").unwrap(), "preview gutter: none; text x 300.0-900.0");
+        assert_eq!(hex_colour(egui::Color32::from_rgba_premultiplied(64, 32, 16, 128)), "#80402080");
+        assert_eq!(hex_rgba(egui::Color32::from_rgb(1, 2, 3)), "#010203ff");
+
+        let cell = |n: &str, num: &str, r: f32, unit: Option<(&str, f32)>| ui::list::SizeCell {
+            name: n.into(),
+            number: num.into(),
+            number_right: r,
+            unit: unit.map(|(u, x)| (u.into(), x)),
+        };
+        app.list_size = vec![cell("a.txt", "5", 812.0, Some(("B", 816.0))), cell("dir", "12", 812.0, None)];
+        assert_eq!(line(&app, "list size:").unwrap(), "list size: numbers end at x 812.0 (2 rows), units start at x 816.0 (1 row)");
+        assert_eq!(line(&app, "list size cells:").unwrap(), "list size cells: a.txt 5 B @812.0/816.0 | dir 12 @812.0");
+        app.list_size.push(cell("b", "7", 815.5, Some(("K", 819.5))));
+        assert!(line(&app, "list size:").unwrap().starts_with("list size: numbers end at x 812.0 (2 rows), 815.5 (1 row)"));
+        app.list_size = (0..45).map(|i| cell(&format!("f{i}"), "1", 812.0, None)).collect();
+        assert!(line(&app, "list size cells:").unwrap().ends_with("f39 1 @812.0 | … +5 more"));
+    }
+
+    /// `KURA_FAKE_CLIPBOARD` asks for the fake only with `1`; the state says so only while it is in use.
+    #[test]
+    fn the_fake_clipboard_is_asked_for_by_one_and_reported() {
+        assert!(fake_clipboard_wanted(Some("1")) && fake_clipboard_wanted(Some(" 1 ")));
+        assert!(
+            !fake_clipboard_wanted(None)
+                && !fake_clipboard_wanted(Some("0"))
+                && !fake_clipboard_wanted(Some(""))
+                && !fake_clipboard_wanted(Some("true"))
+        );
+        assert_eq!(clipboard_mode_line(true).as_deref(), Some("clipboard: fake"));
+        assert_eq!(clipboard_mode_line(false), None);
     }
 
     /// The bars, the blank rows, the task list and the frame cost are read back as lines: shapes, caps, absence.

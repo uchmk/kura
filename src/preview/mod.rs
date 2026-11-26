@@ -374,6 +374,9 @@ pub struct Extent {
     pub enc: &'static str,
     /// How the lines end.
     pub eol: Eol,
+    /// How many of the leading lines got syntax colour. An early payload carries only the first screen's worth,
+    /// a deep preview stops at `DEEP_COLOR_LINES`, and text with no grammar (or not read as source) has none: 0.
+    pub coloured: usize,
 }
 
 /// Whether the text preview of `path` is the file's own lines, so that a row of it is a line of

@@ -395,6 +395,65 @@ fn term_state_lines(app: &App) -> String {
     format!("term args: {:?}\nterm env names: {names:?}\n", app.cfg.term.args)
 }
 
+/// `painted`: the records the painters made this frame, as the `<State:>` text lines print them. Nothing is worked
+/// out again from app state; a sub-key is left out when nothing was recorded.
+fn painted_json(app: &App) -> state::Value {
+    use ito_mcp::serde_json::json;
+    let mut out = ito_mcp::serde_json::Map::new();
+    let p = &app.preview_painted;
+    if !p.view.is_empty() {
+        if let Some(g) = &p.gutter {
+            out.insert(
+                "preview_gutter".to_owned(),
+                json!({
+                    "numbers": g.count,
+                    // The first drawn row and the number painted on each drawn row (`-` for none), as `preview numbers:`
+                    // gives them, so "the numbers match the lines" can be checked, after a scroll too.
+                    "first_row": (!p.rows.is_empty()).then_some(p.rows.start),
+                    "by_row": p.numbers.iter().map(|n| n.map_or("-".to_owned(), |n| n.to_string())).collect::<Vec<_>>().join(", "),
+                    "right_edges": g.edges.len(),
+                    "colour": crate::hex_rgba(g.colour),
+                    "text_colour": crate::hex_rgba(p.fg),
+                    "contents_side": p.contents_side(),
+                }),
+            );
+        }
+        if let Some(c) = p.coloured {
+            let plain = p.rows.clone().filter(|&r| r >= c.coloured).count();
+            let (first, last) = (p.rows.start, p.rows.end.saturating_sub(1));
+            out.insert(
+                "preview_coloured".to_owned(),
+                json!({
+                    "lines": c.lines,
+                    "coloured": c.coloured,
+                    "drawn_first": (!p.rows.is_empty()).then_some(first),
+                    "drawn_last": (!p.rows.is_empty()).then_some(last),
+                    "drawn_plain": plain,
+                }),
+            );
+        }
+    }
+    if !app.list_size.is_empty() {
+        let distinct = |xs: Vec<f32>| xs.into_iter().map(|x| (x * 100.0).round() as i32).collect::<std::collections::BTreeSet<_>>().len();
+        let cells = &app.list_size;
+        let units: Vec<f32> = cells.iter().filter_map(|c| c.unit.as_ref().map(|u| u.1)).collect();
+        out.insert(
+            "list_size".to_owned(),
+            json!({
+                "rows": cells.len(),
+                "number_right_edges": distinct(cells.iter().map(|c| c.number_right).collect()),
+                "unit_left_edges": distinct(units.clone()),
+                "units": units.len(),
+                "folders": cells.len() - units.len(),
+            }),
+        );
+    }
+    if crate::clipboard_is_fake() {
+        out.insert("clipboard".to_owned(), "fake".into());
+    }
+    state::Value::Object(out)
+}
+
 /// The app's part of the state JSON: only what kura knows, as it is now.
 fn state_part(app: &App) -> state::App {
     let overlay = crate::overlay_name(app);
@@ -403,6 +462,7 @@ fn state_part(app: &App) -> state::App {
     if let Some(map) = app_state.as_mut().and_then(state::Value::as_object_mut) {
         map.insert("config_writes_pending".to_owned(), app.config_writes_pending().into());
         map.insert("config_write_failed".to_owned(), app.config_write_failed().into());
+        map.insert("painted".to_owned(), painted_json(app));
     }
     state::App {
         screen: Some(view.to_owned()),
@@ -2850,6 +2910,40 @@ mod tests {
     }
 
     #[test]
+    fn the_painted_gutter_gives_the_number_on_each_drawn_row() {
+        let dir = crate::util::test_dir("painted-gutter-json");
+        let mut screen = Screen::open(dir);
+        let dim = egui::Color32::from_rgb(0x79, 0x80, 0x8f);
+        screen.app.preview_painted = crate::ui::preview::PreviewPainted {
+            view: "markdown",
+            rows: 13..17,
+            fg: egui::Color32::from_rgb(0xc8, 0xcd, 0xd8),
+            fg_dim: dim,
+            numbers: vec![Some(14), None, None, Some(15)],
+            gutter: Some(crate::ui::preview::Gutter {
+                left: 20.0,
+                right_min: 44.0,
+                right_max: 44.0,
+                colour: dim,
+                count: 2,
+                edges: vec![4400],
+            }),
+            ..Default::default()
+        };
+        let v = painted_json(&screen.app);
+        let g = &v["preview_gutter"];
+        assert_eq!(g["first_row"], 13, "{v}");
+        assert_eq!(g["by_row"], "14, -, -, 15", "{v}");
+        assert_eq!((g["numbers"].as_u64(), g["right_edges"].as_u64()), (Some(2), Some(1)), "{v}");
+        assert_eq!(g["colour"], "#79808fff", "{v}");
+        screen.app.preview_painted.rows = 0..0;
+        screen.app.preview_painted.numbers.clear();
+        let v = painted_json(&screen.app);
+        assert!(v["preview_gutter"]["first_row"].is_null(), "nothing drawn, no first row: {v}");
+        assert_eq!(v["preview_gutter"]["by_row"], "", "{v}");
+    }
+
+    #[test]
     fn state_writes_the_json_beside_the_txt() {
         keyscript::run_id("KURA").unwrap();
         let id = keyscript::current_run_id().unwrap();
@@ -2864,6 +2958,8 @@ mod tests {
         assert_eq!(v["app_state"]["cwd"], rig.dir.display().to_string().as_str());
         assert_eq!(v["app_state"]["config_writes_pending"], false);
         assert!(v["app_state"]["config_write_failed"].is_null());
+        assert!(v["app_state"]["painted"].is_object(), "{v}");
+        assert!(v["app_state"]["painted"]["list_size"].is_null(), "no details view, no size cells: {v}");
         assert_eq!((v["app"]["name"].as_str(), v["app"]["version"].as_str()), (Some("kura"), Some(env!("CARGO_PKG_VERSION"))));
         assert_eq!(v["run_id"], id);
         assert!(read(&rig.dir.join("a.txt")).contains("cursor icon: Default\n"), "the txt stays");
