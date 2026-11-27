@@ -9,6 +9,17 @@
 
 ## [未リリース]
 
+## [0.168.21] - 2026-11-28
+
+### 変更
+
+- ito を 07b2823（v0.314.2）から 9bd898e（v0.317.0）に上げた。kura の画面の動きは変わらない。
+  - `--keys` の Shot の付属 JSON（`shots/<name>.json`）に `window` の欄が入る。kura の絵はいつも主の窓なので `null`。
+    レーンの `visual-check.py`・`evidence.py` を ito から写し直した（`scripts/lanes.sh sync`）。新しい `visual-check.py` は
+    `window` の無い付属 JSON を `window: missing` で落とすので、0.168.20 以前で撮った Shot は撮り直す。
+  - ito の新しい手順 `<Window:名前>`（子の窓に向ける）は、kura には主の窓しか無いので、スクリプトを読んだ時点で断る
+    （`a second window kura does not have`）。
+
 ## [0.168.20] - 2026-11-28
 
 ### 修正

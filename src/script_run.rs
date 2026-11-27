@@ -184,6 +184,8 @@ pub(crate) fn unsupported(press: &Press) -> Option<&'static str> {
         | Press::ClickId(_)
         | Press::IdCheck(_) => None,
         Press::Clipboard(_) | Press::ClipboardHas(_) => None,
+        // `<Window:name>` points the steps at a child window (ito 0.316.0); kura draws only its main window.
+        Press::Window { .. } => Some("a second window kura does not have"),
     }
 }
 
@@ -374,6 +376,8 @@ fn meta_of(seen: &Seen) -> review::Meta {
         rect,
         time: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()),
         pixels_per_point: seen.pixels_per_point,
+        // Every shot is of the main window: kura has no other.
+        window: None,
     }
 }
 
@@ -1045,6 +1049,8 @@ impl ScriptRun {
             Press::ClipboardHas(text) => verdict(keyscript::check_clipboard_has_after(ctx, self.since.unwrap_or_default(), text)),
             // Pace spends these itself and never hands them out.
             Press::Wait(_) | Press::Now => Taken::Failed("internal error: Pace handed out a step it spends itself".to_owned()),
+            // `Script::checked` refuses these (`unsupported`), so a run never gets one.
+            Press::Window { .. } => Taken::Failed("internal error: a `<Window:>` step got past the --keys guard".to_owned()),
         };
         (taken, edit)
     }
@@ -1860,6 +1866,10 @@ mod tests {
         // `<Snap:>` is carried out since v0.160.0 (it reads the window, so the observer is on).
         assert_eq!(unsupported(&p("<Snap:x>")), None);
         assert!(reads_window(&p("<Snap:x>")));
+        // `<Window:>` (ito 0.316.0) points at a child window, and kura has none.
+        for no in ["<Window:log>", "<Window:!log>", "<Window:main>"] {
+            assert_eq!(unsupported(&p(no)), Some("a second window kura does not have"), "{no}");
+        }
     }
 
     /// The key script `scripts/check-term-settings.sh` sends runs only on Linux CI, so a step kura
@@ -1928,6 +1938,8 @@ mod tests {
         assert!(json.contains("\"name\":\"x\""), "{json}");
         assert!(json.contains("\"app\":\"kura\""), "{json}");
         assert!(json.contains("\"component\":\"window\""), "{json}");
+        // The main window (ito 0.316.0); visual-check refuses a shot JSON with no `window` at all.
+        assert!(json.contains("\"window\":null"), "{json}");
     }
 
     #[test]
