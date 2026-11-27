@@ -79,6 +79,37 @@ pub struct PreviewSlot {
     /// again, for the answer to land on instead of the first one. Set by every
     /// request, so a stale value never outlives the next one.
     pub keep_match: Option<KeepMatch>,
+    /// How soon the file on show went on screen, for `<State:>`'s `preview timing:` (row 27.6).
+    pub timing: Option<PreviewTiming>,
+}
+
+/// When the cursor reached the file on show and when its first screen and its whole preview went on screen, for
+/// `preview timing:` in the state (row 27.6). Kept while the cursor stays on the file: switching a Markdown file
+/// between rendered and source (`M`) draws the same payload, and a file changed on disk is still the same look at it,
+/// so neither starts a new timing. Inside an archive it is kept under the unpacked copy's path, which is not the
+/// hovered entry's, so the state has no `preview timing:` there.
+pub struct PreviewTiming {
+    pub path: PathBuf,
+    pub since: Instant,
+    /// The first payload put on screen, and how: `early` (the uncoloured first screen), `whole`, `cached`, `error`.
+    pub first: Option<(Duration, &'static str)>,
+    pub whole: Option<Duration>,
+}
+
+impl PreviewTiming {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path, since: Instant::now(), first: None, whole: None }
+    }
+
+    /// Note a payload going on screen. Only the first values are kept, so a later re-layout (a resize re-reads
+    /// Markdown) cannot move them.
+    pub fn record(&mut self, kind: &'static str, whole: bool) {
+        let t = self.since.elapsed();
+        self.first.get_or_insert((t, kind));
+        if whole {
+            self.whole.get_or_insert(t);
+        }
+    }
 }
 
 /// The content-search match the reader was on when the file on show was
@@ -173,6 +204,7 @@ impl Default for PreviewSlot {
             pan: egui::Vec2::ZERO,
             fit: 1.0,
             keep_match: None,
+            timing: None,
         }
     }
 }

@@ -26,6 +26,7 @@ impl App {
             self.preview.key = None;
             self.preview.outline = None;
             self.preview.outline_wanted = None;
+            self.preview.timing = None;
             return;
         };
         // Inside an archive a small member is unpacked on a worker and its
@@ -65,6 +66,7 @@ impl App {
                     self.preview.recolor = false;
                     self.preview.key = None;
                     self.preview.texture = None;
+                    self.preview.timing = None;
                     return;
                 }
             }
@@ -90,6 +92,8 @@ impl App {
         if entry.is_dir_like() {
             self.preview.in_flight = false;
             self.preview.recolor = false;
+            // Coming back to the file from here is a new look at it, timed afresh.
+            self.preview.timing = None;
             let need = match &self.preview.state {
                 PreviewState::Dir(f) => f.path != entry.path,
                 _ => true,
@@ -112,6 +116,12 @@ impl App {
                 self.sync_watcher();
             }
             return;
+        }
+
+        // Starts on the first frame the cursor is on the file, before the debounce, so the wait counts. Leaving the
+        // file -- for another, a folder or nothing -- ends it.
+        if self.preview.timing.as_ref().is_none_or(|t| t.path != entry.path) {
+            self.preview.timing = Some(PreviewTiming::new(entry.path.clone()));
         }
 
         let deep = self.body_search_open();
@@ -158,6 +168,9 @@ impl App {
         // `look_changed` cleared it.
         let hit = if recolor { None } else { self.preview.cache.get(&key).cloned() };
         if let Some(hit) = hit {
+            if let Some(t) = self.preview.timing.as_mut().filter(|t| t.path == key.path) {
+                t.record("cached", true);
+            }
             // The same file again (a width seen before) keeps the reader's match.
             let same_file = self.preview.key.as_ref().is_some_and(|k| k.path == key.path && k.len == key.len && k.mtime == key.mtime);
             let keep = same_file.then(|| self.match_held()).flatten();
@@ -230,6 +243,13 @@ impl App {
     pub(super) fn on_preview(&mut self, res: preview::Response, ctx: &egui::Context) {
         if self.preview.key.as_ref() != Some(&res.key) {
             return; // stale
+        }
+        if let Some(t) = self.preview.timing.as_mut().filter(|t| t.path == res.key.path) {
+            match (res.partial, &res.payload) {
+                (true, _) => t.record("early", false),
+                (false, Payload::Error(_)) => t.record("error", true),
+                (false, _) => t.record("whole", true),
+            }
         }
         if res.partial {
             // Shown while the rest is colored. Still in flight, and the scroll

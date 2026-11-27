@@ -205,6 +205,9 @@ const MINIMAP_MIN_COLS: u16 = 56;
 /// Where the last frame's minimap answer is kept for the state file:
 /// `drawn, band 15-47 of 3984`, or why none was drawn (#261).
 pub const MINIMAP_NOTE: &str = "kura-minimap-note";
+/// What the minimap painter drew in the last frame: how many bands, how many in the plain text colour and whether
+/// the last was coloured, for `minimap colour:` in the state (row 27.6).
+pub const MINIMAP_COLOUR: &str = "kura-minimap-colour";
 /// Height of one minimap band. Two pixels is enough to read the shape of a
 /// file and coarse enough that a thousand lines fit in a pane.
 const BAND_H: f32 = 2.0;
@@ -340,7 +343,10 @@ fn draw_pane(
     let pane_rows = rows(rect, st);
     // Said again by whichever arm below has a minimap to speak of, so the
     // state file never keeps the last text file's answer for an image.
-    ui.ctx().data_mut(|d| d.remove_temp::<String>(egui::Id::new(MINIMAP_NOTE)));
+    ui.ctx().data_mut(|d| {
+        d.remove_temp::<String>(egui::Id::new(MINIMAP_NOTE));
+        d.remove_temp::<String>(egui::Id::new(MINIMAP_COLOUR));
+    });
 
     let lines = match state {
         PreviewState::Empty => 0,
@@ -805,6 +811,7 @@ fn minimap(
     // columns fills the strip and anything longer is simply clamped.
     let unit = rect.width() / 80.0;
     let ppp = painter.ctx().pixels_per_point();
+    let (mut drawn, mut plain, mut last_coloured) = (0usize, 0usize, false);
     for (b, band) in map.chunks(per).enumerate() {
         let Some(lead) = band.iter().filter(|r| r.len > 0).max_by_key(|r| r.len) else {
             continue; // an all-blank band leaves a gap, which is the point
@@ -826,6 +833,9 @@ fn minimap(
         // fainter band instead.
         let (top, bottom) = band_pixels(y, at((b + 1) * per).min(rect.bottom()), ppp);
         let filled = band.iter().filter(|r| r.len > 0).count() as f32 / band.len() as f32;
+        drawn += 1;
+        plain += lead.color.is_none() as usize;
+        last_coloured = lead.color.is_some();
         let color = lead.color.map_or(theme.fg, |[r, g, b]| Color32::from_rgb(r, g, b));
         painter.rect_filled(
             Rect::from_min_max(pos2(x0, top), pos2(x1.max(x0 + 1.0), bottom)),
@@ -833,6 +843,8 @@ fn minimap(
             color.gamma_multiply(0.7 * filled.max(0.35)),
         );
     }
+
+    painter.ctx().data_mut(|d| d.insert_temp(egui::Id::new(MINIMAP_COLOUR), minimap_colour_note(drawn, plain, last_coloured)));
 
     // --- where the pane is looking ---
     let view = Rect::from_x_y_ranges(rect.x_range(), at(offset)..=at(offset + on_screen));
@@ -851,6 +863,16 @@ fn minimap(
     let want = line_at_y(resp.interact_pointer_pos()?.y, rect, map.len());
     // Land with the line pointed at in the middle of the pane, not at its top.
     Some(want.saturating_sub(on_screen / 2))
+}
+
+/// The `minimap colour:` text: bands painted, how many of them in the plain text colour, and the last band's kind.
+fn minimap_colour_note(drawn: usize, plain: usize, last_coloured: bool) -> String {
+    match drawn {
+        0 => "0 bands drawn".to_owned(),
+        _ => {
+            format!("{drawn} bands drawn, {plain} in the plain text colour; last band {}", if last_coloured { "coloured" } else { "plain" })
+        }
+    }
 }
 
 fn rows(rect: Rect, st: &PreviewStyle<'_>) -> usize {
@@ -1575,6 +1597,60 @@ mod tests {
         let (rect, st) = pane(cols, &theme, true);
         let (body, _) = split_minimap(rect, &rows_of(500), &st);
         assert!(pane_cols(body, &st) < SOURCE_OUTLINE_MIN_COLS, "and does not once the map has taken its strip");
+    }
+
+    /// Draw the minimap once over `map` and read back what `<State:>` would say about its colour (row 27.6).
+    fn minimap_colour_of(map: &[MapRow]) -> String {
+        let ctx = egui::Context::default();
+        let theme = Theme::default();
+        let (_, st) = pane(120.0, &theme, true);
+        let mut out = ctx.run_ui(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let painter = ui.painter().clone();
+                minimap(ui, &painter, Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 200.0)), map, 0, 20, &st);
+            });
+        });
+        out.textures_delta.clear();
+        ctx.data(|d| d.get_temp::<String>(egui::Id::new(MINIMAP_COLOUR))).expect("the minimap says its colour")
+    }
+
+    #[test]
+    fn the_minimap_colour_says_every_band_is_coloured() {
+        let map = vec![MapRow { indent: 0, len: 10, color: Some([200, 100, 50]) }; 100];
+        let s = minimap_colour_of(&map);
+        assert!(s.contains(" bands drawn, 0 in the plain text colour; last band coloured"), "{s}");
+    }
+
+    #[test]
+    fn the_minimap_colour_says_plain_lines_are_plain() {
+        let s = minimap_colour_of(&rows_of(100));
+        let (n, _) = s.split_once(" bands drawn").expect("bands drawn");
+        assert!(s.contains(&format!(", {n} in the plain text colour; last band plain")), "{s}");
+    }
+
+    /// An early first screen: the top coloured, the rest still plain. And blank lines at the end leave gaps, which
+    /// are not bands and so do not make the last band plain.
+    #[test]
+    fn the_minimap_colour_counts_a_half_coloured_map_and_skips_gaps() {
+        let coloured = MapRow { indent: 0, len: 10, color: Some([200, 100, 50]) };
+        let mut map = vec![coloured; 50];
+        map.extend(rows_of(50));
+        let s = minimap_colour_of(&map);
+        let (n, rest) = s.split_once(" bands drawn, ").expect("bands drawn");
+        let (plain, _) = rest.split_once(' ').unwrap();
+        let (n, plain): (usize, usize) = (n.parse().unwrap(), plain.parse().unwrap());
+        assert!(0 < plain && plain < n, "{s}");
+        assert!(s.ends_with("last band plain"), "{s}");
+
+        let mut map = vec![coloured; 50];
+        map.extend(vec![MapRow::default(); 50]);
+        let s = minimap_colour_of(&map);
+        assert!(s.contains(" bands drawn, 0 in the plain text colour; last band coloured"), "{s}");
+    }
+
+    #[test]
+    fn the_minimap_colour_note_with_no_band_drawn() {
+        assert_eq!(minimap_colour_note(0, 0, false), "0 bands drawn");
     }
 }
 

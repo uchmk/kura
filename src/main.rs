@@ -1339,6 +1339,19 @@ fn preview_coloured_line(p: &ui::preview::PreviewPainted) -> Option<String> {
     Some(format!("preview coloured: {} of {} lines; {rows}", c.coloured, c.lines))
 }
 
+/// `preview timing:` for the file under the cursor: how long after the cursor reached it its first screen and its
+/// whole (coloured) preview went on screen (row 27.6).
+fn preview_timing_line(t: &app::PreviewTiming, now: std::time::Instant) -> String {
+    let so_far = now.saturating_duration_since(t.since).as_millis();
+    match (t.first, t.whole) {
+        (None, _) => format!("preview timing: nothing shown yet ({so_far} ms so far)"),
+        (Some((f, how)), Some(w)) => format!("preview timing: first screen {} ms ({how}), whole {} ms", f.as_millis(), w.as_millis()),
+        (Some((f, how)), None) => {
+            format!("preview timing: first screen {} ms ({how}), whole not yet ({so_far} ms so far)", f.as_millis())
+        }
+    }
+}
+
 /// `list size:` and `list size cells:` from the details view's Size cells as painted (row 69.13).
 fn list_size_lines(cells: &[ui::list::SizeCell]) -> Vec<String> {
     const MAX: usize = 40;
@@ -1769,8 +1782,14 @@ fn state_report(app: &App) -> String {
     // show loading or miss the early screen. A following plain `<State:b>`
     // waits for settle. Since v0.154.0 every `<State:>` ends with
     // `since last action: N ms`, which says how soon after the last key the
-    // reading was taken.
+    // reading was taken. `preview timing:` says how soon after the cursor reached the file the
+    // first screen and the whole one went on screen (row 27.6).
     lines.push(format!("preview: {}", if app.preview.early { "early" } else { "whole" }));
+    if let (Some(t), Some(h)) = (&app.preview.timing, tab.current.hovered()) {
+        if t.path == h.path && !h.is_dir_like() {
+            lines.push(preview_timing_line(t, std::time::Instant::now()));
+        }
+    }
     // The pictures drawn in rendered Markdown (#490): how many, and for each the document rows it
     // covers, its file's size in pixels and its size on screen in points.
     if let app::PreviewState::Ready(preview::Payload::Markdown { doc, .. }) = &app.preview.state {
@@ -1905,6 +1924,9 @@ fn state_report(app: &App) -> String {
     // covers, or why not. 2, 16.12 and 18 judged it from a picture (#261).
     if let Some(note) = app.ctx.data(|d| d.get_temp::<String>(egui::Id::new(ui::preview::MINIMAP_NOTE))) {
         lines.push(format!("minimap: {note}"));
+    }
+    if let Some(s) = app.ctx.data(|d| d.get_temp::<String>(egui::Id::new(ui::preview::MINIMAP_COLOUR))) {
+        lines.push(format!("minimap colour: {s}"));
     }
     lines.push(format!("split: {}", app.split.map_or("no".into(), |s| format!("yes, keys {}", if s.right { "right" } else { "left" }))));
     // What the clock shows and in which language, from common.toml, so a
@@ -2311,6 +2333,20 @@ fn _unused(app: &mut App) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn preview_timing_line_has_three_shapes() {
+        use std::time::Instant;
+        let ms = Duration::from_millis;
+        let now = Instant::now();
+        let mut t = app::PreviewTiming::new(PathBuf::from("/x/a.rs"));
+        t.since = now - ms(500);
+        assert_eq!(preview_timing_line(&t, now), "preview timing: nothing shown yet (500 ms so far)");
+        t.first = Some((ms(63), "early"));
+        assert_eq!(preview_timing_line(&t, now), "preview timing: first screen 63 ms (early), whole not yet (500 ms so far)");
+        t.whole = Some(ms(352));
+        assert_eq!(preview_timing_line(&t, now), "preview timing: first screen 63 ms (early), whole 352 ms");
+    }
+
     #[test]
     fn ascii_and_none_force_plain_icons_even_with_a_nerd_font() {
         use super::plain_icons;

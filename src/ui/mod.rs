@@ -501,6 +501,12 @@ pub(super) fn draw_preview(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, r
     // the fit scale behind for the decode box to be judged against.
     image_input(app, ui, rect);
     app.preview.box_size = app::zoom_box(pane_px, app.preview.zoom, app.preview.fit);
+    // A folder's listing below never reaches the text pane, which is where these are said again: without this the
+    // state kept the last file's minimap under a folder.
+    ui.ctx().data_mut(|d| {
+        d.remove_temp::<String>(egui::Id::new(preview::MINIMAP_NOTE));
+        d.remove_temp::<String>(egui::Id::new(preview::MINIMAP_COLOUR));
+    });
     match &app.preview.state {
         PreviewState::Dir(folder) => {
             let st = list::ListStyle {
