@@ -1,0 +1,83 @@
+# Row 49.12: after the window is made narrower and wide again, the OSC 133 prompt marks are still on the lines ConPTY
+# drew again. `<C-S-l>` copies `dir`'s whole listing and nothing else, `<C-S-Up>` puts `dir`'s prompt on the pane's
+# top row, and the green bar is still beside `dir`'s output.
+#
+# Run with KURA_TERM_SHELL=pwsh, KURA_TERM_ARGS=-NoProfile and KURA_FAKE_CLIPBOARD=1, and with the bundled ConPTY
+# beside kura.exe (scripts/fetch-conpty.ps1). Keys, from the fixture folder:
+#   <Size:1040x700><Lang:en><Wait:500><C-t><ReadHas:PaneText=PS >
+#   <Paste:function prompt { ... the OSC 133 prompt from TESTING.md ... }><Enter><Wait:1500>
+#   <Paste:dir><Enter><ReadHas:PaneText=f16.txt><Wait:1000><State:before><PaneText:before><Snap:before>
+#   <Size:520x700><Wait:2000><State:narrow><PaneText:narrow><Snap:narrow>
+#   <Size:1040x700><Wait:2000><State:wide><PaneText:wide><Snap:wide>
+#   <C-S-l><Wait:500><State:copied><C-S-Up><Wait:800><State:up><PaneText:up><Snap:up><Quit>
+#
+# Inside `<Paste:>` the prompt's backslashes are written `\\` and its `>` is `\x3e`.
+#
+# The fixture's 16 files make the listing longer than the pane's 12 rows, so `dir`'s prompt is above the top row
+# when `<C-S-Up>` is pressed. Its file lines are under 60 columns, so the 520 pt window wraps none of them; the prompt
+# and the `Directory:` line grow with the folder's path and may wrap. The ConPTY built into Windows keeps nothing
+# above the screen and loses lines that a narrower width wraps off the top, so run this row with the bundled one.
+#
+# The toast's count is the listing's: a blank line, `Directory:` (`ディレクトリ:` on a Japanese Windows), a blank
+# line, the two header lines and the 16 files make 21. A copy that took the prompt or the `dir` line, or lost lines,
+# would count otherwise. Read with the spec, not by it (the spec checks only the 1040 x 700 pictures, as its window
+# says):
+# - narrow.txt: the pane's scrollback grows (18 to 23 rows from R:\Temp\<GUID>\fx-all\pane-dir; the count goes with
+#   the folder path's length) as the prompt and `Directory:` lines wrap, and state/narrow.json's window is 780 px
+#   wide. That is the width change.
+# - keys.done.clipboard holds the 21 lines, ending with f16.txt: no prompt line, no `dir` line, no blank line at the
+#   end (49.3).
+# - up.txt reads `pane back: 15 of 18`, and up.pane.txt's first line is the prompt with `dir` after it.
+#
+# The prompt is set before `dir`, so `dir` is the only block that can have ended: one bar, green. A bar runs in the
+# pane's left margin from a command's prompt to the next (ito-pane's view.rs): 2 pt wide, 2 pt in from the pane's left
+# edge, so 3 px and 3 px at 1.5. In `wide` it runs from the screen's top to the new prompt; in `up`, from `dir`'s
+# prompt on the top row to the pane's bottom.
+spec = 1
+row = "49.12"
+tier = 1
+fixtures = "pane-dir"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "bar-green-after-width-change"
+snap = "wide"
+target = "pane.mark.0"
+fail_looks_like = "幅を戻したあと、dir の横の緑のバーが無い（印が消えた）"
+expect = { present = true, color_token = { token = "success", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+
+[[point]]
+id = "one-bar-after-width-change"
+snap = "wide"
+target = "pane.mark.1"
+fail_looks_like = "描き直しのあと、打っていないコマンドの分までバーが出ている"
+expect = { present = false }
+
+[[point]]
+id = "copied-whole-listing"
+snap = "up"
+target = "pane.mark.0"
+fail_looks_like = "<C-S-l> のトーストが無いか、写した行数が dir の一覧の 21 行と違う"
+expect = { present = true, toast = { text = "Copied the last command's output (21 lines)" } }
+
+[[point]]
+id = "bar-green-at-dir-prompt"
+snap = "up"
+target = "pane.mark.0"
+fail_looks_like = "<C-S-Up> のあと、dir の横のバーが緑ではない"
+expect = { present = true, color_token = { token = "success", delta_e_max = 3, min_fraction = 0.95, inset_px = 1 } }
+
+[[point]]
+id = "bar-thin-in-left-margin"
+snap = "up"
+target = "pane.mark.0"
+relative_to = "app.root"
+fail_looks_like = "dir のバーが細くない、ペインの左の余白にない、1 行分の高さがない"
+expect = { present = true, width_px = { min = 2, max = 4 }, height_px = { min = 15 }, left_gap_px = { min = 2, max = 4 } }
+
+[[point]]
+id = "one-bar-at-dir-prompt"
+snap = "up"
+target = "pane.mark.1"
+fail_looks_like = "打っていないコマンドの分までバーが出ている"
+expect = { present = false }

@@ -336,6 +336,17 @@ try {
     Pop-Location
 }
 
+# --- row 49.12: a `dir` longer than the terminal pane's 12 rows, so its prompt
+# --- goes above the pane's top row, with file lines short enough (under 60
+# --- columns) that a 520 pt window wraps none of them. The prompt and the
+# --- `Directory:` line grow with the folder's path and may wrap.
+$paneDir = New-Dir 'pane-dir'
+1..16 | ForEach-Object {
+    Set-Content -LiteralPath (Join-Path $paneDir ("f{0:D2}.txt" -f $_)) -Value "line $_" -Encoding ASCII
+}
+Write-Host '  pane-dir\            f01.txt to f16.txt: a dir listing longer than the terminal pane (49.12)'
+Test-Count $paneDir 16 'pane-dir'
+
 # --- a light overall theme for 33.6: copy it into %APPDATA%\yazi\config\.
 # ASCII, so Windows PowerShell writes no byte-order mark in front of the TOML.
 $light = New-Dir 'theme-light'
