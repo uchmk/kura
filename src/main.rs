@@ -3379,7 +3379,10 @@ mod bug_report_f12 {
         assert!(state_report(&s.app).contains("launched: "), "started, as far as it knows");
         assert!(s.app.toasts.iter().any(|t| t.text.starts_with("$ no-such-tool-xyz")), "said it started");
         let ctx = egui::Context::default();
-        for _ in 0..100 {
+        // As long as the shell is watched in a test (`exec::WATCH_FOR`): under the whole suite's load the shell has
+        // taken more than 3 s to fall over (#532).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while std::time::Instant::now() < deadline {
             s.app.drain_channels(&ctx);
             if state_report(&s.app).contains("launch failed: no-such-tool-xyz") {
                 assert!(!state_report(&s.app).contains("launched: "));

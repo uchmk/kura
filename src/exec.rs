@@ -274,6 +274,11 @@ pub struct Launch {
     pub pid: Option<u32>,
 }
 
+/// How long [`Launch::watch`] watches a shell. The tests take longer: with the whole suite running in
+/// parallel, a `cmd /c` that cannot run its line has taken more than 3 s to exit, and the test that waits
+/// for its failure then saw none (#532).
+const WATCH_FOR: Duration = if cfg!(test) { Duration::from_secs(30) } else { Duration::from_secs(3) };
+
 impl Launch {
     /// A launch with nothing to wait for — the caller can already see how it
     /// went, because it has a console of its own.
@@ -296,7 +301,7 @@ impl Launch {
         let pid = Some(child.id());
         let cmdline = cmdline.to_owned();
         std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(3);
+            let deadline = Instant::now() + WATCH_FOR;
             loop {
                 match child.try_wait() {
                     Ok(Some(st)) if st.success() => return,
