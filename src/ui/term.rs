@@ -26,14 +26,77 @@ fn palette(theme: &Theme) -> ito_pane::Palette {
     }
 }
 
+/// How many frames of a drag `App::term_drag` keeps (enough to see the selection grow, not to grow without end).
+pub const TERM_DRAG_KEPT: usize = 24;
+
+/// What the pane drew of its selection in one frame, as `cell_rows` marks it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelShown {
+    /// Selected cells on the screen.
+    pub cells: usize,
+    /// The first screen row with any (0 = the top row on screen), and its first and last selected column.
+    pub row: usize,
+    pub first_col: usize,
+    pub last_col: usize,
+}
+
+/// What of the selection is on the screen, from the rows the view paints (row 1.11: a check has to see that the
+/// selection was drawn, not only that it was copied). `None` when no cell is selected (nothing selected, or scrolled
+/// off). Only `selected` counts: a `found` cell is painted in the other colour.
+pub fn selection_shown(rows: &[Vec<crate::terminal::CellView>]) -> Option<SelShown> {
+    let mut cells = 0;
+    let mut first: Option<(usize, usize, usize)> = None;
+    for (r, row) in rows.iter().enumerate() {
+        let mut span: Option<(usize, usize)> = None;
+        for (c, cell) in row.iter().enumerate() {
+            if cell.selected {
+                cells += 1;
+                span = Some(span.map_or((c, c), |(a, _)| (a, c)));
+            }
+        }
+        if first.is_none() {
+            first = span.map(|(a, b)| (r, a, b));
+        }
+    }
+    first.map(|(row, first_col, last_col)| SelShown { cells, row, first_col, last_col })
+}
+
 pub fn draw(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     let pal = palette(&app.cfg.theme);
+    // What this frame will paint of the selection: the view takes its rows before it handles this frame's pointer,
+    // so the selection as it is now is what is drawn. The grid is copied only while something is selected.
+    let (pressed, held, origin) = ui.input(|i| (i.pointer.primary_pressed(), i.pointer.primary_down(), i.pointer.press_origin()));
+    let from_pane = origin.is_some_and(|p| rect.contains(p));
+    let sel =
+        app.term.as_ref().filter(|t| t.has_selection()).and_then(|t| t.with_grid(|g| selection_shown(&crate::terminal::cell_rows(g))));
+    if pressed && from_pane {
+        app.term_drag.clear();
+        app.term_drag_frames = 0;
+    }
+    if held && from_pane {
+        app.term_drag_frames += 1;
+        if app.term_drag.len() < TERM_DRAG_KEPT {
+            app.term_drag.push(sel.map_or(0, |s| s.cells));
+        }
+    }
     // A panel over the pane owns the wheel; see `Overlay::is_modal`. Letting
     // go of a selection always copies it (below), and kura has no triggers.
     let opts = ito_pane::ViewOptions { focused: app.term_focus, wheel: !app.overlay.is_modal(), copy_on_select: true, highlights: &[] };
     let mut state = ito_pane::ViewState { scroll_rows: app.term_scroll_rows };
     let shown = ito_pane::show(ui, app.term.as_mut(), &mut state, rect, f, row_h, &pal, opts);
     app.term_scroll_rows = state.scroll_rows;
+    app.term_grid = shown.grid;
+    app.term_sel = sel;
+    // A hover-only hook with a Test ID over the first selected row's run of cells, so a check spec can sample the
+    // selection colour (row 1.11). It takes no click or drag, so the pane still gets them.
+    if let (Some(s), Some((origin, cell))) = (sel, shown.grid) {
+        let at = origin + vec2(s.first_col as f32 * cell.x, s.row as f32 * cell.y);
+        let r = Rect::from_min_size(at, vec2((s.last_col - s.first_col + 1) as f32 * cell.x, cell.y)).intersect(rect);
+        if r.width() > 0.0 && r.height() > 0.0 {
+            let hook = ui.interact(r, ui.id().with("pane-selection"), egui::Sense::hover());
+            ito_a11y::test_id_in(ui, &hook, "pane.selection", None);
+        }
+    }
     if shown.focus {
         app.term_focus = true;
     }
@@ -83,5 +146,38 @@ pub fn draw(app: &mut App, ui: &mut Ui, rect: Rect, f: &FontId, row_h: f32) {
     // can block for seconds on X11; `drain_channels` pastes the answer.
     if shown.paste {
         app.start_term_paste();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::terminal::alacritty_terminal::term::cell::Flags;
+    use crate::terminal::alacritty_terminal::vte::ansi::{Color, NamedColor};
+
+    fn cell(selected: bool, found: bool) -> crate::terminal::CellView {
+        crate::terminal::CellView {
+            c: 'x',
+            fg: Color::Named(NamedColor::Foreground),
+            bg: Color::Named(NamedColor::Background),
+            flags: Flags::empty(),
+            ul: None,
+            selected,
+            found,
+        }
+    }
+
+    fn row(selected: std::ops::Range<usize>) -> Vec<crate::terminal::CellView> {
+        (0..10).map(|c| cell(selected.contains(&c), false)).collect()
+    }
+
+    #[test]
+    fn selection_shown_reads_the_marked_cells() {
+        assert_eq!(selection_shown(&[]), None);
+        assert_eq!(selection_shown(&[row(0..0), row(0..0)]), None);
+        assert_eq!(selection_shown(&[row(2..6)]), Some(SelShown { cells: 4, row: 0, first_col: 2, last_col: 5 }));
+        assert_eq!(selection_shown(&[row(0..0), row(3..10), row(0..4)]), Some(SelShown { cells: 11, row: 1, first_col: 3, last_col: 9 }));
+        let found: Vec<_> = (0..4).map(|_| cell(false, true)).collect();
+        assert_eq!(selection_shown(&[found]), None);
     }
 }

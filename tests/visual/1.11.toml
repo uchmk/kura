@@ -1,0 +1,33 @@
+# Row 1.11: a drag across the terminal pane's output highlights as it goes, and the selection stays drawn in the
+# common theme's selection colour (`theme.common.selection()`, ito-select's) after the copy.
+#
+# Run with KURA_TERM_SHELL=pwsh, KURA_TERM_ARGS=-NoProfile and KURA_FAKE_CLIPBOARD=1. Keys, from any folder:
+#   <Size:1040x700><Lang:en><Wait:500><C-t><ReadHas:PaneText=PS ><Paste:Clear-Host; echo ('kura-drag-' + '1-11')>
+#   <Enter><ReadHas:PaneText=kura-drag-1-11><Wait:800><State:g0><Drag:0.0074,0.6479-0.1172,0.6479>
+#   <Clipboard:kura-drag-1-11><Wait:300><State:sel><Snap:sel><PaneText:sel><Quit>
+#
+# The echo is written in two halves, so `<ReadHas:>` waits for the output and not for the typed line, and
+# `Clear-Host` puts the output on the pane's top row. The drag's two places come from `pane grid:` in g0.txt (first
+# cell at 6.0,442.0, cells 8.4 x 23.0 pt in a 1040 x 700 window): the middle of row 0, from 0.2 of column 0 to 0.8 of
+# column 13, so the 14 characters are taken from both ends (1.11b, 1.11c). Read with the spec, not by it:
+# - `<Clipboard:kura-drag-1-11>` passes. That is the copy when the drag ends.
+# - In sel.txt, `pane drag:` lists the selected cells each frame drew while the button was held. Some are drawn
+#   before the release; that is the highlighting as you drag.
+# - `pane selection: 14 cells drawn, first on row 0, columns 0-13`.
+#
+# `pane.selection` is a hover-only hook over the first selected row's run of cells. The pane fills a selected cell
+# with `selection` and draws its letter on it in the cell's own colour, so the letters take part of the box; an
+# unselected cell is `bg`, dE2000 well over 10 from `selection` in tsumugi Dark. Before v0.112.7 the fill was the list
+# cursor's `hovered_bg`, and before v0.20.4 there was none.
+spec = 1
+row = "1.11"
+tier = 1
+fixtures = "any"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "selection-drawn"
+snap = "sel"
+target = "pane.selection"
+expect = { present = true, color_token = { token = "selection", delta_e_max = 3, min_fraction = 0.6, inset_px = 1 } }
+fail_looks_like = "The dragged text is not filled with the selection colour, or nothing is marked as selected."

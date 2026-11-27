@@ -280,7 +280,9 @@ fn main() -> eframe::Result<()> {
     if fake_clipboard_wanted(std::env::var("KURA_FAKE_CLIPBOARD").ok().as_deref()) {
         // The guard is `!Send` and pops the fake when dropped. It has to outlive the event loop, so it is
         // leaked: `main` returns only at process exit, and a thread_local would drop it on the way out.
-        std::mem::forget(ito_clipboard::Fake::new().enter());
+        // `noting`: a copy to the fake is also given to the key script's record, as one to the OS clipboard is,
+        // so `<Clipboard:>` and `<ClipboardHas:>` see it (row 1.11; without, they said nothing was copied).
+        std::mem::forget(ito_clipboard::Fake::new().noting().enter());
     }
     let mut cfg = Config::load();
 
@@ -1352,6 +1354,32 @@ fn preview_timing_line(t: &app::PreviewTiming, now: std::time::Instant) -> Strin
     }
 }
 
+/// `pane grid:` where the terminal pane's first cell was drawn and a cell's size (row 1.11).
+fn pane_grid_line(g: Option<(egui::Pos2, egui::Vec2)>) -> String {
+    match g {
+        Some((p, c)) => format!("pane grid: first cell at {:.1},{:.1}, cell {:.1}x{:.1}", p.x, p.y, c.x, c.y),
+        None => "pane grid: not drawn".to_owned(),
+    }
+}
+
+/// `pane selection:` what the pane drew of its selection in the last frame (row 1.11).
+fn pane_selection_line(s: Option<ui::term::SelShown>) -> String {
+    match s {
+        Some(s) => format!("pane selection: {} cells drawn, first on row {}, columns {}-{}", s.cells, s.row, s.first_col, s.last_col),
+        None => "pane selection: none drawn".to_owned(),
+    }
+}
+
+/// `pane drag:` the selected cells each frame drew while the button was held after a press in the pane (row 1.11).
+fn pane_drag_line(frames: usize, cells: &[usize]) -> String {
+    if frames == 0 {
+        return "pane drag: no press in the pane yet".to_owned();
+    }
+    let list = cells.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", ");
+    let more = if frames > cells.len() { ", …" } else { "" };
+    format!("pane drag: {frames} frames with the button held after a press in the pane; selected cells drawn: {list}{more}")
+}
+
 /// `list size:` and `list size cells:` from the details view's Size cells as painted (row 69.13).
 fn list_size_lines(cells: &[ui::list::SizeCell]) -> Vec<String> {
     const MAX: usize = 40;
@@ -1634,6 +1662,10 @@ fn state_report(app: &App) -> String {
         lines.push(format!("pane cursor: {col},{row}"));
         // The title the pane reports; empty is shown too, since v0.85.3 asks the dialog whether it is.
         lines.push(format!("pane title: {}", t.title));
+        // Row 1.11: was the selection drawn while the button was held, and which cells.
+        lines.push(pane_grid_line(app.term_grid));
+        lines.push(pane_selection_line(app.term_sel));
+        lines.push(pane_drag_line(app.term_drag_frames, &app.term_drag));
     }
     // The panes that are not overlays (#165): `T` and `<F3>`'s quick look.
     lines.push(format!("max preview: {}", if app.max_preview { "on" } else { "off" }));
@@ -2333,6 +2365,27 @@ fn _unused(app: &mut App) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn pane_lines_have_their_shapes() {
+        assert_eq!(pane_grid_line(None), "pane grid: not drawn");
+        assert_eq!(
+            pane_grid_line(Some((egui::pos2(12.0, 520.0), egui::vec2(8.4, 18.0)))),
+            "pane grid: first cell at 12.0,520.0, cell 8.4x18.0"
+        );
+        assert_eq!(pane_selection_line(None), "pane selection: none drawn");
+        let s = ui::term::SelShown { cells: 14, row: 1, first_col: 0, last_col: 13 };
+        assert_eq!(pane_selection_line(Some(s)), "pane selection: 14 cells drawn, first on row 1, columns 0-13");
+        assert_eq!(pane_drag_line(0, &[]), "pane drag: no press in the pane yet");
+        assert_eq!(
+            pane_drag_line(6, &[0, 0, 4, 9, 13, 14]),
+            "pane drag: 6 frames with the button held after a press in the pane; selected cells drawn: 0, 0, 4, 9, 13, 14"
+        );
+        assert_eq!(
+            pane_drag_line(30, &[0, 4]),
+            "pane drag: 30 frames with the button held after a press in the pane; selected cells drawn: 0, 4, …"
+        );
+    }
+
     #[test]
     fn preview_timing_line_has_three_shapes() {
         use std::time::Instant;

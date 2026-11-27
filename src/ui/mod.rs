@@ -6,7 +6,7 @@ pub(crate) mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;
 pub(crate) mod settings;
-mod term;
+pub(crate) mod term;
 
 use egui::{Align2, Color32, CornerRadius, FontFamily, FontId, Rect, Stroke, Ui, Vec2};
 

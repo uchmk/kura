@@ -122,6 +122,15 @@ pub struct App {
     /// make the view jump when the pointer crossed between them mid-turn.
     /// See [`crate::ui::wheel_whole`] for why the remainder has to be kept.
     pub term_scroll_rows: f32,
+    /// The selected cells each frame drew while the left button was held after a press in the terminal pane, oldest
+    /// first (at most `ui::term::TERM_DRAG_KEPT`), and how many such frames there were; the next press there starts
+    /// them again. For `pane drag:` in the `--keys` state (row 1.11: the selection is drawn as the drag goes).
+    pub term_drag: Vec<usize>,
+    pub term_drag_frames: usize,
+    /// Where the pane's first cell was drawn and a cell's size, in points, and what it drew of its selection, in the
+    /// last frame (`pane grid:`, `pane selection:`).
+    pub term_grid: Option<(egui::Pos2, egui::Vec2)>,
+    pub term_sel: Option<crate::ui::term::SelShown>,
     pub preview_scroll_rows: f32,
     /// One per place a file list is drawn: the left of the split, and the
     /// middle column (the right of the split). The two lists of a split are
@@ -510,6 +519,10 @@ impl App {
             term_focus: false,
             spot_asked: None,
             term_scroll_rows: 0.0,
+            term_drag: Vec::new(),
+            term_drag_frames: 0,
+            term_grid: None,
+            term_sel: None,
             preview_scroll_rows: 0.0,
             list_scroll_rows: [0.0; 2],
             term_needle: String::new(),
