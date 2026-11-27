@@ -655,3 +655,88 @@ fn the_oldest_steps_fall_off_the_bottom() {
     assert_eq!(u.undo.len(), Undos::MAX);
     assert_eq!(u.undo[0], renamed("a10", "b10"), "the first ten are gone");
 }
+
+/// Row 61.6: a huge log whose index is half built, a key for it, and the gate that holds the build.
+fn half_built_log(dir: &Path, name: &str) -> (Arc<crate::preview::logindex::LogIndex>, Arc<std::sync::atomic::AtomicBool>, preview::Key) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let f = dir.join(name);
+    let line = "a line of a log file, long enough to be worth indexing\n";
+    std::fs::write(&f, line.repeat(600_000 / line.len())).unwrap();
+    let gate = Arc::new(AtomicBool::new(false));
+    let index = crate::preview::logindex::LogIndex::start_with(&f, Some(gate.clone())).unwrap();
+    for _ in 0..2000 {
+        if index.lines() > 1 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(index.lines() > 1 && !index.is_done() && !gate.load(Ordering::Relaxed));
+    let key = preview::Key { path: f, len: 600_000, mtime: None, box_size: (0, 0), cols: 0, n: 0, deep: false, images: Default::default() };
+    (index, gate, key)
+}
+
+fn show_log(a: &mut App, index: &Arc<crate::preview::logindex::LogIndex>, key: &preview::Key) {
+    let payload = Payload::Log { view: crate::preview::logindex::LogView::new(index.clone()) };
+    a.preview.cache.put(key.clone(), CachedPreview { payload: payload.clone(), texture: None });
+    a.preview.key = Some(key.clone());
+    a.preview.state = PreviewState::Ready(payload);
+}
+
+/// Row 61.6: moving the preview away from a log whose index is not done stops the build and drops the half-built index
+/// from the cache; one that is on show is left alone.
+#[test]
+fn moving_the_preview_off_an_unfinished_log_cancels_its_index_and_uncaches_it() {
+    use std::sync::atomic::Ordering;
+    let dir = crate::util::test_dir("app-log-cancel");
+    let mut a = App::new(Config::load(), dir.clone(), egui::Context::default());
+    let (index, gate, key) = half_built_log(&dir, "big.log");
+    show_log(&mut a, &index, &key);
+    a.retire_logs();
+    assert!(a.preview.cache.peek(&key).is_some(), "on show: kept");
+    a.preview.state = PreviewState::Empty;
+    a.retire_logs();
+    assert!(a.preview.cache.peek(&key).is_none(), "off show: out of the cache");
+    let held = index.lines();
+    gate.store(true, Ordering::Release);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert!(!index.is_done(), "the build stopped");
+    assert_eq!(index.lines(), held);
+}
+
+/// A finished index stays cached when the preview moves on: coming back is instant.
+#[test]
+fn a_finished_log_index_stays_cached_when_the_preview_moves_on() {
+    let dir = crate::util::test_dir("app-log-keep");
+    let mut a = App::new(Config::load(), dir.clone(), egui::Context::default());
+    let (index, gate, key) = half_built_log(&dir, "done.log");
+    gate.store(true, std::sync::atomic::Ordering::Release);
+    for _ in 0..2000 {
+        if index.is_done() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(index.is_done(), "the index finished within 10 s");
+    show_log(&mut a, &index, &key);
+    a.preview.state = PreviewState::Empty;
+    a.retire_logs();
+    assert!(a.preview.cache.peek(&key).is_some());
+}
+
+/// The answer for a log the cursor has already left is cancelled, not cached.
+#[test]
+fn a_stale_log_answer_is_cancelled() {
+    use std::sync::atomic::Ordering;
+    let dir = crate::util::test_dir("app-log-stale");
+    let mut a = App::new(Config::load(), dir.clone(), egui::Context::default());
+    let (index, gate, key) = half_built_log(&dir, "late.log");
+    a.preview.key = None;
+    let payload = Payload::Log { view: crate::preview::logindex::LogView::new(index.clone()) };
+    a.on_preview(preview::Response { key: key.clone(), payload, partial: false }, &egui::Context::default());
+    assert!(a.preview.cache.peek(&key).is_none());
+    let held = index.lines();
+    gate.store(true, Ordering::Release);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert!(!index.is_done());
+    assert_eq!(index.lines(), held);
+}

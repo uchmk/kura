@@ -1,0 +1,41 @@
+# Row 69.15: holding j then k in the Details view of a huge folder, the Owner (and an image's Dimensions)
+# of rows that scroll in show at once or within a frame or two, and the other rows' cells do not blink.
+#
+# Fixture details6915 (built by the measuring session on R:\Temp\<GUID>; not in make-fixtures.ps1):
+# 30 000 files f00000 .. f29999: every 7th is a tiny valid PNG (f00000.png, f00007.png, …), the rest are
+# empty .txt files. `m a` keeps the tab's sort, which is by name, and the names share one prefix, so a PNG
+# comes every 7th row all the way down.
+# One-line maker (run with the folder as argv[1]):
+#   python -c "import sys,os,zlib,struct;d=sys.argv[1];os.makedirs(d,exist_ok=True);c=lambda t,b:struct.pack('>I',len(b))+t+b+struct.pack('>I',zlib.crc32(t+b));png=bytes.fromhex('89504e470d0a1a0a')+c(b'IHDR',struct.pack('>IIBBBBB',1,1,8,0,0,0,0))+c(b'IDAT',zlib.compress(bytes(2)))+c(b'IEND',b'');[open(os.path.join(d,'f%05d.%s'%(n,'png' if n%7==0 else 'txt')),'wb').write(png if n%7==0 else b'') for n in range(30000)]" <folder>
+#
+# Keys (the 300 j and 300 k, 33 ms apart, stand in for the OS key repeat; the measuring session
+# generates the line):
+#   <Size:1600x900>ma<Wait:10000><State:before>{300 x j<Wait:33>}<State:down><Snap:down>{300 x k<Wait:33>}<State:up><Snap:up><Quit>
+# The wait lets the usage walk end and its "in total" toast go (toasts live 6 s).
+#
+# Evidence is app_state.painted.details_cells: the frozen record of the Details cells painted between two
+# checkpoints. "The window stays open" is read from the run itself (quit, keys: done), not from a point.
+
+spec = 1
+row = "69.15"
+tier = 1
+fixtures = "details6915"
+window = { size_pt = [1600, 900], pixels_per_point = 1.5 }
+
+[[point]]
+id = "screen"
+snap = "down"
+expect = { no_overlay = true, no_toast = true }
+fail_looks_like = "A popup or a toast covers the list."
+
+[[point]]
+id = "scrolling-down"
+snap = "down"
+expect = { app_state = { painted = { details_cells = { from = "before", to = "down", moved_down = true, covered = true, gaps = 0, interruptions = 0, blinks = 0, owner = { late = 0, left_early = 0 }, dims = { late = 0, left_early = 0 }, columns = ["dimensions", "owner", "permissions", "extension"] } } } }
+fail_looks_like = "Scrolling down, an Owner or an image's Dimensions came late or never, or another row's cell blinked, or a column was missing."
+
+[[point]]
+id = "scrolling-up"
+snap = "up"
+expect = { app_state = { painted = { details_cells = { from = "down", to = "up", moved_up = true, covered = true, gaps = 0, interruptions = 0, blinks = 0, owner = { late = 0, left_early = 0 }, dims = { late = 0, left_early = 0 }, columns = ["dimensions", "owner", "permissions", "extension"] } } } }
+fail_looks_like = "Scrolling back up, an Owner or an image's Dimensions came late or never, or another row's cell blinked, or a column was missing."

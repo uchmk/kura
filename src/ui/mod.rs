@@ -2,6 +2,7 @@
 //! interaction turns into an [`Act`] that runs after drawing, so the borrow
 //! checker never gets in the way of the layout code.
 
+pub(crate) mod details_watch;
 pub(crate) mod list;
 pub(crate) mod overlay;
 pub(crate) mod preview;
@@ -197,6 +198,7 @@ pub fn draw(app: &mut App, ui: &mut Ui) {
     app.preview_painted = Default::default();
     app.list_right.clear();
     app.list_size.clear();
+    app.list_meta = None;
     app.tasks_drawn = None;
 
     // The settings screen takes the whole window, so nothing behind it is laid out.
@@ -807,6 +809,7 @@ fn draw_pane(app: &mut App, ui: &mut Ui, rect: Rect, place: usize, idx: usize, c
     if focused {
         app.list_right = res.right.clone();
         app.list_size = res.size_cells.clone();
+        app.list_meta = res.meta.clone();
     }
     // Which side has the keys should be clear at a glance.
     if app.split.is_some() {
@@ -6151,6 +6154,23 @@ mod painted_readouts {
         assert!(units.iter().all(|&x| x == units[0]) && units[0] > cells[0].number_right, "{cells:?}");
         let b = cells.iter().find(|c| c.name == "b.txt").unwrap();
         assert_eq!((b.number.as_str(), b.unit.as_ref().map(|u| u.0.as_str())), ("1", Some("B")));
+    }
+
+    /// Row 69.15: the details view records what its Dimensions, Owner, Permissions and Extension cells painted.
+    #[test]
+    fn the_details_view_records_its_meta_cells() {
+        let mut s = on("painted-meta", &[("a.txt", "12345"), ("b.txt", "1")]);
+        assert!(s.app.list_meta.is_none(), "not the details view");
+        s.app.act(crate::config::cmd::Act::Linemode(L::All));
+        s.settle();
+        let meta = s.app.list_meta.clone().expect("the details view was laid out");
+        assert_eq!(meta.shown, [true; 4], "a wide window keeps all four");
+        assert_eq!(meta.rows.len(), 2, "{meta:?}");
+        let a = &meta.rows[0];
+        assert!(a.path.ends_with("a.txt") && !a.image, "{a:?}");
+        assert_eq!(a.cells[0], "", "no dimensions for a text file");
+        assert_eq!(a.cells[3], "txt");
+        assert!(!a.cells[2].is_empty(), "permissions are painted: {a:?}");
     }
 
     #[test]

@@ -130,11 +130,21 @@ pub struct LogIndex {
     inner: Mutex<Inner>,
     done: AtomicBool,
     cancel: AtomicBool,
+    /// A test holds the build after its first chunk until this is set.
+    #[cfg(test)]
+    gate: Option<Arc<AtomicBool>>,
 }
 
 impl LogIndex {
     /// Begin indexing `path` on a thread of its own and return at once.
     pub fn start(path: &Path) -> Result<Arc<Self>, String> {
+        Self::start_with(path, None)
+    }
+
+    /// [`Self::start`], with a gate that only a test sets.
+    pub(crate) fn start_with(path: &Path, gate: Option<Arc<AtomicBool>>) -> Result<Arc<Self>, String> {
+        #[cfg(not(test))]
+        let _ = &gate;
         let mut f = File::open(path).map_err(|e| crate::spot::reason(&e))?;
         let len = f.metadata().map_err(|e| crate::spot::reason(&e))?.len();
         let mut head = Vec::with_capacity(SNIFF_BYTES);
@@ -147,6 +157,8 @@ impl LogIndex {
             inner: Mutex::new(Inner { starts: vec![bom], end: bom, nl_end: false, tail: Vec::new() }),
             done: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
+            #[cfg(test)]
+            gate,
         });
         let me = idx.clone();
         std::thread::Builder::new().name("log-index".into()).spawn(move || me.build(f, bom)).map_err(|e| e.to_string())?;
@@ -161,11 +173,21 @@ impl LogIndex {
             return;
         }
         loop {
+            #[cfg(test)]
+            if pos > from {
+                while self.gate.as_ref().is_some_and(|g| !g.load(Ordering::Acquire)) {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            }
             if self.cancel.load(Ordering::Relaxed) {
                 return;
             }
             let mut got = 0;
             while got < buf.len() {
+                // A slow drive can take a long time over one chunk: look again between the reads.
+                if self.cancel.load(Ordering::Relaxed) {
+                    return;
+                }
                 match f.read(&mut buf[got..]) {
                     Ok(0) => break,
                     Ok(n) => got += n,
@@ -864,6 +886,31 @@ fn clip(s: &str) -> String {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// Row 61.6: an index cancelled in the middle of its build stops there, and never says it is done.
+    #[test]
+    fn a_cancelled_index_stops_building() {
+        let dir = crate::util::test_dir("logindex-cancel");
+        let p = dir.join("big.log");
+        let line = "a line of a log file, long enough to be worth indexing\n";
+        std::fs::write(&p, line.repeat(8 * CHUNK_BYTES / line.len() + 1)).unwrap();
+        let gate = Arc::new(AtomicBool::new(false));
+        let idx = LogIndex::start_with(&p, Some(gate.clone())).unwrap();
+        // The build holds after its first chunk until the gate opens.
+        for _ in 0..2000 {
+            if idx.lines() > 1 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let held = idx.lines();
+        assert!(held > 1 && !idx.is_done(), "the first chunk is in and the rest is not: {held}");
+        idx.cancel();
+        gate.store(true, Ordering::Release);
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(!idx.is_done(), "a cancelled build does not finish");
+        assert_eq!(idx.lines(), held, "and does not read on");
+    }
 
     fn wait(i: &LogIndex) {
         for _ in 0..2000 {

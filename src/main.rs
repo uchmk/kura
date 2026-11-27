@@ -1380,6 +1380,40 @@ fn pane_drag_line(frames: usize, cells: &[usize]) -> String {
     format!("pane drag: {frames} frames with the button held after a press in the pane; selected cells drawn: {list}{more}")
 }
 
+/// `details cells (from → to): …` from the interval the last `<State:>` froze (row 69.15).
+fn details_cells_line(s: &ui::details_watch::Summary) -> String {
+    let lag = |name: &str, lag: &Option<ui::details_watch::Lag>| match lag {
+        None => format!("{name} not shown"),
+        Some(l) => {
+            let late = if l.late > 0 { format!("{} late (max {} frames)", l.late, l.max_late) } else { "0 late".to_owned() };
+            format!("{name} {} at once, {} in 1–2 frames, {late}, {} left early, {} pending", l.at_once, l.soon, l.left_early, l.pending)
+        }
+    };
+    let moved = match (s.moved_down, s.moved_up) {
+        (true, true) => "moved down and up",
+        (true, false) => "moved down",
+        (false, true) => "moved up",
+        (false, false) => "did not move",
+    };
+    let first = |n: usize, examples: &[String]| if n > 0 { format!(" (first: {})", examples.join("; ")) } else { String::new() };
+    format!(
+        "details cells ({} → {}): {} frames, {} gaps, {} interruptions, {moved}; {} rows scrolled in ({} images); {}; {}; blinks {}{}; changed {}{}",
+        s.from,
+        s.to,
+        s.frames,
+        s.gaps,
+        s.interruptions,
+        s.arrived,
+        s.images,
+        lag("Owner", &s.owner),
+        lag("Dimensions", &s.dims),
+        s.blinks,
+        first(s.blinks, &s.blink_examples),
+        s.changed,
+        first(s.changed, &s.changed_examples),
+    )
+}
+
 /// `list size:` and `list size cells:` from the details view's Size cells as painted (row 69.13).
 fn list_size_lines(cells: &[ui::list::SizeCell]) -> Vec<String> {
     const MAX: usize = 40;
@@ -1673,6 +1707,10 @@ fn state_report(app: &App) -> String {
     lines.push(format!("linemode: {}", app.tab().linemode.name()));
     // The details view's Size cells as painted (69.13): where the numbers end and the units start.
     lines.extend(list_size_lines(&app.list_size));
+    // What the other details cells painted between the last two `<State:>` checkpoints (69.15), frozen at the later one.
+    if let Some(summary) = app.details_watch.last().filter(|s| s.saw_details) {
+        lines.push(details_cells_line(summary));
+    }
     // The right-hand value of each row of the current pane as painted: 69.12 (`m o`, the owner on every row)
     // could only be read off a picture. Rows with no value are listed too, so "every row" can be checked.
     if app.list_right.iter().any(|(_, v)| !v.is_empty()) {
@@ -2848,6 +2886,43 @@ mod tests {
         assert!(line(&app, "list size:").unwrap().starts_with("list size: numbers end at x 812.0 (2 rows), 815.5 (1 row)"));
         app.list_size = (0..45).map(|i| cell(&format!("f{i}"), "1", 812.0, None)).collect();
         assert!(line(&app, "list size cells:").unwrap().ends_with("f39 1 @812.0 | … +5 more"));
+    }
+
+    /// Row 69.15: one line per frozen interval.
+    #[test]
+    fn the_details_cells_line_says_what_the_interval_saw() {
+        use ui::details_watch::{Lag, Summary};
+        let mut s = Summary {
+            from: "before".into(),
+            to: "down".into(),
+            frames: 312,
+            gaps: 0,
+            interruptions: 0,
+            moved_down: true,
+            moved_up: false,
+            arrived: 287,
+            images: 12,
+            owner: Some(Lag { at_once: 280, soon: 5, pending: 2, seen: 285, ..Default::default() }),
+            dims: Some(Lag { at_once: 12, seen: 12, ..Default::default() }),
+            blinks: 0,
+            blink_examples: Vec::new(),
+            changed: 0,
+            changed_examples: Vec::new(),
+            shown: [true; 4],
+            saw_details: true,
+        };
+        assert_eq!(
+            details_cells_line(&s),
+            "details cells (before → down): 312 frames, 0 gaps, 0 interruptions, moved down; 287 rows scrolled in (12 images); Owner 280 at once, 5 in 1–2 frames, 0 late, 0 left early, 2 pending; Dimensions 12 at once, 0 in 1–2 frames, 0 late, 0 left early, 0 pending; blinks 0; changed 0"
+        );
+        s.dims = None;
+        s.owner.as_mut().unwrap().late = 2;
+        s.owner.as_mut().unwrap().max_late = 7;
+        s.blinks = 1;
+        s.blink_examples = vec!["f1.txt Owner `alice` → blank at frame 41".into()];
+        let line = details_cells_line(&s);
+        assert!(line.contains("2 late (max 7 frames)") && line.contains("Dimensions not shown"), "{line}");
+        assert!(line.contains("blinks 1 (first: f1.txt Owner `alice` → blank at frame 41); changed 0"), "{line}");
     }
 
     /// `KURA_FAKE_CLIPBOARD` asks for the fake only with `1`; the state says so only while it is in use.

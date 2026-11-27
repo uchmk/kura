@@ -264,6 +264,7 @@
 
 [toast]
 convert_done = "{0} 件変換: {1} → {2}（{3}）、{4} 件スキップ"
+convert_done_failed = "{0} 件変換: {1} → {2}（{3}）、{4} 件スキップ、{5} 件失敗"
 bookmark_already = "すでに `{0}` にブックマーク済み"
 bookmark_moved = "ブックマークを `{0}` から `{1}` へ移動"
 bookmark_saved = "ブックマーク `{0}` を保存"

@@ -10,6 +10,7 @@ use egui::{Align2, Color32, CornerRadius, FontId, Rect, Stroke, Ui, Vec2};
 use crate::config::theme::{Style, Theme};
 use crate::core::folder::{Folder, LoadState};
 use crate::fs::Entry;
+use crate::ui::details_watch::{MetaCell, MetaFrame};
 use crate::util;
 
 pub struct ListStyle<'a> {
@@ -61,6 +62,9 @@ pub struct ListResult {
     pub right: Vec<(String, String)>,
     /// The details view's Size cell of each row drawn, top to bottom, as painted (69.13).
     pub size_cells: Vec<SizeCell>,
+    /// What the details view's Dimensions, Owner, Permissions and Extension cells painted this pass (69.15); `Some` whenever the
+    /// details view was laid out, `None` for the other views.
+    pub meta: Option<MetaFrame>,
 }
 
 /// One Size cell as painted: the row's name, the number's text and where its painted rect ends, and the unit's
@@ -152,6 +156,7 @@ pub fn draw(
         shown: Vec::new(),
         right: Vec::new(),
         size_cells: Vec::new(),
+        meta: details.then(|| MetaFrame { shown: [6, 7, 8, 9].map(|col| columns.iter().any(|c| c.0 == col)), rows: Vec::new() }),
     };
 
     match &folder.state {
@@ -224,6 +229,7 @@ pub fn draw(
         // Right-hand line mode text is laid out first so the name knows its budget.
         let right = linemode_text(entry, st.linemode);
         let mut right_w = 0.0;
+        let mut meta_cells: [String; 4] = Default::default();
         if details {
             for &(col, offset, width) in &columns {
                 let cell = Rect::from_min_size(egui::pos2(rect.left() + offset + 4.0, y), Vec2::new(width - 8.0, st.row_h));
@@ -268,6 +274,9 @@ pub fn draw(
                         painter.layout_no_wrap(cut_middle(full.text(), cell.width(), &width), st.font.clone(), st.theme.fg_dim)
                     };
                     let at = Align2::LEFT_CENTER.anchor_size(cell.left_center(), galley.size()).min;
+                    if (6..=9).contains(&col) {
+                        meta_cells[col - 6] = galley.text().to_owned();
+                    }
                     cp.galley(at, galley, st.theme.fg_dim);
                 }
                 if col == 10 && entry.usage.is_some() && st.usage_max > 0 {
@@ -286,6 +295,14 @@ pub fn draw(
                 }
             }
             right_w = columns.first().map_or(0.0, |c| rect.width() - c.1);
+            if let Some(meta) = out.meta.as_mut() {
+                meta.rows.push(MetaCell {
+                    index: row,
+                    path: entry.path.clone(),
+                    image: crate::fs::details::reads_dimensions(entry),
+                    cells: std::mem::take(&mut meta_cells),
+                });
+            }
         }
         // The usage view's bar: the row's share of the biggest row, so the
         // largest folder fills it and the rest are read against that. Two

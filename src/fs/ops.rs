@@ -77,6 +77,8 @@ pub enum OpEvent {
         id: u64,
         sizes: Vec<(u64, u64)>,
         skipped: usize,
+        /// Files of this job that ended in an error.
+        failed: usize,
     },
     Started {
         id: u64,
@@ -563,11 +565,15 @@ impl Ctx<'_> {
         use super::imgcodec;
         let mut sizes = Vec::new();
         let mut skipped = 0;
+        // Input files that ended with at least one error. A file whose original could not be
+        // trashed after a good conversion counts in both `sizes` and `failed`.
+        let mut failed = 0;
         for src in &req.srcs {
             self.pump();
             if self.cancelled {
                 break;
             }
+            let errors_before = self.errors.len();
             self.report_entry(&src.to_string_lossy());
             let source_bytes = std::fs::metadata(src).map(|m| m.len()).unwrap_or(0);
             let source_format = match imgcodec::source_format(src) {
@@ -580,6 +586,7 @@ impl Ctx<'_> {
                 }
                 Err(e) => {
                     self.errors.push(format!("{}: {e}", short(src)));
+                    failed += 1;
                     self.files_done += 1;
                     self.bytes_done += source_bytes;
                     continue;
@@ -609,6 +616,7 @@ impl Ctx<'_> {
                 same_path(p, &dest) || matches!((std::fs::canonicalize(p), std::fs::canonicalize(&dest)), (Ok(a), Ok(b)) if a == b)
             }) {
                 self.errors.push(format!("{}: output is a source file", short(src)));
+                failed += 1;
                 self.files_done += 1;
                 self.bytes_done += source_bytes;
                 continue;
@@ -632,6 +640,9 @@ impl Ctx<'_> {
             if let Err(e) = result {
                 self.errors.push(format!("{}: {e}", short(src)));
             }
+            if self.errors.len() > errors_before {
+                failed += 1;
+            }
             self.files_done += 1;
             self.bytes_done += source_bytes;
             self.report_entry(&src.to_string_lossy());
@@ -642,7 +653,7 @@ impl Ctx<'_> {
             bytes_done: self.bytes_done,
             current: String::new(),
         });
-        let _ = self.ev.send(OpEvent::Converted { id: self.id, sizes, skipped });
+        let _ = self.ev.send(OpEvent::Converted { id: self.id, sizes, skipped, failed });
         (self.wake)();
     }
 
@@ -1288,7 +1299,7 @@ mod convert_tests {
         image::RgbaImage::from_pixel(16, 12, image::Rgba([100, 50, 25, 128])).save(path).unwrap();
     }
 
-    fn run(srcs: Vec<PathBuf>, format: ImageFormat, resolution: Resolution) -> (Vec<String>, Vec<(u64, u64)>, usize, bool) {
+    fn run(srcs: Vec<PathBuf>, format: ImageFormat, resolution: Resolution) -> (Vec<String>, Vec<(u64, u64)>, usize, bool, usize) {
         let runner = Runner::new(|| {});
         runner.submit(OpRequest {
             id: 1,
@@ -1300,14 +1311,19 @@ mod convert_tests {
         });
         let mut sizes = Vec::new();
         let mut skipped = 0;
+        let mut failed = None;
         loop {
             match runner.rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap() {
                 OpEvent::Conflict { reply, .. } => reply.send(resolution.clone()).unwrap(),
-                OpEvent::Converted { sizes: got, skipped: count, .. } => {
+                OpEvent::Converted { sizes: got, skipped: count, failed: count_failed, .. } => {
                     sizes = got;
                     skipped = count;
+                    failed = Some(count_failed);
                 }
-                OpEvent::Finished { errors, cancelled, .. } => return (errors, sizes, skipped, cancelled),
+                OpEvent::Finished { errors, cancelled, .. } => {
+                    let failed = failed.expect("Converted must arrive before Finished");
+                    return (errors, sizes, skipped, cancelled, failed);
+                }
                 _ => {}
             }
         }
@@ -1320,19 +1336,23 @@ mod convert_tests {
         png(&source);
         let text = dir.join("text.txt");
         std::fs::write(&text, b"not an image").unwrap();
-        let (errors, sizes, skipped, _) = run(vec![source.clone(), text.clone()], ImageFormat::Png, Resolution::Skip);
+        let (errors, sizes, skipped, _, failed) = run(vec![source.clone(), text.clone()], ImageFormat::Png, Resolution::Skip);
         assert!(errors.is_empty() && sizes.is_empty());
-        assert_eq!(skipped, 2);
+        assert_eq!((skipped, failed), (2, 0));
         let bad = dir.join("broken.png");
         std::fs::write(&bad, b"\x89PNG\r\n\x1a\ninvalid").unwrap();
-        let (errors, sizes, skipped, _) = run(vec![bad, text, source.clone()], ImageFormat::WebP, Resolution::Skip);
+        let (errors, sizes, skipped, _, failed) = run(vec![bad, text.clone(), source.clone()], ImageFormat::WebP, Resolution::Skip);
         assert_eq!(errors.len(), 1);
         assert!(errors[0].contains("broken.png"));
         assert_eq!(sizes.len(), 1);
         assert_eq!(skipped, 1);
+        assert_eq!(failed, 1);
         assert!(source.exists());
         assert_eq!(image::open(dir.join("image.webp")).unwrap().width(), 16);
-        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 4);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+        // A file the probe cannot open is one failure, not a skip.
+        let (errors, sizes, skipped, _, failed) = run(vec![dir.join("missing.png"), text], ImageFormat::WebP, Resolution::Skip);
+        assert_eq!((errors.len(), sizes.len(), skipped, failed), (1, 0, 1, 1), "{errors:?}");
     }
 
     #[test]
@@ -1348,8 +1368,9 @@ mod convert_tests {
             png(&source);
             let dest = dir.join("image.jpg");
             std::fs::write(&dest, b"existing").unwrap();
-            let (errors, sizes, _, stopped) = run(vec![source.clone()], ImageFormat::Jpeg, resolution);
+            let (errors, sizes, _, stopped, failed) = run(vec![source.clone()], ImageFormat::Jpeg, resolution);
             assert!(errors.is_empty(), "{errors:?}");
+            assert_eq!(failed, 0);
             assert_eq!(stopped, cancelled);
             assert_eq!(sizes.len(), usize::from(output.is_some()));
             if let Some(output) = output {

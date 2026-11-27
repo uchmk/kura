@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 855 件（TESTING.md の全 1052 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 856 件（TESTING.md の全 1053 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --lane linux --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1161,6 +1161,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **70.11** 同じフォルダーで `m a`（詳細）と、`.jxl` で `<Tab>`（spot）を押す（#501） → 2 つの `.jxl` とも `Dimensions` の列に `幅 × 高さ` が出る。spot の `Image` 節も同じ大きさと `Format  JPEG XL` を出す。横向きに保存された縦長の写真は、向きを直した大きさで出る — *`m a` (Details) in that folder, and `<Tab>` (spot) on a `.jxl` (#501) → The `Dimensions` column shows `W × H` for both `.jxl` files, the spot panel's `Image` section shows the same size and `Format  JPEG XL`; a portrait photo stored sideways reads its upright size*
 - [ ] **70.12** `.jxl` で `c i` → `PNG`（#501） → 隣に `name.png` ができ、大きさはプレビューと同じ。`.jxl` は残る。`WebP`・`JPEG` でもできる。`.png` を PNG に変換するのは今までどおり飛ばす — *`c i` → `PNG` on a `.jxl` (#501) → `name.png` appears beside it with the same size as the preview shows; the `.jxl` stays. `WebP` and `JPEG` work too. A `.png` converted to PNG is still skipped*
 - [ ] **70.13** アニメーションの `.jxl` をプレビューする（#501） → 最初のフレームが止まった絵で出る。段落に `![x](photo.jxl)` だけを書いた Markdown は、描画したプレビューにその絵を出す — *Preview an animated `.jxl` (#501) → It shows the first frame as a still picture. A Markdown file with `![x](photo.jxl)` alone in its paragraph shows the picture in the rendered preview*
+- [ ] **70.14** （v0.168.17）ファイルを作れないフォルダー（70.7 の読み取り専用のフォルダー）で画像を 2 つ選んで `c i` → `JPEG`。続けて、2 つの画像のうち 1 つが読めないフォルダーでも同じことをする → まとめのトーストとタスクの見出しが失敗を数える: `0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 2 failed`、2 つ目のフォルダーでは `1 image(s) converted: …; 0 skipped, 1 failed`。今までどおり、最初のエラーは別のトーストにも出て、エラーは全部タスクのエラーの行に出る。失敗が無ければ文は 70.1 のまま（`failed` は付かない） — *(v0.168.17) In a folder where you may not create files (70.7's read-only folder), select two images and `c i` → `JPEG`; then do the same in a folder where one of the two images cannot be read → The summary toast and the task headline count the failures: `0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 2 failed`, and in the second folder `1 image(s) converted: …; 0 skipped, 1 failed`. The first error still comes in a toast of its own, and every error in the task's error rows. With no failure the text is as in 70.1 (no `failed`)*
 
 ## 71. Toasts read aloud (v0.157.0)
 

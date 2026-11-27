@@ -718,3 +718,21 @@ fn a_failed_typed_jump_says_so_once() {
     assert_eq!(said.len(), 1, "{said:?}");
     assert_eq!(a.tabs[a.active].cwd, dir, "taken back");
 }
+
+/// Row 70.14: the convert summary counts the files that failed, and keeps its old
+/// text when none did.
+#[test]
+fn the_convert_summary_counts_failed_files() {
+    let dir = crate::util::test_dir("said-convert-failed");
+    for (failed, want) in
+        [(1, "0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 1 failed"), (0, "0 image(s) converted: 0 B → 0 B (0%); 0 skipped")]
+    {
+        let mut a = app_in(&dir);
+        a.lang = "en".into();
+        let kind = OpKind::Convert { format: crate::fs::imgcodec::ImageFormat::WebP, opts: Default::default() };
+        let id = a.submit_op(kind, vec![dir.join("a.png")], dir.clone(), false);
+        a.on_op_event(ops::OpEvent::Converted { id, sizes: Vec::new(), skipped: 0, failed });
+        assert_eq!(a.tasks.iter().find(|t| t.id == id).unwrap().label, want);
+        assert!(a.toasts.iter().any(|t| t.text == want), "{:?}", a.toasts.iter().map(|t| &t.text).collect::<Vec<_>>());
+    }
+}

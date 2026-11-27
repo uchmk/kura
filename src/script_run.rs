@@ -142,6 +142,8 @@ pub(crate) struct ScriptRun {
     state_settled: Option<bool>,
     /// The app's part of that state is not submitted yet (`state_after_draw` does it, after the drawing).
     state_due: bool,
+    /// The script has steps, so the details cells are watched (row 69.15); a plain run with an empty script is not.
+    watching: bool,
 }
 
 /// What kura cannot carry out: `None` for the steps it can (today, every parsed step; a tag of a reading it does not
@@ -448,6 +450,27 @@ fn painted_json(app: &App) -> state::Value {
             }),
         );
     }
+    if let Some(s) = app.details_watch.last().filter(|s| s.saw_details) {
+        let lag = |l: &Option<crate::ui::details_watch::Lag>| {
+            l.as_ref().map_or(state::Value::Null, |l| {
+                json!({
+                    "at_once": l.at_once, "soon": l.soon, "late": l.late, "max_late": l.max_late,
+                    "left_early": l.left_early, "pending": l.pending, "seen": l.seen,
+                })
+            })
+        };
+        let columns: Vec<String> =
+            crate::ui::details_watch::COLUMNS.iter().zip(s.shown).filter(|(_, on)| *on).map(|(n, _)| n.to_lowercase()).collect();
+        out.insert(
+            "details_cells".to_owned(),
+            json!({
+                "from": s.from, "to": s.to, "frames": s.frames, "gaps": s.gaps, "interruptions": s.interruptions,
+                "moved_down": s.moved_down, "moved_up": s.moved_up, "arrived": s.arrived, "images": s.images,
+                "owner": lag(&s.owner), "dims": lag(&s.dims), "blinks": s.blinks, "changed": s.changed,
+                "columns": columns, "covered": s.covered(),
+            }),
+        );
+    }
     if crate::clipboard_is_fake() {
         out.insert("clipboard".to_owned(), "fake".into());
     }
@@ -533,6 +556,7 @@ impl ScriptRun {
             state_out: None,
             state_settled: None,
             state_due: false,
+            watching: !steps.is_empty(),
         }
     }
 
@@ -1282,7 +1306,16 @@ impl ScriptRun {
     /// the hook because `ui` still changes the app after the hook (expired toasts go, results arrive, the keys act),
     /// and ito merges it into the tree of this same pass. A pass egui throws away leaves it for the next one.
     pub(crate) fn state_after_draw(&mut self, ctx: &egui::Context, app: &mut App) -> Outcome {
-        if !self.state_due || self.pace.finished() || ctx.will_discard() {
+        if self.pace.finished() || ctx.will_discard() {
+            return Outcome::Continue;
+        }
+        // Every pass that is kept feeds the watch of the details cells, so a discarded pass advances nothing (row 69.15).
+        if self.watching {
+            let shown = app.list_meta.as_ref().map_or([false; 4], |m| m.shown);
+            let scope = crate::ui::details_watch::Scope { tab: app.active, folder: app.tabs[app.active].current.path.clone(), shown };
+            app.details_watch.observe(scope, 0, app.list_meta.as_ref());
+        }
+        if !self.state_due {
             return Outcome::Continue;
         }
         self.state_due = false;
@@ -1313,6 +1346,11 @@ impl ScriptRun {
             phase,
             capture_id,
         };
+        // A plain `<State:x>` closes the interval of the details cells; the stages of a `<Snap:>` do not, so the
+        // frozen value stays the same between them.
+        if phase.is_none() {
+            app.details_watch.checkpoint(&header.name);
+        }
         let out = match state::submit(ctx, header, state_part(app)) {
             Ok(()) => Outcome::Continue,
             Err(why) => self.state_failed(app, &why),
@@ -2960,12 +2998,32 @@ mod tests {
         assert!(v["app_state"]["config_write_failed"].is_null());
         assert!(v["app_state"]["painted"].is_object(), "{v}");
         assert!(v["app_state"]["painted"]["list_size"].is_null(), "no details view, no size cells: {v}");
+        assert!(v["app_state"]["painted"]["details_cells"].is_null(), "no details view, no frozen cells: {v}");
         assert_eq!((v["app"]["name"].as_str(), v["app"]["version"].as_str()), (Some("kura"), Some(env!("CARGO_PKG_VERSION"))));
         assert_eq!(v["run_id"], id);
         assert!(read(&rig.dir.join("a.txt")).contains("cursor icon: Default\n"), "the txt stays");
         let said = read(&done);
         assert!(said.ends_with("keys: done\n"), "{said}");
         assert!(!rig.flag());
+    }
+
+    /// Row 69.15: a plain `<State:>` freezes the interval of the details cells that ends there.
+    #[test]
+    fn a_state_freezes_what_the_details_cells_painted_since_the_last_one() {
+        let mut rig = Rig::with_files("keys-state-details", true, &["b.txt", "c.txt"]);
+        rig.screen.app.act(crate::config::cmd::Act::Linemode(crate::fs::entry::Linemode::All));
+        rig.screen.settle();
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<State:a><State:b>", Some(done), rig.dir.clone());
+        assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
+        let a = &state_json_of(&rig.dir, "a")["app_state"]["painted"]["details_cells"];
+        let b = &state_json_of(&rig.dir, "b")["app_state"]["painted"]["details_cells"];
+        assert_eq!((a["from"].as_str(), a["to"].as_str()), (Some("start"), Some("a")), "{a}");
+        assert_eq!((b["from"].as_str(), b["to"].as_str()), (Some("a"), Some("b")), "{b}");
+        assert!(a["frames"].as_u64().unwrap() >= 1 && a["gaps"] == 0 && a["interruptions"] == 0, "{a}");
+        assert!(a["columns"].is_array() && (a["owner"].is_object() || a["owner"].is_null()), "{a}");
+        // Nothing scrolled in, so nothing was covered.
+        assert_eq!((a["arrived"].as_u64(), a["covered"].as_bool()), (Some(0), Some(false)), "{a}");
     }
 
     #[test]

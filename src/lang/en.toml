@@ -4,6 +4,7 @@
 
 [toast]
 convert_done = "{0} image(s) converted: {1} → {2} ({3}); {4} skipped"
+convert_done_failed = "{0} image(s) converted: {1} → {2} ({3}); {4} skipped, {5} failed"
 bookmark_already = "Already bookmarked as `{0}`"
 bookmark_moved = "Bookmark moved from `{0}` to `{1}`"
 bookmark_saved = "Bookmark `{0}` saved"

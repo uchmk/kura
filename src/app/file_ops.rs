@@ -360,20 +360,21 @@ impl App {
 
     pub(super) fn on_op_event(&mut self, ev: ops::OpEvent) {
         match ev {
-            ops::OpEvent::Converted { id, sizes, skipped } => {
+            ops::OpEvent::Converted { id, sizes, skipped, failed } => {
                 let before: u64 = sizes.iter().map(|p| p.0).sum();
                 let after: u64 = sizes.iter().map(|p| p.1).sum();
-                let text = crate::i18n::trf(
-                    &self.lang,
-                    "toast.convert_done",
-                    &[
-                        &sizes.len().to_string(),
-                        &util::human_size(before),
-                        &util::human_size(after),
-                        &crate::fs::imgcodec::percent_change(before, after),
-                        &skipped.to_string(),
-                    ],
-                );
+                let (before_text, after_text) = (util::human_size(before), util::human_size(after));
+                let (count, percent, skipped_text, failed_text) =
+                    (sizes.len().to_string(), crate::fs::imgcodec::percent_change(before, after), skipped.to_string(), failed.to_string());
+                let text = if failed > 0 {
+                    crate::i18n::trf(
+                        &self.lang,
+                        "toast.convert_done_failed",
+                        &[&count, &before_text, &after_text, &percent, &skipped_text, &failed_text],
+                    )
+                } else {
+                    crate::i18n::trf(&self.lang, "toast.convert_done", &[&count, &before_text, &after_text, &percent, &skipped_text])
+                };
                 if let Some(t) = self.tasks.iter_mut().find(|t| t.id == id) {
                     t.label = text.clone();
                 }

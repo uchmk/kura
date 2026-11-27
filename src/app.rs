@@ -291,6 +291,10 @@ pub struct App {
     pub list_right: Vec<(String, String)>,
     /// The current pane's Size cells as the last frame drew them (row 69.13), for the state file.
     pub list_size: Vec<crate::ui::list::SizeCell>,
+    /// What the details view's Dimensions, Owner, Permissions and Extension cells painted in the last frame (row 69.15).
+    pub list_meta: Option<crate::ui::details_watch::MetaFrame>,
+    /// The frames of those cells between two `<State:>` checkpoints of a `--keys` run, frozen at each one (row 69.15).
+    pub details_watch: crate::ui::details_watch::DetailsWatch,
     /// The bell's badge as the title bar painted it this frame; `None` when none was drawn.
     pub bell_badge: Option<ito_titlebar::Badge>,
     /// The notice list as the last frame painted it; `None` while it was closed.
@@ -571,6 +575,8 @@ impl App {
             preview_painted: Default::default(),
             list_right: Vec::new(),
             list_size: Vec::new(),
+            list_meta: None,
+            details_watch: Default::default(),
             bell_badge: None,
             bell_list: None,
             tasks_drawn: None,

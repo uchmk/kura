@@ -446,6 +446,18 @@ impl<K: Eq + Hash + Clone, V> Lru<K, V> {
         self.order.clear();
     }
 
+    /// Keep the entries `keep` says yes to, in their order.
+    pub fn retain(&mut self, mut keep: impl FnMut(&K, &V) -> bool) {
+        let map = &mut self.map;
+        self.order.retain(|k| match map.get(k) {
+            Some(v) if keep(k, v) => true,
+            _ => {
+                map.remove(k);
+                false
+            }
+        });
+    }
+
     fn touch(&mut self, k: &K) {
         if let Some(i) = self.order.iter().position(|x| x == k) {
             let k = self.order.remove(i);

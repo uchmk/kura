@@ -2026,6 +2026,7 @@ Convert the selected images to JPEG, PNG or WebP (lossless unless `[convert].web
 | 70.11 | `m a` (Details) in that folder, and `<Tab>` (spot) on a `.jxl` (#501) | The `Dimensions` column shows `W × H` for both `.jxl` files, the spot panel's `Image` section shows the same size and `Format  JPEG XL`; a portrait photo stored sideways reads its upright size |
 | 70.12 | `c i` → `PNG` on a `.jxl` (#501) | `name.png` appears beside it with the same size as the preview shows; the `.jxl` stays. `WebP` and `JPEG` work too. A `.png` converted to PNG is still skipped |
 | 70.13 | Preview an animated `.jxl` (#501) | It shows the first frame as a still picture. A Markdown file with `![x](photo.jxl)` alone in its paragraph shows the picture in the rendered preview |
+| 70.14 | (v0.168.17) In a folder where you may not create files (70.7's read-only folder), select two images and `c i` → `JPEG`; then do the same in a folder where one of the two images cannot be read | The summary toast and the task headline count the failures: `0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 2 failed`, and in the second folder `1 image(s) converted: …; 0 skipped, 1 failed`. The first error still comes in a toast of its own, and every error in the task's error rows. With no failure the text is as in 70.1 (no `failed`) |
 
 ## 71. Toasts read aloud (v0.157.0)
 

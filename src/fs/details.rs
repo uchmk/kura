@@ -12,28 +12,34 @@ pub fn read(entry: &Entry) -> Details {
     Details { owner: owner(&entry.path), dimensions: dimensions(entry) }
 }
 
+/// A regular file whose extension kura reads picture dimensions for.
+pub(crate) fn reads_dimensions(entry: &Entry) -> bool {
+    entry.kind == super::Kind::File
+        && entry.ext.as_deref().is_some_and(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "gif"
+                    | "bmp"
+                    | "ico"
+                    | "tif"
+                    | "tiff"
+                    | "webp"
+                    | "pnm"
+                    | "ppm"
+                    | "pgm"
+                    | "pbm"
+                    | "pam"
+                    | "qoi"
+                    | "jxl"
+            )
+        })
+}
+
 fn dimensions(entry: &Entry) -> Option<(u32, u32)> {
-    if entry.kind != super::Kind::File
-        || !matches!(
-            entry.ext.as_deref()?.to_ascii_lowercase().as_str(),
-            "png"
-                | "jpg"
-                | "jpeg"
-                | "gif"
-                | "bmp"
-                | "ico"
-                | "tif"
-                | "tiff"
-                | "webp"
-                | "pnm"
-                | "ppm"
-                | "pgm"
-                | "pbm"
-                | "pam"
-                | "qoi"
-                | "jxl"
-        )
-    {
+    if !reads_dimensions(entry) {
         return None;
     }
     super::imgcodec::dimensions(&entry.path)

@@ -4,6 +4,29 @@ use super::*;
 
 impl App {
     pub fn request_preview(&mut self, force: bool) {
+        self.request_preview_for(force);
+        self.retire_logs();
+    }
+
+    /// A huge log whose index is still being built stops being worked on when the preview no longer shows it (row 61.6).
+    /// The index thread holds an `Arc` of its own, so dropping the view cannot stop it, and the cache holds the payload,
+    /// so it is not even dropped: cancel the build and take the half-built index out of the cache, so coming back starts
+    /// a fresh one rather than reusing a cancelled, partial one. A finished index stays cached.
+    pub(super) fn retire_logs(&mut self) {
+        let shown = match &self.preview.state {
+            PreviewState::Ready(Payload::Log { view }) => Some(view.index.clone()),
+            _ => None,
+        };
+        self.preview.cache.retain(|_, cached| match &cached.payload {
+            Payload::Log { view } if !view.index.is_done() && !shown.as_ref().is_some_and(|s| Arc::ptr_eq(s, &view.index)) => {
+                view.index.cancel();
+                false
+            }
+            _ => true,
+        });
+    }
+
+    fn request_preview_for(&mut self, force: bool) {
         if self.tabs[self.active].linemode == crate::fs::entry::Linemode::All && !self.quick {
             self.preview.state = PreviewState::Empty;
             self.preview.key = None;
@@ -242,7 +265,11 @@ impl App {
 
     pub(super) fn on_preview(&mut self, res: preview::Response, ctx: &egui::Context) {
         if self.preview.key.as_ref() != Some(&res.key) {
-            return; // stale
+            // Stale. A log that will not be shown must not go on indexing (row 61.6).
+            if let Payload::Log { view } = &res.payload {
+                view.index.cancel();
+            }
+            return;
         }
         if let Some(t) = self.preview.timing.as_mut().filter(|t| t.path == res.key.path) {
             match (res.partial, &res.payload) {

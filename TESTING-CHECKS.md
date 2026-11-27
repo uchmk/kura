@@ -7,7 +7,7 @@
 **チェック（`[x]`）だけは手で書いてよく、生成し直しても残る。**それ以外を書き換えても次の
 生成で消える。
 
-押すものは 855 件（TESTING.md の全 1052 件のうち、`cargo test` が見ている 197 件は外してある）。
+押すものは 856 件（TESTING.md の全 1053 件のうち、`cargo test` が見ている 197 件は外してある）。
 **済みの数はこのファイルに書かない**（チェックを付けた PR が毎回ここを書き換え、並んだ PR が
 必ず衝突していた）。節ごとの進み具合は `cargo run --example make-testcheck -- --stats` で出る。
 `[~]` は済みに数えない（持ち主が同じ画像を見て `[x]` にするまで）。
@@ -1094,7 +1094,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **61.4** 61.1 を UTF-16（BOM 付き）のログと CRLF のログでやる → 行が正しく出て、余計な文字は無い — *Do 61.1 with a UTF-16 (BOM) log and a CRLF log → Lines show correctly, no stray characters*
 - [x] **61.5** 表示中のファイルに行を追記する → 注記の行数が 1 秒以内に増え、ビューはそのまま。索引は先頭から作り直されない — *Append lines to the file while it is on show → The note's line count grows within a second and the view stays where it was; the index is not rebuilt from the front*
 - [x] **61.7** 追記されているログで `<A-f>` を押し、もう一度 `<A-f>` を押す → 行が届くたびにビューが最後の行に留まり、「Following the log」/「Stopped following」が出る。ファイルを切り詰めると読み直す — *Press `<A-f>` on a log that is being appended to, then `<A-f>` again → The view stays on the last line as lines arrive, and "Following the log" / "Stopped following" show; truncating the file reloads it*
-- [ ] **61.6** ネットワークドライブから開く → 固まらない。別へ移ると索引づくりが取りやめられる — *Open it from a network drive → It does not freeze; moving away cancels the indexing*
+- [x] **61.6** ネットワークドライブから開く → 固まらない。別へ移ると索引づくりが取りやめられる — *Open it from a network drive → It does not freeze; moving away cancels the indexing*
 - [x] **61.8** 10 MB の Shift_JIS（か EUC-JP）のログにポインタを当て、続けて同じ文字コードの小さなログに当てる → どちらでも日本語が `�` にならず正しく出る。`<A-/>` が日本語の語を見つける。spot の Encoding の行がその文字コードを挙げる — *Hover a 10 MB Shift_JIS (or EUC-JP) log, then a small one of the same encoding → Japanese text shows right in both, not as `�`; `<A-/>` finds Japanese words; spot's Encoding row names the encoding*
 - [x] **61.9** 数 MB の 1 行を持つログにポインタを当てる → その行の始まりが固まらずに出る。`<A-/>` がその奥深くの語を見つける — *Hover a log with one line of several MB → It shows the start of that line without freezing; `<A-/>` finds a word deep inside it*
 - [x] **61.10** `<A-/>` を押し、検索が表示されている間か終わったあとに、当たる行を追記する → 当たりの数は新しい行の分だけ増え、二重には数えられない — *Press `<A-/>`, then append matching lines while the search is on show or after it ends → The hit count grows by the new lines; hits are not counted twice*
@@ -1209,6 +1209,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [ ] **70.11** 同じフォルダーで `m a`（詳細）と、`.jxl` で `<Tab>`（spot）を押す（#501） → 2 つの `.jxl` とも `Dimensions` の列に `幅 × 高さ` が出る。spot の `Image` 節も同じ大きさと `Format  JPEG XL` を出す。横向きに保存された縦長の写真は、向きを直した大きさで出る — *`m a` (Details) in that folder, and `<Tab>` (spot) on a `.jxl` (#501) → The `Dimensions` column shows `W × H` for both `.jxl` files, the spot panel's `Image` section shows the same size and `Format  JPEG XL`; a portrait photo stored sideways reads its upright size*
 - [ ] **70.12** `.jxl` で `c i` → `PNG`（#501） → 隣に `name.png` ができ、大きさはプレビューと同じ。`.jxl` は残る。`WebP`・`JPEG` でもできる。`.png` を PNG に変換するのは今までどおり飛ばす — *`c i` → `PNG` on a `.jxl` (#501) → `name.png` appears beside it with the same size as the preview shows; the `.jxl` stays. `WebP` and `JPEG` work too. A `.png` converted to PNG is still skipped*
 - [ ] **70.13** アニメーションの `.jxl` をプレビューする（#501） → 最初のフレームが止まった絵で出る。段落に `![x](photo.jxl)` だけを書いた Markdown は、描画したプレビューにその絵を出す — *Preview an animated `.jxl` (#501) → It shows the first frame as a still picture. A Markdown file with `![x](photo.jxl)` alone in its paragraph shows the picture in the rendered preview*
+- [x] **70.14** （v0.168.17）ファイルを作れないフォルダー（70.7 の読み取り専用のフォルダー）で画像を 2 つ選んで `c i` → `JPEG`。続けて、2 つの画像のうち 1 つが読めないフォルダーでも同じことをする → まとめのトーストとタスクの見出しが失敗を数える: `0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 2 failed`、2 つ目のフォルダーでは `1 image(s) converted: …; 0 skipped, 1 failed`。今までどおり、最初のエラーは別のトーストにも出て、エラーは全部タスクのエラーの行に出る。失敗が無ければ文は 70.1 のまま（`failed` は付かない） — *(v0.168.17) In a folder where you may not create files (70.7's read-only folder), select two images and `c i` → `JPEG`; then do the same in a folder where one of the two images cannot be read → The summary toast and the task headline count the failures: `0 image(s) converted: 0 B → 0 B (0%); 0 skipped, 2 failed`, and in the second folder `1 image(s) converted: …; 0 skipped, 1 failed`. The first error still comes in a toast of its own, and every error in the task's error rows. With no failure the text is as in 70.1 (no `failed`)*
 
 ## 71. Toasts read aloud (v0.157.0)
 
