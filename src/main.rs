@@ -1380,6 +1380,14 @@ fn pane_drag_line(frames: usize, cells: &[usize]) -> String {
     format!("pane drag: {frames} frames with the button held after a press in the pane; selected cells drawn: {list}{more}")
 }
 
+/// What the other details cells painted between the last two `<State:>` checkpoints (69.15), frozen at the later one:
+/// the `details cells …` line and its newline, or nothing when that interval never saw the details view. It is not part
+/// of `state_report`: a `<State:>`'s text is written before the pass that closes its interval is drawn, so `--keys`
+/// adds this line to that text afterwards, and to `KURA_KEYS_DONE` (#534).
+fn details_cells_text(app: &App) -> String {
+    app.details_watch.last().filter(|s| s.saw_details).map(|s| details_cells_line(s) + "\n").unwrap_or_default()
+}
+
 /// `details cells (from → to): …` from the interval the last `<State:>` froze (row 69.15).
 fn details_cells_line(s: &ui::details_watch::Summary) -> String {
     let lag = |name: &str, lag: &Option<ui::details_watch::Lag>| match lag {
@@ -1707,10 +1715,8 @@ fn state_report(app: &App) -> String {
     lines.push(format!("linemode: {}", app.tab().linemode.name()));
     // The details view's Size cells as painted (69.13): where the numbers end and the units start.
     lines.extend(list_size_lines(&app.list_size));
-    // What the other details cells painted between the last two `<State:>` checkpoints (69.15), frozen at the later one.
-    if let Some(summary) = app.details_watch.last().filter(|s| s.saw_details) {
-        lines.push(details_cells_line(summary));
-    }
+    // What the other details cells painted (69.15) is not here but in `details_cells_text`: a `<State:>`'s text is
+    // written before its interval is closed (#534).
     // The right-hand value of each row of the current pane as painted: 69.12 (`m o`, the owner on every row)
     // could only be read off a picture. Rows with no value are listed too, so "every row" can be checked.
     if app.list_right.iter().any(|(_, v)| !v.is_empty()) {

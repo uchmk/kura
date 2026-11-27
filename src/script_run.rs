@@ -505,6 +505,16 @@ fn write_text(path: &Path, text: &str) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| format!("could not write {}: {e}", path.display()))
 }
 
+/// Add `text` to the end of the file at `path`, which must be there already; the error names the path.
+fn append_text(path: &Path, text: &str) -> Result<(), String> {
+    use std::io::Write as _;
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(text.as_bytes()))
+        .map_err(|e| format!("could not add to {}: {e}", path.display()))
+}
+
 impl ScriptRun {
     /// The script `steps` (from `keyscript::parse`), reporting to `done` and
     /// saving what it writes into `shot_dir`. `failed` is the flag `main`
@@ -744,7 +754,7 @@ impl ScriptRun {
             }
             self.trace = None;
         }
-        let ok = self.write_done(&(crate::state_report(app) + &e.tail));
+        let ok = self.write_done(&(crate::state_report(app) + &crate::details_cells_text(app) + &e.tail));
         if let Some(say) = &e.say {
             say_err(say);
         }
@@ -1369,10 +1379,19 @@ impl ScriptRun {
             phase,
             capture_id,
         };
-        // A plain `<State:x>` closes the interval of the details cells; the stages of a `<Snap:>` do not, so the
-        // frozen value stays the same between them.
+        // A plain `<State:x>` closes the interval of the details cells once its own pass has been observed (the stages of
+        // a `<Snap:>` leave it open), and adds what it froze to `x.txt`: that text was written before this pass was
+        // drawn, when the interval was still open, so it said the one before it (#534).
         if phase.is_none() {
             app.details_watch.checkpoint(&header.name);
+            let line = crate::details_cells_text(app);
+            if !line.is_empty() {
+                let path = self.shot_dir.join(format!("{}.txt", header.name));
+                if let Err(why) = append_text(&path, &line) {
+                    let out = self.state_failed(app, &why);
+                    return self.synced(app, out);
+                }
+            }
         }
         let out = match state::submit(ctx, header, state_part(app)) {
             Ok(()) => Outcome::Continue,
@@ -3087,7 +3106,7 @@ mod tests {
         rig.screen.app.act(crate::config::cmd::Act::Linemode(crate::fs::entry::Linemode::All));
         rig.screen.settle();
         let done = rig.dir.join("done.txt");
-        let mut run = rig.run("<State:a><State:b>", Some(done), rig.dir.clone());
+        let mut run = rig.run("<State:a><State:b>", Some(done.clone()), rig.dir.clone());
         assert_eq!(finish(&mut rig, &mut run), Outcome::Continue);
         let a = &state_json_of(&rig.dir, "a")["app_state"]["painted"]["details_cells"];
         let b = &state_json_of(&rig.dir, "b")["app_state"]["painted"]["details_cells"];
@@ -3097,6 +3116,15 @@ mod tests {
         assert!(a["columns"].is_array() && (a["owner"].is_object() || a["owner"].is_null()), "{a}");
         // Nothing scrolled in, so nothing was covered.
         assert_eq!((a["arrived"].as_u64(), a["covered"].as_bool()), (Some(0), Some(false)), "{a}");
+        // The text of each state reports the same interval as its JSON, not the one before it (#534).
+        for (name, json, from) in [("a", a, "start"), ("b", b, "a")] {
+            let text = read(&rig.dir.join(format!("{name}.txt")));
+            let want = format!("details cells ({from} → {name}): {} frames,", json["frames"].as_u64().unwrap());
+            assert!(text.contains(&want), "{name}.txt should say `{want}`:\n{text}");
+            assert_eq!(text.matches("details cells (").count(), 1, "one line, the right one:\n{text}");
+        }
+        // The report at the end says the last interval too.
+        assert!(read(&done).contains("details cells (a → b): "), "{}", read(&done));
     }
 
     #[test]
