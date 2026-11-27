@@ -144,6 +144,9 @@ pub(crate) struct ScriptRun {
     state_due: bool,
     /// The script has steps, so the details cells are watched (row 69.15); a plain run with an empty script is not.
     watching: bool,
+    /// When Pace last asked for the next frame (a `<Wait:>`, a settle): the repaint `advance` asks for in `hook` can be
+    /// forgotten when the pass begins, so `due` asks for it again after the drawing. `None` once a step is taken.
+    wake: Option<Instant>,
 }
 
 /// What kura cannot carry out: `None` for the steps it can (today, every parsed step; a tag of a reading it does not
@@ -557,6 +560,7 @@ impl ScriptRun {
             state_settled: None,
             state_due: false,
             watching: !steps.is_empty(),
+            wake: None,
         }
     }
 
@@ -818,6 +822,7 @@ impl ScriptRun {
     ) -> Outcome {
         match self.pace.next(f) {
             pace::Next::Hold { wake } => {
+                self.wake = wake.map(|d| f.now + d);
                 match wake {
                     None => {}
                     Some(d) if d.is_zero() => ctx.request_repaint(),
@@ -826,6 +831,7 @@ impl ScriptRun {
                 Outcome::Continue
             }
             pace::Next::Take(entry) => {
+                self.wake = None;
                 let (taken, edit) = carry(self, app, &entry);
                 // An action's first input goes in now: what the app copied and announced from here on is what
                 // `<Announced:>` looks at, and `<State:>` says how long ago it was. Once per script step.
@@ -847,7 +853,10 @@ impl ScriptRun {
                     None => Outcome::Continue,
                 }
             }
-            pace::Next::End(e) => self.keep(app, e),
+            pace::Next::End(e) => {
+                self.wake = None;
+                self.keep(app, e)
+            }
         }
     }
 
@@ -1045,11 +1054,25 @@ impl ScriptRun {
         Ok(o)
     }
 
-    /// When the next frame is wanted for a retry that waits: a repaint asked for in `hook` can be
-    /// forgotten when the pass begins (egui resets the delay then), so a quiet window could stop
-    /// drawing while a check waits, and the watchdog only pokes once a second.
+    /// When the next frame is wanted for a retry that waits or for the end of a `<Wait:>`: a repaint asked for in
+    /// `hook` can be forgotten when the pass begins (egui resets the delay then), so a quiet window could stop
+    /// drawing while a step waits, and the watchdog only pokes once a second (row 69.15's `<Wait:33>` took a second
+    /// in the Disk usage view, which asks for no frames of its own).
     pub(crate) fn due(&self) -> Option<Duration> {
-        self.pace.due()
+        self.due_at(Instant::now())
+    }
+
+    fn due_at(&self, now: Instant) -> Option<Duration> {
+        // Not sooner than a few milliseconds: a frame that does not reach Pace (a state still being written) would
+        // otherwise ask for the next one at once, over and over.
+        // A run that ended outside `advance` (the window closed, `<Quit>`, a trace that could not be written) leaves
+        // the last wake behind: nothing is waited for any more.
+        let wake = self.wake.filter(|_| !self.pace.finished());
+        let wait = wake.map(|w| w.saturating_duration_since(now).max(Duration::from_millis(4)));
+        match (self.pace.due(), wait) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
     }
 
     /// Where `<Shot:name>` saves: `shots/name.png` beside the done file (`name@preview` is the preview pane's crop of `name.png`).
@@ -1725,6 +1748,56 @@ mod tests {
             assert_eq!(out, Outcome::Continue);
             assert!(events.is_empty(), "{events:?}");
         }
+    }
+
+    /// A `<Wait:>` asks for its end again after the drawing: the repaint asked for in the hook can be forgotten when
+    /// the pass begins, and a view that asks for no frames of its own then waited for the watchdog's poke, once a
+    /// second (row 69.15's `<Wait:33>` in the Disk usage view).
+    #[test]
+    fn a_wait_asks_for_its_end_after_the_drawing() {
+        let mut rig = Rig::new("keys-wait-due", true);
+        let done = rig.dir.join("done.txt");
+        let mut run = rig.run("<Wait:500><State:after>", Some(done), rig.dir.clone());
+        let mut waited = None;
+        for _ in 0..6 {
+            assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+            if run.wake.is_some() {
+                waited = run.due_at(rig.t0);
+                break;
+            }
+        }
+        let d = waited.expect("the wait asked for a frame at its end");
+        assert!(d >= Duration::from_millis(4) && d <= Duration::from_millis(500), "{d:?}");
+        // Past the end, a frame that does not reach Pace asks again soon, not at once.
+        assert_eq!(run.due_at(rig.t0 + Duration::from_secs(1)), Some(Duration::from_millis(4)));
+        assert!(!rig.dir.join("after.txt").exists(), "the wait holds the state");
+        for _ in 0..6 {
+            assert_eq!(rig.pass(&mut run, 1), Outcome::Continue);
+            if rig.dir.join("after.txt").exists() {
+                break;
+            }
+        }
+        assert!(rig.dir.join("after.txt").exists(), "the wait ended and the state was read");
+        until_acked(&mut rig, &mut run);
+        for _ in 0..20 {
+            if run.pace.finished() {
+                break;
+            }
+            assert_eq!(rig.pass(&mut run, 0), Outcome::Continue);
+        }
+        assert!(run.pace.finished(), "the run ended after the state");
+        assert_eq!(run.due(), None, "nothing waits any more");
+        // A run that ends while a wait holds (the window closed) asks for no more frames.
+        let mut cut = rig.run("<Wait:5000>j", None, rig.dir.clone());
+        for _ in 0..6 {
+            assert_eq!(rig.pass(&mut cut, 0), Outcome::Continue);
+            if cut.wake.is_some() {
+                break;
+            }
+        }
+        assert!(cut.wake.is_some() && cut.due().is_some(), "the wait holds");
+        let _ = cut.ended(&mut rig.screen.app, Ending::Closed);
+        assert_eq!(cut.due(), None, "the closed run waits for nothing");
     }
 
     /// A path under a regular file: nothing can be created there, on any OS.
