@@ -812,8 +812,9 @@ fn minimap(
     let unit = rect.width() / 80.0;
     let ppp = painter.ctx().pixels_per_point();
     let (mut drawn, mut plain, mut last_coloured) = (0usize, 0usize, false);
+    let mut plain_at = Vec::new();
     for (b, band) in map.chunks(per).enumerate() {
-        let Some(lead) = band.iter().filter(|r| r.len > 0).max_by_key(|r| r.len) else {
+        let Some((i, lead)) = band.iter().enumerate().filter(|(_, r)| r.len > 0).max_by_key(|(_, r)| r.len) else {
             continue; // an all-blank band leaves a gap, which is the point
         };
         // The shallowest indent in the band keeps the left edge of a block
@@ -834,7 +835,12 @@ fn minimap(
         let (top, bottom) = band_pixels(y, at((b + 1) * per).min(rect.bottom()), ppp);
         let filled = band.iter().filter(|r| r.len > 0).count() as f32 / band.len() as f32;
         drawn += 1;
-        plain += lead.color.is_none() as usize;
+        if lead.color.is_none() {
+            plain += 1;
+            if plain_at.len() < PLAIN_LINES_SAID {
+                plain_at.push(b * per + i + 1);
+            }
+        }
         last_coloured = lead.color.is_some();
         let color = lead.color.map_or(theme.fg, |[r, g, b]| Color32::from_rgb(r, g, b));
         painter.rect_filled(
@@ -844,7 +850,7 @@ fn minimap(
         );
     }
 
-    painter.ctx().data_mut(|d| d.insert_temp(egui::Id::new(MINIMAP_COLOUR), minimap_colour_note(drawn, plain, last_coloured)));
+    painter.ctx().data_mut(|d| d.insert_temp(egui::Id::new(MINIMAP_COLOUR), minimap_colour_note(drawn, plain, &plain_at, last_coloured)));
 
     // --- where the pane is looking ---
     let view = Rect::from_x_y_ranges(rect.x_range(), at(offset)..=at(offset + on_screen));
@@ -865,14 +871,26 @@ fn minimap(
     Some(want.saturating_sub(on_screen / 2))
 }
 
-/// The `minimap colour:` text: bands painted, how many of them in the plain text colour, and the last band's kind.
-fn minimap_colour_note(drawn: usize, plain: usize, last_coloured: bool) -> String {
-    match drawn {
-        0 => "0 bands drawn".to_owned(),
-        _ => {
-            format!("{drawn} bands drawn, {plain} in the plain text colour; last band {}", if last_coloured { "coloured" } else { "plain" })
-        }
+/// How many of the plain bands' lines `minimap colour:` names. A line over ito-syntax's `MAX_LINE` (2000 bytes) is
+/// never coloured, so a file with a few of them has a few plain bands however far its colouring got; naming their lines
+/// lets row 27.6 check that those are the only ones.
+const PLAIN_LINES_SAID: usize = 8;
+
+/// The `minimap colour:` text: bands painted, how many of them in the plain text colour and the lines of the first
+/// of those, and the last band's kind. `plain_at`: the 1-based lines of the first plain bands (a band's line is its
+/// widest one, whose colour it is drawn in).
+fn minimap_colour_note(drawn: usize, plain: usize, plain_at: &[usize], last_coloured: bool) -> String {
+    if drawn == 0 {
+        return "0 bands drawn".to_owned();
     }
+    let at = match plain_at {
+        [] => String::new(),
+        _ => {
+            let lines = plain_at.iter().map(usize::to_string).collect::<Vec<_>>().join(", ");
+            format!(" (line{} {lines}{})", if plain > 1 { "s" } else { "" }, if plain > plain_at.len() { ", …" } else { "" })
+        }
+    };
+    format!("{drawn} bands drawn, {plain} in the plain text colour{at}; last band {}", if last_coloured { "coloured" } else { "plain" })
 }
 
 fn rows(rect: Rect, st: &PreviewStyle<'_>) -> usize {
@@ -1625,7 +1643,18 @@ mod tests {
     fn the_minimap_colour_says_plain_lines_are_plain() {
         let s = minimap_colour_of(&rows_of(100));
         let (n, _) = s.split_once(" bands drawn").expect("bands drawn");
-        assert!(s.contains(&format!(", {n} in the plain text colour; last band plain")), "{s}");
+        assert!(s.contains(&format!(", {n} in the plain text colour (lines 1, ")), "{s}");
+        assert!(s.ends_with(", …); last band plain"), "only the first lines are named: {s}");
+    }
+
+    /// A line too long for ito-syntax stays plain in a coloured file: the note names it, so a check can see it is
+    /// that line and not colouring that stopped (row 27.6).
+    #[test]
+    fn the_minimap_colour_names_the_line_of_a_plain_band() {
+        let mut map = vec![MapRow { indent: 0, len: 10, color: Some([200, 100, 50]) }; 100];
+        map[40] = MapRow { indent: 0, len: 60, color: None };
+        let s = minimap_colour_of(&map);
+        assert!(s.ends_with(" bands drawn, 1 in the plain text colour (line 41); last band coloured"), "{s}");
     }
 
     /// An early first screen: the top coloured, the rest still plain. And blank lines at the end leave gaps, which
@@ -1649,8 +1678,9 @@ mod tests {
     }
 
     #[test]
-    fn the_minimap_colour_note_with_no_band_drawn() {
-        assert_eq!(minimap_colour_note(0, 0, false), "0 bands drawn");
+    fn the_minimap_colour_note_shapes() {
+        assert_eq!(minimap_colour_note(0, 0, &[], false), "0 bands drawn");
+        assert_eq!(minimap_colour_note(9, 2, &[3, 7], true), "9 bands drawn, 2 in the plain text colour (lines 3, 7); last band coloured");
     }
 }
 
