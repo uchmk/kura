@@ -1055,7 +1055,12 @@ impl Kura {
                 let galley = ui.painter().layout_no_wrap(title.to_owned(), egui::FontId::proportional(13.0), fg);
                 let x = rect.left() + 12.0;
                 let right = x + galley.size().x;
-                ui.painter().galley(egui::pos2(x, rect.center().y - galley.size().y / 2.0), galley, egui::Color32::WHITE);
+                let at = egui::pos2(x, rect.center().y - galley.size().y / 2.0);
+                // A hover-only hook with a Test ID over the title, so a check spec can sample its colour (row 59.12).
+                // It takes no click or drag, so dragging the bar still moves the window.
+                let hook = ui.interact(egui::Rect::from_min_size(at, galley.size()), ui.id().with("titlebar-title"), egui::Sense::hover());
+                ito_a11y::test_id_in(ui, &hook, "titlebar.title", Some(&galley));
+                ui.painter().galley(at, galley, egui::Color32::WHITE);
                 right
             },
             |_, _| {},

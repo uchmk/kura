@@ -1,0 +1,125 @@
+# Row 59.12: the title bar follows the theme. Light: the title and the minimize / maximize / close glyphs are dark
+# on the light bar, and the palette box is a light box with a thin border, not a dark pill. Dark: light on the dark bar.
+#
+# Keys, from any folder:
+#   <Size:1040x700><Lang:en><Wait:500><C-,><Wait:500><C-Tab><Wait:400><State:p1><Click:Light><Wait:600><Esc>
+#   <Wait:600><State:light><Snap:light><C-,><Wait:500><C-Tab><Wait:400><State:p2><Click:Dark><Wait:600><Esc>
+#   <Wait:600><State:dark><Snap:dark><Quit>
+#
+# `<C-,>` opens the settings on the General page and one `<C-Tab>` reaches the Theme page, whose mode buttons are
+# clicked by their text (the same config edit as a click by hand). Read with the spec, not by it: `settings page:
+# theme` in p1.txt and p2.txt, before each click. The pointer stays where the mode button was, over the list, so no
+# part of the bar is hovered.
+#
+# "Dark" and "light" are the theme's own `fg` and `bg`: the title galley (`titlebar.title`, a hover-only hook) and the
+# caption glyphs are drawn in `fg`, the colour of the list's text, and the bar is filled with `bg`. The bar is
+# sampled over the whole minimize button; for a glyph, a caption button is sampled 20 px in from its edges. The
+# palette box (`titlebar.search`) is `panel` inside and `border` at its edge. In tsumugi Light `panel` is only dE 1.8
+# from `bg`, so the fill shows the box is light (a dark pill fails it); the edge is the `border` stroke, dE 5.4 from
+# `bg` and 7.1 from `panel`.
+#
+# A glyph's 1 pt stroke is 1.5 px, so it lands on two pixel rows (or columns) at about 75 % each: its darkest pixels are
+# a 3:1 mix of `fg` and `bg` (#555963 in tsumugi Light), dE2000 17.5 from `fg` in Light and 12.2 in Dark. dE 20 takes
+# that mix and turns down a 1:1 mix (37.8 and 27.8) and a pale glyph in the other theme's `fg` (67.5 and more).
+
+spec = 1
+row = "59.12"
+tier = 1
+fixtures = "any"
+window = { size_pt = [1040, 700], pixels_per_point = 1.5 }
+
+[[point]]
+id = "light-theme"
+snap = "light"
+expect = { dark = false, no_overlay = true }
+fail_looks_like = "The theme did not change to a light one, or the settings are still open."
+
+[[point]]
+id = "light-bar"
+snap = "light"
+target = "titlebar.caption.minimize"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.9 } }
+fail_looks_like = "The bar behind the buttons is not the light theme's background."
+
+[[point]]
+id = "light-title"
+snap = "light"
+target = "titlebar.title"
+expect = { color_token = { token = "fg", delta_e_max = 10, min_fraction = 0.05 } }
+fail_looks_like = "The title is pale on the light bar, not the list's dark text colour."
+
+[[point]]
+id = "light-minimize"
+snap = "light"
+target = "titlebar.caption.minimize"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The minimize glyph is pale on the light bar."
+
+[[point]]
+id = "light-maximize"
+snap = "light"
+target = "titlebar.caption.maximize"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The maximize glyph is pale on the light bar."
+
+[[point]]
+id = "light-close"
+snap = "light"
+target = "titlebar.caption.close"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The close glyph is pale on the light bar."
+
+[[point]]
+id = "light-box"
+snap = "light"
+target = "titlebar.search"
+expect = { color_token = { token = "panel", delta_e_max = 3, min_fraction = 0.8, inset_px = 2 } }
+fail_looks_like = "The palette box is dark (a pill), not a light box."
+
+[[point]]
+id = "light-box-border"
+snap = "light"
+target = "titlebar.search"
+expect = { color_token = { token = "border", delta_e_max = 3, min_fraction = 0.05 } }
+fail_looks_like = "The palette box has no thin border."
+
+[[point]]
+id = "dark-theme"
+snap = "dark"
+expect = { dark = true, no_overlay = true }
+fail_looks_like = "The theme did not change back to a dark one, or the settings are still open."
+
+[[point]]
+id = "dark-bar"
+snap = "dark"
+target = "titlebar.caption.minimize"
+expect = { color_token = { token = "bg", delta_e_max = 3, min_fraction = 0.9 } }
+fail_looks_like = "The bar behind the buttons is not the dark theme's background."
+
+[[point]]
+id = "dark-title"
+snap = "dark"
+target = "titlebar.title"
+expect = { color_token = { token = "fg", delta_e_max = 10, min_fraction = 0.05 } }
+fail_looks_like = "The title is not light on the dark bar."
+
+[[point]]
+id = "dark-minimize"
+snap = "dark"
+target = "titlebar.caption.minimize"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The minimize glyph is not light on the dark bar."
+
+[[point]]
+id = "dark-maximize"
+snap = "dark"
+target = "titlebar.caption.maximize"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The maximize glyph is not light on the dark bar."
+
+[[point]]
+id = "dark-close"
+snap = "dark"
+target = "titlebar.caption.close"
+expect = { color_token = { token = "fg", delta_e_max = 20, min_fraction = 0.02, inset_px = 20 } }
+fail_looks_like = "The close glyph is not light on the dark bar."
