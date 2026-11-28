@@ -1084,7 +1084,7 @@ git log -1 --format="%h %an %ad %s"    # 期待値の答え合わせ用
 - [x] **60.2** 既定の `content_max_bytes`（64 MiB）のまま、そのファイルで同じことをする → 並ばず、トーストが大きいファイル 1 つを最初の 64 MiB だけ検索したと言う — *With the default `content_max_bytes` (64 MiB), do the same on that file → It is not listed, and the toast says 1 large file was searched only in its first 64 MiB*
 - [x] **60.3** 60.1 の検索を始めて、読んでいる間に `Esc` を押す → 検索はすぐに止まり、フォルダーが戻り、CPU は暇になる — *Start the search of 60.1 and press `Esc` while it reads → The search stops within a moment, the folder returns, and the CPU goes idle*
 - [x] **60.4** CRLF の行を挟んだあと、行頭が `^needle` のファイルを `^needle` で検索する → LF のファイルも CRLF のファイルも当たる — *Search `^needle` for a file whose lines start with it, after a line with CRLF endings → Both LF and CRLF files match*
-- [ ] **60.5** ネットワークドライブで、大きなログのフォルダーを検索する → エラーなく終わる。途中で kura を閉じても固まらない — *On a network drive, search a folder of large logs → It finishes without errors; closing kura during it does not hang*
+- [x] **60.5** ネットワークドライブで、大きなログのフォルダーを検索する → エラーなく終わる。途中で kura を閉じても固まらない — *On a network drive, search a folder of large logs → It finishes without errors; closing kura during it does not hang*
 
 ## 61. Huge text in the preview (v0.133.0)
 
