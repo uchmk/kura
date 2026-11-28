@@ -90,6 +90,12 @@ fn shell(line: &str) -> std::io::Result<std::process::Output> {
     use std::os::windows::process::CommandExt;
     // No console window: this runs on the preview thread, many times a second
     // while a key is held, and each one would flash.
+    //
+    // CREATE_NO_WINDOW, not the DETACHED_PROCESS the git status worker uses:
+    // `cmd` runs the previewer, a console program, and a `cmd` with no console
+    // leaves it to make one of its own, which the default terminal shows as a
+    // window (measured on Windows 11 with `ping`; the `conhost.exe` count did
+    // not drop either, it just moved under the child).
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     Command::new("cmd").arg("/S").arg("/C").raw_arg(format!("\"{line}\"")).creation_flags(CREATE_NO_WINDOW).output()
 }

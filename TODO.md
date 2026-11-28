@@ -198,9 +198,6 @@ v0.49.0 から Windows 版は zip（`filer.exe` + `conpty.dll` + `OpenConsole.ex
 
 ## 実機のセッションの報告（v0.78.28 で受けた分: #262 x64 の v0.78.23 の再テスト、#263 ARM64 の 46 節）
 
-- [ ] （v0.150.1 で `src/fs/git.rs` の `git.exe` 直起こしは `DETACHED_PROCESS` にした。残りは `cmd` 経由の外部プレビューなど。46.11a を実機で）`git` などの出力を読むだけの子プロセスを `DETACHED_PROCESS` で起こす（#263 の提案 1。`CREATE_NO_WINDOW` は窓を隠すだけで、`git.exe` ごとに `conhost.exe` が 1 つ立つ。
-  spot を 6 回開いて `conhost` が 21 個）。`src/fs/git.rs`、`exec.rs`、`fs/ops.rs`、`preview/external.rs` の 4 か所。`cmd /S /C` の外部プレビューはコンソールが要らないかを確かめる【実機】（`cmd` を `DETACHED_PROCESS` で起こすと、その子の console アプリが新しい窓を作って
-  ちらつくおそれがある。`git.exe` 直起こしだけなら足せるが、Linux では測れず、`conhost` の数と窓のちらつきは Windows でしか見えない）
 - [ ] （所見）前の run（2026-10-04 12:02 の 37 節）が開いた Chrome のタブが ARM64 機に残っている（#263 の所見 1、#256 の所見 2 と同じ）。v0.83.2 から実機の run が閉じる（`.claude/windows-role.md` の「Earlier runs' leftovers」。下の #256 の項目と一緒に片付く）【実機】
 
 ## 実機のセッションの報告（v0.78.15 で受けた分: #251 x64 と #252 ARM64 の書庫の中）

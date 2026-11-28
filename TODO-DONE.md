@@ -2843,6 +2843,13 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
   - [x] （v0.78.179。`.git` ごとに `config`・`refs/remotes/origin/HEAD`・`packed-refs` の更新時刻と大きさで覚え、変われば捨てる）`remote.origin.url` と `origin/HEAD` を、リポジトリの根ごとに覚える
 - [x] （v0.80.7。TESTING.md と訳を直した）TESTING.md 46.11 に何を測るかを書く（#263 の提案 3: `conhost.exe` の数ではなく、`ConsoleWindowClass` の見える窓が増えないこと。上の `DETACHED_PROCESS` が入れば数で測れる）【QA】
 - [x] （v0.78.176。`C` の出力だけ `#42` と `bb23a4e` の間を TAB にした。見た目は変えない）spot の `C` で `Came in via` の 2 つの値を分ける（#263 の提案 4）
+- [x] （v0.168.26 で済み: 残りの `cmd` 経由は `CREATE_NO_WINDOW` のままにすると決めた。Windows 11 の x64 で `cmd /d /s /c "ping …"` を `DETACHED_PROCESS` で起こすと、
+  `ping` が自分のコンソールを作り、既定のターミナル（Windows Terminal）の窓が実際に出た。`conhost.exe` も 1 つのまま `ping` の下に移っただけで減らない。
+  `CREATE_NO_WINDOW` では隠れた `conhost` を 1 つ共有し、窓は出ない。証拠は `C:\dev\filer-evidence\20261128-103554-todo201-detached-cmd-030a`。
+  理由を `src/preview/external.rs` と `src/exec.rs` に書いた。`mklink /J` の 1 か所は滅多に走らないので変えない）
+  （v0.150.1 で `src/fs/git.rs` の `git.exe` 直起こしは `DETACHED_PROCESS` にした。残りは `cmd` 経由の外部プレビューなど。46.11a を実機で）`git` などの出力を読むだけの子プロセスを `DETACHED_PROCESS` で起こす（#263 の提案 1。`CREATE_NO_WINDOW` は窓を隠すだけで、`git.exe` ごとに `conhost.exe` が 1 つ立つ。
+  spot を 6 回開いて `conhost` が 21 個）。`src/fs/git.rs`、`exec.rs`、`fs/ops.rs`、`preview/external.rs` の 4 か所。`cmd /S /C` の外部プレビューはコンソールが要らないかを確かめる【実機】（`cmd` を `DETACHED_PROCESS` で起こすと、その子の console アプリが新しい窓を作って
+  ちらつくおそれがある。`git.exe` 直起こしだけなら足せるが、Linux では測れず、`conhost` の数と窓のちらつきは Windows でしか見えない）
 
 ### 実機のセッションの報告（v0.78.15 で受けた分: #251 x64 と #252 ARM64 の書庫の中）
 - [x] #251（x64、v0.76.3〜0.77.0）: 18.13、21.17、21.19、21.20 に `[x]`、2.2・3.11・24.7 に `[~]`、TESTING-KEYS.md の 4 キー（`<A-g>`、`<A-G>`、ヘルプの `C`、

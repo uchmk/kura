@@ -679,7 +679,9 @@ fn configure(cmd: &mut Command, _block: bool, _orphan: bool) {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     // Only non-blocking launches come here (a blocking one goes to
-    // `new_console`): a GUI program should not flash a console.
+    // `new_console`): a GUI program should not flash a console. Not
+    // DETACHED_PROCESS: the program may be a console one, or `cmd` starting
+    // one, and with no console to share it would open a window of its own.
     cmd.creation_flags(CREATE_NO_WINDOW);
 }
 
