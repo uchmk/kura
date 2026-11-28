@@ -67,9 +67,6 @@ x64 を唯一のメインの機械にし、ARM64 はリリースのときだけ 
 
 ## Sonnet の見張り（2026-10-05 まで）
 
-- [ ] （Sonnet の見張り）v0.78.209 は、項目の「GL を確かめるのに起動 1 回分の手間がかかるので、測ってから」を Linux の 11 ms で済みにしたが、`predicted_fallback` は `auto_backends(cfg!(windows), …)` なので **Windows 以外では GL の確かめ（`has_adapter`）を呼ばない**。測ったのは確かめの無い経路だけ。
-  しかも前は `[ui] backend` の警告があるときだけ呼んでいたのが、既定の `auto` で毎回呼ぶようになった。x64 と ARM64 で `Measure-Command { filer env --out x.txt }` を v0.78.208 と v0.78.209 で比べ、目に見えて遅ければ確かめを警告のあるときに戻すか、前の起動の `last-run.toml` の Adapter から言う形にする。【実機】
-
 ## LLM との連携（2026-10-09、持ち主の希望）
 
 filer・tsumugi・これから作るアプリを LLM とつなげたい。ソースを使い回せる形にすることも含めて課題にする（持ち主の言葉）。

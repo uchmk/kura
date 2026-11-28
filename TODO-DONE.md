@@ -2546,6 +2546,12 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
 - [x] （v0.78.115。5.12 を足し、自動テストと両レーンの再テストを積んだ）（Sonnet の見張り）v0.78.108（`1311053`）がファイル同士の比較の下端に `N differences` を足したが、TESTING.md に行が無く、再テストにも積んでいない。
   単体テストは `count_changes` だけで、下端の文字列は通らない。5 節に「`a.txt` と `b.txt` の比較の下端が `x–y of z  ·  N differences` で、N は `n` が止まる数」の行を足し
   （`ui::overlay::diff_frame` で読めるなら自動テストにしてもよい）、訳と両レーンの再テストに積む
+- [x] （v0.168.28 で閉じた: x64 で測って、今のまま残すことにした。kura 0.168.27 のリリース版を、設定を分けた環境で `kura env --out` を交互に 12 回ずつ回した。
+  既定の `auto`（GL を確かめる）は中央値 455 ms、`WGPU_BACKEND=gl`（確かめない）は 206 ms で、確かめの分は約 0.25 秒だった。
+  `kura env` は一度きりの報告で、この行がいちばん要るのは窓が一度も開いていないとき（前の起動の Adapter が無いとき）なので、毎回の確かめを残す。
+  ARM64 は測っていない。証拠は `C:\dev\filer-evidence\20261128-111323-todo70-env-gl-check-26e3`）
+  （Sonnet の見張り）v0.78.209 は、項目の「GL を確かめるのに起動 1 回分の手間がかかるので、測ってから」を Linux の 11 ms で済みにしたが、`predicted_fallback` は `auto_backends(cfg!(windows), …)` なので **Windows 以外では GL の確かめ（`has_adapter`）を呼ばない**。測ったのは確かめの無い経路だけ。
+  しかも前は `[ui] backend` の警告があるときだけ呼んでいたのが、既定の `auto` で毎回呼ぶようになった。x64 と ARM64 で `Measure-Command { filer env --out x.txt }` を v0.78.208 と v0.78.209 で比べ、目に見えて遅ければ確かめを警告のあるときに戻すか、前の起動の `last-run.toml` の Adapter から言う形にする。【実機】
 
 ### LLM との連携（2026-10-09、持ち主の希望）
 - [x] （2026-10-09、v0.84.1）案を書く: [docs/llm-integration.md](docs/llm-integration.md)。(a) アプリが MCP サーバーになる・(b) アプリが LLM を呼ぶ・(c) 両方を比べ、
