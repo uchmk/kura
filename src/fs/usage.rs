@@ -536,7 +536,9 @@ mod tests {
         let dir = crate::util::test_dir("usage-dirlink");
         std::fs::create_dir_all(dir.join("real")).unwrap();
         std::fs::write(dir.join("real").join("f"), vec![b'x'; 100]).unwrap();
-        std::os::unix::fs::symlink(dir.join("real"), dir.join("ln")).unwrap();
+        // A relative target, so the link's own length (its target's) stays
+        // short however long the test folder's path is.
+        std::os::unix::fs::symlink("real", dir.join("ln")).unwrap();
         let run = collect(&dir);
         assert_eq!(names(&run.listed), ["real"], "the link is not a folder to walk");
         let by = run.by_name();
