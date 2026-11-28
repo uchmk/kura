@@ -9,6 +9,16 @@
 
 ## [未リリース]
 
+## [0.168.25] - 2026-11-28
+
+### 変更
+- 29.29 をこの PC（Windows x64、kura 0.168.22 のリリースビルド、`--keys`、実行のあいだで共有する空の設定のホーム）で確かめて印を付けた。
+  - 127.0.0.1 に受け手を 2 つ立て（外には何も送っていない）、`config.toml` には古い形の `[notify] webhook = …`・`webhook_format = "json"` を書いて始めた。
+  - Notifications のページで「Add an address」を押し、2 つ目のアドレスを打って Format を Slack にした。`config.toml` は `[[notify.webhooks]]` のテーブル 2 つ（古いキーはテーブルに変わった）になり、2 つ目は `format = "slack"` だった。宛先ごとに「Send a test here」と「Remove」がある。
+  - 「いつ知らせるか」の表で Webhook 2 の Failed を切ると、2 つ目のテーブルだけが `states = ["done"]` になった。
+  - Webhook 2 の「Send a test here」は 2 つ目の受け手にだけ Slack の形で 1 件、Webhook 1 のものは 1 つ目の受け手にだけ JSON の形で 1 件届いた。
+  - Webhook 2 の「Remove」で、2 つ目のテーブルがファイルから消えた。
+
 ## [0.168.24] - 2026-11-28
 
 ### 修正
