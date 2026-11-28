@@ -2,7 +2,7 @@ use super::*;
 
 fn app() -> (App, egui::Context) {
     let ctx = egui::Context::default();
-    let app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
+    let app = App::new(Config::load(), crate::util::test_tmp(), ctx.clone());
     (app, ctx)
 }
 

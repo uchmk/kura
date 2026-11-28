@@ -4,7 +4,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// Reported from use: `q` quit the app with quick look still up. The panels

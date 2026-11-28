@@ -2,7 +2,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), ctx);
     a.overlay = Overlay::Help;
     // What the renderer leaves behind: a panel 20 rows tall showing a list
     // of 100.

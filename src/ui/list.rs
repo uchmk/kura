@@ -844,7 +844,7 @@ mod empty {
 
     #[test]
     fn a_folder_with_nothing_in_it_is_empty() {
-        assert_eq!(empty_label(&std::env::temp_dir().join("nothing")), "(empty)");
+        assert_eq!(empty_label(&crate::util::test_tmp().join("nothing")), "(empty)");
     }
 
     #[cfg(windows)]

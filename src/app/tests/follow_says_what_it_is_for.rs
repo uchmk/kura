@@ -14,7 +14,7 @@ fn an_ordinary_file_is_told_that_it_is_not_a_link() {
     std::fs::write(&plain, "x").unwrap();
 
     let ctx = egui::Context::default();
-    let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), ctx);
     a.tabs[a.active].cwd = dir.clone();
     a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(vec![crate::fs::Entry::from_path(plain).unwrap()]), true);
 
@@ -32,5 +32,5 @@ fn an_ordinary_file_is_told_that_it_is_not_a_link() {
     a.act(Act::Follow);
     assert!(a.toasts.is_empty(), "an empty directory says nothing");
 
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

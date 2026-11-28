@@ -39,7 +39,7 @@ fn copy_covers_every_selected_path() {
 
 #[test]
 fn copy_targets_follow_the_selection() {
-    let dir = std::env::temp_dir().join(format!("kura-copy-{}", std::process::id()));
+    let dir = crate::util::test_tmp().join(format!("kura-copy-{}", std::process::id()));
     let mut a = app_in(&dir);
     a.tabs[a.active].selected.insert(dir.join("x"));
     a.tabs[a.active].selected.insert(dir.join("y"));
@@ -73,7 +73,7 @@ fn slash_finds_by_expression() {
     typed(&mut a, false, "gamma");
     let cur = a.tabs[a.active].current.cursor;
     assert_eq!(a.tabs[a.active].current.at(cur).unwrap().name, "Gamma.log");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A half-typed expression leaves the finder and the cursor alone and says
@@ -88,7 +88,7 @@ fn a_half_typed_expression_says_why() {
     let Overlay::Input(ov) = &a.overlay else { panic!("the prompt is still up") };
     assert!(ov.title.starts_with("Find next -- "), "{}", ov.title);
     assert_eq!(a.tabs[a.active].finder.as_ref().unwrap().query, before.query);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `S` marks the body, `s` only names, `F` both.
@@ -103,7 +103,7 @@ fn each_search_marks_what_it_searches() {
         assert_eq!(f.matcher.as_ref().map(|m| m.is_fuzzy()), Some(via == SearchVia::Fuzzy));
         a.exit_search_view();
     }
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn a_bad_expression_starts_no_search() {
     a.start_search("a(", SearchVia::Content);
     assert!(a.search.is_none() && !a.in_search_view());
     assert!(a.tabs[a.active].finder.is_none());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The lines of the file on show that the body search finds, and the file
@@ -135,7 +135,7 @@ fn the_body_matches_are_the_lines_with_the_query() {
     a.preview.state = text(&["x", "x", "x", "x", "x", "x", "x", "x", "needle"]);
     a.show_first_match();
     assert_eq!(a.tabs[a.active].preview_offset, 5);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A Markdown file is searched where it is drawn: the rendered lines
@@ -167,7 +167,7 @@ fn markdown_matches_are_found_in_what_is_drawn() {
     a.show_match(1);
     a.act(Act::ToggleRender);
     assert_eq!(at(&a), Some(2), "`n` after `M` must not start again from the top");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A paragraph the pane cut in two is one run of text to the search: `a.*b`
@@ -196,7 +196,7 @@ fn a_match_over_a_wrapped_line_is_found_on_both_halves() {
     });
     a.render_markdown = true;
     assert_eq!(a.body_matches(), [1, 2]);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Puts the hovered file's lines in the preview as the worker's answer
@@ -266,7 +266,7 @@ fn n_and_shift_n_walk_the_body_across_files() {
     assert_eq!(name(&a), "b.txt", "the list is a ring");
     land(&mut a, &B);
     assert_eq!(at(&a), Some(2));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The result of `S` opens at its first match as soon as the uncoloured
@@ -302,7 +302,7 @@ fn a_deep_preview_opens_at_its_match_on_the_early_payload() {
     a.on_preview(preview::Response { key, payload: payload(), partial: false }, &ctx);
     assert!(!a.preview.early && !a.preview.in_flight);
     assert_eq!(a.tabs[a.active].preview_offset, 1, "the coloured whole does not scroll back");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `<Up>` in a prompt brings back what was submitted before, newest first,
@@ -311,7 +311,7 @@ fn a_deep_preview_opens_at_its_match_on_the_early_payload() {
 /// has a list of its own.
 #[test]
 fn up_in_a_prompt_recalls_what_was_typed_before() {
-    let dir = std::env::temp_dir().join(format!("kura-recall-{}", std::process::id()));
+    let dir = crate::util::test_tmp().join(format!("kura-recall-{}", std::process::id()));
     let mut a = app_in(&dir);
     // `app_in` loads the real state directory's lists, which have words in them.
     a.input_history = Default::default();
@@ -375,7 +375,7 @@ fn a_toast_is_kept_in_the_bells_list() {
     }
     assert_eq!(a.notices.len(), NOTICES);
     assert_eq!(a.notices.last().map(|n| n.title.as_str()), Some(format!("n{}", NOTICES + 4).as_str()));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The end of a search says how many it found and where it looked, a miss
@@ -398,7 +398,7 @@ fn a_finished_search_says_where_it_looked() {
         assert!(said.contains("hidden files skipped") && said.contains(".gitignore"), "{said}");
         a.tabs[a.active].current = Folder::loading(dir.clone(), None);
     }
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `ext:log` in a search narrows it to those files, the rest of the query
@@ -425,7 +425,7 @@ fn ext_narrows_a_search_to_those_files() {
     a.start_search("ext:log", SearchVia::Content);
     assert!(a.search.is_none(), "an extension alone has nothing to look for in a file");
     assert!(a.last_error.as_deref().is_some_and(|e| e.contains("ext:")));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A name search keeps `n` for names, and the body of the file on show is
@@ -444,7 +444,7 @@ fn a_name_search_still_steps_over_names() {
     a.act(Act::FindArrow { prev: false });
     assert_eq!(name(&a), "three.log");
     assert!(!a.find_in_body(false));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `/` in the maximized preview finds in the text on show; `n` / `N` step
@@ -477,5 +477,5 @@ fn the_maximized_preview_finds_and_goes_to_a_line() {
     assert_eq!(a.tabs[a.active].preview_offset, 20, "line 21 is row 20");
     a.preview_goto_submit("x");
     assert_eq!(a.tabs[a.active].preview_offset, 20, "not a number: stays");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

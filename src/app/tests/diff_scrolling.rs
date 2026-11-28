@@ -2,7 +2,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// `G` then `k` has to move the view, and used not to.

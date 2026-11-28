@@ -18,7 +18,7 @@ fn a_send_does_not_disturb_what_is_yanked() {
     std::fs::write(&sent, "x").unwrap();
 
     let ctx = egui::Context::default();
-    let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), ctx);
     a.tabs[a.active].cwd = left.clone();
     a.tabs[a.active].current = Folder::from_entries(left.clone(), Arc::new(vec![crate::fs::Entry::from_path(sent.clone()).unwrap()]), true);
     // A second tab, shown in the other pane.
@@ -47,5 +47,5 @@ fn a_send_does_not_disturb_what_is_yanked() {
     assert_eq!(a.yank.paths, vec![held], "the register is untouched by a send");
     assert!(!a.yank.cut, "and so is what it is holding it for");
 
-    let _ = std::fs::remove_dir_all(&root);
+    crate::util::remove_test_dir(&root);
 }

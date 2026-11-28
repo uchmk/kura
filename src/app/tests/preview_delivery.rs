@@ -27,7 +27,7 @@ fn the_debounce_timer_does_not_outlive_the_look() {
         ["a.txt", "b.txt", "sub"].iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect();
 
     let fresh = || {
-        let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+        let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
         a.cfg.ui.preview_debounce_ms = 10_000;
         a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(entries.clone()), true);
         a
@@ -85,7 +85,7 @@ fn the_debounce_timer_does_not_outlive_the_look() {
 #[test]
 fn a_reply_puts_the_payload_on_screen() {
     let ctx = egui::Context::default();
-    let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
+    let mut app = App::new(Config::load(), crate::util::test_tmp(), ctx.clone());
 
     let key = preview::Key {
         path: PathBuf::from("/nowhere/readme.md"),
@@ -152,7 +152,7 @@ fn a_relayout_is_waited_for() {
 #[test]
 fn a_first_screen_is_shown_but_not_cached() {
     let ctx = egui::Context::default();
-    let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
+    let mut app = App::new(Config::load(), crate::util::test_tmp(), ctx.clone());
     let key = preview::Key {
         path: PathBuf::from("/nowhere/todo.md"),
         len: 7,
@@ -183,7 +183,7 @@ fn a_first_screen_is_shown_but_not_cached() {
 #[test]
 fn a_stale_reply_changes_nothing() {
     let ctx = egui::Context::default();
-    let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
+    let mut app = App::new(Config::load(), crate::util::test_tmp(), ctx.clone());
 
     let wanted = preview::Key {
         path: PathBuf::from("/nowhere/wanted.md"),
@@ -227,7 +227,7 @@ fn a_timing_starts_on_the_file_and_is_replaced_on_another() {
     std::fs::create_dir(dir.join("sub")).unwrap();
     let entries: Vec<crate::fs::Entry> =
         ["a.txt", "b.txt", "sub"].iter().map(|n| crate::fs::Entry::from_path(dir.join(n)).unwrap()).collect();
-    let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     a.cfg.ui.preview_debounce_ms = 10_000;
     a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(entries), true);
 
@@ -255,7 +255,7 @@ fn a_timing_starts_on_the_file_and_is_replaced_on_another() {
 #[test]
 fn a_timing_keeps_the_first_values() {
     let ctx = egui::Context::default();
-    let mut app = App::new(Config::load(), std::env::temp_dir(), ctx.clone());
+    let mut app = App::new(Config::load(), crate::util::test_tmp(), ctx.clone());
     let key = timing_key("/nowhere/t.md");
     app.preview.key = Some(key.clone());
     app.preview.state = PreviewState::Loading;
@@ -284,7 +284,7 @@ fn a_cache_hit_is_timed_as_cached() {
     let dir = crate::util::test_dir("timing-cached");
     std::fs::write(dir.join("a.txt"), "a").unwrap();
     let entries = vec![crate::fs::Entry::from_path(dir.join("a.txt")).unwrap()];
-    let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     a.tabs[a.active].current = Folder::from_entries(dir.clone(), Arc::new(entries.clone()), true);
     let key = preview::Key {
         path: dir.join("a.txt"),

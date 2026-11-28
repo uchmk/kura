@@ -528,6 +528,26 @@ pub fn one_line(text: &str) -> String {
     out
 }
 
+/// The folder tests use instead of the system temp folder: `<temp>/kura-tests/tmp`, made on first use.
+/// The system temp folder can be huge (about 149,000 entries on the owner's PC, 2026-11-28), and a test
+/// App with it as its current or parent folder read and sorted all of it; dozens at once ran `cargo test` out of memory.
+#[cfg(test)]
+pub fn test_tmp() -> std::path::PathBuf {
+    test_tmp_checked().expect("a folder for the tests under the system temp folder")
+}
+
+/// [`test_tmp`] without the panic, for the cleanup at exit.
+#[cfg(test)]
+fn test_tmp_checked() -> Option<std::path::PathBuf> {
+    static TMP: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    if let Some(p) = TMP.get() {
+        return Some(p.clone());
+    }
+    let p = std::env::temp_dir().join("kura-tests").join("tmp");
+    std::fs::create_dir_all(&p).ok()?;
+    Some(TMP.get_or_init(|| p).clone())
+}
+
 #[cfg(test)]
 pub fn test_dir(what: &str) -> std::path::PathBuf {
     static SWEEP: std::sync::Once = std::sync::Once::new();
@@ -544,11 +564,37 @@ pub fn test_dir(what: &str) -> std::path::PathBuf {
     });
     let who =
         std::thread::current().name().unwrap_or("main").replace("::", "-").replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_");
-    let dir = std::env::temp_dir().join(format!("{TEST_DIR_PREFIX}{what}-{who}-{}", std::process::id()));
+    let dir = test_tmp().join(format!("{TEST_DIR_PREFIX}{what}-{who}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a temp directory for the test");
     dir
 }
+
+/// Removes a test's folder at the end of the test, and gives up after 20 s.
+/// Twice (2026-11-20 and 2026-11-28) `cargo test` hung on Windows with a test
+/// thread stuck in std's `remove_dir_all` on its own folder while the test's
+/// App threads were still running. A folder given up on is left for a later
+/// run's sweep: the cleanup at exit skips it, so it cannot hang there instead.
+#[cfg(test)]
+pub fn remove_test_dir(dir: &std::path::Path) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let target = dir.to_path_buf();
+    let spawned = std::thread::Builder::new().name("remove-test-dir".into()).spawn(move || {
+        let _ = std::fs::remove_dir_all(&target);
+        let _ = tx.send(());
+    });
+    if spawned.is_err() {
+        // No thread to be had: remove it here, as before.
+        let _ = std::fs::remove_dir_all(dir);
+    } else if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(std::time::Duration::from_secs(20)) {
+        eprintln!("remove_test_dir: gave up after 20 s, left {}", dir.display());
+        GAVE_UP.lock().unwrap_or_else(|e| e.into_inner()).push(dir.to_path_buf());
+    }
+}
+
+/// The folders [`remove_test_dir`] gave up on, which the cleanup at exit leaves alone.
+#[cfg(test)]
+static GAVE_UP: std::sync::Mutex<Vec<std::path::PathBuf>> = std::sync::Mutex::new(Vec::new());
 
 /// What every [`test_dir`] starts with. Its own prefix, because the program
 /// itself puts `kura-preview-<pid>-<n>` in the same folder, and a sweep
@@ -602,7 +648,7 @@ pub fn archive_scratch() -> PathBuf {
             .unwrap_or("main")
             .replace("::", "-")
             .replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_");
-        std::env::temp_dir().join(format!("{TEST_DIR_PREFIX}archive-{who}-{}", std::process::id()))
+        test_tmp().join(format!("{TEST_DIR_PREFIX}archive-{who}-{}", std::process::id()))
     };
     #[cfg(not(test))]
     std::env::temp_dir().join(format!("{ARCHIVE_SCRATCH_PREFIX}{}", std::process::id()))
@@ -639,18 +685,21 @@ pub fn sweep_archive_scratch() {
     });
 }
 
-/// What `atexit` runs: remove this process's `kura-test-…-<pid>` folders.
+/// What `atexit` runs: remove this process's `kura-test-…-<pid>` folders, but
+/// not those [`remove_test_dir`] gave up on (a later run's sweep takes them).
 #[cfg(test)]
 extern "C" fn remove_own_test_dirs() {
     if std::env::var_os("KURA_KEEP_TEST_DIRS").is_some() {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else { return };
+    let Some(tmp) = test_tmp_checked() else { return };
+    let Ok(entries) = std::fs::read_dir(tmp) else { return };
     let suffix = format!("-{}", std::process::id());
+    let gave_up = GAVE_UP.lock().map(|v| v.clone()).unwrap_or_else(|e| e.into_inner().clone());
     for e in entries.flatten() {
         let name = e.file_name();
         let Some(name) = name.to_str() else { continue };
-        if name.starts_with(TEST_DIR_PREFIX) && name.ends_with(&suffix) {
+        if name.starts_with(TEST_DIR_PREFIX) && name.ends_with(&suffix) && !gave_up.contains(&e.path()) {
             let _ = std::fs::remove_dir_all(e.path());
         }
     }
@@ -659,14 +708,23 @@ extern "C" fn remove_own_test_dirs() {
 /// Clear what earlier runs left, once per process.
 #[cfg(test)]
 fn sweep_test_dirs() {
-    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else { return };
+    // Earlier versions put these directly in the system temp folder, so look there too.
+    let mut places = vec![std::env::temp_dir()];
+    places.extend(test_tmp_checked());
     let now = std::time::SystemTime::now();
-    for e in entries.flatten() {
-        let name = e.file_name();
-        let Some(name) = name.to_str() else { continue };
-        let age = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| now.duration_since(t).ok());
-        if age.is_some_and(|age| stale_test_dir(name, std::process::id(), age)) {
-            let _ = std::fs::remove_dir_all(e.path());
+    for place in places {
+        let Ok(entries) = std::fs::read_dir(place) else { continue };
+        for e in entries.flatten() {
+            let name = e.file_name();
+            let Some(name) = name.to_str() else { continue };
+            // The name first: `metadata` on every entry of a crowded temp folder is slow.
+            if !stale_test_dir(name, std::process::id(), std::time::Duration::MAX) {
+                continue;
+            }
+            let age = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| now.duration_since(t).ok());
+            if age.is_some_and(|age| stale_test_dir(name, std::process::id(), age)) {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
         }
     }
 }
@@ -682,6 +740,24 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn test_dirs_live_under_the_tests_own_tmp() {
+        let tmp = test_tmp();
+        assert_eq!(tmp.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str()), Some("kura-tests"));
+        let d = test_dir("under-tmp");
+        assert_eq!(d.parent(), Some(tmp.as_path()));
+    }
+
+    #[test]
+    fn remove_test_dir_removes_a_tree() {
+        let dir = test_dir("remove-test-dir");
+        std::fs::write(dir.join("a.txt"), "a").unwrap();
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("sub").join("b.txt"), "b").unwrap();
+        remove_test_dir(&dir);
+        assert!(!dir.exists());
+    }
 
     /// Only another process's archive scratch, and only a day old.
     #[test]

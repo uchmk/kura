@@ -3,7 +3,7 @@ use crate::preview::TocEntry;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// An outline entry near the end of a file must not scroll past it.

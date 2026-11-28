@@ -4,7 +4,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// Reported from use: `<Esc>` did nothing under a maximized preview, so the
@@ -340,7 +340,7 @@ fn the_spot_keys_for_copy_all_and_enter() {
 #[test]
 fn the_help_panel_copies_as_text() {
     use crate::config::keys::{render_seq, Key};
-    let a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     let km = &a.cfg.keymap;
     let run = km.help.iter().find(|b| b.on == vec![Key::parse("C").unwrap()]).map(|b| b.run.clone());
     assert_eq!(run, Some(vec![Act::Copy(CopyWhat::All)]));

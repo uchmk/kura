@@ -11,7 +11,7 @@ use super::*;
 fn are_raised_as_warnings_not_errors() {
     let ctx = egui::Context::default();
     let cfg = Config { warnings: vec!["[mgr] `'` is bound twice".into()], ..Config::load() };
-    let app = App::new(cfg, std::env::temp_dir(), ctx);
+    let app = App::new(cfg, crate::util::test_tmp(), ctx);
 
     let t = app.toasts.first().expect("the warning reaches the screen");
     assert_eq!(t.level, Level::Warn, "a config warning is advice, not a failure");

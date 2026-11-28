@@ -2,7 +2,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// A file path inside a directory shared by this test.
@@ -15,7 +15,7 @@ fn app() -> App {
 /// `kura-move-undo-<pid>` one was left per run, 448 in the cloud
 /// container by v0.77.0.
 fn tmp(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("kura-test-move-undo-{}", std::process::id()));
+    let d = crate::util::test_tmp().join(format!("kura-test-move-undo-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&d);
     d.join(name)
 }

@@ -58,7 +58,7 @@ fn preview_find_steps_through_a_huge_log() {
     assert!(a.tabs[a.active].preview_offset > first, "n goes on to the next hit");
     a.find_arrow(true);
     assert_eq!(a.tabs[a.active].preview_offset, first, "N goes back");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Several lines into a program without bracketed paste are asked about,

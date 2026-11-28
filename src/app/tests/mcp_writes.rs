@@ -35,7 +35,7 @@ fn nothing_changes_until_allow_and_enter_refuses() {
     a.answer_confirm('n');
     assert!(rx.recv().unwrap().is_err());
     assert!(dir.join("a.txt").exists() && !dir.join("b.txt").exists());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn allow_renames_and_can_be_undone() {
     assert!(!dir.join("a.txt").exists() && dir.join("b.txt").exists());
     a.act(Act::Undo);
     assert!(dir.join("a.txt").exists());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn a_late_allow_does_nothing() {
     a.answer_confirm('y');
     assert!(rx.recv().unwrap().is_err());
     assert!(dir.join("a.txt").exists());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn a_timed_out_box_closes_by_itself() {
     a.drop_expired_mcp_box();
     assert!(matches!(a.overlay, Overlay::None));
     assert!(dir.join("a.txt").exists());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -80,5 +80,5 @@ fn a_second_request_is_turned_away_while_a_box_is_open() {
     let _first = ask(&mut a, &dir);
     let (rx, _) = ask(&mut a, &dir);
     assert!(rx.recv().unwrap().unwrap_err().contains("another box"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

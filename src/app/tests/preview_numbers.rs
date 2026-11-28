@@ -8,7 +8,7 @@ use crate::config::keys::Key;
 use crate::preview::Span;
 
 fn app() -> App {
-    let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     // The test must not depend on this machine's config.toml.
     a.cfg.ui.line_numbers = false;
     a.max_numbers = true;

@@ -402,7 +402,7 @@ fn the_biggest_thing_comes_first() {
     assert_eq!(a.usage_max, 900, "the bars are drawn against the biggest row");
     let fat = a.tabs[a.active].current.entries.iter().find(|e| e.name == "fat").unwrap();
     assert_eq!(fat.usage_bytes(), 900, "a folder is worth what is under it");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `l` on a folder measures that folder and stays in the view; `h` comes
@@ -448,7 +448,7 @@ fn the_view_goes_down_and_comes_back_up() {
     assert!(!a.in_usage_view(), "from where `gu` was pressed, `h` leaves");
     assert!(!a.toasts.iter().any(|t| t.text.contains("to leave")), "nothing left saying how to leave");
     assert_eq!(a.tabs[a.active].cwd, dir);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// #109: re-sorting the usage view keeps the hidden rows it counted, and
@@ -477,7 +477,7 @@ fn re_sorting_keeps_every_row_and_sorts_by_total() {
     a.act(Act::Sort { by: Some(SortBy::Size), reverse: Some(true), dir_first: Some(false) });
     let names: Vec<String> = (0..rows(&a)).filter_map(|i| a.tabs[a.active].current.at(i).map(|e| e.name.clone())).collect();
     assert_eq!(names, ["fat", ".hidden", "loose", "thin"], "largest total first: {names:?}");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Q33: the view shows sizes whatever the tab was showing, and gives the
@@ -497,7 +497,7 @@ fn the_view_shows_sizes_and_puts_the_linemode_back() {
     a.exit_search_view();
     assert_eq!(a.tabs[a.active].linemode, Linemode::Mtime, "the tab's own mode again");
     assert!(!a.toasts.iter().any(|t| t.text.starts_with("Measuring")), "no longer measuring");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The view is a `Folder` with a path that is not a directory, which is what
@@ -513,7 +513,7 @@ fn leaving_the_view_stops_the_walk() {
     assert!(a.usage.is_none(), "the handle is dropped, so the walk is cancelled");
     assert_eq!(a.usage_max, 0);
     assert!(!a.in_search_view(), "and we are back in the directory");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Starting a usage walk from a view that is already synthetic would leave
@@ -526,7 +526,7 @@ fn it_refuses_to_start_from_another_synthetic_view() {
     let path = a.tabs[a.active].current.path.clone();
     a.start_usage();
     assert_eq!(a.tabs[a.active].current.path, path, "the view did not change");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 fn settle(a: &mut App) {
@@ -569,7 +569,7 @@ fn details_goes_up_past_where_it_started_and_stays_measured() {
     let r = rows(&a);
     assert_eq!(r.len(), 3, "{r:?}");
     assert!(r.iter().all(|(_, u)| u.is_some()), "every row measured: {r:?}");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A jump in Details lands, and the folder it lands on is measured. The old
@@ -587,7 +587,7 @@ fn details_measures_the_folder_a_jump_lands_on() {
     settle(&mut a);
     assert_eq!(rows(&a), [("b".to_string(), Some(20))], "only this folder's children");
     assert_eq!(a.tabs[a.active].linemode, Linemode::All);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Out of the `gu` view a jump is a plain move.
@@ -606,7 +606,7 @@ fn a_jump_out_of_the_gu_view_leaves_it() {
     assert!(a.usage.is_none() && !a.in_usage_view(), "nothing measures it");
     assert_eq!(a.tabs[a.active].current.path, dir.join("thin"));
     assert_eq!(rows(&a), [("b".to_string(), None)]);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Leaving Details before the landing settles cancels the measurement.
@@ -621,7 +621,7 @@ fn leaving_details_after_a_jump_measures_nothing() {
     listed(&mut a, &dir.join("thin"));
     assert!(a.usage.is_none() && !a.in_usage_view());
     assert!(a.usage_follow.is_none());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The walk is the app's, and `drain_usage` fills the active tab: changing
@@ -652,7 +652,7 @@ fn a_tab_change_during_a_walk_mixes_nothing() {
     assert!(a.in_usage_view());
     settle(&mut a);
     assert!(rows(&a).iter().all(|(_, u)| u.is_some()), "and tab 0 is measured when it comes back");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Details as the default linemode (yazi.toml) is a plain listing: neither a
@@ -671,7 +671,7 @@ fn details_by_default_measures_nothing() {
     listed(&mut a, &dir.join("thin"));
     assert!(a.usage.is_none() && !a.in_usage_view(), "a tab change does not measure");
     assert_eq!(a.tabs[0].linemode, Linemode::All);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A second jump before the first one has landed still measures where the
@@ -687,7 +687,7 @@ fn details_follows_a_jump_made_before_the_last_one_landed() {
     assert!(a.in_usage_view(), "measuring where it landed");
     settle(&mut a);
     assert_eq!(rows(&a), [("inner".to_string(), Some(900))]);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Two moves aside in one second keep both copies: the second does not
@@ -1097,7 +1097,7 @@ fn a_wanted_row_found_at_the_top_is_followed_when_it_sinks() {
     feed(&mut a, &tx, &[("c", 500)]);
     assert_eq!(a.tabs[a.active].current.cursor, 1);
     assert_eq!(hovered(&a), Some("b"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// #525: batches landing above and below the wanted row leave the cursor on it.
@@ -1113,7 +1113,7 @@ fn a_wanted_row_found_lower_stays_under_the_cursor() {
     assert_eq!(hovered(&a), Some("m"));
     feed(&mut a, &tx, &[("c", 800), ("d", 300), ("e", 1000)]);
     assert_eq!(hovered(&a), Some("m"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A fresh view keeps the top row, the biggest so far, through the batches.
@@ -1127,7 +1127,7 @@ fn a_fresh_view_stays_on_the_biggest_row() {
         assert_eq!(a.tabs[a.active].current.cursor, 0);
         assert_eq!(hovered(&a), Some(n));
     }
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The same with a filter set, where `view` is not the identity: read through
@@ -1143,7 +1143,7 @@ fn a_fresh_filtered_view_stays_on_its_top_row() {
     feed(&mut a, &tx, &[("x9", 900), ("x5", 500)]);
     assert_eq!(a.tabs[a.active].current.cursor, 0);
     assert_eq!(hovered(&a), Some("x9"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A cursor the user moved stays on its file through later batches.
@@ -1159,7 +1159,7 @@ fn a_moved_cursor_stays_on_its_file() {
     assert_eq!(hovered(&a), Some("b"));
     feed(&mut a, &tx, &[("f", 2000)]);
     assert_eq!(hovered(&a), Some("b"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A new measuring starts fresh: a want placed in the last one does not carry over.
@@ -1178,7 +1178,7 @@ fn measuring_again_forgets_a_placed_want() {
     feed(&mut a, &tx, &[("p", 10)]);
     feed(&mut a, &tx, &[("q", 20)]);
     assert_eq!(hovered(&a), Some("q"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 fn manual_again(a: &mut App) -> crossbeam_channel::Sender<crate::fs::usage::Msg> {
@@ -1202,7 +1202,7 @@ fn details_keeps_the_hovered_file() {
     assert!(a.in_usage_view());
     assert_eq!(rows(&a).len(), 3);
     assert_eq!(a.tabs[a.active].current.hovered_name(), Some("loose"));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// Drain the walk until `done` holds.
@@ -1303,7 +1303,7 @@ fn details_pauses_and_gu_measures_the_rest() {
     a.act(Act::Usage);
     assert_eq!(texts(&a), before);
     assert!(a.in_usage_view());
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A light folder is measured at once: nothing waits for `gu`.
@@ -1316,7 +1316,7 @@ fn a_light_folder_is_measured_by_itself() {
     settle(&mut a);
     assert!(a.usage.is_none() && !a.usage_paused);
     assert!(rows(&a).iter().all(|(_, u)| u.is_some()));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A `Paused` read after `gu` was pressed is stale and sets nothing; one from
@@ -1337,7 +1337,7 @@ fn a_stale_pause_is_ignored() {
     a.drain_usage();
     assert!(!a.usage_paused, "it was sent before `gu`, and read after");
     assert!(!texts(&a).iter().any(|t| t.starts_with("Big folder")), "{:?}", texts(&a));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `gu` that starts the view never pauses, whatever `usage_auto_ms` says.
@@ -1351,7 +1351,7 @@ fn plain_gu_never_pauses() {
     settle(&mut a);
     assert!(a.usage.is_none() && !a.usage_paused);
     assert!(rows(&a).iter().all(|(_, u)| u.is_some()), "{:?}", rows(&a));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// `l` in a view that `m a` started is a new walk that may pause; in one that
@@ -1401,7 +1401,7 @@ fn going_down_keeps_the_way_the_view_started() {
     settle(&mut c);
     assert!(!c.usage_paused);
     assert_eq!(rows(&c), [("inner".to_string(), Some(900))]);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A jump while paused ends the paused walker and measures the folder it lands
@@ -1428,7 +1428,7 @@ fn a_jump_while_paused_starts_over_and_escape_ends_it() {
     assert!(!a.usage_paused && !a.usage_listed && !a.usage_auto);
     assert!(!texts(&a).iter().any(|t| t.ends_with("<Esc> to leave")), "{:?}", texts(&a));
     walker_ended(&rx);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// The wanted row now arrives with the listing, before it is sized, and the
@@ -1451,7 +1451,7 @@ fn a_wanted_row_listed_before_it_is_sized_keeps_the_cursor() {
     assert_eq!(hovered(&a), Some("m"));
     assert_eq!(rows(&a), [("a".to_string(), Some(900)), ("z".to_string(), Some(500)), ("m".to_string(), Some(10))]);
     assert_eq!(a.usage_max, 900);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// A sized child updates the row listed under its path and keeps what else the
@@ -1477,7 +1477,7 @@ fn a_sized_child_finds_its_row_by_path() {
     let d = f.entries.iter().find(|e| e.name == "d").unwrap();
     assert_eq!((d.usage, d.usage_cut, d.dir_size), (Some(40), true, Some(7)));
     assert_eq!(rows(&a).last().unwrap(), &("e".to_string(), None), "unmeasured last");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 /// In the usage view an unmeasured folder sorts after the measured rows under
@@ -1510,5 +1510,5 @@ fn unmeasured_rows_sort_last_in_the_usage_view() {
     tx.send(crate::fs::usage::Msg::Listed(vec![row("blank")])).unwrap();
     feed(&mut b, &tx, &[("small", 5), ("big", 50)]);
     assert_eq!(order(&b), ["big", "small", "blank"]);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

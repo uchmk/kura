@@ -2,7 +2,7 @@ use super::*;
 
 fn app() -> App {
     let ctx = egui::Context::default();
-    App::new(Config::load(), std::env::temp_dir(), ctx)
+    App::new(Config::load(), crate::util::test_tmp(), ctx)
 }
 
 /// The panel describes whatever is hovered, so it has to be asked about it.
@@ -44,5 +44,5 @@ fn a_new_hover_is_asked_about_once_it_exists() {
     a.sync_spot();
     assert_eq!(a.spot_asked, None);
 
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

@@ -14,7 +14,7 @@ fn a_hosts_shares_are_not_counted() {
         crate::core::folder::Folder::from_entries(at.to_path_buf(), Arc::new(entries), true)
     };
     let ctx = egui::Context::default();
-    let mut a = App::new(Config::load(), std::env::temp_dir(), ctx);
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), ctx);
     a.tabs[a.active].linemode = Linemode::Size;
     a.tabs[a.active].page_rows = 10;
 

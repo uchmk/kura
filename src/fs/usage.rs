@@ -458,7 +458,7 @@ mod tests {
         assert_eq!(run.total, 1060);
         // Three children of the root, and no grandchildren among them.
         assert_eq!(by.len(), 3, "{by:?}");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     #[test]
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(by["big"].1, 2);
         assert_eq!(by["small"].1, 1);
         assert_eq!(by["loose"].1, 1);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// Phase 1: the folders are listed unsized, the file is sized from the
@@ -482,7 +482,7 @@ mod tests {
         let a = run.order.find('A').expect("the listing ended");
         assert!(run.order[..a].contains('L') && run.order[..a].contains('S'), "{}", run.order);
         assert!(run.order.ends_with('D'), "{}", run.order);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// 44.7: a child the budget ran out in says so, and so does one it never
@@ -501,7 +501,7 @@ mod tests {
         assert!(measure(&dir.join("small"), &mut budget, &mut HashSet::new(), &mut || true).2, "with room, the walk ends");
         let run = collect(&dir);
         assert!(run.sized.iter().all(|t| t.3), "and a whole walk marks every child whole: {:?}", run.by_name());
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A budget that reaches zero exactly on the last entry is not a cut.
@@ -512,7 +512,7 @@ mod tests {
         let (bytes, files, whole) = measure(&dir.join("small"), &mut budget, &mut HashSet::new(), &mut || true);
         assert_eq!((bytes, files, whole), (50, 1, true));
         assert_eq!(budget, 0);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A refusal from the pause hook ends the folder as cut short.
@@ -525,7 +525,7 @@ mod tests {
             n < 2
         });
         assert!(!whole);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A link to a directory is one entry and is not followed: its target is
@@ -543,7 +543,7 @@ mod tests {
         assert_eq!(by["real"], (100, 1, true));
         assert_eq!(by["ln"].1, 1, "one entry: {by:?}");
         assert!(by["ln"].0 < 100, "its own length, not the tree's: {by:?}");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A file hard-linked into two folders is counted once, under the first
@@ -587,7 +587,7 @@ mod tests {
         assert_eq!(run.total, 0);
         assert!(!run.capped);
         assert_eq!(run.order, "AD");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A pause at zero comes before the first folder: everything is listed and
@@ -612,7 +612,7 @@ mod tests {
         assert_eq!(run.by_name(), plain.by_name());
         assert_eq!(run.total, plain.total);
         assert_eq!(run.order.matches('P').count(), 1, "one pause per walk: {}", run.order);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// No folder, no pause: there is nothing to stop before.
@@ -625,7 +625,7 @@ mod tests {
         read(&h, &mut run, false);
         assert!(run.done && !run.order.contains('P'), "{}", run.order);
         assert_eq!(run.total, 3);
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// A pause in the middle of a folder keeps its place: the totals after
@@ -647,7 +647,7 @@ mod tests {
             assert!(!run.capped);
             assert_eq!(run.order.matches('P').count(), 1, "gate {gate}: {}", run.order);
         }
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// `measure_all` sent before the pause point: either no `Paused` comes, or
@@ -665,7 +665,7 @@ mod tests {
             assert!(run.done);
             assert_eq!(run.total, 1060);
         }
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// The channel is empty and disconnected: the walker thread is gone.
@@ -692,7 +692,7 @@ mod tests {
         let rx = h.rx.clone();
         drop(h);
         assert!(ends(&rx), "the thread returned");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 
     /// `cancel` wakes a paused walker the same way.
@@ -704,6 +704,6 @@ mod tests {
         read(&h, &mut run, true);
         h.cancel();
         assert!(ends(&h.rx), "the thread returned");
-        let _ = std::fs::remove_dir_all(&dir);
+        crate::util::remove_test_dir(&dir);
     }
 }

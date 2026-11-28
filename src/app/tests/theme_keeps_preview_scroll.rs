@@ -7,7 +7,7 @@ fn on_show(label: &str, debounce_ms: u64) -> App {
     let dir = crate::util::test_dir(label);
     std::fs::write(dir.join("long.txt"), "line\n".repeat(500)).unwrap();
     let entries = vec![crate::fs::Entry::from_path(dir.join("long.txt")).unwrap()];
-    let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     a.cfg.ui.preview_debounce_ms = debounce_ms;
     a.tabs[a.active].current = Folder::from_entries(dir, Arc::new(entries), true);
     assert!(a.tabs[a.active].current.select_name("long.txt"));

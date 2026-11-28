@@ -10,7 +10,7 @@ fn row(rel: &str, state: TreeState) -> TreeRow {
 }
 
 fn app_with(rows: Vec<TreeRow>) -> App {
-    let mut a = App::new(Config::load(), std::env::temp_dir(), egui::Context::default());
+    let mut a = App::new(Config::load(), crate::util::test_tmp(), egui::Context::default());
     a.overlay = Overlay::Diff(DiffOverlay {
         left: PathBuf::from("l"),
         right: PathBuf::from("r"),

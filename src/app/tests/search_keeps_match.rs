@@ -80,7 +80,7 @@ fn a_theme_switch_keeps_the_match_and_the_scroll() {
     assert!(a.preview.keep_match.is_none());
     next(&mut a);
     assert_eq!(at(&a), Some(16), "and `n` goes on from there");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn a_relayout_keeps_the_nth_match_on_its_new_row() {
     answer(&mut a, lines(24, &[2, 8, 14, 20]), false);
     assert_eq!(at(&a), Some(14));
     assert_eq!(a.tabs[a.active].preview_offset, 11);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 
     // The early answer (every line, no colours) places it, and the whole one
     // that follows leaves the reader where they have got to.
@@ -104,7 +104,7 @@ fn a_relayout_keeps_the_nth_match_on_its_new_row() {
     answer(&mut a, lines(24, &[2, 8, 14, 20]), false);
     assert_eq!(at(&a), Some(14));
     assert_eq!(a.tabs[a.active].preview_offset, 5);
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn a_cache_hit_for_the_same_file_keeps_the_match() {
     a.request_preview(true);
     assert!(!a.preview.in_flight, "answered from the cache");
     assert_eq!(at(&a), Some(14));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_new_file_or_a_new_search_still_opens_on_the_first_match() {
     assert!(a.preview.keep_match.is_none(), "another file keeps nothing");
     answer(&mut a, lines(20, &[4, 9]), false);
     assert_eq!(at(&a), Some(4));
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 
     let (mut a, dir) = on_third_match("keep-match-query");
     a.look_changed();
@@ -135,5 +135,5 @@ fn a_new_file_or_a_new_search_still_opens_on_the_first_match() {
     a.tabs[a.active].finder.as_mut().unwrap().query = "other".into();
     answer(&mut a, lines(20, &[1, 6, 11, 16]), false);
     assert_eq!(at(&a), Some(1), "a new search starts at its first match");
-    let _ = std::fs::remove_dir_all(&dir);
+    crate::util::remove_test_dir(&dir);
 }

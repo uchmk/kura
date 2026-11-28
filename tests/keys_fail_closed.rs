@@ -10,7 +10,10 @@ fn run(keys: &str, label: &str) -> (Option<i32>, String) {
 }
 
 fn run_with_id(keys: &str, label: &str, run_id: Option<&str>) -> (Option<i32>, String) {
-    let dir: PathBuf = std::env::temp_dir().join(format!("kura-keys-fail-closed-{}-{label}", std::process::id()));
+    // Not the system temp folder itself, which can be huge: see `util::test_tmp`.
+    let tmp = std::env::temp_dir().join("kura-tests").join("tmp");
+    std::fs::create_dir_all(&tmp).unwrap();
+    let dir: PathBuf = tmp.join(format!("kura-keys-fail-closed-{}-{label}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let done = dir.join("done.txt");

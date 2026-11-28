@@ -519,7 +519,7 @@ fn a_failed_jump_says_so_once() {
     assert_eq!(a.tabs[a.active].cwd, dir, "taken back");
 
     // A failure that has nothing to do with the jump is still heard.
-    a.on_scan(fail(&std::env::temp_dir().join("elsewhere")));
+    a.on_scan(fail(&crate::util::test_tmp().join("elsewhere")));
     assert_eq!(a.toasts.len(), 2);
 }
 
@@ -576,7 +576,7 @@ fn a_mistyped_name_lands_the_cursor_on_the_nearest() {
 #[test]
 fn the_cd_prompt_ends_in_this_platforms_separator() {
     let sep = std::path::MAIN_SEPARATOR;
-    let dir = std::env::temp_dir().join("x");
+    let dir = crate::util::test_tmp().join("x");
     assert_eq!(dir_prefill(&dir), format!("{}{sep}", dir.display()));
     let root = PathBuf::from(if cfg!(windows) { "C:\\" } else { "/" });
     assert_eq!(dir_prefill(&root), root.display().to_string());

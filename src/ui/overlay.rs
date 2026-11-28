@@ -588,7 +588,7 @@ fn shown_config_dirs() -> Vec<std::path::PathBuf> {
 /// directories in and still look on disk.
 #[cfg(test)]
 pub(crate) fn shown_config_dirs() -> Vec<std::path::PathBuf> {
-    crate::config::CONFIG_VARS.iter().map(|v| std::env::temp_dir().join("kura-test-no-config").join(v)).collect()
+    crate::config::CONFIG_VARS.iter().map(|v| crate::util::test_tmp().join("kura-test-no-config").join(v)).collect()
 }
 
 /// The line under the config rows when nothing was read. Nothing read is not
@@ -1584,7 +1584,7 @@ mod help_config_rows {
     /// of another (the machine's 33.9 still breaks real config files).
     #[test]
     fn a_long_warning_takes_a_row_per_line() {
-        let mut app = crate::app::App::new(crate::config::Config::load(), std::env::temp_dir(), egui::Context::default());
+        let mut app = crate::app::App::new(crate::config::Config::load(), crate::util::test_tmp(), egui::Context::default());
         app.cfg.warnings = vec!["a.toml: TOML parse error at line 2\n  |\n2 | x = \n  |     ^\n".into(), "second".into()];
         let rows = super::config_rows(&app, &[]);
         let warned: Vec<&str> = rows.iter().filter(|r| r.warning).map(|r| r.text.as_str()).collect();
@@ -1604,7 +1604,7 @@ mod help_config_rows {
         let mine = std::path::PathBuf::from("/tmp/kura-help/kura");
 
         let ctx = egui::Context::default();
-        let mut app = App::new(crate::config::Config::load(), std::env::temp_dir(), ctx);
+        let mut app = App::new(crate::config::Config::load(), crate::util::test_tmp(), ctx);
         app.cfg.loaded = vec![yazi.join("keymap.toml"), yazi.join("theme.toml")];
         app.cfg.warnings = vec!["[mgr] `\'` is bound twice".into()];
 
@@ -1760,7 +1760,7 @@ mod help_config_rows {
     #[test]
     fn the_reload_key_is_looked_up() {
         let ctx = egui::Context::default();
-        let mut app = App::new(crate::config::Config::load(), std::env::temp_dir(), ctx);
+        let mut app = App::new(crate::config::Config::load(), crate::util::test_tmp(), ctx);
         let reload = crate::config::keys::Key::parse("<C-F5>").unwrap().to_string();
         assert_eq!(key_for(&app, &Act::ConfigReload), Some(reload));
 
