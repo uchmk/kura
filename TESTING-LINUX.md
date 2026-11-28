@@ -257,8 +257,8 @@ Windows ではリンクを作るのが面倒。**ジャンクション**は管�
 
 ## 15. ウィンドウの拡大縮小と、取り返したキー
 
-v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk の全アプリが共有する（yagura も従う）。
-15.10 と 15.11 のために yagura を開いておく。
+v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk の全アプリが共有する（どのアプリも従う）。
+15.10 のために、2 つ目の kura を横に開いておく（同じファイルを読む）。
 
 **v0.32.0 まで `<C-->` はウィンドウ縮小とハードリンク作成を同時にやっていた** —— 1 打で 2 動作。
 それを分けたのがこの節。ハードリンク作成は `=` に移った（v0.45.6 まで `<C-S-->` だったが、
@@ -275,7 +275,7 @@ v0.99.0 から倍率は `%APPDATA%\uchmk\common.toml` の `scale` で、uchmk �
 - [ ] **15.6** 画像の上で `<A-i>` / `<A-o>` → **画像の**拡大縮小のまま影響を受けない（`zoom` と `scale` は別のコマンド） — *`<A-i>` / `<A-o>` on an image → Still the **image** zoom, unaffected — `zoom` and `scale` are different commands*
 - [ ] **15.7** `~` → `scale in` / `scale out` / `scale reset` が他のコマンドと同じように並んでいる — *`~` → `scale in` / `scale out` / `scale reset` are listed, like any other command*
 - [ ] **15.9** 別のドライブのファイルをヤンクして `=`（`R:` → `C:`）（v0.59.4）→ エラーが Windows の「別のディスク ドライブに移動できません」ではなく `hardlinks can't cross drives (R: → C:). Use p to copy instead` と言う — *`=` with a file yanked from another drive (`R:` → `C:`) (v0.59.4) → The error reads `hardlinks can't cross drives (R: → C:). Use p to copy instead`, not Windows' "cannot move the file to a different disk drive"*
-- [ ] **15.10** 100% から `<C-=>` を 1 回押し、`%APPDATA%\uchmk\common.toml` を開く（v0.99.0）→ トーストが `Scale 110%`、ファイルに `scale = 1.1` が入り、中のコメントは元のまま。隣に開いた yagura も 3 秒ほどで 110% になる — *`<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) → The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. yagura, open beside it, grows to 110% within about 3 seconds*
+- [ ] **15.10** 100% から `<C-=>` を 1 回押し、`%APPDATA%\uchmk\common.toml` を開く（v0.99.0）→ トーストが `Scale 110%`、ファイルに `scale = 1.1` が入り、中のコメントは元のまま。隣に開いた 2 つ目の kura も 3 秒ほどで 110% になる — *`<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) → The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. A second kura, open beside it, grows to 110% within about 3 seconds*
 - [ ] **15.11** common.toml に手で `scale = 1.5` と書いて保存（v0.99.0）→ キーを押さなくても 3 秒ほどで kura が 150% になる — *Write `scale = 1.5` into common.toml by hand and save (v0.99.0) → kura goes to 150% within about 3 seconds, with no key pressed*
 - [ ] **15.12** `$env:KURA_SCALE="130%"` で kura を起動し、`<C-=>` を押してから common.toml の `scale` を変える（v0.99.0）→ 130% で始まり `<C-=>` で 140% になるが、common.toml には**書かれず**、手の書き換えにも従わない。この起動の間は変数が倍率を決める — *Start kura with `$env:KURA_SCALE='130%'`, press `<C-=>`, then change `scale` in common.toml (v0.99.0) → It starts at 130% and `<C-=>` steps to 140%, but common.toml is **not** written, and the hand edit is not followed: the variable pins the scale for this run*
 - [ ] **15.13** `$env:KURA_PIXELS_PER_POINT` にモニターの表示倍率と違う値（150% のモニターなら 1.25、100% なら 1.5）を入れて kura を起動し、`<C-=>` を押し、キーから 5 秒より後に common.toml の `scale` を変える。対照として変数なしでも同じ手順を行う → キーを押す前の状態の `pixels_per_point` が変数の値で、キーを押しても common.toml の `scale` は**書かれず**、手の書き換えにも従わない。この起動の間は変数が倍率を決める。対照ではキーが `scale` を書き、同じ書き換えに従う — *Start kura with `$env:KURA_PIXELS_PER_POINT` set to a value other than the monitor's own scale (1.25 on a 150% monitor, 1.5 on a 100% one), press `<C-=>`, and more than 5 seconds after the key change `scale` in common.toml. Do the same without the variable as a control → The state's `pixels_per_point` reads the variable's value before the key, common.toml's `scale` is **not** written by the key, and the hand edit is not followed: the variable pins the scale for this run. In the control the key writes `scale` and the same edit is followed*

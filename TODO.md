@@ -34,7 +34,6 @@
 - [ ] 設定が `%APPDATA%\kura` から `%APPDATA%\uchmk\kura` へ自動で移った（`kura.toml` は `config.toml`）。自分で `KURA_CONFIG_HOME` を使っていれば、そのフォルダの `kura.toml` も `config.toml` に改名される。古いフォルダが残っていれば中身を確かめて消す【人】
 - [ ] 実機のレーンを common.toml から切り離す: レーンの kura が `<C-=>` を押すと持ち主の common.toml の倍率が変わり、机のほかの uchmk のアプリも大きくなる。`scripts/auto-wintest.ps1` で `UCHMK_CONFIG_DIR` を一時フォルダに向けるか、`KURA_SCALE=1` を渡す【実機】
 - [ ] 窓の位置と大きさを覚える処理を ito に寄せる（yagura などほかのアプリにも同じものが要る）【人】（ito リポジトリに新しい部品を足す作業で、このセッションの GitHub 権限は kura だけ。ito 側で `ito-prefs` 等に足してから、kura の `rev` を上げる）
-- [ ] 15.10・15.11（倍率がほかのアプリに伝わる）は yagura を横に開いて確かめる（yagura は common.toml の倍率に従う）【実機】
 
 ## 多言語対応（2026-10-10、持ち主の希望）
 

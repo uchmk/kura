@@ -2405,6 +2405,8 @@ v0.78.167 のスクリプトが構文エラーで読めなかった間に、前�
 - [x] プレビューの構文の色づけを ito-syntax に寄せる（v0.139.38 で済み。見た目の確認は TESTING 20.8）（`syntect` / `two-face` は `scripts/ito-first.allow` に載せてある）。ito 0.109.0（edce986）で必要な API が揃った。
   - 手順: `ito-syntax` を `rev` edce986・`features = ["themes"]` で足す → (1) `src/preview/symbols.rs` を `Stream::line_decls` に → (2) テキストを `Themed::new(path, theme_name)` に → (3) `markdown.rs` / `html.rs` の `&Theme, &SyntaxSet` 引数を `theme_name: &str` に替え、フェンスは `Themed::for_fence`、HTML の `find_token` は `knows_token`、Palette の pick は `scope_color`、既定の文字色は `foreground` → `syntect` / `two-face` の直接依存と `ito-first.allow` の 2 行を外す。
   - 使っている所: `src/preview/{html,markdown,mod,symbols,text}.rs`、`src/mime.rs`、`src/config/theme.rs`、`src/app/preview_pane.rs`。見た目が変わらないこと（yazi 互換の `syntect_theme`）を TESTING に積む。
+- [x] （v0.168.29 で閉じた: yagura はメンテナンスの対象外になったので、横の窓は 2 つ目の kura にして、行 15.10 の文言も直した。設定を分けた 2 つの kura に同じ `UCHMK_CONFIG_DIR` を渡し、片方で `<C-=>` を 1 回押した。押した側は 1.50 → 1.65（×1.1）、読み上げは `Scale 110%`、common.toml には `scale = 1.1` が足され、2 つのコメントはそのまま。横の kura は書き込みから 1 秒以内に 1.65 になった。15.10 に `[x]`（15.11 は前から `[x]`）。証拠は `C:\deviler-evidence61128-111926-row15_10-scale-share-47b3`）
+  15.10・15.11（倍率がほかのアプリに伝わる）は yagura を横に開いて確かめる（yagura は common.toml の倍率に従う）【実機】
 
 ### テストと QA の運用を軽くする（2026-10-11、持ち主の判断）
 - [x] （v0.101.0）段階 0: 止まったレーンが外から見え、自分で立ち直る。タスクの入口を `scripts/lane-boot.ps1`（main の写しを動かす）にし、

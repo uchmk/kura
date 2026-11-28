@@ -542,7 +542,7 @@ to answer a click.
 ## 15. Window scale, and the key it took back (v0.32.0)
 
 Since v0.99.0 the scale is `scale` in `%APPDATA%\uchmk\common.toml`, shared by every uchmk app
-(yagura follows it too). Have yagura open for 15.10 and 15.11.
+(each one follows it). For 15.10, open a second kura beside the first: it reads the same file.
 
 | # | Do | Expect |
 | --- | --- | --- |
@@ -556,7 +556,7 @@ Since v0.99.0 the scale is `scale` in `%APPDATA%\uchmk\common.toml`, shared by e
 | 15.7 | `~` | `scale in` / `scale out` / `scale reset` are listed, like any other command |
 | 15.8 | Hold `<C-+>` until it stops, then `<C-->` until it stops (v0.57.3) | The toast reads `Scale 500% (maximum)`, then `Scale 20% (minimum)` — the `×N` alone could not tell stopped from still moving |
 | 15.9 | `=` with a file yanked from another drive (`R:` → `C:`) (v0.59.4) | The error reads `hardlinks can't cross drives (R: → C:). Use p to copy instead`, not Windows' "cannot move the file to a different disk drive" |
-| 15.10 | `<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) | The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. yagura, open beside it, grows to 110% within about 3 seconds |
+| 15.10 | `<C-=>` once from 100%, then open `%APPDATA%\uchmk\common.toml` (v0.99.0) | The toast reads `Scale 110%`, and the file has `scale = 1.1`, with any comments in it kept. A second kura, open beside it, grows to 110% within about 3 seconds |
 | 15.11 | Write `scale = 1.5` into common.toml by hand and save (v0.99.0) | kura goes to 150% within about 3 seconds, with no key pressed |
 | 15.12 | Start kura with `$env:KURA_SCALE='130%'`, press `<C-=>`, then change `scale` in common.toml (v0.99.0) | It starts at 130% and `<C-=>` steps to 140%, but common.toml is **not** written, and the hand edit is not followed: the variable pins the scale for this run |
 | 15.13 | Start kura with `$env:KURA_PIXELS_PER_POINT` set to a value other than the monitor's own scale (1.25 on a 150% monitor, 1.5 on a 100% one), press `<C-=>`, and more than 5 seconds after the key change `scale` in common.toml. Do the same without the variable as a control | The state's `pixels_per_point` reads the variable's value before the key, common.toml's `scale` is **not** written by the key, and the hand edit is not followed: the variable pins the scale for this run. In the control the key writes `scale` and the same edit is followed |
