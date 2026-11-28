@@ -52,6 +52,11 @@ cargo check --release --target x86_64-pc-windows-msvc --all-targets
 ビルド、チェック表 3 つの `--check` を順に回し、1 つでも落ちたらその出力を出して止まる。最後の行が `ALL OK: test result: ok. …` なら push してよい。
 `main` へ push するときは `scripts/push-main.sh`（v0.78.38）がこれを回してから push するので、別に回さなくてよい（「自動実行モード」）。
 
+Windows では `cargo test` に見張りが付く（v0.168.30）。テストの exe が %TEMP% のフォルダーへの OS の呼び出しで止まったまま戻らず、
+verify が何時間も黙ったことが 3 回あった（全部のテストは 13 秒ほどで終わる）。`cargo test --no-run` が出したテストの exe のどれかが
+`VERIFY_TEST_LIMIT` 秒（既定 300）を超えて動いていれば、`scripts/hung-tests.ps1` がそれだけを止め（同じ exe でもほかの実行が起動したものは止めない）、走っていたテストの名前（スレッド名）を出して、
+テストをもう 1 回だけ回す。2 回目も止まれば `FAILED`。Linux・macOS は前のまま。
+
 ### レーンの共通のスクリプト（`scripts/lanes.sh`、v0.103.0）
 
 `merge-lanes.py`・`lane-boot.ps1`・`lane-status.ps1`・`lane-marks.ps1`・`labels.sh`・`check-ps1.ps1`・`claim.sh`・`todo-open.sh`・`push-main.sh`・

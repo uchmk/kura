@@ -9,6 +9,15 @@
 
 ## [未リリース]
 
+## [0.168.30] - 2026-11-28
+
+### 変更
+
+- `scripts/verify.sh` が、Windows では `cargo test` を見張る。テストの exe が %TEMP% のフォルダーへの OS の呼び出しで止まったまま戻らず、
+  push の前の確かめが何時間も黙ったことが 3 回あった。`cargo test --no-run` が出したテストの exe のどれかが `VERIFY_TEST_LIMIT` 秒（既定 300）を
+  超えて動いていれば、新しい `scripts/hung-tests.ps1` がそれだけを止め（同じ exe でもほかの実行が起動したものは止めない）、走っていたテストの名前を出して、テストをもう 1 回だけ回す。
+  2 回目も止まれば `FAILED`。Linux・macOS は前のまま。`docs/claude/build.md` に書いた。
+
 ## [0.168.29] - 2026-11-28
 
 ### 変更

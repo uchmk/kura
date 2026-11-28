@@ -44,6 +44,86 @@ run() {
     last=$out
 }
 
+# On Windows a test binary has blocked forever inside an OS directory call on
+# its own %TEMP% folder (NtQueryDirectoryFile under remove_dir_all, once NtClose
+# under FindClose), with flat CPU, and verify.sh then sat silent for hours. The
+# whole run takes about 13 s, so scripts/hung-tests.ps1 stops a test exe of
+# this run that has run longer than VERIFY_TEST_LIMIT seconds (default 300),
+# and the run is repeated once; stopping it and running again has always
+# passed.
+run_tests_watched() {
+    local list list_w attempt out hung rc wrc watch pid wpid hlog limit=${VERIFY_TEST_LIMIT:-300}
+    # Build the tests first and take the exact paths of their executables, so
+    # the watch can touch nothing else. (This cargo puts them under
+    # debug/build/<crate>/<hash>/out, not debug/deps.)
+    run cargo test -q --no-run --message-format=json-render-diagnostics
+    list=$(mktemp)
+    echo "$last" | python3 -c '
+import json, sys
+for line in sys.stdin:
+    try:
+        m = json.loads(line)
+    except ValueError:
+        continue
+    if isinstance(m, dict) and m.get("reason") == "compiler-artifact" and m.get("executable") and m["profile"]["test"]:
+        print(m["executable"])
+' >"$list"
+    if [ ! -s "$list" ]; then
+        echo "FAILED: cargo test --no-run listed no test executables"
+        rm -f "$list"
+        exit 1
+    fi
+    list_w=$(cygpath -w "$list")
+    for attempt in 1 2; do
+        out=$(mktemp)
+        hlog=$(mktemp)
+        hung=0
+        watch=1
+        cargo test -q >"$out" 2>&1 &
+        pid=$!
+        wpid=$(cat "/proc/$pid/winpid" 2>/dev/null)
+        if [ -z "$wpid" ]; then
+            echo "verify: no Windows process id for cargo test; it runs unwatched"
+            watch=0
+        fi
+        while kill -0 "$pid" 2>/dev/null; do
+            sleep 10
+            kill -0 "$pid" 2>/dev/null || break
+            [ $watch -eq 1 ] || continue
+            powershell.exe -NoProfile -File scripts/hung-tests.ps1 -List "$list_w" -Root "$wpid" -Limit "$limit" >>"$hlog" 2>&1
+            wrc=$?
+            if [ $wrc -eq 3 ]; then
+                hung=1
+            elif [ $wrc -ne 0 ]; then
+                # Say so now: a dead watch is the silent hang it was meant to end.
+                echo "verify: the watch for hung tests failed (exit $wrc); cargo test runs unwatched"
+                tr -d '\r' <"$hlog"
+                : >"$hlog"
+                watch=0
+            fi
+        done
+        wait "$pid"
+        rc=$?
+        if [ $hung -eq 1 ] && [ $attempt -eq 1 ] && [ $rc -ne 0 ]; then
+            echo "verify: cargo test hung; stopped it and running it once more"
+            tr -d '\r' <"$hlog"
+            rm -f "$out" "$hlog"
+            continue
+        fi
+        if [ $rc -eq 0 ]; then
+            [ $hung -eq 1 ] && { echo "verify: a test exe was stopped, yet cargo test passed"; tr -d '\r' <"$hlog"; }
+            last=$(cat "$out")
+            rm -f "$out" "$hlog" "$list"
+            return 0
+        fi
+        echo "FAILED: cargo test -q"
+        tail -30 "$out"
+        tr -d '\r' <"$hlog"
+        rm -f "$out" "$hlog" "$list"
+        exit 1
+    done
+}
+
 # Formatting first: it is the cheapest, and CI's `fmt` job fails on it.
 run cargo fmt --all --check
 
@@ -52,7 +132,10 @@ run cargo fmt --all --check
 # passed every later step here (v0.78.42 to v0.78.44 went red on main). When
 # this fails, run `cargo build`, then commit Cargo.lock with the version bump.
 run cargo build -q --locked
-run cargo test -q
+case "$host" in
+*windows*) run_tests_watched ;;
+*) run cargo test -q ;;
+esac
 tests=$(echo "$last" | grep -m1 'test result')
 run cargo +stable clippy -q --all-targets -- -D warnings
 for t in $others; do
